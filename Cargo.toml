@@ -1,0 +1,33 @@
+[package]
+name = "mtl_jobines"
+version = "0.1.0"
+edition = "2021"
+default-run = "mtl_jobines"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+flate2 = "1"
+resvg = { version = "0.45.1", default-features = false, features = ["raster-images"] }
+opencity = { path = "opencity", default-features = false, features = ["game-runtime"] }
+wgpu = "23.0.1"
+winit = "0.30"
+glam = "0.29"
+pollster = "0.4"
+bytemuck = { version = "1", features = ["derive"] }
+web-time = "1.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+console_error_panic_hook = "0.1"
+web-sys = { version = "0.3", features = ["Window", "Location", "Document", "HtmlCanvasElement", "HtmlElement", "Element"] }
+
+[dev-dependencies]
+naga = { version = "23", features = ["wgsl-in"] }
+
+# Map geometry and SVG rasterization also need optimization during development.
+# Keep debug assertions and symbols while avoiding minute-long native startup.
+[profile.dev]
+opt-level = 1

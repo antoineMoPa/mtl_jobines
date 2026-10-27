@@ -1,0 +1,16 @@
+{
+  "label": "Play from here in MTL Jobines",
+  "program": "cargo",
+  "ready_message": "Game ready: first frame presented",
+  "args": [
+    "run",
+    "--release",
+    "--manifest-path",
+    "{config_dir}/Cargo.toml",
+    "--",
+    "--map",
+    "{map}",
+    "--start",
+    "{x},{y}"
+  ]
+}

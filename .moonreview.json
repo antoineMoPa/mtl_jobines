@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "name": "Game UI",
+      "build": "cargo build --release --bin mtl_jobines",
+      "run": "cargo run --release --bin mtl_jobines"
+    },
+    {
+      "name": "OpenCity UI",
+      "build": "cargo build --release --manifest-path opencity/Cargo.toml --bin editor",
+      "run": "OPENCITY_LAUNCH_ACTION=\"$PWD/opencity-launch.json\" cargo run --release --manifest-path opencity/Cargo.toml --bin editor"
+    }
+  ],
+  "indent": {
+    "spaces": 4
+  },
+  "day_ends_at": "16:30"
+}

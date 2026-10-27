@@ -1,0 +1,7 @@
+/target/
+*.ppm
+/web/dist/
+
+# OpenCity launch snapshots may be generated beside any edited map.
+.opencity-play-*.road
+.opencity-play-*.png

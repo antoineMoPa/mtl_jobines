@@ -1,0 +1,4 @@
+[submodule "opencity"]
+	path = opencity
+	url = git@github.com:antoineMoPa/opencity.git
+	branch = main

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#18212d">
+  <title>MTL Jobines</title>
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #18212d; color: #fff; font: 14px system-ui, sans-serif; }
+    #game { display: block; width: 100% !important; height: 100% !important; outline: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; padding: 2rem; background: #18212d; text-align: center; }
+    #loading[data-state="ready"] { display: none; }
+    #loading[data-state="error"] { color: #ffb8a0; }
+  </style>
+</head>
+<body>
+  <canvas id="game" tabindex="0" aria-label="MTL Jobines driving game"></canvas>
+  <div id="loading" role="status">Loading MTL Jobines…</div>
+  <script type="module">
+    const loading = document.getElementById('loading');
+    const canvas = document.getElementById('game');
+    function fail(error) {
+      console.error(error);
+      loading.dataset.state = 'error';
+      loading.textContent = `MTL Jobines could not start: ${error.message ?? error}`;
+    }
+    window.addEventListener('error', event => fail(event.error ?? event.message));
+    window.addEventListener('unhandledrejection', event => fail(event.reason));
+    canvas.addEventListener('pointerdown', () => canvas.focus());
+    canvas.addEventListener('contextmenu', event => event.preventDefault());
+    try {
+      if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over localhost or HTTPS.');
+      const { default: init, start } = await import('./pkg/mtl_jobines.js');
+      await init();
+      start();
+    } catch (error) {
+      fail(error);
+    }
+  </script>
+</body>
+</html>
