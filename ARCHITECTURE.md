@@ -49,7 +49,7 @@ static geography; the game owns simulation and presentation.
         Hermes
       </td>
       <td>
-        Map loading/access, SVG minimap and navigation caches; future routing
+        Map loading/access, SVG minimap, directed road routing and navigation caches
       </td>
       <td>
         <code>src/hermes/</code>
@@ -101,9 +101,19 @@ damped sprung-body angles respond to longitudinal/lateral acceleration without c
 contact forces.
 
 Hermes parses and rasterizes `City::minimap_svg()` once into a 4096² full-map atlas, mapping world
-coordinates into that atlas. Engine draws a round north-up 400 m minimap with heading and 100 m
+coordinates into that atlas. Engine draws a round heading-up 400 m minimap with heading and 100 m
 scale, or a nearly full-screen map modal using the same texture. No SVG work or static mesh
-generation occurs while driving.
+generation occurs while driving. Hermes builds a directed graph from road directions, referenced
+lane-point ramp attachments and authored vehicle movements. Dijkstra searches sampled 3D path
+lengths, with virtual endpoints for partial road segments. Ramp cuts keep opposite carriageways
+separate, and geometric crossings do not connect. Source snapping uses player height to distinguish
+decks; destination clicks select the nearest projected road or movement.
+
+Navigation refreshes after 2 m of player movement, including resets and vehicle changes. Engine
+uploads a small route ribbon only when the route revision changes; the HUD projects the same atlas
+coordinates into the heading-up minimap and north-up modal, with a constant screen-space width.
+Arrival within 6 m clears the ribbon and turns the destination green; disconnected routes show a red
+marker. Right-clicking the map clears navigation. The static atlas is never reuploaded for routing.
 
 Prepared CPU meshes and the atlas use a versioned gzip game-data format with explicit little-endian
 float mappings, size/finite-value checks, checksum verification and atomic writes. Native Hermes
@@ -122,17 +132,18 @@ the same prepared data with `BUNDLE_GAME_DATA=1 make build`.
 - Editor-to-game launching is an external process boundary. OpenCity accepts an explicitly
   configured executable/argument list with map path and coordinate placeholders; the game owns
   `opencity-launch.json` and `make editor`. OpenCity does not reference game names, game CLI flags
-  or parent-repository layouts.\n- A map replacement must refresh Hermes caches and Engine scenery
+  or parent-repository layouts.
+- A map replacement must refresh Hermes caches and Engine scenery
   from the same immutable snapshot. Collection indices are not persistent IDs; replace append-only
   `VehicleId` indexing with a stale-ID policy before adding despawning.
 
 ## Planned extensions
 
-Routing, AI traffic, missions, movable props and gameplay persistence are unimplemented.
+AI traffic, missions, movable props and gameplay persistence are unimplemented.
 
-Hermes will snap destinations to suitable lanes/decks and search a directed graph derived from
-OpenCity topology, initially weighted by sampled path length. Routes should carry snapshot identity,
-lane/movement sequence, distance and display polyline; map replacement invalidates them.
+Routing currently uses road centerlines, with directional lane attachments for ramps and authored
+junction movement geometry. A future lane-level planner can retain lane/movement sequences for AI.
+Map replacement must rebuild the graph and clear the destination with the immutable City snapshot.
 
 Engine displays routes; Dynamic World's AI reuses player `Controls`. Dynamic World owns entity
 lifetimes; a future mission system owns objectives and completion.

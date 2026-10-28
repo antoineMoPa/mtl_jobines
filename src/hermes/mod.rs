@@ -1,7 +1,8 @@
 //! Static map/navigation access. OpenCity owns authored roads and geometry;
-//! Hermes adds the game's navigation presentation and, later, mission routing.
+//! Hermes owns navigation, routing and the game’s map presentation.
 mod game_data;
 mod minimap;
+mod routing;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data))]
 use game_data::CacheKey;
 use game_data::GameData;
@@ -9,6 +10,7 @@ pub use minimap::MinimapView;
 pub(crate) use minimap::TEXTURE_SIZE;
 use opencity::runtime::City;
 use opencity::runtime::{Mesh, Region};
+pub use routing::RouteStatus;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 use std::sync::Arc;
@@ -16,6 +18,8 @@ pub struct Hermes {
     city: Arc<City>,
     minimap: minimap::Minimap,
     prepared: Option<(Mesh, Mesh)>,
+    router: routing::Router,
+    navigation: routing::Navigation,
     #[cfg(not(target_arch = "wasm32"))]
     cache: Option<(CacheKey, std::path::PathBuf)>,
 }
@@ -26,8 +30,10 @@ impl Hermes {
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn load_with_game_data(path: &Path, packaged: Option<&Path>) -> Result<Self, String> {
-        let city = City::load(path)?;
         let source = std::fs::read(path).map_err(|e| e.to_string())?;
+        let program = opencity::parse(std::str::from_utf8(&source).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+        let city = City::from_program(&program, path.parent())?;
         let elevation = city
             .elevation
             .as_ref()
@@ -74,7 +80,7 @@ impl Hermes {
                 Err(error) => eprintln!("Ignoring invalid disk cache: {error}"),
             }
         }
-        let mut hermes = Self::from_city_data(city, data)?;
+        let mut hermes = Self::from_city_data(city, data, &program)?;
         hermes.cache = Some((key, cache_path));
         Ok(hermes)
     }
@@ -100,15 +106,19 @@ impl Hermes {
                 include_bytes!(env!("MTL_JOBINES_BUNDLED_GAME_DATA")).as_slice(),
                 key,
             ) {
-                Ok(data) => return Self::from_city_data(city, Some(data)),
+                Ok(data) => return Self::from_city_data(city, Some(data), &program),
                 Err(error) => {
                     eprintln!("Bundled game data unavailable ({error}); preparing fresh data")
                 }
             }
         }
-        Self::from_city_data(city, None)
+        Self::from_city_data(city, None, &program)
     }
-    fn from_city_data(city: City, data: Option<GameData>) -> Result<Self, String> {
+    fn from_city_data(
+        city: City,
+        data: Option<GameData>,
+        program: &opencity::Program,
+    ) -> Result<Self, String> {
         let (minimap, prepared) = match data {
             Some(data) => (
                 minimap::Minimap::from_pixels(&city, data.atlas),
@@ -116,7 +126,10 @@ impl Hermes {
             ),
             None => (minimap::Minimap::new(&city)?, None),
         };
+        let router = routing::Router::new(&city, program);
         Ok(Self {
+            router,
+            navigation: routing::Navigation::default(),
             city: Arc::new(city),
             minimap,
             prepared,
@@ -170,8 +183,35 @@ impl Hermes {
     pub fn update_minimap(&mut self, point: [f32; 2]) -> Option<&[u8]> {
         self.minimap.update(point)
     }
+    pub fn select_destination(&mut self, uv: [f32; 2], position: [f32; 3]) {
+        self.navigation
+            .select(&self.router, self.minimap.world_point(uv), position.into());
+    }
+    pub fn clear_destination(&mut self) {
+        self.navigation.clear();
+    }
+    pub fn update_navigation(&mut self, position: [f32; 3]) {
+        self.navigation.update(&self.router, position.into());
+    }
+    pub fn route_revision(&self) -> u64 {
+        self.navigation.revision
+    }
+    pub fn route_uvs(&self) -> Vec<[f32; 2]> {
+        self.navigation
+            .points
+            .iter()
+            .map(|&p| self.minimap.map_uv(p))
+            .collect()
+    }
     pub fn minimap_view(&self, point: [f32; 2], heading: f32) -> MinimapView {
-        self.minimap.view(point, heading)
+        let mut view = self.minimap.view(point, heading);
+        view.destination_uv = self
+            .navigation
+            .destination
+            .map(|p| self.minimap.map_uv(p))
+            .unwrap_or_default();
+        view.route_status = self.navigation.status;
+        view
     }
 }
 

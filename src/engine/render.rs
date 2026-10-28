@@ -1,4 +1,4 @@
-use super::hud::{Hud, Overlay};
+use super::hud::{Hud, MenuItem, Overlay};
 use crate::hermes::MinimapView;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
@@ -36,6 +36,7 @@ pub struct Renderer {
     pub adapter_name: String,
     hud: Hud,
     pub overlay: Overlay,
+    pub menu_selection: MenuItem,
 }
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x3,3=>Float32x4];
@@ -320,6 +321,7 @@ impl Renderer {
             adapter_name,
             hud,
             overlay: Overlay::Driving,
+            menu_selection: MenuItem::Resume,
         })
     }
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -338,6 +340,9 @@ impl Renderer {
             height,
             self.config.format.add_srgb_suffix(),
         );
+    }
+    pub fn update_route(&mut self, points: &[[f32; 2]]) {
+        self.hud.update_route(&self.device, points);
     }
     pub fn update_minimap(&mut self, pixels: &[u8]) {
         self.hud.update(&self.queue, pixels);
@@ -460,6 +465,7 @@ impl Renderer {
             self.config.height,
             navigation,
             self.overlay,
+            self.menu_selection,
         );
         self.queue.submit(Some(encoder.finish()));
     }

@@ -1,6 +1,6 @@
 use super::render::Renderer;
 use super::{
-    hud::{self, Overlay},
+    hud::{self, MenuItem, Overlay},
     scenery::Scenery,
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -13,15 +13,36 @@ use opencity::runtime::Region;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 use std::{collections::HashSet, sync::Arc};
-use web_time::Instant;
+use web_time::{Duration, Instant};
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
-    event_loop::{ActiveEventLoop, EventLoop},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
 const DT: f32 = 1. / 120.;
+const CURSOR_IDLE_DELAY: Duration = Duration::from_secs(2);
+fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkControls) {
+    let held = |key| keys.contains(&key);
+    let forward = held(KeyCode::KeyW) || held(KeyCode::ArrowUp);
+    let backward = held(KeyCode::KeyS) || held(KeyCode::ArrowDown);
+    let direction = forward as u8 as f32 - backward as u8 as f32;
+    let brake = direction * speed < -0.5;
+    let driving = Controls {
+        throttle: if brake { 0. } else { direction },
+        brake,
+        steering: (held(KeyCode::KeyA) || held(KeyCode::ArrowLeft)) as u8 as f32
+            - (held(KeyCode::KeyD) || held(KeyCode::ArrowRight)) as u8 as f32,
+        handbrake: held(KeyCode::Space),
+    };
+    let walking = WalkControls {
+        forward: direction,
+        turn: driving.steering,
+        run: held(KeyCode::ShiftLeft) || held(KeyCode::ShiftRight),
+    };
+    (driving, walking)
+}
 enum GameEvent {
     #[cfg(target_arch = "wasm32")]
     RendererReady(Box<Result<Renderer, String>>),
@@ -44,11 +65,44 @@ struct Game {
     orbit: f32,
     dragging: bool,
     cursor: Option<[f32; 2]>,
+    cursor_hide_at: Option<Instant>,
+    cursor_hidden: bool,
     overlay: Overlay,
+    menu_selection: MenuItem,
     hood: bool,
     first_frame: bool,
+    route_revision: u64,
 }
 impl Game {
+    fn show_cursor(&mut self) {
+        self.cursor_hide_at = None;
+        if self.cursor_hidden {
+            self.cursor_hidden = false;
+            if let Some(window) = &self.window {
+                window.set_cursor_visible(true);
+            }
+        }
+    }
+
+    fn cursor_activity(&mut self, now: Instant) {
+        self.show_cursor();
+        self.cursor_hide_at = Some(now + CURSOR_IDLE_DELAY);
+    }
+
+    fn cursor_wait(&mut self, now: Instant) -> ControlFlow {
+        if let Some(deadline) = self.cursor_hide_at {
+            if now < deadline {
+                return ControlFlow::WaitUntil(deadline);
+            }
+            self.cursor_hide_at = None;
+            self.cursor_hidden = true;
+            if let Some(window) = &self.window {
+                window.set_cursor_visible(false);
+            }
+        }
+        ControlFlow::Wait
+    }
+
     fn exit_game(&mut self, event_loop: &ActiveEventLoop) {
         #[cfg(not(target_arch = "wasm32"))]
         event_loop.exit();
@@ -61,13 +115,38 @@ impl Game {
         }
     }
     fn set_overlay(&mut self, overlay: Overlay) {
+        if self.cursor.is_some() {
+            self.cursor_activity(Instant::now());
+        }
         self.overlay = overlay;
+        self.menu_selection = MenuItem::Resume;
         self.keys.clear();
         self.dragging = false;
         self.accumulator = 0.;
         self.last = Instant::now();
         if let Some(window) = &self.window {
             window.request_redraw();
+        }
+    }
+
+    fn menu_key(&mut self, key: KeyCode, state: ElementState, repeat: bool) -> Option<MenuItem> {
+        if !matches!(self.overlay, Overlay::Start | Overlay::Menu)
+            || state != ElementState::Pressed
+            || repeat
+        {
+            return None;
+        }
+        match key {
+            KeyCode::ArrowUp | KeyCode::ArrowDown => {
+                self.menu_selection = self.menu_selection.other();
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                None
+            }
+            KeyCode::Enter => Some(self.menu_selection),
+            KeyCode::KeyQ => Some(MenuItem::Exit),
+            _ => None,
         }
     }
 
@@ -109,13 +188,17 @@ impl Game {
             orbit: 0.,
             dragging: false,
             cursor: None,
+            cursor_hide_at: None,
+            cursor_hidden: false,
             overlay: if start.is_some() {
                 Overlay::Driving
             } else {
                 Overlay::Start
             },
+            menu_selection: MenuItem::Resume,
             hood: false,
             first_frame: true,
+            route_revision: 0,
         })
     }
     fn simulate(&mut self, elapsed: f32) {
@@ -125,29 +208,9 @@ impl Game {
             self.accumulator += elapsed;
             self.game_time += elapsed;
         }
-        let held = |k| self.keys.contains(&k);
-        let forward = held(KeyCode::KeyW) || held(KeyCode::ArrowUp);
-        let backward = held(KeyCode::KeyS) || held(KeyCode::ArrowDown);
         let f = glam::Vec2::new(self.world.player().yaw.cos(), self.world.player().yaw.sin());
         let speed = self.world.player().velocity.truncate().dot(f);
-        let input = Controls {
-            throttle: if forward {
-                1.
-            } else if backward && speed < 0.5 {
-                -1.
-            } else {
-                0.
-            },
-            brake: backward && speed >= 0.5 || held(KeyCode::Space),
-            steering: (held(KeyCode::KeyA) || held(KeyCode::ArrowLeft)) as u8 as f32
-                - (held(KeyCode::KeyD) || held(KeyCode::ArrowRight)) as u8 as f32,
-            handbrake: held(KeyCode::ShiftLeft) || held(KeyCode::ShiftRight),
-        };
-        let walk = WalkControls {
-            forward: forward as u8 as f32 - backward as u8 as f32,
-            turn: input.steering,
-            run: input.handbrake,
-        };
+        let (input, walk) = movement_controls(&self.keys, speed);
         while self.accumulator >= DT {
             self.world.step(&self.hermes, input, walk, DT);
             self.accumulator -= DT;
@@ -164,7 +227,12 @@ impl Game {
 
         let p = self.world.player_position() / METERS_PER_UNIT;
         let center = [p.x, p.y];
+        self.hermes.update_navigation(p.to_array());
         let renderer = self.renderer.as_mut().unwrap();
+        if self.route_revision != self.hermes.route_revision() {
+            renderer.update_route(&self.hermes.route_uvs());
+            self.route_revision = self.hermes.route_revision();
+        }
         let heading = self.world.player_yaw() + self.orbit;
         let forward = Vec3::new(heading.cos(), heading.sin(), 0.);
         let look = p + Vec3::new(0., 0., 0.014) + forward * 0.045;
@@ -189,6 +257,7 @@ impl Game {
         }
         let navigation = self.hermes.minimap_view(center, self.world.player_yaw());
         renderer.overlay = self.overlay;
+        renderer.menu_selection = self.menu_selection;
         let mut meshes = self.scenery.as_ref().unwrap().visible(center);
         meshes.push(&car);
         match renderer.surface.as_ref().unwrap().get_current_texture() {
@@ -216,6 +285,10 @@ impl Game {
     }
 }
 impl ApplicationHandler<GameEvent> for Game {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        event_loop.set_control_flow(self.cursor_wait(Instant::now()));
+    }
+
     #[cfg(target_arch = "wasm32")]
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: GameEvent) {
         match event {
@@ -277,6 +350,13 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        if matches!(
+            event,
+            WindowEvent::MouseInput { .. } | WindowEvent::MouseWheel { .. }
+        ) && self.cursor.is_some()
+        {
+            self.cursor_activity(Instant::now());
+        }
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
@@ -289,6 +369,18 @@ impl ApplicationHandler<GameEvent> for Game {
                 if self.overlay != Overlay::Start {
                     self.set_overlay(Overlay::Menu);
                 }
+                self.show_cursor();
+            }
+            WindowEvent::Focused(true) => {
+                if self.cursor.is_some() {
+                    self.cursor_activity(Instant::now());
+                }
+            }
+            WindowEvent::CursorEntered { .. } => self.cursor_activity(Instant::now()),
+            WindowEvent::CursorLeft { .. } => {
+                self.show_cursor();
+                self.cursor = None;
+                self.dragging = false;
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(key) = event.physical_key {
@@ -299,20 +391,10 @@ impl ApplicationHandler<GameEvent> for Game {
                         return;
                     }
                     if self.overlay.paused() {
-                        if matches!(self.overlay, Overlay::Start | Overlay::Menu)
-                            && key == KeyCode::KeyQ
-                            && event.state == ElementState::Pressed
-                            && !event.repeat
-                        {
-                            self.exit_game(event_loop);
-                            return;
-                        }
-                        if matches!(self.overlay, Overlay::Start | Overlay::Menu)
-                            && key == KeyCode::Enter
-                            && event.state == ElementState::Pressed
-                            && !event.repeat
-                        {
-                            self.set_overlay(Overlay::Driving);
+                        match self.menu_key(key, event.state, event.repeat) {
+                            Some(MenuItem::Exit) => self.exit_game(event_loop),
+                            Some(MenuItem::Resume) => self.set_overlay(Overlay::Driving),
+                            None => {}
                         }
                         return;
                     }
@@ -350,7 +432,16 @@ impl ApplicationHandler<GameEvent> for Game {
                 state,
                 button: MouseButton::Right,
                 ..
-            } => self.dragging = state == ElementState::Pressed && !self.overlay.paused(),
+            } => {
+                if self.overlay == Overlay::Map && state == ElementState::Pressed {
+                    self.hermes.clear_destination();
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                } else {
+                    self.dragging = state == ElementState::Pressed && !self.overlay.paused();
+                }
+            }
             WindowEvent::MouseInput {
                 state: ElementState::Pressed,
                 button: MouseButton::Left,
@@ -379,17 +470,45 @@ impl ApplicationHandler<GameEvent> for Game {
                         {
                             self.set_overlay(Overlay::Driving)
                         }
+                        Overlay::Map => {
+                            if let Some(uv) = hud::map_uv(w, h, point) {
+                                let p = self.world.player_position() / METERS_PER_UNIT;
+                                self.hermes.select_destination(uv, p.to_array());
+                                window.request_redraw();
+                            }
+                        }
                         _ => {}
                     }
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
+                self.cursor_activity(Instant::now());
                 if self.dragging {
                     if let Some(x) = self.cursor {
                         self.orbit -= (position.x as f32 - x[0]) * 0.008;
                     }
                 }
                 self.cursor = Some([position.x as f32, position.y as f32]);
+                if matches!(self.overlay, Overlay::Start | Overlay::Menu) {
+                    if let Some(window) = &self.window {
+                        let size = window.inner_size();
+                        let (w, h) = (size.width as f32, size.height as f32);
+                        let point = self.cursor.unwrap();
+                        let selection = if hud::contains(hud::resume_rect(w, h), point) {
+                            Some(MenuItem::Resume)
+                        } else if hud::contains(hud::exit_rect(w, h), point) {
+                            Some(MenuItem::Exit)
+                        } else {
+                            None
+                        };
+                        if let Some(selection) = selection {
+                            if selection != self.menu_selection {
+                                self.menu_selection = selection;
+                                window.request_redraw();
+                            }
+                        }
+                    }
+                }
             }
             WindowEvent::RedrawRequested => self.frame(event_loop),
             _ => {}
@@ -443,6 +562,12 @@ fn smoke(
     if let Some(pixels) = hermes.update_minimap([p.x, p.y]) {
         renderer.update_minimap(pixels);
     }
+    // Exercise the route pipeline in the actual driving and expanded-map GPU snapshots.
+    let target_uv = hermes
+        .minimap_view([p.x + 4.2, p.y - 4.2], car.yaw)
+        .player_uv;
+    hermes.select_destination(target_uv, p.to_array());
+    renderer.update_route(&hermes.route_uvs());
     let navigation = hermes.minimap_view([p.x, p.y], car.yaw);
     let texture = renderer.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("smoke frame"),
@@ -697,6 +822,145 @@ pub fn start_web() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn direction_keys_brake_opposing_motion_then_accelerate_either_way() {
+        for (key, direction) in [
+            (KeyCode::ArrowUp, 1.),
+            (KeyCode::KeyW, 1.),
+            (KeyCode::ArrowDown, -1.),
+            (KeyCode::KeyS, -1.),
+        ] {
+            let keys = HashSet::from([key]);
+            let (opposing, _) = movement_controls(&keys, -10. * direction);
+            assert!(opposing.brake);
+            assert_eq!(opposing.throttle, 0.);
+            for speed in [-0.1, 0., 0.1, 10. * direction] {
+                let (driving, _) = movement_controls(&keys, speed);
+                assert!(!driving.brake);
+                assert_eq!(driving.throttle, direction);
+            }
+        }
+        let (driving, _) =
+            movement_controls(&HashSet::from([KeyCode::ArrowUp, KeyCode::ArrowDown]), 10.);
+        assert_eq!(driving.throttle, 0.);
+        assert!(!driving.brake);
+    }
+
+    #[test]
+    fn space_handbrake_and_shift_sprint_are_independent() {
+        let (driving, walking) = movement_controls(&HashSet::from([KeyCode::Space]), 10.);
+        assert!(driving.handbrake);
+        assert!(!driving.brake);
+        assert!(!walking.run);
+        for key in [KeyCode::ShiftLeft, KeyCode::ShiftRight] {
+            let (driving, walking) = movement_controls(&HashSet::from([key]), 10.);
+            assert!(!driving.handbrake);
+            assert!(!driving.brake);
+            assert!(walking.run);
+        }
+    }
+
+    #[test]
+    fn cursor_idle_deadline_resets_and_wakes_even_while_paused() {
+        let mut game = Game::new(Hermes::embedded().unwrap());
+        let now = Instant::now();
+        assert_eq!(game.cursor_wait(now), ControlFlow::Wait);
+        assert!(!game.cursor_hidden);
+
+        for overlay in [
+            Overlay::Start,
+            Overlay::Driving,
+            Overlay::Menu,
+            Overlay::Map,
+        ] {
+            game.set_overlay(overlay);
+            game.cursor_activity(now);
+            let moved = now + Duration::from_secs(1);
+            game.cursor_activity(moved);
+            let deadline = moved + CURSOR_IDLE_DELAY;
+            assert_eq!(
+                game.cursor_wait(now + CURSOR_IDLE_DELAY),
+                ControlFlow::WaitUntil(deadline)
+            );
+            assert!(!game.cursor_hidden);
+            assert_eq!(game.cursor_wait(deadline), ControlFlow::Wait);
+            assert!(game.cursor_hidden);
+            assert_eq!(game.cursor_hide_at, None);
+
+            game.cursor_activity(deadline);
+            assert!(!game.cursor_hidden);
+            assert_eq!(
+                game.cursor_wait(deadline),
+                ControlFlow::WaitUntil(deadline + CURSOR_IDLE_DELAY)
+            );
+            // Leaving the window or losing focus cancels hiding.
+            game.show_cursor();
+            assert_eq!(
+                game.cursor_wait(deadline + CURSOR_IDLE_DELAY),
+                ControlFlow::Wait
+            );
+            assert!(!game.cursor_hidden);
+        }
+    }
+
+    #[test]
+    fn menu_arrows_select_and_enter_activates_without_leaking_controls() {
+        let mut game = Game::new(Hermes::embedded().unwrap());
+        for overlay in [Overlay::Start, Overlay::Menu] {
+            game.set_overlay(overlay);
+            assert_eq!(game.menu_selection, MenuItem::Resume);
+            assert_eq!(
+                game.menu_key(KeyCode::Enter, ElementState::Pressed, false),
+                Some(MenuItem::Resume)
+            );
+            for key in [
+                KeyCode::ArrowDown,
+                KeyCode::ArrowDown,
+                KeyCode::ArrowUp,
+                KeyCode::ArrowUp,
+            ] {
+                let expected = game.menu_selection.other();
+                assert_eq!(game.menu_key(key, ElementState::Pressed, false), None);
+                assert_eq!(game.menu_selection, expected);
+                assert_eq!(
+                    game.menu_key(KeyCode::Enter, ElementState::Pressed, false),
+                    Some(expected)
+                );
+                game.menu_key(key, ElementState::Pressed, true);
+                game.menu_key(key, ElementState::Released, false);
+                assert_eq!(game.menu_selection, expected);
+            }
+            assert_eq!(
+                game.menu_key(KeyCode::Enter, ElementState::Pressed, true),
+                None
+            );
+            assert_eq!(
+                game.menu_key(KeyCode::Enter, ElementState::Released, false),
+                None
+            );
+            assert_eq!(
+                game.menu_key(KeyCode::KeyQ, ElementState::Pressed, false),
+                Some(MenuItem::Exit)
+            );
+            assert!(game.keys.is_empty());
+            game.menu_key(KeyCode::ArrowDown, ElementState::Pressed, false);
+            game.set_overlay(Overlay::Driving);
+            assert_eq!(game.menu_selection, MenuItem::Resume);
+        }
+        for overlay in [Overlay::Driving, Overlay::Map] {
+            game.set_overlay(overlay);
+            for key in [
+                KeyCode::ArrowDown,
+                KeyCode::ArrowUp,
+                KeyCode::Enter,
+                KeyCode::KeyQ,
+            ] {
+                assert_eq!(game.menu_key(key, ElementState::Pressed, false), None);
+                assert_eq!(game.menu_selection, MenuItem::Resume);
+            }
+        }
+    }
+
     #[test]
     fn explicit_launch_position_starts_playing_immediately() {
         let hermes = Hermes::embedded().unwrap();

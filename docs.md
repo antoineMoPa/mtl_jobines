@@ -58,18 +58,27 @@ preparation. A mismatched bundle falls back to fresh data. Android-only packages
 Cargo.lock through winit/wgpu; Cargo resolves all platforms in that file. They are absent from the
 macOS and WebAssembly build graphs.
 
-The initial menu shows Start and keeps simulation paused until clicked, Enter or Escape. Later
-pauses show Resume. Both menus include Exit (or Q while the menu is open): native builds close the
-game; browser builds reset to the Start screen because browsers cannot close an ordinary tab. WASD /
-arrows drive and steer; S brakes while moving forward and then reverses. Space brakes, Shift holds
-the handbrake, R resets to the initial start, Tab switches chase/hood cameras, wheel zooms,
+The initial menu shows Start and keeps simulation paused until Start is activated or Escape is
+pressed. Later pauses show Resume. Up/Down arrows cycle the highlighted menu option; Enter
+activates it. Both menus include Exit (or Q while the menu is open): native builds close the game;
+browser builds reset to the Start screen because browsers cannot close an ordinary tab. WASD /
+arrows drive and steer. W/Up accelerates forward; S/Down accelerates backward. The opposite direction
+brakes until nearly stopped, then accelerates that way. Space holds the handbrake. R resets to the
+initial start, Tab switches chase/hood cameras, wheel zooms,
 right-drag orbits, Escape pauses. F exits below 3 m/s onto a clear nearby surface, or enters a car
 within 4 m. On foot the player is a cube: W/S or Up/Down walk forward/backward at 5.5 m/s; A/D or
 Left/Right turn the player and follow camera at 150°/s, including while stationary. Shift runs at 10
 m/s. Right-drag orbits the view independently. The camera and minimap follow the player; unoccupied
-cars brake. Click Resume, press Enter, or press Escape again to continue. Click the circular minimap
-to open the nearly full-screen map modal; Escape, its close button, or clicking the backdrop closes
-it. Both overlays pause driving and clear held controls. `--map /path/to/map.road` loads another
+cars brake. Click Resume, select it with arrows and Enter, or press Escape again to continue.
+Click the circular minimap to open the nearly full-screen map modal; Escape, its close button, or
+clicking the backdrop closes it. Click inside the map to snap a destination to the road network.
+Hermes finds the shortest permitted road route and draws it in blue on both maps, refreshing after
+2 m of player movement, including on foot, after reset and when changing vehicles. A red destination
+means no connected route; green means arrival within 6 m. Right-click the expanded map to clear it.
+Road directions, authored junction movements and lane-point ramp attachments constrain routing;
+plain XY crossings and bridges do not create connections. Separately named endpoints remain
+disconnected even at the same coordinates. Both overlays pause driving and clear held controls.
+`--map /path/to/map.road` loads another
 authored map; elevation images resolve relative to that file.
 
 Run `make editor` from this repository to open OpenCity with the game launch action configured. In
@@ -110,8 +119,9 @@ body outward, with a brief rebound as it settles. This body motion is layered ov
 alignment while wheels retain their support orientation. It does not redistribute tire loads, and
 tire spin is visual rather than a drivetrain simulation. Street furniture is visual detail; building
 collision uses three footprint circles around the chassis. Building rebounds reflect horizontal
-travel across the contact surface and reduce speed according to impact strength, so grazing scrapes
-lose less speed than head-on hits. Oblique contact torque feeds the same persistent yaw velocity as
+travel across the contact surface and reduce speed according to impact strength. Head-on wall hits
+retain 30% of incoming speed; grazing scrapes lose less speed. Oblique contact torque feeds the same
+persistent yaw velocity as
 tire forces, and grounded tire grip damps the resulting spin.
 
 Procedural meshes share OpenCity's road cross-sections, tapering and native curved junction bands.
@@ -172,3 +182,8 @@ Initial review order: commit/publish the runtime changes in the source OpenCity 
 this submodule to that commit, then commit this game repository. Until review, the same runtime
 changes are present as local modifications inside this submodule so this checkout builds
 immediately. No source commits were made by the agent.
+
+Elevated roads use paved shoulders and concrete safety walls supplied by OpenCity. Interstate
+profiles declare `role highway;`, providing walls at ground level too, including median barriers.
+Vehicles use the existing swept chassis contact response against walls; pedestrians are blocked
+by them as well. Collision queries respect wall height so roads beneath bridges stay clear.

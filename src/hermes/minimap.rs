@@ -8,6 +8,8 @@ pub struct MinimapView {
     pub uv_span: f32,
     pub heading: f32,
     pub player_uv: [f32; 2],
+    pub destination_uv: [f32; 2],
+    pub route_status: super::RouteStatus,
 }
 pub struct Minimap {
     #[cfg(test)]
@@ -52,10 +54,16 @@ impl Minimap {
             dirty: true,
         }
     }
-    fn map_uv(&self, point: [f32; 2]) -> [f32; 2] {
+    pub fn map_uv(&self, point: [f32; 2]) -> [f32; 2] {
         [
             0.5 + (point[0] - (self.bounds[0] + self.bounds[2]) * 0.5) / self.span,
             0.5 - (point[1] - (self.bounds[1] + self.bounds[3]) * 0.5) / self.span,
+        ]
+    }
+    pub fn world_point(&self, uv: [f32; 2]) -> [f32; 2] {
+        [
+            (self.bounds[0] + self.bounds[2]) * 0.5 + (uv[0] - 0.5) * self.span,
+            (self.bounds[1] + self.bounds[3]) * 0.5 - (uv[1] - 0.5) * self.span,
         ]
     }
     pub fn pixels(&mut self) -> &[u8] {
@@ -92,12 +100,23 @@ impl Minimap {
             uv_span: VISIBLE_SPAN / self.span,
             heading,
             player_uv: self.map_uv(point),
+            destination_uv: [0.; 2],
+            route_status: super::RouteStatus::Inactive,
         }
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn atlas_world_mapping_round_trips_including_padded_rectangular_bounds() {
+        let map = Minimap::new(&map()).unwrap();
+        for point in [[0., 0.], [-2., 0.], [2., 0.], [1., -0.5]] {
+            let actual = map.world_point(map.map_uv(point));
+            assert!((actual[0] - point[0]).abs() < 1e-5);
+            assert!((actual[1] - point[1]).abs() < 1e-5);
+        }
+    }
     fn map() -> City {
         City::from_program(
             &opencity::parse("road street: carlane; end street(-2,0,2,0);").unwrap(),
@@ -162,7 +181,9 @@ mod tests {
             let city = City::from_program(&opencity::parse(&source).unwrap(), None).unwrap();
             assert_eq!(city.junctions.len(), 1);
             assert!(
-                city.components.iter().any(|component| component.id == "profile:center"),
+                city.components
+                    .iter()
+                    .any(|component| component.id == "profile:center"),
                 "T junctions use shared curved profile geometry"
             );
             let mut map = Minimap::new(&city).unwrap();

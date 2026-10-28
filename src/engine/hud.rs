@@ -19,12 +19,39 @@ impl Overlay {
         self != Self::Driving
     }
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MenuItem {
+    #[default]
+    Resume,
+    Exit,
+}
+impl MenuItem {
+    pub fn other(self) -> Self {
+        match self {
+            Self::Resume => Self::Exit,
+            Self::Exit => Self::Resume,
+        }
+    }
+}
 pub fn minimap_rect(width: f32, height: f32) -> [f32; 4] {
     let side = (height.min(width) * 0.29)
         .clamp(60., 340.)
         .min(width.min(height) - 16.)
         .max(1.);
     [16., height - side - 16., side, side]
+}
+/// Matches the north-up square atlas projection in hud.wgsl.
+pub fn map_uv(width: f32, height: f32, point: [f32; 2]) -> Option<[f32; 2]> {
+    let size = [width - 80., height - 120.];
+    let span = size[0].min(size[1]);
+    if span <= 0. || !contains([40., 80., size[0], size[1]], point) {
+        return None;
+    }
+    let uv = [
+        0.5 + (point[0] - 40. - size[0] * 0.5) / span,
+        0.5 + (point[1] - 80. - size[1] * 0.5) / span,
+    ];
+    uv.iter().all(|v| (0. ..=1.).contains(v)).then_some(uv)
 }
 pub fn resume_rect(width: f32, height: f32) -> [f32; 4] {
     [width * 0.5 - 110., height * 0.5, 220., 56.]
@@ -51,6 +78,7 @@ struct Uniform {
     screen: [f32; 4],
     map: [f32; 4],
     mode: [f32; 4],
+    destination: [f32; 4],
 }
 pub struct Hud {
     texture: wgpu::Texture,
@@ -58,6 +86,9 @@ pub struct Hud {
     group: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
     ready: bool,
+    route_pipeline: wgpu::RenderPipeline,
+    route_buffer: wgpu::Buffer,
+    route_count: u32,
 }
 impl Hud {
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
@@ -83,7 +114,7 @@ impl Hud {
         });
         let uniform = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("minimap view"),
-            size: 64,
+            size: 80,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -170,12 +201,78 @@ impl Hud {
             multiview: None,
             cache: None,
         });
+        let route_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Hermes route"),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_route"),
+                compilation_options: Default::default(),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: 20,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0=>Float32x2,1=>Float32x2,2=>Float32],
+                }],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_route"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: Default::default(),
+            depth_stencil: None,
+            multisample: Default::default(),
+            multiview: None,
+            cache: None,
+        });
+        let route_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("empty route"),
+            size: 20,
+            usage: wgpu::BufferUsages::VERTEX,
+            mapped_at_creation: false,
+        });
         Self {
             texture,
             uniform,
             group,
             pipeline,
             ready: false,
+            route_pipeline,
+            route_buffer,
+            route_count: 0,
+        }
+    }
+    pub fn update_route(&mut self, device: &wgpu::Device, points: &[[f32; 2]]) {
+        use wgpu::util::DeviceExt;
+        let mut vertices: Vec<[f32; 5]> = Vec::new();
+        for pair in points.windows(2) {
+            if pair[0] == pair[1] {
+                continue;
+            }
+            let [a, b] = [pair[0], pair[1]];
+            for (p, q, side) in [
+                (a, b, 1.),
+                (a, b, -1.),
+                (b, a, -1.),
+                (b, a, -1.),
+                (a, b, -1.),
+                (b, a, 1.),
+            ] {
+                vertices.push([p[0], p[1], q[0], q[1], side]);
+            }
+        }
+        self.route_count = vertices.len() as u32;
+        if !vertices.is_empty() {
+            self.route_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Hermes route ribbon"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
         }
     }
     pub fn update(&mut self, queue: &wgpu::Queue, pixels: &[u8]) {
@@ -213,6 +310,7 @@ impl Hud {
         height: u32,
         view: MinimapView,
         overlay: Overlay,
+        menu_selection: MenuItem,
     ) {
         if !self.ready {
             return;
@@ -227,6 +325,17 @@ impl Hud {
                 view.player_uv[0],
                 view.player_uv[1],
             ],
+            destination: [
+                view.destination_uv[0],
+                view.destination_uv[1],
+                match view.route_status {
+                    crate::hermes::RouteStatus::Inactive => 0.,
+                    crate::hermes::RouteStatus::Active => 1.,
+                    crate::hermes::RouteStatus::Unreachable => 2.,
+                    crate::hermes::RouteStatus::Arrived => 3.,
+                },
+                0.,
+            ],
             mode: [
                 match overlay {
                     Overlay::Driving => 0.,
@@ -234,7 +343,10 @@ impl Hud {
                     Overlay::Map => 2.,
                 },
                 if overlay == Overlay::Start { 1. } else { 0. },
-                0.,
+                match menu_selection {
+                    MenuItem::Resume => 0.,
+                    MenuItem::Exit => 1.,
+                },
                 0.,
             ],
         };
@@ -256,6 +368,11 @@ impl Hud {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.group, &[]);
         pass.draw(0..6, 0..1);
+        if matches!(overlay, Overlay::Driving | Overlay::Map) && self.route_count > 0 {
+            pass.set_pipeline(&self.route_pipeline);
+            pass.set_vertex_buffer(0, self.route_buffer.slice(..));
+            pass.draw(0..self.route_count, 0..1);
+        }
     }
 }
 #[cfg(test)]
@@ -279,6 +396,22 @@ mod tests {
         assert_eq!(super::Overlay::Driving.escape(), super::Overlay::Menu);
         assert_eq!(super::Overlay::Menu.escape(), super::Overlay::Driving);
         assert_eq!(super::Overlay::Map.escape(), super::Overlay::Driving);
+    }
+    #[test]
+    fn map_clicks_match_shader_projection_and_exclude_header_and_padding() {
+        for (w, h) in [(1280., 800.), (800., 1280.), (320., 240.)] {
+            let center = [w * 0.5, h * 0.5 + 20.];
+            assert_eq!(super::map_uv(w, h, center), Some([0.5, 0.5]));
+            let span = (w - 80.0_f32).min(h - 120.0);
+            assert_eq!(
+                super::map_uv(w, h, [center[0] + span * 0.25, center[1] - span * 0.25]),
+                Some([0.75, 0.25])
+            );
+            assert!(super::map_uv(w, h, [44., 44.]).is_none());
+            assert!(super::map_uv(w, h, [w - 20., h - 20.]).is_none());
+        }
+        assert!(super::map_uv(1280., 800., [41., 400.]).is_none());
+        assert!(super::map_uv(30., 30., [15., 15.]).is_none());
     }
     #[test]
     fn minimap_shader_validates() {

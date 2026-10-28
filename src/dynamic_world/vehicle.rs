@@ -14,7 +14,7 @@ const LATERAL_GRIP_SCALE: f32 = 1.65;
 const STEERING_SPEED_TAPER: f32 = 0.012;
 // Arcade service brakes shorten stops without changing powered tire grip.
 const SERVICE_BRAKE_GRIP_SCALE: f32 = 1.8;
-const BUILDING_REBOUND: f32 = 0.45;
+const BUILDING_REBOUND: f32 = 0.30;
 // Rectangle inertia divided by mass, for the 4.2 x 1.8 metre chassis.
 const CHASSIS_YAW_INERTIA: f32 = (4.2 * 4.2 + 1.8 * 1.8) / 12.;
 // All tire impulses are divided by chassis mass; inertia uses the same units.
@@ -336,7 +336,7 @@ impl Vehicle {
                     let incoming = self.velocity.truncate();
                     // Preserve the reflected ray's angle, while losing only
                     // energy associated with the normal impact. Grazing scrapes
-                    // retain almost all speed; head-on hits retain 45%.
+                    // retain almost all speed; head-on hits retain 30%.
                     let normal_energy_fraction = (inward_speed * inward_speed
                         / incoming.length_squared().max(f32::MIN_POSITIVE))
                     .clamp(0., 1.);
@@ -368,6 +368,20 @@ impl Vehicle {
 
     fn building_contact(&self, city: &City, forward: Vec2) -> Option<(Vec2, f32, Vec2)> {
         let mut deepest = None;
+        for offset in [-1.2, 0., 1.2] {
+            let center = self.position.truncate() + forward * offset;
+            if let Some((normal, depth)) = city.road_barrier_contact(
+                (center / METERS_PER_UNIT).to_array(),
+                0.92 / METERS_PER_UNIT,
+                (self.position.z - 0.35) / METERS_PER_UNIT,
+                (self.position.z + 0.45) / METERS_PER_UNIT,
+            ) {
+                let depth = depth * METERS_PER_UNIT;
+                if deepest.is_none_or(|(_, previous, _)| depth > previous) {
+                    deepest = Some((Vec2::from_array(normal), depth, forward * offset));
+                }
+            }
+        }
         for building in &city.landscape {
             if building.kind != opencity::LandscapeKind::Building
                 || building.elevation * METERS_PER_UNIT >= self.position.z + 0.45
@@ -517,6 +531,39 @@ mod tests {
     fn planar_energy(vehicle: &Vehicle) -> f32 {
         vehicle.velocity.truncate().length_squared()
             + CHASSIS_YAW_INERTIA * vehicle.yaw_rate.powi(2)
+    }
+
+    #[test]
+    fn road_barriers_stop_fast_cars_but_leave_underpasses_clear() {
+        for height in [0., 0.08] {
+            let city = City::from_program(&opencity::parse(&format!(
+                "road r: verge carlane verge; role highway; end s=r(-2,0,2,0); elevation(s,{height});"
+            )).unwrap(), None).unwrap();
+            let edge = city
+                .road_barriers
+                .iter()
+                .map(|w| w.start.point.y)
+                .fold(0_f32, f32::max)
+                * METERS_PER_UNIT;
+            for sign in [-1., 1.] {
+                let mut car = Vehicle::spawn(&city);
+                car.position = Vec3::new(0., 0., height * METERS_PER_UNIT + RIDE_HEIGHT);
+                car.yaw = 0.;
+                car.velocity = Vec3::new(0., sign * 80., 0.);
+                car.move_with_building_contacts(&city, 0.2);
+                assert!(car.collisions > 0);
+                assert!(car.position.y.abs() < edge);
+                assert!(car.velocity.y * sign < 0.);
+            }
+            if height > 0. {
+                let mut car = Vehicle::spawn(&city);
+                car.position = Vec3::new(0., 0., RIDE_HEIGHT);
+                car.velocity = Vec3::new(0., 80., 0.);
+                car.move_with_building_contacts(&city, 0.2);
+                assert_eq!(car.collisions, 0);
+                assert!(car.position.y > edge);
+            }
+        }
     }
 
     #[test]
@@ -1471,7 +1518,11 @@ mod tests {
                 }
                 assert!(vehicle.position.x < rebound_x - 2.);
                 assert_eq!(vehicle.collisions, 1);
-                assert!(vehicle.yaw_rate.abs() < 0.001);
+                assert!(
+                    vehicle.yaw_rate.abs() < 0.1_f32.to_radians(),
+                    "yaw {} after impact, reverse={reverse}, angle={angle}",
+                    vehicle.yaw_rate
+                );
             }
         }
     }

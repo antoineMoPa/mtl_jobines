@@ -45,12 +45,19 @@ impl Pedestrian {
         None
     }
     fn blocked(city: &City, position: Vec3) -> bool {
-        city.building_collision(
+        city.road_barrier_contact(
             (position.truncate() / METERS_PER_UNIT).to_array(),
             RADIUS / METERS_PER_UNIT,
             (position.z - HALF_HEIGHT + 0.05) / METERS_PER_UNIT,
             (position.z + HALF_HEIGHT) / METERS_PER_UNIT,
         )
+        .is_some()
+            || city.building_collision(
+                (position.truncate() / METERS_PER_UNIT).to_array(),
+                RADIUS / METERS_PER_UNIT,
+                (position.z - HALF_HEIGHT + 0.05) / METERS_PER_UNIT,
+                (position.z + HALF_HEIGHT) / METERS_PER_UNIT,
+            )
     }
     pub fn step(&mut self, city: &City, vehicle: &Vehicle, input: WalkControls, dt: f32) {
         let turn = input.turn * TURN_SPEED * dt;
