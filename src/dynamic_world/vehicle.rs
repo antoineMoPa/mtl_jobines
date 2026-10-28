@@ -8,10 +8,11 @@ const RIDE_HEIGHT: f32 = 0.65;
 const WHEELBASE: f32 = 2.6;
 const HALF_TRACK: f32 = 0.94;
 const WHEEL_STEP_HEIGHT: f32 = 0.4;
-// Arcade tires allow tighter city corners while preserving the surface's grip
+// Arcade tires recover from slides quickly while preserving each surface's grip
 // ratio and the shared acceleration/braking budget (an elliptical tire envelope).
-const LATERAL_GRIP_SCALE: f32 = 1.65;
-const STEERING_SPEED_TAPER: f32 = 0.012;
+const LATERAL_GRIP_SCALE: f32 = 1.85;
+// Retain the parking-speed steering angle while tempering inputs at road speeds.
+const STEERING_SPEED_TAPER: f32 = 0.025;
 // Arcade service brakes shorten stops without changing powered tire grip.
 const SERVICE_BRAKE_GRIP_SCALE: f32 = 1.8;
 const BUILDING_REBOUND: f32 = 0.30;
@@ -703,6 +704,75 @@ mod tests {
                 }
                 assert!(vehicle.yaw.abs() > 0.001 * steering.abs());
             }
+        }
+    }
+
+    #[test]
+    fn asphalt_recovers_from_sideways_slip_without_losing_forward_motion() {
+        let road = format!(
+            "road street: {}; end street(-25,3,-20,3);",
+            "carlane ".repeat(30)
+        );
+        let city = City::from_program(&opencity::parse(&road).unwrap(), None).unwrap();
+        for direction in [-1., 1.] {
+            let mut car = Vehicle::spawn(&city);
+            car.position.y = 300.;
+            car.yaw = 0.;
+            car.velocity = Vec3::new(12., direction * 8., 0.);
+            let initial_energy = planar_energy(&car);
+            for _ in 0..30 {
+                car.step(&city, Controls::default(), 1. / 120.);
+                assert!(car.grounded);
+                assert_eq!(car.surface, SurfaceKind::Asphalt);
+                assert!(planar_energy(&car) <= initial_energy);
+            }
+            assert!(
+                car.velocity.y.abs() < 3.85,
+                "sideways velocity: {}",
+                car.velocity.y
+            );
+            assert!(car.velocity.x > 11.5);
+        }
+    }
+
+    #[test]
+    fn city_speed_turns_keep_side_slip_moderate() {
+        let road = format!(
+            "road street: {}; end street(-25,3,-20,3);",
+            "carlane ".repeat(30)
+        );
+        let city = City::from_program(&opencity::parse(&road).unwrap(), None).unwrap();
+        for direction in [-1., 1.] {
+            let mut car = Vehicle::spawn(&city);
+            car.position.y = 300.;
+            car.yaw = 0.;
+            car.velocity = Vec3::X * 10.;
+            let mut max_slip = 0.0_f32;
+            for _ in 0..120 {
+                car.step(
+                    &city,
+                    Controls {
+                        steering: direction,
+                        ..Default::default()
+                    },
+                    1. / 120.,
+                );
+                let forward = Vec2::new(car.yaw.cos(), car.yaw.sin());
+                let velocity = car.velocity.truncate();
+                max_slip = max_slip.max(
+                    forward
+                        .perp_dot(velocity)
+                        .abs()
+                        .atan2(forward.dot(velocity).abs()),
+                );
+                assert_eq!(car.surface, SurfaceKind::Asphalt);
+            }
+            assert!(
+                max_slip.to_degrees() < 10.,
+                "slip: {} degrees",
+                max_slip.to_degrees()
+            );
+            assert!(car.yaw.abs() > 0.8, "car must still turn readily");
         }
     }
 

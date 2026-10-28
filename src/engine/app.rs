@@ -1,3 +1,4 @@
+use super::palette::Palette;
 use super::render::Renderer;
 use super::{
     hud::{self, MenuItem, Overlay},
@@ -55,6 +56,7 @@ struct Game {
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     scenery: Option<Scenery>,
+    palette: Option<Palette>,
     keys: HashSet<KeyCode>,
     last: Instant,
     game_time: f32,
@@ -178,6 +180,7 @@ impl Game {
             window: None,
             renderer: None,
             scenery: None,
+            palette: None,
             keys: HashSet::new(),
             last: Instant::now(),
             game_time: 0.,
@@ -202,7 +205,7 @@ impl Game {
         })
     }
     fn simulate(&mut self, elapsed: f32) {
-        if self.overlay.paused() {
+        if self.overlay.paused() || self.palette.as_ref().is_some_and(|p| p.menu.is_open()) {
             self.accumulator = 0.;
         } else {
             self.accumulator += elapsed;
@@ -267,6 +270,22 @@ impl Game {
                     ..Default::default()
                 });
                 renderer.render(&view, &meshes, self.eye, look, self.game_time, navigation);
+                if let Some(palette) = &mut self.palette {
+                    if let Some(command) =
+                        palette.draw(self.window.as_ref().unwrap(), renderer, &view)
+                    {
+                        renderer.daylight = command.daylight();
+                        let window = self.window.as_ref().unwrap();
+                        window.set_title(match command {
+                            super::palette::TimeCommand::Day => "MTL Jobines · day",
+                            super::palette::TimeCommand::Night => "MTL Jobines · night",
+                            super::palette::TimeCommand::Automatic => {
+                                "MTL Jobines · automatic daylight"
+                            }
+                        });
+                        window.request_redraw();
+                    }
+                }
                 frame.present();
                 if self.first_frame {
                     eprintln!("Game ready: first frame presented");
@@ -357,6 +376,42 @@ impl ApplicationHandler<GameEvent> for Game {
         {
             self.cursor_activity(Instant::now());
         }
+        if let (Some(palette), Some(window)) = (&mut self.palette, &self.window) {
+            palette.event(window, &event);
+            let open = palette.menu.is_open();
+            let shortcut = matches!(&event, WindowEvent::KeyboardInput { event, .. }
+                if event.physical_key == PhysicalKey::Code(KeyCode::KeyP)
+                    && event.state == ElementState::Pressed && !event.repeat && palette.shortcut());
+            if shortcut {
+                if open {
+                    palette.menu.dismiss();
+                } else {
+                    palette.menu.open();
+                }
+                self.keys.clear();
+                self.dragging = false;
+                self.accumulator = 0.;
+                self.show_cursor();
+                self.window.as_ref().unwrap().request_redraw();
+                return;
+            }
+            if open {
+                // Keep platform lifecycle events flowing, but capture all game input.
+                if matches!(
+                    event,
+                    WindowEvent::KeyboardInput { .. }
+                        | WindowEvent::Ime(_)
+                        | WindowEvent::MouseInput { .. }
+                        | WindowEvent::MouseWheel { .. }
+                        | WindowEvent::CursorMoved { .. }
+                        | WindowEvent::Touch(_)
+                ) {
+                    self.show_cursor();
+                    self.window.as_ref().unwrap().request_redraw();
+                    return;
+                }
+            }
+        }
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
@@ -366,6 +421,9 @@ impl ApplicationHandler<GameEvent> for Game {
                 }
             }
             WindowEvent::Focused(false) => {
+                if let Some(palette) = &mut self.palette {
+                    palette.menu.dismiss();
+                }
                 if self.overlay != Overlay::Start {
                     self.set_overlay(Overlay::Menu);
                 }
@@ -413,6 +471,35 @@ impl ApplicationHandler<GameEvent> for Game {
                                     }
                                 }
                                 KeyCode::Tab => self.hood = !self.hood,
+                                KeyCode::BracketLeft | KeyCode::BracketRight => {
+                                    if let Some(renderer) = &mut self.renderer {
+                                        let current = super::lighting::Lighting::at_time(
+                                            self.game_time,
+                                            renderer.daylight,
+                                        )
+                                        .daylight;
+                                        let delta = if key == KeyCode::BracketRight {
+                                            0.1
+                                        } else {
+                                            -0.1
+                                        };
+                                        let daylight = (current + delta).clamp(0., 1.);
+                                        renderer.daylight = Some(daylight);
+                                        if let Some(window) = &self.window {
+                                            window.set_title(&format!(
+                                                "MTL Jobines · daylight {daylight:.1}"
+                                            ));
+                                        }
+                                    }
+                                }
+                                KeyCode::KeyT => {
+                                    if let Some(renderer) = &mut self.renderer {
+                                        renderer.daylight = None;
+                                    }
+                                    if let Some(window) = &self.window {
+                                        window.set_title("MTL Jobines · automatic daylight");
+                                    }
+                                }
                                 _ => {}
                             }
                         }
@@ -558,7 +645,8 @@ fn smoke(
         renderer.adapter_name,
         started.elapsed()
     );
-    let carmesh = renderer.upload(&car.mesh());
+    let mut smoke_world = DynamicWorld::new(hermes);
+    let carmesh = renderer.upload(&smoke_world.mesh());
     if let Some(pixels) = hermes.update_minimap([p.x, p.y]) {
         renderer.update_minimap(pixels);
     }
@@ -606,6 +694,22 @@ fn smoke(
     );
     renderer.snapshot(&texture, &output)?;
     eprintln!("Rendered {}", output.display());
+    renderer.daylight = Some(0.);
+    renderer.render(
+        &texture.create_view(&Default::default()),
+        &meshes,
+        eye,
+        look,
+        0.,
+        navigation,
+    );
+    let night_path = output.with_file_name(format!(
+        "{}-night.ppm",
+        output.file_stem().unwrap().to_string_lossy()
+    ));
+    renderer.snapshot(&texture, &night_path)?;
+    eprintln!("Rendered {}", night_path.display());
+    renderer.daylight = None;
     for (overlay, suffix) in [
         (Overlay::Start, "start"),
         (Overlay::Menu, "menu"),
@@ -628,9 +732,25 @@ fn smoke(
         eprintln!("Rendered {}", path.display());
     }
 
-    let mut walking_world = DynamicWorld::new(hermes);
-    if walking_world.toggle_vehicle(hermes) {
-        let walking_mesh = renderer.upload(&walking_world.mesh());
+    renderer.overlay = Overlay::Driving;
+    renderer.render(
+        &texture.create_view(&Default::default()),
+        &meshes,
+        eye,
+        look,
+        0.,
+        navigation,
+    );
+    super::palette::smoke(&renderer, &texture.create_view(&Default::default()));
+    let palette_path = output.with_file_name(format!(
+        "{}-palette.ppm",
+        output.file_stem().unwrap().to_string_lossy()
+    ));
+    renderer.snapshot(&texture, &palette_path)?;
+    eprintln!("Rendered {}", palette_path.display());
+
+    if smoke_world.toggle_vehicle(hermes) {
+        let walking_mesh = renderer.upload(&smoke_world.mesh());
         let mut walking_meshes = scenery.visible([p.x, p.y]);
         walking_meshes.push(&walking_mesh);
         renderer.overlay = Overlay::Driving;
@@ -651,20 +771,22 @@ fn smoke(
     }
     renderer.overlay = Overlay::Driving;
     if profile {
-        let mut car = Vehicle::spawn(hermes.city());
-        let origin = car.position;
+        smoke_world.reset_player(hermes);
+        let origin = smoke_world.player().position;
         let mut timings = Vec::new();
         for _ in 0..240 {
             for _ in 0..8 {
-                car.step(
-                    hermes.city(),
+                smoke_world.step(
+                    hermes,
                     Controls {
                         throttle: 1.,
                         ..Default::default()
                     },
+                    WalkControls::default(),
                     DT,
                 );
             }
+            let car = smoke_world.player();
             let p = car.position / METERS_PER_UNIT;
             let center = [p.x, p.y];
             let started = Instant::now();
@@ -672,7 +794,7 @@ fn smoke(
                 hermes.update_minimap(center).is_none(),
                 "atlas must never rebuild while driving"
             );
-            let carmesh = renderer.upload(&car.mesh());
+            let carmesh = renderer.upload(&smoke_world.mesh());
             let mut meshes = scenery.visible(center);
             meshes.push(&carmesh);
             let f = Vec3::new(car.yaw.cos(), car.yaw.sin(), 0.);
@@ -689,7 +811,7 @@ fn smoke(
         }
         timings.sort_by(f64::total_cmp);
         eprintln!("Cached driving: 240 synchronized GPU frames, {:.1} m traveled; median {:.2} ms, p95 {:.2} ms, max {:.2} ms; no static map rebuilds",
-            car.position.distance(origin), timings[120], timings[228], timings[239]);
+            smoke_world.player().position.distance(origin), timings[120], timings[228], timings[239]);
     }
     Ok(())
 }
@@ -773,6 +895,7 @@ impl Game {
         // A resize may have arrived while browser GPU initialization was pending.
         let size = self.window.as_ref().unwrap().inner_size();
         renderer.resize(size.width, size.height);
+        self.palette = Some(Palette::new(self.window.as_ref().unwrap(), &renderer));
         self.renderer = Some(renderer);
         self.last = Instant::now();
         self.game_time = 0.;

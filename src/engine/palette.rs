@@ -1,0 +1,473 @@
+//! Shared OpenCity palette, with a small painter for the game's wgpu 23 device.
+//! egui-wgpu 0.36 targets a newer wgpu, so its renderer cannot share this device.
+use super::render::Renderer;
+#[cfg(not(target_arch = "wasm32"))]
+use egui_winit::State as Input;
+#[cfg(target_arch = "wasm32")]
+#[path = "palette_web_input.rs"]
+mod web_input;
+use egui_command_palette::{Command, CommandPalette};
+use std::collections::HashMap;
+#[cfg(target_arch = "wasm32")]
+use web_input::Input;
+use wgpu::util::DeviceExt;
+use winit::{event::WindowEvent, window::Window};
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TimeCommand {
+    Day,
+    Night,
+    Automatic,
+}
+impl TimeCommand {
+    fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "time.day" => Some(Self::Day),
+            "time.night" => Some(Self::Night),
+            "time.automatic" => Some(Self::Automatic),
+            _ => None,
+        }
+    }
+    pub fn daylight(self) -> Option<f32> {
+        match self {
+            Self::Day => Some(1.),
+            Self::Night => Some(0.),
+            Self::Automatic => None,
+        }
+    }
+}
+fn commands() -> Vec<Command> {
+    [
+        (
+            "time.day",
+            "Time: Set day",
+            "Freeze daylight at noon for debugging",
+        ),
+        (
+            "time.night",
+            "Time: Set night",
+            "Freeze daylight at midnight for debugging",
+        ),
+        (
+            "time.automatic",
+            "Time: Resume automatic cycle",
+            "Restore the twenty-minute day/night cycle",
+        ),
+    ]
+    .into_iter()
+    .map(|(id, title, description)| Command {
+        id: id.into(),
+        title: title.into(),
+        description: description.into(),
+        shortcut: String::new(),
+    })
+    .collect()
+}
+pub struct Palette {
+    pub menu: CommandPalette,
+    ctx: egui::Context,
+    input: Input,
+    painter: Painter,
+    modifiers: winit::keyboard::ModifiersState,
+}
+impl Palette {
+    pub fn new(window: &Window, renderer: &Renderer) -> Self {
+        let ctx = egui::Context::default();
+        let input = Input::new(
+            ctx.clone(),
+            egui::ViewportId::ROOT,
+            window,
+            Some(window.scale_factor() as f32),
+            window.theme(),
+            Some(renderer.device.limits().max_texture_dimension_2d as usize),
+        );
+        Self {
+            menu: CommandPalette::default(),
+            ctx,
+            input,
+            modifiers: Default::default(),
+            painter: Painter::new(&renderer.device, renderer.config.format.add_srgb_suffix()),
+        }
+    }
+    /// Feed all events so modifier state and focus stay current while closed.
+    pub fn event(&mut self, window: &Window, event: &WindowEvent) {
+        if let WindowEvent::ModifiersChanged(modifiers) = event {
+            self.modifiers = modifiers.state();
+        }
+        if matches!(event, WindowEvent::Focused(false)) {
+            self.modifiers = Default::default();
+        }
+        let response = self.input.on_window_event(window, event);
+        if response.repaint {
+            window.request_redraw();
+        }
+    }
+    pub fn shortcut(&self) -> bool {
+        let command = if cfg!(target_os = "macos") {
+            self.modifiers.super_key()
+        } else if cfg!(target_arch = "wasm32") {
+            self.modifiers.control_key() || self.modifiers.super_key()
+        } else {
+            self.modifiers.control_key()
+        };
+        command && self.modifiers.shift_key()
+    }
+    pub fn draw(
+        &mut self,
+        window: &Window,
+        renderer: &Renderer,
+        target: &wgpu::TextureView,
+    ) -> Option<TimeCommand> {
+        let mut selected = None;
+        let output = self.ctx.run_ui(self.input.take_egui_input(window), |ui| {
+            selected = self
+                .menu
+                .show(ui.ctx(), &commands())
+                .and_then(|id| TimeCommand::from_id(&id));
+        });
+        self.input
+            .handle_platform_output(window, output.platform_output);
+        let primitives = self.ctx.tessellate(output.shapes, output.pixels_per_point);
+        self.painter.paint(
+            renderer,
+            target,
+            primitives,
+            output.textures_delta,
+            output.pixels_per_point,
+        );
+        if self.menu.is_open() {
+            window.request_redraw();
+        }
+        selected
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 2],
+    uv: [f32; 2],
+    color: [f32; 4],
+}
+struct Painter {
+    pipeline: wgpu::RenderPipeline,
+    layout: wgpu::BindGroupLayout,
+    sampler: wgpu::Sampler,
+    textures: HashMap<egui::TextureId, (wgpu::Texture, wgpu::BindGroup)>,
+}
+impl Painter {
+    fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("palette texture"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("palette"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("palette.wgsl").into()),
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("palette"),
+            bind_group_layouts: &[&layout],
+            push_constant_ranges: &[],
+        });
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("palette"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs"),
+                compilation_options: Default::default(),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: 32,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0=>Float32x2,1=>Float32x2,2=>Float32x4],
+                }],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: Default::default(),
+            depth_stencil: None,
+            multisample: Default::default(),
+            multiview: None,
+            cache: None,
+        });
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        Self {
+            pipeline,
+            layout,
+            sampler,
+            textures: HashMap::new(),
+        }
+    }
+    fn paint(
+        &mut self,
+        renderer: &Renderer,
+        target: &wgpu::TextureView,
+        primitives: Vec<egui::ClippedPrimitive>,
+        mut delta: egui::TexturesDelta,
+        scale: f32,
+    ) {
+        let device = &renderer.device;
+        let queue = &renderer.queue;
+        for (id, updates) in delta.set.drain() {
+            for update in updates {
+                let egui::ImageData::Color(image) = update.image;
+                let size = wgpu::Extent3d {
+                    width: image.size[0] as u32,
+                    height: image.size[1] as u32,
+                    depth_or_array_layers: 1,
+                };
+                if update.pos.is_none() {
+                    let texture = device.create_texture(&wgpu::TextureDescriptor {
+                        label: Some("palette atlas"),
+                        size,
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                        view_formats: &[],
+                    });
+                    let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("palette atlas"),
+                        layout: &self.layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(
+                                    &texture.create_view(&Default::default()),
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(&self.sampler),
+                            },
+                        ],
+                    });
+                    self.textures.insert(id, (texture, group));
+                }
+                let (texture, _) = &self.textures[&id];
+                let pos = update.pos.unwrap_or([0, 0]);
+                let pixels: Vec<u8> = image.pixels.iter().flat_map(|p| p.to_array()).collect();
+                queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d {
+                            x: pos[0] as u32,
+                            y: pos[1] as u32,
+                            z: 0,
+                        },
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    &pixels,
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(size.width * 4),
+                        rows_per_image: None,
+                    },
+                    size,
+                );
+            }
+        }
+        if primitives.is_empty() {
+            for id in delta.free.drain() {
+                self.textures.remove(&id);
+            }
+            return;
+        }
+        let [width, height] = [renderer.config.width, renderer.config.height];
+        let mut encoder = device.create_command_encoder(&Default::default());
+        for primitive in primitives {
+            let egui::epaint::Primitive::Mesh(mesh) = primitive.primitive else {
+                continue;
+            };
+            if mesh.indices.is_empty() {
+                continue;
+            }
+            let Some((_, group)) = self.textures.get(&mesh.texture_id) else {
+                continue;
+            };
+            let vertices: Vec<Vertex> = mesh
+                .vertices
+                .iter()
+                .map(|v| Vertex {
+                    position: [
+                        2. * v.pos.x * scale / width as f32 - 1.,
+                        1. - 2. * v.pos.y * scale / height as f32,
+                    ],
+                    uv: [v.uv.x, v.uv.y],
+                    color: v.color.to_array().map(|c| c as f32 / 255.),
+                })
+                .collect();
+            let vertex = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("palette vertices"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+            let index = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("palette indices"),
+                contents: bytemuck::cast_slice(&mesh.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+            let clip = primitive.clip_rect;
+            let x = (clip.min.x * scale).floor().clamp(0., width as f32) as u32;
+            let y = (clip.min.y * scale).floor().clamp(0., height as f32) as u32;
+            let right = (clip.max.x * scale).ceil().clamp(x as f32, width as f32) as u32;
+            let bottom = (clip.max.y * scale).ceil().clamp(y as f32, height as f32) as u32;
+            if right == x || bottom == y {
+                continue;
+            }
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("palette"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_scissor_rect(x, y, right - x, bottom - y);
+            pass.set_bind_group(0, group, &[]);
+            pass.set_vertex_buffer(0, vertex.slice(..));
+            pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+        }
+        queue.submit(Some(encoder.finish()));
+        for id in delta.free.drain() {
+            self.textures.remove(&id);
+        }
+    }
+}
+
+/// Exercise the palette's atlas uploads, clipping, and blending in the GPU smoke run.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn smoke(renderer: &Renderer, target: &wgpu::TextureView) {
+    let ctx = egui::Context::default();
+    let mut menu = CommandPalette::default();
+    menu.open();
+    let mut painter = Painter::new(&renderer.device, renderer.config.format.add_srgb_suffix());
+    for frame in 0..2 {
+        let input = egui::RawInput {
+            time: Some(frame as f64 * 0.5),
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(renderer.config.width as f32, renderer.config.height as f32),
+            )),
+            ..Default::default()
+        };
+        let output = ctx.run_ui(input, |ui| {
+            menu.show(ui.ctx(), &commands());
+        });
+        painter.paint(
+            renderer,
+            target,
+            ctx.tessellate(output.shapes, output.pixels_per_point),
+            output.textures_delta,
+            output.pixels_per_point,
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn step(
+        ctx: &egui::Context,
+        menu: &mut CommandPalette,
+        key: Option<egui::Key>,
+    ) -> Option<TimeCommand> {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1280., 800.),
+            )),
+            events: key
+                .into_iter()
+                .map(|key| egui::Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Default::default(),
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let mut chosen = None;
+        let mut output = ctx.run_ui(input, |ui| {
+            if let Some(id) = menu.show(ui.ctx(), &commands()) {
+                chosen = TimeCommand::from_id(&id);
+            }
+        });
+        output.textures_delta.clear();
+        chosen
+    }
+    #[test]
+    fn palette_selects_each_lighting_mode_and_dismisses() {
+        for (down, expected) in [(0, Some(1.)), (1, Some(0.)), (2, None)] {
+            let ctx = egui::Context::default();
+            let mut menu = CommandPalette::default();
+            menu.open();
+            step(&ctx, &mut menu, None);
+            for _ in 0..down {
+                step(&ctx, &mut menu, Some(egui::Key::ArrowDown));
+                step(&ctx, &mut menu, None);
+            }
+            assert_eq!(
+                step(&ctx, &mut menu, Some(egui::Key::Enter))
+                    .unwrap()
+                    .daylight(),
+                expected
+            );
+            assert!(!menu.is_open());
+            menu.open();
+            step(&ctx, &mut menu, Some(egui::Key::Escape));
+            assert!(!menu.is_open());
+        }
+    }
+    #[test]
+    fn palette_shader_validates() {
+        let module = naga::front::wgsl::parse_str(include_str!("palette.wgsl")).unwrap();
+        naga::valid::Validator::new(
+            naga::valid::ValidationFlags::all(),
+            naga::valid::Capabilities::all(),
+        )
+        .validate(&module)
+        .unwrap();
+    }
+}

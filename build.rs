@@ -21,6 +21,7 @@ fn hash_sources(path: &Path, hash: &mut u64) {
 fn main() {
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=opencity/src");
+    println!("cargo:rerun-if-changed=assets/default-housing.road");
     println!("cargo:rerun-if-changed=Cargo.lock");
     println!("cargo:rerun-if-changed=build.rs");
     let mut hash = 0xcbf29ce484222325;

@@ -1,6 +1,7 @@
 //! Mutable game entities. OpenCity's City snapshot is static geography, not
 //! the owner of vehicles, players, traffic, or future mission objects.
 mod player;
+mod props;
 mod spawn;
 pub use spawn::SpawnPoint;
 mod vehicle;
@@ -17,6 +18,7 @@ pub struct DynamicWorld {
     player_vehicle: VehicleId,
     pedestrian: Option<Pedestrian>,
     start: Option<SpawnPoint>,
+    props: props::Props,
 }
 impl DynamicWorld {
     #[cfg(any(not(target_arch = "wasm32"), test))]
@@ -33,6 +35,7 @@ impl DynamicWorld {
             player_vehicle: VehicleId(0),
             pedestrian: None,
             start,
+            props: props::Props::new(hermes.prop_meshes()),
         })
     }
     pub fn player(&self) -> &Vehicle {
@@ -72,7 +75,9 @@ impl DynamicWorld {
                 return true;
             }
         } else if self.player().velocity.length() <= 3. {
-            self.pedestrian = Pedestrian::beside(hermes.city(), self.player());
+            self.pedestrian = Pedestrian::beside_if(hermes.city(), self.player(), |position| {
+                self.props.blocked(position)
+            });
             return self.pedestrian.is_some();
         }
         false
@@ -87,6 +92,7 @@ impl DynamicWorld {
     pub fn step(&mut self, hermes: &Hermes, input: Controls, walk: WalkControls, dt: f32) {
         let driving = self.is_driving();
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
+            let before = vehicle.position;
             vehicle.step(
                 hermes.city(),
                 if driving && i == self.player_vehicle.0 {
@@ -99,15 +105,21 @@ impl DynamicWorld {
                 },
                 dt,
             );
+            self.props.vehicle_move(vehicle, before, hermes.city());
         }
         if let Some(player) = &mut self.pedestrian {
+            let before = player.position;
             player.step(
                 hermes.city(),
                 &self.vehicles[self.player_vehicle.0],
                 walk,
                 dt,
             );
+            if self.props.blocked(player.position) {
+                player.position = before;
+            }
         }
+        self.props.step(dt);
         if self.player_position().z < -40. {
             self.reset_player(hermes);
         }
@@ -120,6 +132,7 @@ impl DynamicWorld {
         if let Some(player) = &self.pedestrian {
             mesh.vertices.extend(player.mesh().vertices);
         }
+        self.props.append_visible(&mut mesh, self.player_position());
         mesh
     }
 }

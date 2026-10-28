@@ -20,7 +20,15 @@ pub struct Pedestrian {
     pub yaw: f32,
 }
 impl Pedestrian {
+    #[cfg(test)]
     pub fn beside(city: &City, vehicle: &Vehicle) -> Option<Self> {
+        Self::beside_if(city, vehicle, |_| false)
+    }
+    pub fn beside_if(
+        city: &City,
+        vehicle: &Vehicle,
+        blocked: impl Fn(Vec3) -> bool,
+    ) -> Option<Self> {
         let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
         let left = Vec2::new(-forward.y, forward.x);
         for offset in [left * 1.8, -left * 1.8, -forward * 3., forward * 3.] {
@@ -35,7 +43,7 @@ impl Pedestrian {
                 continue;
             }
             let position = point.extend(support + HALF_HEIGHT);
-            if !Self::blocked(city, position) {
+            if !Self::blocked(city, position) && !blocked(position) {
                 return Some(Self {
                     position,
                     yaw: vehicle.yaw,

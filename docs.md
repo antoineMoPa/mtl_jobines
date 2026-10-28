@@ -62,11 +62,17 @@ The initial menu shows Start and keeps simulation paused until Start is activate
 pressed. Later pauses show Resume. Up/Down arrows cycle the highlighted menu option; Enter
 activates it. Both menus include Exit (or Q while the menu is open): native builds close the game;
 browser builds reset to the Start screen because browsers cannot close an ordinary tab. WASD /
-arrows drive and steer. W/Up accelerates forward; S/Down accelerates backward. The opposite direction
-brakes until nearly stopped, then accelerates that way. Space holds the handbrake. R resets to the
+arrows drive and steer. W/Up accelerates forward; S/Down accelerates backward. The opposite
+direction brakes until nearly stopped, then accelerates that way. Space holds the handbrake. R
+resets to the
 initial start, Tab switches chase/hood cameras, wheel zooms,
-right-drag orbits, Escape pauses. F exits below 3 m/s onto a clear nearby surface, or enters a car
-within 4 m. On foot the player is a cube: W/S or Up/Down walk forward/backward at 5.5 m/s; A/D or
+right-drag orbits, Escape pauses. `[` and `]` adjust daylight from 0 (night) to 1 (day) in 0.1
+steps; the window title shows the value. T restores the automatic cycle. Cmd+Shift+P (macOS) or Ctrl+Shift+P opens the same
+command palette as OpenCity. Search for “Time” and choose Set day, Set night, or Resume
+automatic cycle; arrows and Enter select, Escape or clicking outside dismisses. The palette
+pauses simulation and captures game input while open. F exits below 3 m/s onto a
+clear nearby surface, or enters a car within 4 m. On foot the player is a cube: W/S or Up/Down walk
+forward/backward at 5.5 m/s; A/D or
 Left/Right turn the player and follow camera at 150°/s, including while stationary. Shift runs at 10
 m/s. Right-drag orbits the view independently. The camera and minimap follow the player; unoccupied
 cars brake. Click Resume, select it with arrows and Enter, or press Escape again to continue.
@@ -117,8 +123,8 @@ weight per supported wheel; the sprung body has damped angular springs driven by
 and lateral acceleration. Acceleration raises the nose, braking dives it, and cornering rolls the
 body outward, with a brief rebound as it settles. This body motion is layered over road slope
 alignment while wheels retain their support orientation. It does not redistribute tire loads, and
-tire spin is visual rather than a drivetrain simulation. Street furniture is visual detail; building
-collision uses three footprint circles around the chassis. Building rebounds reflect horizontal
+tire spin is visual rather than a drivetrain simulation. Building collision uses three footprint
+circles around the chassis. Building rebounds reflect horizontal
 travel across the contact surface and reduce speed according to impact strength. Head-on wall hits
 retain 30% of incoming speed; grazing scrapes lose less speed. Oblique contact torque feeds the same
 persistent yaw velocity as
@@ -131,17 +137,46 @@ columns, crossheads and footings spaced about 24 m apart. Decks follow the same 
 grade and tapered width as the pavement. Piers skip lower roads, sidewalks and buildings, preserving
 underpasses; these structures are visual props and do not add collision surfaces. Terrain uses
 original elevation PNG cells at driving LOD, preserving the collision/render diagonal. Deterministic
-lamps, benches and forest trees are generated once alongside terrain and buildings. Static triangles
-are assigned once to 200 m GPU batches, with full triangle bounds used for visibility. The frame
-selects scenery within 800 m and detail batches within 150 m. This removes the former
-movement-triggered geometry builds/uploads; the full-resolution map remains resident, so larger
-custom maps require more GPU memory and startup time.
+lamps, benches and forest trees are generated once alongside terrain and buildings. Game-owned
+weighted patterns add low-rise windows, doors, cornices, parapets, pitched/mansard roofs, balcony
+railings and straight, curved or quarter-turn stairs to suitable authored footprints. Garden walls,
+fences, hedges, flower pots, benches, bins and bicycles are seeded details. Rapier detects vehicle
+and pedestrian contact with individual street furniture, trees, balconies, stairs and garden
+objects. Gentle vehicle contact stops at the object; stronger impacts detach it into simulated
+debris, reduce speed and remove it after ten seconds. The car's existing tire and suspension model
+is unchanged.
+Iron and chain-link fence sections use two-triangle planes with procedural cutout linework,
+including the shadow pass. Panel coordinates follow moving debris; a solid collision proxy
+continues to represent each complete section.
+Destruction lasts for the current session. Footprints still provide building collision. Static
+triangles are assigned once to 200 m GPU batches, with full triangle bounds used for visibility.
+The frame selects scenery within 800 m and static detail batches within 150 m. Nearby intact and
+moving props are included in the dynamic mesh uploaded each frame. The full-resolution map remains
+resident, so larger custom maps require more GPU memory and startup time.
+
+The game expands residential areas before building the City snapshot. The default areas are in
+`assets/default-housing.road`; each uses
+`residential_area(seed, min_x, min_y, max_x, max_y, center_x, center_y, core_radius)` in map units.
+Within an area, named top-level buildings outside the central circle are replaced with seeded,
+street-facing homes. The generator uses sidewalks, terrain and existing footprints to place one- to
+four-storey buildings, with varying frontage and brick or stone colors. The area seed and road
+geometry keep the result stable across reloads. The minimap, collision and rendering all use the
+same expanded snapshot, and the default area file participates in the game-data cache key.
+Most neighboring homes fill their lots and share side walls; occasional seeded passages break up
+the rows. Setbacks stay consistent within each short run of houses. Most one- and two-storey
+homes have a 4–5 m setback for a small planted frontage, fences and stairs; a smaller share of
+taller buildings meets the sidewalk. These proportions are art direction, not measured counts.
+Custom maps can supply their own area calls; maps without them remain unchanged, except that the
+built-in areas are selected for the default map by its two named city centers. Expansion happens
+in the game, so the OpenCity editor still shows the original authored map.
 
 Rendering uses 4× MSAA, a 2048² directional shadow map with PCF, directional/sky lighting, linear
 material colors and sRGB output, procedural asphalt aggregate/cracks, grass and soil variation,
 sidewalk joints, facade floors/windows/brickwork, animated water highlights, distance fog and
 exposure compression. The palette and floor metadata come from OpenCity; the game shader can be
-replaced independently.
+replaced independently. A 20-minute day/night cycle advances while the game is unpaused. Sky, fog,
+sun direction, ambient light, shadowing, window glow and street-lamp glow follow the daylight value;
+this is an art-directed cycle rather than an astronomical calendar.
 
 ```sh
 cargo test
@@ -161,17 +196,19 @@ ownership and the routing/AI blueprint.
 
 The smoke command simulates five seconds of acceleration on the real default map, checks
 travel/finite coordinates, creates the GPU pipelines and shadow pass, then writes actual rendered
-PPM frames for driving, Start, Resume, the expanded map and the on-foot cube. Add `--profile` to
-measure 240 synchronized GPU frames while driving across the former rebuild thresholds. It requires
+PPM frames for driving by day and night, Start, Resume, the expanded map and the on-foot cube. Add
+`--profile` to measure 240 synchronized GPU frames while driving across the former rebuild
+thresholds. It requires
 a GPU device even without a window.
 
 ## OpenCity submodule and API
 
 `opencity/` is a real git submodule, using `git@github.com:antoineMoPa/opencity.git`. The game
 enables only `game-runtime` with default features disabled. `City::load`, `City::query`,
-`City::surface_at`, `City::mesh`, `City::detail_mesh` and `City::building_collision` provide the
-integration. Structured queries return borrowed roads, lane directions, route polylines, buildings,
-landscape and junctions. Complete explicit component ports/movements remain available in
+`City::surface_at`, `City::mesh`, `City::detail_objects`, `City::building_detail_parts` and
+`City::building_collision` provide the integration. Structured queries return borrowed roads, lane
+directions, route polylines, buildings, landscape and junctions. Complete explicit component
+ports/movements remain available in
 `City::components`.
 
 See `opencity/docs/game-runtime.md` for shader bindings, coordinate and query contracts. Optional

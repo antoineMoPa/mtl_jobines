@@ -79,7 +79,7 @@ fn lettering(p:vec2<f32>, origin:vec2<f32>, scale:f32, word:u32)->bool {
     return (glyph(code) & (1u << (u32(q.y)*5u+col)))!=0u;
 }
 fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32)->vec3<f32> {
-    var color=textureSample(chart,filtering,uv).rgb;
+    var color=textureSampleLevel(chart,filtering,uv,0.0).rgb;
     if any(uv<vec2<f32>(0.)) || any(uv>vec2<f32>(1.)) {color=vec3<f32>(0.008,0.048,0.091);}
     if hud.destination.z>0. {
         let distance=length((uv-hud.destination.xy)*atlas_pixels);

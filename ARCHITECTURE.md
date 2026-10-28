@@ -72,15 +72,19 @@ static geography; the game owns simulation and presentation.
 
 `src/lib.rs` shares the game between the native entry point and WebAssembly startup. Hermes holds an
 immutable `Arc<City>`. Dynamic World queries that snapshot through Hermes and produces CPU meshes.
-Engine alone owns GPU resources.
+Engine alone owns GPU resources. Hermes supplies application-owned residential pattern weights to
+OpenCity's generic building-detail generator. OpenCity separates removable detail meshes from
+facades; Dynamic World owns their Rapier colliders and destruction state. OpenCity footprint and
+surface queries continue to provide building and road contacts.
 
 ## Runtime
 
 Startup loads the map and minimap before spawning the player, then initializes GPU resources before
 simulation starts. Browser startup uses embedded map/elevation assets and async WebGPU
 initialization. Both platforms build static map meshes once and partition complete triangles into
-200 m GPU batches; driving only selects nearby buffers. Full-resolution geometry remains resident,
-trading startup work and memory for predictable frame work.
+200 m GPU batches; driving selects nearby static buffers and uploads nearby props with the dynamic
+mesh. Full-resolution static geometry remains resident, trading startup work and memory for
+predictable frame work.
 
 Each frame, Engine reads controls, advances Dynamic World at **120 Hz** with capped elapsed time,
 follows the player, selects cached scenery and renders shadows, world and HUD. The initial Start
@@ -99,6 +103,11 @@ swept building contacts, separation and damped specular rebounds remain in Dynam
 are static quarters of chassis weight; wheel pitch/roll follow support slope, while independent
 damped sprung-body angles respond to longitudinal/lateral acceleration without changing wheel
 contact forces.
+
+Rapier sweeps the vehicle against individual street and frontage objects and checks pedestrian
+overlap. Slow impacts stop the car; stronger impacts detach the object and apply a modest speed
+loss. Detached meshes follow Rapier rigid bodies and disappear after ten seconds. The intact
+objects are generated deterministically from the City, and destruction is session-local.
 
 Hermes parses and rasterizes `City::minimap_svg()` once into a 4096² full-map atlas, mapping world
 coordinates into that atlas. Engine draws a round heading-up 400 m minimap with heading and 100 m
@@ -119,8 +128,13 @@ Prepared CPU meshes and the atlas use a versioned gzip game-data format with exp
 float mappings, size/finite-value checks, checksum verification and atomic writes. Native Hermes
 checks packaged/bundled data and the platform disk cache before building. Keys cover map/elevation
 bytes, source fingerprint and dependency versions. Engine uploads recovered meshes into device-local
-GPU batches; physics still uses the authored City snapshot. Browser builds may opt into embedding
+GPU batches; physics uses the same compiled City snapshot. Browser builds may opt into embedding
 the same prepared data with `BUNDLE_GAME_DATA=1 make build`.
+
+Before compiling the City, game-owned residential-area definitions replace outer named buildings
+and fill suitable sidewalk frontage with seeded homes. Downtown cores retain their existing
+buildings. Rendering, collision, routing and the minimap share the resulting snapshot; OpenCity
+provides general building materials and detail geometry without assigning regional styles.
 
 ## Integration constraints
 
@@ -139,7 +153,7 @@ the same prepared data with `BUNDLE_GAME_DATA=1 make build`.
 
 ## Planned extensions
 
-AI traffic, missions, movable props and gameplay persistence are unimplemented.
+AI traffic, missions and gameplay persistence are unimplemented.
 
 Routing currently uses road centerlines, with directional lane attachments for ramps and authored
 junction movement geometry. A future lane-level planner can retain lane/movement sequences for AI.
@@ -154,5 +168,7 @@ Tests cover physics, minimap alignment/caching and shaders; OpenCity tests cover
 geometry. See [docs.md](docs.md) for test, GPU smoke and SVG export commands, controls and API
 references.
 
-Current limits include simplified driving physics, procedural building extrusions, visual-only
-furniture, basic tee geometry and no buoyancy.
+Current limits include simplified driving physics, approximate prop collision hulls, basic tee
+geometry and no buoyancy. Daylight follows a game-owned automatic cycle or a
+manual 0–1
+value; the GPU shader receives the corresponding sun, sky and daylight values.

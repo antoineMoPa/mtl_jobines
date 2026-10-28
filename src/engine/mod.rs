@@ -1,6 +1,8 @@
 //! Native platform, frame coordination, cameras and GPU presentation.
 mod app;
 mod hud;
+mod lighting;
+mod palette;
 mod render;
 mod scenery;
 #[cfg(not(target_arch = "wasm32"))]

@@ -1,7 +1,9 @@
 //! Static map/navigation access. OpenCity owns authored roads and geometry;
 //! Hermes owns navigation, routing and the game’s map presentation.
+mod building_style;
 mod game_data;
 mod minimap;
+mod residential;
 mod routing;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data))]
 use game_data::CacheKey;
@@ -31,9 +33,19 @@ impl Hermes {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn load_with_game_data(path: &Path, packaged: Option<&Path>) -> Result<Self, String> {
         let source = std::fs::read(path).map_err(|e| e.to_string())?;
-        let program = opencity::parse(std::str::from_utf8(&source).map_err(|e| e.to_string())?)
+        let parsed = opencity::parse(std::str::from_utf8(&source).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
-        let city = City::from_program(&program, path.parent())?;
+        let (mut program, areas) = residential::prepare(&parsed)?;
+        let mut city = City::from_program(&program, path.parent())?;
+        if !areas.is_empty() {
+            let count = residential::populate(&mut program, &city, &areas);
+            eprintln!(
+                "Generated {count} stable residential buildings in {} areas",
+                areas.len()
+            );
+            drop(city);
+            city = City::from_program(&program, path.parent())?;
+        }
         let elevation = city
             .elevation
             .as_ref()
@@ -86,16 +98,27 @@ impl Hermes {
     }
     #[cfg(any(target_arch = "wasm32", test))]
     pub fn embedded() -> Result<Self, String> {
-        let program = opencity::parse(include_str!("../../opencity/examples/default_map.road"))
+        let parsed = opencity::parse(include_str!("../../opencity/examples/default_map.road"))
             .map_err(|error| error.to_string())?;
-        let city =
-            City::from_program_with_elevation_loader(&program, |spec| match spec.path.as_str() {
-                "default_elevation.png" => opencity::heightmap::ElevationMap::from_png(
-                    spec.clone(),
-                    include_bytes!("../../opencity/examples/default_elevation.png"),
-                ),
-                path => Err(format!("Unknown embedded elevation map: {path}")),
-            })?;
+        let (mut program, areas) = residential::prepare(&parsed)?;
+        let load_elevation = |spec: &opencity::heightmap::ElevationMapSpec| match spec.path.as_str()
+        {
+            "default_elevation.png" => opencity::heightmap::ElevationMap::from_png(
+                spec.clone(),
+                include_bytes!("../../opencity/examples/default_elevation.png"),
+            ),
+            path => Err(format!("Unknown embedded elevation map: {path}")),
+        };
+        let mut city = City::from_program_with_elevation_loader(&program, load_elevation)?;
+        if !areas.is_empty() {
+            let count = residential::populate(&mut program, &city, &areas);
+            eprintln!(
+                "Generated {count} stable residential buildings in {} areas",
+                areas.len()
+            );
+            drop(city);
+            city = City::from_program_with_elevation_loader(&program, load_elevation)?;
+        }
         #[cfg(bundled_game_data)]
         {
             let key = CacheKey::for_map(
@@ -145,7 +168,9 @@ impl Hermes {
             .city
             .mesh(Region::WholeMap, 0.04)
             .expect("static map mesh");
-        let details = self.city.detail_mesh(Region::WholeMap);
+        let (details, _) = self
+            .city
+            .building_detail_parts(Region::WholeMap, &building_style::residential());
         eprintln!(
             "Prepared {} world vertices and {} detail vertices",
             world.vertices.len(),
@@ -161,6 +186,14 @@ impl Hermes {
             }
         }
         (world, details)
+    }
+    pub(crate) fn prop_meshes(&self) -> Vec<Mesh> {
+        let mut props = self.city.detail_objects(Region::WholeMap);
+        let (_, frontage) = self
+            .city
+            .building_detail_parts(Region::WholeMap, &building_style::residential());
+        props.extend(frontage);
+        props
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write_game_data(&mut self, path: &Path) -> Result<(), String> {

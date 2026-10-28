@@ -1,4 +1,5 @@
 use super::hud::{Hud, MenuItem, Overlay};
+use super::lighting::Lighting;
 use crate::hermes::MinimapView;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
@@ -15,6 +16,7 @@ struct Camera {
     light_view_projection: [[f32; 4]; 4],
     eye_time: [f32; 4],
     sun_exposure: [f32; 4],
+    daylight_sky: [f32; 4],
 }
 pub struct GpuMesh {
     buffer: wgpu::Buffer,
@@ -22,7 +24,7 @@ pub struct GpuMesh {
 }
 pub struct Renderer {
     pub device: wgpu::Device,
-    queue: wgpu::Queue,
+    pub(super) queue: wgpu::Queue,
     pub surface: Option<wgpu::Surface<'static>>,
     pub config: wgpu::SurfaceConfiguration,
     pipeline: wgpu::RenderPipeline,
@@ -37,6 +39,7 @@ pub struct Renderer {
     hud: Hud,
     pub overlay: Overlay,
     pub menu_selection: MenuItem,
+    pub daylight: Option<f32>,
 }
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x3,3=>Float32x4];
@@ -263,16 +266,12 @@ impl Renderer {
                     compilation_options: Default::default(),
                     buffers: &[layout()],
                 },
-                fragment: if shadow {
-                    None
-                } else {
-                    Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: Some("fs"),
-                        compilation_options: Default::default(),
-                        targets: &targets,
-                    })
-                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some(if shadow { "fs_shadow" } else { "fs" }),
+                    compilation_options: Default::default(),
+                    targets: if shadow { &[] } else { &targets },
+                }),
                 primitive: wgpu::PrimitiveState {
                     cull_mode: None,
                     ..Default::default()
@@ -294,6 +293,7 @@ impl Renderer {
                 }),
                 multisample: wgpu::MultisampleState {
                     count: if shadow { 1 } else { 4 },
+                    alpha_to_coverage_enabled: !shadow,
                     ..Default::default()
                 },
                 multiview: None,
@@ -322,6 +322,7 @@ impl Renderer {
             hud,
             overlay: Overlay::Driving,
             menu_selection: MenuItem::Resume,
+            daylight: None,
         })
     }
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -382,8 +383,8 @@ impl Renderer {
             0.003,
             10.0,
         );
-        let sun = Vec3::new(-0.55, -0.4, 0.85);
-        let sun = sun / sun.length();
+        let lighting = Lighting::at_time(time, self.daylight);
+        let sun = lighting.sun;
         let focus = Vec3::new(look.x, look.y, 0.15);
         let light = Mat4::orthographic_rh(-1.6, 1.6, -1.6, 1.6, 0.01, 10.)
             * Mat4::look_at_rh(focus + sun * 4., focus, Vec3::Z);
@@ -392,6 +393,12 @@ impl Renderer {
             light_view_projection: light.to_cols_array_2d(),
             eye_time: [eye.x, eye.y, eye.z, time],
             sun_exposure: [sun.x, sun.y, sun.z, 1.35],
+            daylight_sky: [
+                lighting.daylight,
+                lighting.sky[0],
+                lighting.sky[1],
+                lighting.sky[2],
+            ],
         };
         self.queue
             .write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
@@ -430,9 +437,9 @@ impl Renderer {
                     resolve_target: Some(target),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.24,
-                            g: 0.50,
-                            b: 0.82,
+                            r: f64::from(lighting.sky[0]),
+                            g: f64::from(lighting.sky[1]),
+                            b: f64::from(lighting.sky[2]),
                             a: 1.,
                         }),
                         store: wgpu::StoreOp::Store,

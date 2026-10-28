@@ -30,6 +30,7 @@ impl CacheKey {
     pub fn for_map(source: &[u8], elevation: &[u8]) -> Self {
         Self::from_parts(&[
             env!("MTL_JOBINES_GENERATOR_KEY").as_bytes(),
+            include_bytes!("../../assets/default-housing.road"),
             source,
             elevation,
         ])
