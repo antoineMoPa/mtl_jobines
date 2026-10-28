@@ -47,6 +47,9 @@ pub struct Vehicle {
     pub collisions: u64,
     /// Chassis angular velocity in radians per second, driven by tire/contact torque.
     pub yaw_rate: f32,
+    /// Sprung-body pitch and roll relative to the wheel support plane.
+    pub(super) body_lean: Vec2,
+    pub(super) body_lean_rate: Vec2,
 }
 impl Vehicle {
     pub fn spawn(city: &City) -> Self {
@@ -92,6 +95,8 @@ impl Vehicle {
             grounded: true,
             collisions: 0,
             yaw_rate: 0.,
+            body_lean: Vec2::ZERO,
+            body_lean_rate: Vec2::ZERO,
         }
     }
     pub fn orientation(&self) -> Quat {
@@ -111,6 +116,7 @@ impl Vehicle {
     }
 
     fn step_substep(&mut self, city: &City, input: Controls, dt: f32) {
+        let previous_velocity = self.velocity.truncate();
         let f = Vec2::new(self.yaw.cos(), self.yaw.sin());
         let left = Vec2::new(-f.y, f.x);
         let speed = self.velocity.truncate().dot(f);
@@ -184,6 +190,20 @@ impl Vehicle {
             self.position.z += lift;
             self.velocity.z = self.velocity.z.max(0.);
         }
+        // Actual acceleration includes braking, tire slip and impacts. Heading
+        // changes alone must not lean the body when no contact supplies force.
+        let acceleration = (self.velocity.truncate() - previous_velocity) / dt;
+        let target = if self.grounded {
+            Vec2::new(
+                (acceleration.dot(f) * 0.012).clamp(-0.12, 0.12),
+                (acceleration.dot(left) * 0.009).clamp(-0.15, 0.15),
+            )
+        } else {
+            Vec2::ZERO
+        };
+        // Damped angular springs allow a short rebound after releasing controls.
+        self.body_lean_rate += ((target - self.body_lean) * 64. - self.body_lean_rate * 10.) * dt;
+        self.body_lean += self.body_lean_rate * dt;
         self.wheel_angle += speed / 0.32 * dt;
     }
 
@@ -445,6 +465,14 @@ impl Vehicle {
             [0.85, 0.8, 0.55],
             SurfaceKind::Marking,
         );
+        // The sprung chassis moves independently of the unsprung wheels, so
+        // acceleration lean cannot lift tires off the road or alter tire grip.
+        let lean =
+            Quat::from_rotation_y(-self.body_lean.x) * Quat::from_rotation_x(self.body_lean.y);
+        for v in &mut m.vertices {
+            v.position = (lean * Vec3::from_array(v.position)).to_array();
+            v.normal = (lean * Vec3::from_array(v.normal)).to_array();
+        }
         for x in [-WHEELBASE * 0.5, WHEELBASE * 0.5] {
             for y in [-HALF_TRACK, HALF_TRACK] {
                 let start = m.vertices.len();
@@ -489,6 +517,97 @@ mod tests {
     fn planar_energy(vehicle: &Vehicle) -> f32 {
         vehicle.velocity.truncate().length_squared()
             + CHASSIS_YAW_INERTIA * vehicle.yaw_rate.powi(2)
+    }
+
+    #[test]
+    fn suspension_squats_dives_and_settles_without_moving_wheels() {
+        let city = map();
+        let mut car = Vehicle::spawn(&city);
+        car.yaw = 0.;
+        for _ in 0..90 {
+            car.step(
+                &city,
+                Controls {
+                    throttle: 1.,
+                    ..Default::default()
+                },
+                1. / 120.,
+            );
+        }
+        assert!(
+            car.body_lean.x > 0.025,
+            "acceleration should raise the nose"
+        );
+        assert!(car.body_lean.y.abs() < 0.001);
+        let wheels = car.wheel_contacts(&city).map(|(p, _)| p);
+        let leaning = car.mesh();
+        car.body_lean = Vec2::ZERO;
+        let level = car.mesh();
+        assert_ne!(leaning.vertices[0].position, level.vertices[0].position);
+        // The three chassis cuboids use 108 vertices; tires follow them.
+        for (a, b) in leaning.vertices[108..].iter().zip(&level.vertices[108..]) {
+            assert_eq!(a.position, b.position);
+        }
+        assert_eq!(wheels, car.wheel_contacts(&city).map(|(p, _)| p));
+        for _ in 0..40 {
+            car.step(
+                &city,
+                Controls {
+                    brake: true,
+                    ..Default::default()
+                },
+                1. / 120.,
+            );
+        }
+        assert!(car.body_lean.x < -0.02, "braking should lower the nose");
+        for _ in 0..600 {
+            car.step(
+                &city,
+                Controls {
+                    brake: true,
+                    ..Default::default()
+                },
+                1. / 120.,
+            );
+        }
+        assert!(car.body_lean.length() < 0.001);
+        assert!(car.body_lean_rate.length() < 0.001);
+        assert!(car.grounded);
+    }
+
+    #[test]
+    fn suspension_rolls_outside_both_turns_and_releases_in_air() {
+        let city = map();
+        for direction in [-1., 1.] {
+            let mut car = Vehicle::spawn(&city);
+            car.yaw = 0.;
+            car.velocity = Vec3::X * 12.;
+            for _ in 0..45 {
+                car.step(
+                    &city,
+                    Controls {
+                        steering: direction,
+                        ..Default::default()
+                    },
+                    1. / 120.,
+                );
+            }
+            assert!(car.body_lean.y * direction > 0.01);
+            assert!(car.body_lean.length() < 0.25);
+            car.position.z += 100.;
+            for _ in 0..120 {
+                car.step(
+                    &city,
+                    Controls {
+                        steering: direction,
+                        ..Default::default()
+                    },
+                    1. / 120.,
+                );
+            }
+            assert!(!car.grounded);
+            assert!(car.body_lean.length() < 0.001);
+        }
     }
 
     #[test]

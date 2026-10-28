@@ -99,6 +99,8 @@ impl Vehicle {
             grounded: true,
             collisions: 0,
             yaw_rate: 0.,
+            body_lean: Vec2::ZERO,
+            body_lean_rate: Vec2::ZERO,
         })
     }
 }

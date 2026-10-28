@@ -61,6 +61,9 @@ fn lettering(p:vec2<f32>, origin:vec2<f32>, scale:f32, word:u32)->bool {
     if word==3u && index<5u {
         code=array<u32,5>(83u,84u,65u,82u,84u)[index];
     }
+    if word==4u && index<4u {
+        code=array<u32,4>(69u,88u,73u,84u)[index];
+    }
     return (glyph(code) & (1u << (u32(q.y)*5u+col)))!=0u;
 }
 fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>)->vec3<f32> {
@@ -78,8 +81,10 @@ fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>)->vec3<f32> {
     let screen=hud.screen.xy;
     if hud.mode.x==1. {
         var color=vec4<f32>(0.015,0.025,0.035,0.78);
-        if inside(p,vec4<f32>(screen*0.5-vec2<f32>(150.,85.),300.,180.)) {color=vec4<f32>(0.035,0.055,0.07,1.);}
+        if inside(p,vec4<f32>(screen*0.5-vec2<f32>(150.,85.),300.,220.)) {color=vec4<f32>(0.035,0.055,0.07,1.);}
         if inside(p,vec4<f32>(screen.x*0.5-110.,screen.y*0.5,220.,56.)) {color=vec4<f32>(0.12,0.28,0.32,1.);}
+        if inside(p,vec4<f32>(screen.x*0.5-110.,screen.y*0.5+68.,220.,48.)) {color=vec4<f32>(0.24,0.10,0.10,1.);}
+        if lettering(p,vec2<f32>(screen.x*0.5-34.5,screen.y*0.5+84.),3.,4u) {color=vec4<f32>(0.93,0.96,0.95,1.);}
         if lettering(p,vec2<f32>(screen.x*0.5-79.5,screen.y*0.5-49.),3.,0u)
             || (hud.mode.y==0. && lettering(p,vec2<f32>(screen.x*0.5-52.5,screen.y*0.5+20.),3.,1u))
             || (hud.mode.y==1. && lettering(p,vec2<f32>(screen.x*0.5-43.5,screen.y*0.5+20.),3.,3u)) {color=vec4<f32>(0.93,0.96,0.95,1.);}

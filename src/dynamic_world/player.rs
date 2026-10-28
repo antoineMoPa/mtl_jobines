@@ -1,5 +1,5 @@
 use super::{Vehicle, METERS_PER_UNIT};
-use glam::{Vec2, Vec3};
+use glam::{Quat, Vec2, Vec3};
 use opencity::runtime::{City, Mesh, SurfaceKind};
 
 const HALF_HEIGHT: f32 = 0.55;
@@ -89,11 +89,18 @@ impl Pedestrian {
         let mut mesh = Mesh::default();
         let half = Vec3::new(RADIUS, RADIUS, HALF_HEIGHT);
         mesh.cuboid(
-            ((self.position - half) / METERS_PER_UNIT).to_array(),
-            ((self.position + half) / METERS_PER_UNIT).to_array(),
+            (-half).to_array(),
+            half.to_array(),
             [0.95, 0.38, 0.12],
             SurfaceKind::Prop,
         );
+        let rotation = Quat::from_rotation_z(self.yaw);
+        for vertex in &mut mesh.vertices {
+            vertex.position = ((self.position + rotation * Vec3::from_array(vertex.position))
+                / METERS_PER_UNIT)
+                .to_array();
+            vertex.normal = (rotation * Vec3::from_array(vertex.normal)).to_array();
+        }
         mesh
     }
 }
@@ -143,6 +150,38 @@ mod tests {
         let vehicle = Vehicle::spawn(&blocked);
         assert!(Pedestrian::beside(&blocked, &vehicle).is_none());
     }
+    #[test]
+    fn cube_faces_follow_walking_heading_in_both_turn_directions() {
+        let city = city();
+        let vehicle = Vehicle::spawn(&city);
+        for direction in [-1., 1.] {
+            let mut player = Pedestrian::beside(&city, &vehicle).unwrap();
+            player.yaw = 0.;
+            let initial = player.mesh();
+            player.step(
+                &city,
+                &vehicle,
+                WalkControls {
+                    turn: direction,
+                    ..Default::default()
+                },
+                0.2,
+            );
+            let turned = player.mesh();
+            let forward = Vec3::new(player.yaw.cos(), player.yaw.sin(), 0.);
+            let left = Vec3::new(-forward.y, forward.x, 0.);
+            for (before, after) in initial.vertices.iter().zip(&turned.vertices) {
+                let local = Vec3::from_array(before.position) * METERS_PER_UNIT - player.position;
+                let world = Vec3::from_array(after.position) * METERS_PER_UNIT - player.position;
+                assert!((world.dot(forward) - local.x).abs() < 0.001);
+                assert!((world.dot(left) - local.y).abs() < 0.001);
+                let normal = Vec3::from_array(after.normal);
+                assert!((normal.dot(forward) - before.normal[0]).abs() < 1e-5);
+                assert!((normal.dot(left) - before.normal[1]).abs() < 1e-5);
+            }
+        }
+    }
+
     #[test]
     fn turning_in_place_changes_heading_without_sideways_movement() {
         let city = city();

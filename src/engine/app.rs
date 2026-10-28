@@ -49,6 +49,17 @@ struct Game {
     first_frame: bool,
 }
 impl Game {
+    fn exit_game(&mut self, event_loop: &ActiveEventLoop) {
+        #[cfg(not(target_arch = "wasm32"))]
+        event_loop.exit();
+        // Browsers cannot close a tab they did not open. Return to the title.
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = event_loop;
+            self.world.reset_player(&self.hermes);
+            self.set_overlay(Overlay::Start);
+        }
+    }
     fn set_overlay(&mut self, overlay: Overlay) {
         self.overlay = overlay;
         self.keys.clear();
@@ -289,6 +300,14 @@ impl ApplicationHandler<GameEvent> for Game {
                     }
                     if self.overlay.paused() {
                         if matches!(self.overlay, Overlay::Start | Overlay::Menu)
+                            && key == KeyCode::KeyQ
+                            && event.state == ElementState::Pressed
+                            && !event.repeat
+                        {
+                            self.exit_game(event_loop);
+                            return;
+                        }
+                        if matches!(self.overlay, Overlay::Start | Overlay::Menu)
                             && key == KeyCode::Enter
                             && event.state == ElementState::Pressed
                             && !event.repeat
@@ -343,6 +362,11 @@ impl ApplicationHandler<GameEvent> for Game {
                     match self.overlay {
                         Overlay::Driving if hud::minimap_contains(w, h, point) => {
                             self.set_overlay(Overlay::Map)
+                        }
+                        Overlay::Start | Overlay::Menu
+                            if hud::contains(hud::exit_rect(w, h), point) =>
+                        {
+                            self.exit_game(event_loop)
                         }
                         Overlay::Start | Overlay::Menu
                             if hud::contains(hud::resume_rect(w, h), point) =>
