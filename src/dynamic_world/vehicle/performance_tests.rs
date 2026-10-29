@@ -58,3 +58,52 @@ fn forward_performance_reaches_highway_speed_and_settles_near_200_kmh() {
         );
     }
 }
+
+#[test]
+fn small_catalog_vehicles_have_brisk_arcade_launches() {
+    let city = City::from_program(
+        &opencity::parse("road r: carlane; end r(-30,0,30,0);").unwrap(),
+        None,
+    )
+    .unwrap();
+    for (id, def) in crate::dynamic_world::catalog::definitions()
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.config.road_vehicle && d.config.physics.mass < 5000.)
+    {
+        for dt in [1. / 120., 1. / 30.] {
+            let mut car = Vehicle::spawn(&city);
+            car.definition = Some(id);
+            car.position = Vec3::new(-2500., 0., RIDE_HEIGHT);
+            car.yaw = 0.;
+            let mut to_50 = None;
+            let mut to_100 = None;
+            for frame in 0..(6. / dt) as usize {
+                car.step(
+                    &city,
+                    Controls {
+                        throttle: 1.,
+                        ..Default::default()
+                    },
+                    dt,
+                );
+                let elapsed = (frame + 1) as f32 * dt;
+                if car.velocity.x * 3.6 >= 50. {
+                    to_50.get_or_insert(elapsed);
+                }
+                if car.velocity.x * 3.6 >= 100. {
+                    to_100 = Some(elapsed);
+                    break;
+                }
+            }
+            let to_50 = to_50.expect("small vehicle must reach 50 km/h");
+            let to_100 = to_100.expect("small vehicle must reach 100 km/h within 6 seconds");
+            assert!(to_50 <= 2.3, "{}: 0–50 takes {to_50}s", car.name());
+            assert!(to_100 <= 5.5, "{}: 0–100 takes {to_100}s", car.name());
+            println!(
+                "{} dt={dt}: 0–50 {to_50:.2}s, 0–100 {to_100:.2}s",
+                car.name()
+            );
+        }
+    }
+}

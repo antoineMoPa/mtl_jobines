@@ -54,6 +54,7 @@ impl SkyOverrides {
 }
 pub(super) struct SmokeOptions {
     pub(super) overview: bool,
+    pub(super) vehicle_lineup: bool,
     pub(super) hood: bool,
     pub(super) profile: bool,
     pub(super) realtime: bool,
@@ -118,6 +119,8 @@ pub(super) fn run(
         Some(start) => DynamicWorld::with_start(hermes, Some(start))?,
         None => DynamicWorld::new(hermes),
     };
+    let mut vehicles = super::vehicle_scenery::VehicleScenery::new(&renderer);
+    vehicles.update(&renderer, &smoke_world);
     let mut moving = Mesh::default();
     smoke_world.write_moving_mesh(&mut moving);
     let carmesh = renderer.upload_dynamic(&moving);
@@ -150,6 +153,8 @@ pub(super) fn run(
     let f = Vec3::new(car.yaw.cos(), car.yaw.sin(), 0.);
     let eye = if options.hood {
         p + f * 0.009 + Vec3::Z * 0.011
+    } else if options.vehicle_lineup {
+        p + Vec3::new(-0.28, -0.38, 0.40)
     } else if options.overview {
         p + Vec3::new(-1.4, -1.7, 1.5)
     } else {
@@ -157,7 +162,7 @@ pub(super) fn run(
     };
     let look = if options.hood {
         p + f * 0.045 + Vec3::Z * 0.014
-    } else if options.overview {
+    } else if options.overview || options.vehicle_lineup {
         p
     } else {
         p + f * 0.04 + Vec3::Z * 0.014
@@ -165,6 +170,7 @@ pub(super) fn run(
     let mut meshes = scenery.visible([p.x, p.y]);
     meshes.push(&carmesh);
     meshes.extend(prop_scenery.visible());
+    meshes.extend(vehicles.visible());
     renderer.render(
         &texture.create_view(&Default::default()),
         &meshes,
@@ -242,6 +248,7 @@ pub(super) fn run(
         let mut walking_meshes = scenery.visible([p.x, p.y]);
         walking_meshes.push(&walking_mesh);
         walking_meshes.extend(walking_props.visible());
+        walking_meshes.extend(vehicles.visible());
         renderer.overlay = Overlay::Driving;
         renderer.render(
             &texture.create_view(&Default::default()),
@@ -297,6 +304,7 @@ pub(super) fn run(
         let mut rendering = Vec::new();
         let mut sky_frames = Vec::new();
         let mut gpu_stages = [Vec::new(), Vec::new(), Vec::new()];
+        drop(meshes);
         let mut profile_mesh = renderer.upload_dynamic(&moving);
         let mut profile_props = PropScenery::default();
         profile_props.update(&renderer, &smoke_world);
@@ -327,10 +335,12 @@ pub(super) fn run(
             );
             smoke_world.write_moving_mesh(&mut profile_vertices);
             renderer.update_dynamic(&mut profile_mesh, &profile_vertices);
+            vehicles.update(&renderer, &smoke_world);
             profile_props.update(&renderer, &smoke_world);
             let mut meshes = scenery.visible(center);
             meshes.push(&profile_mesh);
             meshes.extend(profile_props.visible());
+            meshes.extend(vehicles.visible());
             geometry.push(started.elapsed().as_secs_f64() * 1000.);
             let render_started = Instant::now();
             let f = Vec3::new(car.yaw.cos(), car.yaw.sin(), 0.);

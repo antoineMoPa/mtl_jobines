@@ -84,6 +84,7 @@ impl Vehicle {
         let left = Vec2::new(-forward.y, forward.x);
         let gradient = Vec2::from_array(support.gradient);
         Ok(Self {
+            definition: None,
             position: Vec3::new(
                 start.point[0] * METERS_PER_UNIT,
                 start.point[1] * METERS_PER_UNIT,

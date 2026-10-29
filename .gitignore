@@ -9,3 +9,6 @@
 # Generated from commerce SVG sources with cargo xtask assets.
 /assets/commerce/**/*.png
 /assets/commerce/*.png
+
+__pycache__/
+*.txt

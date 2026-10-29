@@ -31,7 +31,12 @@ impl Pedestrian {
     ) -> Option<Self> {
         let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
         let left = Vec2::new(-forward.y, forward.x);
-        for offset in [left * 1.8, -left * 1.8, -forward * 3., forward * 3.] {
+        for offset in [
+            left * (vehicle.width() * 0.5 + 0.9),
+            -left * (vehicle.width() * 0.5 + 0.9),
+            -forward * (vehicle.length() * 0.5 + 0.9),
+            forward * (vehicle.length() * 0.5 + 0.9),
+        ] {
             let point = vehicle.position.truncate() + offset;
             let surface = city.surface_at(
                 (point / METERS_PER_UNIT).to_array(),
@@ -39,7 +44,7 @@ impl Pedestrian {
             );
             let Some(surface) = surface else { continue };
             let support = surface.height * METERS_PER_UNIT;
-            if (support - (vehicle.position.z - 0.65)).abs() > 0.6 {
+            if (support - (vehicle.position.z - vehicle.ride_height())).abs() > 0.6 {
                 continue;
             }
             let position = point.extend(support + HALF_HEIGHT);
@@ -92,8 +97,8 @@ impl Pedestrian {
             let car_left = Vec2::new(-car_forward.y, car_forward.x);
             let relative = point - vehicle.position.truncate();
             if (position.z - vehicle.position.z).abs() < 1.5
-                && relative.dot(car_forward).abs() < 2.2 + RADIUS
-                && relative.dot(car_left).abs() < 1.0 + RADIUS
+                && relative.dot(car_forward).abs() < vehicle.length() * 0.5 + RADIUS
+                && relative.dot(car_left).abs() < vehicle.width() * 0.5 + RADIUS
             {
                 continue;
             }

@@ -4,6 +4,7 @@ use super::prop_scenery::PropScenery;
 use super::render::{GpuMesh, Renderer};
 #[cfg(not(target_arch = "wasm32"))]
 use super::smoke::{self, SkyOverrides, SmokeOptions};
+use super::vehicle_scenery::VehicleScenery;
 use super::{
     hud::{self, MenuItem, Overlay},
     scenery::Scenery,
@@ -60,6 +61,7 @@ struct Game {
     renderer: Option<Renderer>,
     scenery: Option<Scenery>,
     prop_scenery: PropScenery,
+    vehicle_scenery: Option<VehicleScenery>,
     dynamic_mesh: Option<GpuMesh>,
     dynamic_vertices: Mesh,
     palette: Option<Palette>,
@@ -79,6 +81,9 @@ struct Game {
     menu_selection: MenuItem,
     hood: bool,
     first_frame: bool,
+    first_frame_attempts: u32,
+    surface_retry: Option<Instant>,
+    scene_dirty: bool,
     route_revision: u64,
     frame_rate: FrameRate,
 }
@@ -112,6 +117,27 @@ impl Game {
         ControlFlow::Wait
     }
 
+    fn retry_surface(&mut self, delay: Duration) {
+        self.surface_retry = Some(Instant::now() + delay);
+    }
+    fn wake_surface(&mut self, now: Instant) -> bool {
+        if self.surface_retry.is_some_and(|deadline| deadline <= now) {
+            self.surface_retry = None;
+            true
+        } else {
+            false
+        }
+    }
+    fn wait_for_event(&mut self, now: Instant) -> ControlFlow {
+        let cursor = self.cursor_wait(now);
+        match (cursor, self.surface_retry) {
+            (ControlFlow::WaitUntil(deadline), Some(retry)) => {
+                ControlFlow::WaitUntil(deadline.min(retry))
+            }
+            (_, Some(retry)) => ControlFlow::WaitUntil(retry),
+            _ => cursor,
+        }
+    }
     fn exit_game(&mut self, event_loop: &ActiveEventLoop) {
         #[cfg(not(target_arch = "wasm32"))]
         event_loop.exit();
@@ -120,6 +146,7 @@ impl Game {
         {
             let _ = event_loop;
             self.world.reset_player(&self.hermes);
+            self.scene_dirty = true;
             self.set_overlay(Overlay::Start);
         }
     }
@@ -192,6 +219,7 @@ impl Game {
             renderer: None,
             scenery: None,
             prop_scenery: PropScenery::default(),
+            vehicle_scenery: None,
             dynamic_mesh: None,
             dynamic_vertices: Mesh::default(),
             palette: None,
@@ -215,17 +243,26 @@ impl Game {
             menu_selection: MenuItem::Resume,
             hood: false,
             first_frame: true,
+            first_frame_attempts: 0,
+            surface_retry: None,
+            scene_dirty: true,
             route_revision: 0,
             frame_rate: FrameRate::default(),
         })
     }
+    fn simulation_paused(&self) -> bool {
+        self.overlay.paused() || self.palette.as_ref().is_some_and(|p| p.is_open())
+    }
+    fn refresh_scene(&self) -> bool {
+        !self.simulation_paused() || self.scene_dirty
+    }
     fn simulate(&mut self, elapsed: f32) {
-        if self.overlay.paused() || self.palette.as_ref().is_some_and(|p| p.is_open()) {
+        if self.simulation_paused() {
             self.accumulator = 0.;
-        } else {
-            self.accumulator += elapsed;
-            self.game_time += elapsed;
+            return;
         }
+        self.accumulator += elapsed;
+        self.game_time += elapsed;
         let f = glam::Vec2::new(self.world.player().yaw.cos(), self.world.player().yaw.sin());
         let speed = self.world.player().velocity.truncate().dot(f);
         let (input, walk) = movement_controls(&self.keys, speed);
@@ -239,13 +276,23 @@ impl Game {
             return;
         }
         let now = Instant::now();
+        if self.first_frame {
+            self.first_frame_attempts += 1;
+            if self.first_frame_attempts == 1 {
+                eprintln!("Drawing first frame...");
+            }
+        }
         let elapsed = (now - self.last).as_secs_f32().min(0.1);
         self.last = now;
         self.simulate(elapsed);
+        let paused = self.simulation_paused();
+        let refresh_scene = self.refresh_scene();
 
         let p = self.world.player_position() / METERS_PER_UNIT;
         let center = [p.x, p.y];
-        self.hermes.update_navigation(p.to_array());
+        if !paused {
+            self.hermes.update_navigation(p.to_array());
+        }
         let renderer = self.renderer.as_mut().unwrap();
         if self.route_revision != self.hermes.route_revision() {
             renderer.update_route(&self.hermes.route_uvs());
@@ -259,22 +306,31 @@ impl Game {
         } else {
             p - forward * (0.15 * self.zoom) + Vec3::Z * (0.075 * self.zoom)
         };
-        if !self.overlay.paused() {
+        if !paused {
             self.eye = self.eye.lerp(target_eye, 1. - (-elapsed * 6.).exp());
         }
-        let terrain = self
-            .hermes
-            .city()
-            .surface_at([self.eye.x, self.eye.y], self.eye.z + 0.005)
-            .map(|s| s.height + 0.015)
-            .unwrap_or(-1.);
-        self.eye.z = self.eye.z.max(terrain);
+        if refresh_scene {
+            let terrain = self
+                .hermes
+                .city()
+                .surface_at([self.eye.x, self.eye.y], self.eye.z + 0.005)
+                .map(|s| s.height + 0.015)
+                .unwrap_or(-1.);
+            self.eye.z = self.eye.z.max(terrain);
+        }
         let car = self.dynamic_mesh.as_mut().unwrap();
-        self.world.write_moving_mesh(&mut self.dynamic_vertices);
-        renderer.update_dynamic(car, &self.dynamic_vertices);
-        self.prop_scenery.update(renderer, &self.world);
-        if let Some(pixels) = self.hermes.update_minimap(center) {
-            renderer.update_minimap(pixels);
+        if refresh_scene {
+            self.world.write_moving_mesh(&mut self.dynamic_vertices);
+            renderer.update_dynamic(car, &self.dynamic_vertices);
+            self.prop_scenery.update(renderer, &self.world);
+            self.vehicle_scenery
+                .as_mut()
+                .unwrap()
+                .update(renderer, &self.world);
+            if let Some(pixels) = self.hermes.update_minimap(center) {
+                renderer.update_minimap(pixels);
+            }
+            self.scene_dirty = false;
         }
         let navigation = self.hermes.minimap_view(center, self.world.player_yaw());
         renderer.overlay = self.overlay;
@@ -283,8 +339,12 @@ impl Game {
         let mut meshes = self.scenery.as_ref().unwrap().visible(center);
         meshes.push(car);
         meshes.extend(self.prop_scenery.visible());
-        match renderer.surface.as_ref().unwrap().get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame) => {
+        meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());
+        let texture = renderer.surface.as_ref().unwrap().get_current_texture();
+        let suboptimal = matches!(&texture, wgpu::CurrentSurfaceTexture::Suboptimal(_));
+        match texture {
+            wgpu::CurrentSurfaceTexture::Success(frame)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
                 let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
                     format: Some(renderer.config.format.add_srgb_suffix()),
                     ..Default::default()
@@ -308,7 +368,12 @@ impl Game {
                     }
                 }
                 renderer.queue.present(frame);
-                if !self.overlay.paused() {
+                self.surface_retry = None;
+                if suboptimal {
+                    // The texture is usable: present it before reconfiguring the surface.
+                    renderer.resize(renderer.config.width, renderer.config.height);
+                }
+                if !paused {
                     self.frame_rate.presented(Instant::now());
                 }
                 if self.first_frame {
@@ -316,14 +381,9 @@ impl Game {
                     self.first_frame = false;
                 }
             }
-            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
-                drop(frame);
-                renderer.resize(renderer.config.width, renderer.config.height);
-                self.window.as_ref().unwrap().request_redraw();
-            }
             wgpu::CurrentSurfaceTexture::Outdated => {
                 renderer.resize(renderer.config.width, renderer.config.height);
-                self.window.as_ref().unwrap().request_redraw();
+                self.retry_surface(Duration::from_millis(100));
             }
             wgpu::CurrentSurfaceTexture::Lost => {
                 if let Err(error) = renderer.recreate_surface(self.window.as_ref().unwrap().clone())
@@ -331,21 +391,42 @@ impl Game {
                     eprintln!("Cannot recreate game surface: {error}");
                     event_loop.exit();
                 } else {
-                    self.window.as_ref().unwrap().request_redraw();
+                    self.retry_surface(Duration::from_millis(100));
                 }
             }
-            wgpu::CurrentSurfaceTexture::Timeout
-            | wgpu::CurrentSurfaceTexture::Occluded
-            | wgpu::CurrentSurfaceTexture::Validation => {}
+            wgpu::CurrentSurfaceTexture::Timeout => {
+                if self.first_frame_attempts == 1 {
+                    eprintln!("First surface acquisition timed out; retrying shortly");
+                }
+                self.retry_surface(Duration::from_millis(100));
+            }
+            wgpu::CurrentSurfaceTexture::Occluded => {
+                if self.first_frame {
+                    if self.first_frame_attempts == 1 {
+                        eprintln!("Window surface not visible yet; waiting for first drawable");
+                    }
+                    self.retry_surface(Duration::from_millis(250));
+                }
+            }
+            wgpu::CurrentSurfaceTexture::Validation => {
+                eprintln!("Cannot acquire game surface: GPU validation failed");
+                event_loop.exit();
+            }
         }
-        if !self.overlay.paused() {
+        if !self.simulation_paused() && self.surface_retry.is_none() {
             self.window.as_ref().unwrap().request_redraw();
         }
     }
 }
 impl ApplicationHandler<GameEvent> for Game {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        event_loop.set_control_flow(self.cursor_wait(Instant::now()));
+        let now = Instant::now();
+        if self.wake_surface(now) {
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+        event_loop.set_control_flow(self.wait_for_event(now));
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -469,7 +550,16 @@ impl ApplicationHandler<GameEvent> for Game {
                 }
                 self.show_cursor();
             }
+            WindowEvent::Occluded(false) => {
+                self.surface_retry = None;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
             WindowEvent::Focused(true) => {
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
                 if self.cursor.is_some() {
                     self.cursor_activity(Instant::now());
                 }
@@ -717,6 +807,7 @@ pub fn run() -> Result<(), String> {
             output,
             SmokeOptions {
                 overview: args.iter().any(|a| a == "--overview"),
+                vehicle_lineup: args.iter().any(|a| a == "--vehicle-lineup"),
                 hood: args.iter().any(|a| a == "--hood"),
                 profile: args
                     .iter()
@@ -747,6 +838,9 @@ impl Game {
         self.world.write_moving_mesh(&mut self.dynamic_vertices);
         self.dynamic_mesh = Some(renderer.upload_dynamic(&self.dynamic_vertices));
         self.prop_scenery.update(&renderer, &self.world);
+        let mut vehicles = VehicleScenery::new(&renderer);
+        vehicles.update(&renderer, &self.world);
+        self.vehicle_scenery = Some(vehicles);
         eprintln!(
             "Scenery ready in {:?}; preparing map atlas...",
             started.elapsed()
@@ -770,10 +864,15 @@ impl Game {
             refresh.map(|rate| rate as f32 / 1000.)
         );
         renderer.resize(size.width, size.height);
+        eprintln!("Window configured; initializing command palette...");
         self.palette = Some(Palette::new(self.window.as_ref().unwrap(), &renderer));
         self.renderer = Some(renderer);
         self.last = Instant::now();
         self.game_time = 0.;
+        // Ensure startup gets another opportunity even if the initial redraw is coalesced
+        // before the native window becomes visible. Successful presentation cancels this.
+        self.retry_surface(Duration::from_millis(100));
+        eprintln!("Startup ready; requesting first frame");
         self.window.as_ref().unwrap().request_redraw();
     }
 }

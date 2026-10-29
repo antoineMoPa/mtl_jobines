@@ -143,7 +143,11 @@ impl Props {
         if delta.length_squared() < 1e-10 {
             return;
         }
-        let shape = Cuboid::new(vector![2.1, 0.9, 0.45]);
+        let shape = Cuboid::new(vector![
+            vehicle.length() * 0.5,
+            vehicle.width() * 0.5,
+            (vehicle.height() * 0.5).min(1.5)
+        ]);
         let pose = Isometry3::new(
             vector![before.x, before.y, before.z],
             vector![0., 0., vehicle.yaw],

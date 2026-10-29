@@ -8,6 +8,7 @@ mod game_data;
 mod minimap;
 
 mod routing;
+pub(crate) mod traffic_paths;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data))]
 use game_data::CacheKey;
 use game_data::GameData;
@@ -67,6 +68,7 @@ pub struct Hermes {
     minimap: minimap::Minimap,
     prepared: Option<(Mesh, Mesh)>,
     router: routing::Router,
+    traffic_paths: Arc<traffic_paths::TrafficPaths>,
     navigation: routing::Navigation,
     #[cfg(not(target_arch = "wasm32"))]
     cache: Option<(CacheKey, std::path::PathBuf)>,
@@ -203,6 +205,7 @@ impl Hermes {
         };
         let router = routing::Router::new(&city, program);
         Ok(Self {
+            traffic_paths: Arc::new(traffic_paths::TrafficPaths::new(&city, program)),
             router,
             navigation: routing::Navigation::default(),
             city: Arc::new(city),
@@ -265,6 +268,9 @@ impl Hermes {
             .0;
         game_data::write(path, key, &world, &details, self.minimap.pixels())
             .map_err(|e| e.to_string())
+    }
+    pub(crate) fn traffic_paths(&self) -> &Arc<traffic_paths::TrafficPaths> {
+        &self.traffic_paths
     }
     pub fn city(&self) -> &Arc<City> {
         &self.city

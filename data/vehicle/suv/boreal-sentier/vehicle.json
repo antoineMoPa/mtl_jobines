@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "name": "Boreal Sentier",
+  "category": "suv",
+  "roadVehicle": true,
+  "model": "model.glb",
+  "dimensions": {
+    "length": 4.6057,
+    "width": 2.172,
+    "height": 1.672
+  },
+  "physics": {
+    "mass": 1550,
+    "maxSpeed": 44,
+    "acceleration": 10.5,
+    "friction": 0.9,
+    "maxSteerAngle": 0.52,
+    "heightOffset": 0.65,
+    "wheelRadius": 0.32,
+    "wheelbase": 2.6999999999999997,
+    "track": 1.6500000000000001
+  },
+  "qa": {
+    "status": "exported",
+    "triangles": 1184,
+    "parts": 28,
+    "boxes": 15,
+    "cylinders": 4,
+    "wheelSegments": 12,
+    "wheels": [
+      "wheel_rear_left",
+      "wheel_rear_right",
+      "wheel_front_left",
+      "wheel_front_right"
+    ],
+    "claydashExport": "completed",
+    "game": "drive-tested",
+    "detailPass": 1,
+    "sheetPanels": 7,
+    "sheetBends": 5,
+    "pivot": "axle-local"
+  },
+  "researchId": "vehicle-04"
+}

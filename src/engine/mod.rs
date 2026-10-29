@@ -15,6 +15,7 @@ mod sky_controls;
 mod sky_probe;
 #[cfg(not(target_arch = "wasm32"))]
 mod smoke;
+mod vehicle_scenery;
 #[cfg(not(target_arch = "wasm32"))]
 pub use app::run;
 #[cfg(target_arch = "wasm32")]

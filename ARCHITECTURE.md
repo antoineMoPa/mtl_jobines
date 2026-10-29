@@ -15,7 +15,8 @@ static geography; the game owns simulation and presentation.
   spatial queries and SVG export.
 
 `src/lib.rs` shares native and WebAssembly startup. Hermes holds an immutable `Arc<City>`;
-Dynamic World queries it and produces CPU meshes. Engine alone owns GPU resources.
+Dynamic World queries it and supplies vehicle part transforms plus pedestrian/debris meshes.
+Engine alone owns GPU resources; catalog vehicle vertices upload once and use instance matrices.
 
 OpenCity expands zoning into deterministic building placements shared by its editor and Hermes.
 Authored buildings remain protected. Hermes adds regional materials, architectural details,
@@ -31,21 +32,26 @@ stellar detail, whose controls do not invalidate the atmosphere cache.
 
 Startup loads the map and minimap, spawns the player, then initializes GPU resources. Browser
 startup embeds map/elevation assets and initializes WebGPU asynchronously. Static meshes are built
-once into 200 m GPU batches; driving selects nearby buffers and uploads nearby dynamic meshes.
+once into spatial GPU batches; driving selects nearby buffers, updates vehicle instance transforms,
+and uploads pedestrian/debris meshes. Static partitioning sorts triangles in place.
 
 Engine advances simulation at **120 Hz** with capped elapsed time, follows the player and renders
 shadows, world and HUD. Start/Resume menus and the full-map modal pause physics and the game clock,
-clear held controls and stop continuous redraws. Engine owns input and overlays.
+clear held controls and stop continuous redraws. The palette uses the same pause policy. Paused
+redraws reuse frozen scene buffers; navigation, vehicle transforms and prop selection also stop.
+Engine owns input and overlays.
 
-Dynamic World starts with one vehicle. F switches between driving and walking near a slow vehicle;
-unoccupied cars hold the handbrake. Tire impulses use contact velocity, surface grip and a combined
+Dynamic World starts with the player vehicle, a parked catalog and nearby NPC traffic. F switches
+between driving and walking near a slow vehicle; unoccupied parked cars hold the handbrake.
+Tire impulses use contact velocity, surface grip and a combined
 longitudinal/lateral envelope. Contact torques drive persistent yaw; momentum is independent of
 body heading. Space brakes all wheels and reduces rear lateral grip. Suspension and visual body
 pitch/roll remain game-owned; tire loads use equal quarters of chassis weight.
 
 Rapier handles collisions with individual street/frontage props. Strong impacts detach them;
 detached bodies disappear after ten seconds. Prop placement is deterministic, destruction
-session-local. OpenCity supplies terrain support and building contacts.
+session-local. OpenCity supplies terrain support and building footprints. A game-owned spatial
+index limits vehicle building contact tests to nearby footprints.
 
 Hermes rasterizes the minimap once into a 4096² atlas. Engine reuses it for the heading-up minimap
 and north-up map modal. Routing uses a directed graph of roads, ramp attachments and authored
@@ -76,8 +82,10 @@ data with `BUNDLE_GAME_DATA=1 make build`. Engine recreates device-local GPU res
 
 ## Extensions and limits
 
-AI traffic, missions and gameplay persistence are unimplemented. A future lane-level planner can
-retain lane/movement sequences; AI can reuse player `Controls`. Dynamic World owns entity lifetimes;
+NPCs use a shared lane/movement graph compiled from OpenCity and drive through player `Controls`.
+The population targets 36 cars within 180 m and reuses distant slots beyond 240 m. Four-way lights
+alternate opposing approaches over 28 seconds; left turns yield to oncoming straight/right traffic.
+Missions and gameplay persistence remain unimplemented. Dynamic World owns entity lifetimes;
 a mission system would own objectives.
 
 Driving physics, prop hulls, tee geometry, shader rooms and lighting are approximate; buoyancy is

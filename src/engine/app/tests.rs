@@ -241,3 +241,65 @@ fn fps_uses_actual_present_intervals_including_slow_frames() {
     resumed.presented(start + Duration::from_secs(60));
     assert_eq!(resumed.value, None);
 }
+#[test]
+fn idle_overlays_reuse_frozen_scene_and_resume_refreshes_it() {
+    let mut game = Game::new(Hermes::test_map());
+    game.scene_dirty = false; // Startup has already uploaded scene buffers.
+    for overlay in [Overlay::Start, Overlay::Menu, Overlay::Map] {
+        game.set_overlay(overlay);
+        assert!(game.simulation_paused());
+        assert!(
+            !game.refresh_scene(),
+            "menu input should reuse frozen GPU data"
+        );
+        let time = game.game_time;
+        for _ in 0..120 {
+            game.simulate(1.);
+        }
+        assert_eq!(game.game_time, time);
+        assert_eq!(game.accumulator, 0.);
+    }
+    game.scene_dirty = true;
+    assert!(
+        game.refresh_scene(),
+        "an explicit reset must still upload once"
+    );
+    game.scene_dirty = false;
+    game.set_overlay(Overlay::Driving);
+    assert!(!game.simulation_paused());
+    assert!(game.refresh_scene());
+}
+#[test]
+fn paused_startup_retries_a_missing_drawable_without_busy_polling() {
+    let mut game = Game::new(Hermes::test_map());
+    assert!(game.simulation_paused());
+    game.retry_surface(Duration::from_millis(100));
+    let deadline = game.surface_retry.unwrap();
+    assert_eq!(
+        game.wait_for_event(deadline - Duration::from_millis(50)),
+        ControlFlow::WaitUntil(deadline)
+    );
+    assert!(!game.wake_surface(deadline - Duration::from_millis(1)));
+    assert!(game.wake_surface(deadline));
+    assert!(!game.wake_surface(deadline));
+    // Presentation cancels the retry; paused idle goes back to waiting for input.
+    assert_eq!(game.wait_for_event(deadline), ControlFlow::Wait);
+    assert_eq!(game.game_time, 0.);
+    assert_eq!(game.first_frame_attempts, 0);
+}
+#[test]
+fn surface_retry_and_cursor_deadlines_use_the_earliest_wakeup() {
+    let mut game = Game::new(Hermes::test_map());
+    let now = Instant::now();
+    game.cursor_hide_at = Some(now + Duration::from_secs(3));
+    game.surface_retry = Some(now + Duration::from_millis(100));
+    assert_eq!(
+        game.wait_for_event(now),
+        ControlFlow::WaitUntil(now + Duration::from_millis(100))
+    );
+    game.surface_retry = None;
+    assert_eq!(
+        game.wait_for_event(now),
+        ControlFlow::WaitUntil(now + Duration::from_secs(3))
+    );
+}

@@ -1108,3 +1108,28 @@ fn uphill_gravity_rolls_unpowered_vehicle_downhill() {
     }
     assert!(v.velocity.x < -0.1);
 }
+#[test]
+fn building_grid_contacts_match_the_full_map_scan_at_cell_boundaries() {
+    let city = building_map();
+    let grid = crate::dynamic_world::buildings::Buildings::new(&city);
+    let mut candidates = Vec::new();
+    let mut vehicle = Vehicle::spawn(&city);
+    for x in -2260..=-2220 {
+        for y in [290., 299.9, 300., 300.1, 310.] {
+            for yaw in [0., 0.7, 1.5] {
+                vehicle.position.x = x as f32;
+                vehicle.position.y = y;
+                vehicle.yaw = yaw;
+                let forward = Vec2::new(yaw.cos(), yaw.sin());
+                grid.nearby(
+                    vehicle.position.truncate(),
+                    vehicle.length().hypot(vehicle.width()),
+                    &mut candidates,
+                );
+                let full = vehicle.building_contact(&city, forward);
+                let local = vehicle.building_contact_candidates(&city, forward, Some(&candidates));
+                assert_eq!(local, full, "missed building at {:?}", vehicle.position);
+            }
+        }
+    }
+}

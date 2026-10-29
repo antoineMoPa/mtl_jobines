@@ -1,0 +1,104 @@
+[
+  {
+    "path": "compact/laurent-laurentien",
+    "name": "Laurent Laurentien",
+    "roadVehicle": true,
+    "researchId": "vehicle-01"
+  },
+  {
+    "path": "suv/boreal-sentier",
+    "name": "Boreal Sentier",
+    "roadVehicle": true,
+    "researchId": "vehicle-04"
+  },
+  {
+    "path": "suv/laurent-traverse",
+    "name": "Laurent Traverse",
+    "roadVehicle": true,
+    "researchId": "vehicle-05"
+  },
+  {
+    "path": "hatchback/montcalm-trois",
+    "name": "Montcalm Trois",
+    "roadVehicle": true,
+    "researchId": "vehicle-06"
+  },
+  {
+    "path": "hatchback/laurent-moineau",
+    "name": "Laurent Moineau",
+    "roadVehicle": true,
+    "researchId": "vehicle-08"
+  },
+  {
+    "path": "hatchback/boreal-echo",
+    "name": "Boreal Echo",
+    "roadVehicle": true,
+    "researchId": "vehicle-09"
+  },
+  {
+    "path": "minivan/castor-familial",
+    "name": "Castor Familial",
+    "roadVehicle": true,
+    "researchId": "vehicle-11"
+  },
+  {
+    "path": "suv/boreal-colline",
+    "name": "Boreal Colline",
+    "roadVehicle": true,
+    "researchId": "vehicle-12"
+  },
+  {
+    "path": "taxi/bonjour-electrique",
+    "name": "Bonjour Electrique",
+    "roadVehicle": true,
+    "researchId": "vehicle-j01"
+  },
+  {
+    "path": "bus/saint-laurent-urbain",
+    "name": "Saint-Laurent Urbain",
+    "roadVehicle": true,
+    "researchId": "vehicle-j02"
+  },
+  {
+    "path": "municipal/castor-blizzard",
+    "name": "Castor Blizzard",
+    "roadVehicle": true,
+    "researchId": "vehicle-j03"
+  },
+  {
+    "path": "municipal/castor-niveleur",
+    "name": "Castor Niveleur",
+    "roadVehicle": true,
+    "researchId": "vehicle-j04"
+  },
+  {
+    "path": "municipal/castor-collecteur",
+    "name": "Castor Collecteur",
+    "roadVehicle": true,
+    "researchId": "vehicle-j05"
+  },
+  {
+    "path": "emergency/laurent-vigile",
+    "name": "Laurent Vigile",
+    "roadVehicle": true,
+    "researchId": "vehicle-j06"
+  },
+  {
+    "path": "emergency/saint-laurent-secours",
+    "name": "Saint-Laurent Secours",
+    "roadVehicle": true,
+    "researchId": "vehicle-j07"
+  },
+  {
+    "path": "rail/azur-classique",
+    "name": "Azur Classique",
+    "roadVehicle": false,
+    "researchId": "vehicle-r01"
+  },
+  {
+    "path": "rail/prairie-express",
+    "name": "Prairie Express",
+    "roadVehicle": false,
+    "researchId": "vehicle-r02"
+  }
+]

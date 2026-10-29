@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "name": "Castor Blizzard",
+  "category": "municipal",
+  "roadVehicle": true,
+  "model": "model.glb",
+  "dimensions": {
+    "length": 8.9807,
+    "width": 3.375,
+    "height": 2.916
+  },
+  "physics": {
+    "mass": 14000,
+    "maxSpeed": 36,
+    "acceleration": 5.0,
+    "friction": 0.9,
+    "maxSteerAngle": 0.52,
+    "heightOffset": 0.65,
+    "wheelRadius": 0.48,
+    "wheelbase": 5.1,
+    "track": 2.21
+  },
+  "qa": {
+    "status": "exported",
+    "triangles": 1924,
+    "parts": 26,
+    "boxes": 15,
+    "cylinders": 6,
+    "wheelSegments": 12,
+    "wheels": [
+      "wheel_rear_left",
+      "wheel_rear_right",
+      "wheel_middle_left",
+      "wheel_middle_right",
+      "wheel_front_left",
+      "wheel_front_right"
+    ],
+    "claydashExport": "completed",
+    "game": "drive-tested",
+    "detailPass": 1,
+    "sheetPanels": 3,
+    "sheetBends": 3,
+    "pivot": "axle-local"
+  },
+  "researchId": "vehicle-j03"
+}

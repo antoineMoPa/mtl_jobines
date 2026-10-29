@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "name": "Azur Classique",
+  "category": "rail",
+  "roadVehicle": false,
+  "model": "model.glb",
+  "dimensions": {
+    "length": 16.0092,
+    "width": 2.67,
+    "height": 3.208
+  },
+  "physics": {
+    "mass": 27000,
+    "maxSpeed": 22,
+    "acceleration": 1.1,
+    "friction": 0.9,
+    "maxSteerAngle": 0.52,
+    "heightOffset": 0.65,
+    "wheelRadius": 0.4,
+    "wheelbase": 10.88,
+    "track": 2.21
+  },
+  "qa": {
+    "status": "exported",
+    "triangles": 1704,
+    "parts": 42,
+    "boxes": 34,
+    "cylinders": 4,
+    "wheelSegments": 12,
+    "wheels": [
+      "wheel_rear_left",
+      "wheel_rear_right",
+      "wheel_front_left",
+      "wheel_front_right"
+    ],
+    "claydashExport": "completed",
+    "game": "rail-display",
+    "detailPass": 1,
+    "sheetPanels": 4,
+    "sheetBends": 3,
+    "pivot": "axle-local"
+  },
+  "researchId": "vehicle-r01"
+}

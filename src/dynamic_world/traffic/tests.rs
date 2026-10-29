@@ -1,0 +1,354 @@
+use super::*;
+use crate::hermes::traffic_paths::TrafficPaths;
+fn map(source: &str) -> (City, Arc<TrafficPaths>) {
+    let program = opencity::parse(source).unwrap();
+    let city = City::from_program(&program, None).unwrap();
+    let paths = TrafficPaths::new(&city, &program);
+    (city, Arc::new(paths))
+}
+const STRAIGHT: &str = "road street: sidewalk carlane middle carlane sidewalk; end
+    street(-3,0,3,0); street(-3,0.4,3,0.4); street(-3,-0.4,3,-0.4);
+    land(-4,-2,4,-2,4,2,-4,2);";
+const CROSS: &str = "road street: sidewalk carlane middle carlane sidewalk; end
+    center=map_point(0,0); north=map_point(0,2); east=map_point(2,0);
+    south=map_point(0,-2); west=map_point(-2,0);
+    street(north,0,1.4,0,0.3,center); street(center,0.3,0,1.4,0,east);
+    street(center,0,-0.3,0,-1.4,south); street(west,-1.4,0,-0.3,0,center);
+    intersection4(center,street); land(-3,-3,3,-3,3,3,-3,3);";
+fn one_driver(
+    city: &City,
+    graph: &Arc<TrafficPaths>,
+    path: usize,
+    distance: f32,
+) -> (Traffic, Vec<Vehicle>) {
+    let mut traffic = Traffic::new(graph);
+    let (point, heading) = graph.paths[path].sample(distance);
+    let mut car = Vehicle::spawn_at(
+        city,
+        SpawnPoint {
+            point: (point.truncate() / 100.).to_array(),
+            heading: Some(heading.y.atan2(heading.x)),
+        },
+    )
+    .unwrap();
+    car.definition = Some(0);
+    car.position.z = point.z + car.ride_height();
+    traffic.drivers.push(Driver {
+        vehicle: 0,
+        path,
+        distance,
+        next: None,
+        stopped: false,
+        stranded: 0.,
+    });
+    (traffic, vec![car])
+}
+fn tick(traffic: &mut Traffic, city: &City, cars: &mut [Vehicle], dt: f32) {
+    for (index, input) in traffic.controls(city, cars, None, dt) {
+        cars[index].step(city, input, dt);
+    }
+    super::super::contacts::resolve(cars);
+}
+#[test]
+fn population_is_nearby_separated_and_reuses_slots_after_travel() {
+    let (city, graph) = map(STRAIGHT);
+    let mut traffic = Traffic::new(&graph);
+    assert!(
+        Arc::ptr_eq(&traffic.graph, &graph),
+        "traffic must share its map graph"
+    );
+    let mut cars = Vec::new();
+    traffic.populate(&city, &mut cars, Vec3::ZERO);
+    assert_eq!(traffic.drivers.len(), TARGET);
+    for (i, a) in cars.iter().enumerate() {
+        assert!(a.position.length() < SPAWN_RADIUS + 1.);
+        for b in &cars[..i] {
+            assert!(a.position.distance(b.position) > 9.);
+        }
+    }
+    let capacity = cars.len();
+    traffic.take_spawns();
+    for center in [Vec3::X * 600., Vec3::ZERO, Vec3::X * -600., Vec3::ZERO]
+        .into_iter()
+        .cycle()
+        .take(100)
+    {
+        traffic.populate(&city, &mut cars, center);
+        assert!(cars.len() <= capacity, "travelling must reuse NPC slots");
+        assert!(traffic.take_spawns().len() <= TARGET);
+    }
+    assert_eq!(traffic.drivers.len(), TARGET);
+}
+#[test]
+fn speed_classes_follow_semantic_roles_and_carriageways_have_opposite_directions() {
+    let (_, graph) = map("road local: carlane middle carlane; end
+        road freeway: carlane middle carlane; role highway; end
+        road ramp: carlane; direction forward; role ramp; end
+        road merge: carlane; direction forward; role merge; end
+        local(-2,0,2,0); freeway(-2,1,2,1); ramp(-2,2,2,2); merge(-2,3,2,3);");
+    let classes: Vec<_> = graph.paths.iter().map(|p| p.speed).collect();
+    assert_eq!(
+        classes,
+        vec![
+            SpeedClass::Local,
+            SpeedClass::Local,
+            SpeedClass::Highway,
+            SpeedClass::Highway,
+            SpeedClass::Ramp,
+            SpeedClass::Merge
+        ]
+    );
+    assert!(graph.paths[0].sample(0.).1.x < 0.);
+    assert!(graph.paths[1].sample(0.).1.x > 0.);
+    assert!(SpeedClass::Highway.meters_per_second() > SpeedClass::Local.meters_per_second());
+}
+#[test]
+fn crossing_links_permitted_turns_and_has_four_signals() {
+    let (_, graph) = map(CROSS);
+    assert_eq!(graph.signals.len(), 4);
+    let incoming: Vec<_> = graph
+        .paths
+        .iter()
+        .filter(|p| p.speed != SpeedClass::Junction && !p.next.is_empty())
+        .collect();
+    assert_eq!(incoming.len(), 4);
+    for lane in incoming {
+        assert_eq!(
+            lane.next.len(),
+            3,
+            "each approach needs left, straight and right"
+        );
+        for &next in &lane.next {
+            assert!(graph.paths[next].signal.is_some());
+            assert!(
+                !graph.paths[next].next.is_empty(),
+                "turn must reach an exit lane"
+            );
+        }
+    }
+}
+#[test]
+fn red_light_stops_before_line_then_green_releases_traffic() {
+    let (city, graph) = map(CROSS);
+    let path = graph
+        .paths
+        .iter()
+        .position(|p| !p.next.is_empty() && graph.paths[p.next[0]].signal.is_some())
+        .unwrap();
+    let signal = graph.paths[graph.paths[path].next[0]].signal.unwrap();
+    let phase = graph.signals[signal].phase;
+    let (mut traffic, mut cars) = one_driver(&city, &graph, path, graph.paths[path].length - 25.);
+    traffic.time = ((phase + 1) % 2) as f32 * 14.;
+    for _ in 0..540 {
+        tick(&mut traffic, &city, &mut cars, 1. / 60.);
+    }
+    assert_eq!(traffic.drivers[0].path, path, "crossed on red");
+    assert!(cars[0].velocity.length() < 0.6, "failed to stop");
+    let distance = graph.paths[path]
+        .project(cars[0].position - Vec3::Z * cars[0].ride_height())
+        .0;
+    assert!(graph.paths[path].length - distance > cars[0].length() * 0.5);
+    traffic.time = phase as f32 * 14.;
+    for _ in 0..600 {
+        tick(&mut traffic, &city, &mut cars, 1. / 60.);
+    }
+    assert_ne!(traffic.drivers[0].path, path, "failed to leave on green");
+}
+#[test]
+fn drivers_move_follow_speed_limit_and_brake_for_parked_cars() {
+    let (city, graph) = map(STRAIGHT);
+    let (mut traffic, mut cars) = one_driver(&city, &graph, 1, 120.);
+    let initial = cars[0].position;
+    for _ in 0..600 {
+        tick(&mut traffic, &city, &mut cars, 1. / 60.);
+    }
+    assert!(cars[0].position.distance(initial) > 25.);
+    assert!(cars[0].velocity.length() <= SpeedClass::Local.meters_per_second() + 1.);
+    let mut parked = Vehicle::spawn(&city);
+    parked.definition = Some(0);
+    parked.position = cars[0].position + Vec3::X * 25.;
+    parked.yaw = cars[0].yaw;
+    let parked_at = parked.position;
+    cars.push(parked);
+    for _ in 0..600 {
+        tick(&mut traffic, &city, &mut cars, 1. / 60.);
+    }
+    assert!(cars[0].position.x < parked_at.x - 4.);
+    assert!(cars[0].velocity.length() < 0.7);
+    assert_eq!(cars[0].collisions, 0);
+}
+#[test]
+fn collision_displacement_rejoins_a_lane_or_stops_when_unreachable() {
+    let (city, graph) = map(STRAIGHT);
+    let (mut traffic, mut cars) = one_driver(&city, &graph, 1, 120.);
+    cars[0].position.y += 4.;
+    for _ in 0..600 {
+        tick(&mut traffic, &city, &mut cars, 1. / 60.);
+    }
+    assert!(!traffic.drivers[0].stopped);
+    let ground = cars[0].position - Vec3::Z * cars[0].ride_height();
+    assert!(graph.paths[traffic.drivers[0].path].project(ground).1 < 1.5);
+    cars[0].position.y = 150.;
+    cars[0].velocity = Vec3::X * 3.;
+    for _ in 0..300 {
+        tick(&mut traffic, &city, &mut cars, 1. / 60.);
+    }
+    assert!(traffic.drivers[0].stopped);
+    assert!(cars[0].velocity.length() < 0.5);
+}
+#[test]
+fn physical_contact_deflects_npc_and_takeover_removes_ai_control() {
+    let (city, graph) = map(STRAIGHT);
+    let (mut traffic, mut cars) = one_driver(&city, &graph, 1, 120.);
+    let mut player = Vehicle::spawn(&city);
+    player.position = cars[0].position - Vec3::X * 3.;
+    player.yaw = cars[0].yaw;
+    player.velocity = Vec3::X * 12.;
+    cars.push(player);
+    super::super::contacts::resolve(&mut cars);
+    assert!(cars[0].collisions > 0);
+    assert!(cars[0].velocity.x > 0.);
+    traffic.release(0);
+    assert!(traffic.controls(&city, &cars, None, 1. / 60.).is_empty());
+}
+#[test]
+fn paths_do_not_connect_unrelated_crossings_or_stacked_decks() {
+    let (_, graph) = map("road street: carlane; direction forward; end
+        origin=map_point(-2,0); a=map_point(2,0); b=map_point(2,0); c=map_point(4,0);
+        street(origin,-0.7,0,0.7,0,a); street(0,-2,0,2);
+        street(b,2.6,0,3.4,0,c); elevated=street(2,0,4,0); grade(elevated,0.5,0.5);");
+    assert!(graph.paths.iter().all(|p| p.next.is_empty()));
+}
+#[test]
+fn ramp_attachment_splits_and_connects_only_its_lane() {
+    let (_, graph) = map("road freeway: carlane middle carlane; role highway; end
+        road ramp: carlane; direction forward; role ramp; end
+        main=freeway(-3,0,3,0); exit=lane_point(main,2,0.5);
+        finish=map_point(1,-1); ramp(exit,0.3,-0.035,0.8,-0.7,finish);");
+    let ramp = graph
+        .paths
+        .iter()
+        .position(|p| p.speed == SpeedClass::Ramp)
+        .unwrap();
+    assert!(graph
+        .paths
+        .iter()
+        .any(|p| p.speed == SpeedClass::Highway && p.next.contains(&ramp)));
+    assert!(!graph.paths[0].next.contains(&ramp));
+}
+#[test]
+fn highway_driver_reaches_highway_speed() {
+    let (city, graph) = map("road freeway: verge carlane middle carlane verge;
+        role highway; end freeway(-20,0,20,0); land(-21,-2,21,-2,21,2,-21,2);");
+    let (mut traffic, mut cars) = one_driver(&city, &graph, 1, 100.);
+    for _ in 0..1200 {
+        tick(&mut traffic, &city, &mut cars, 1. / 60.);
+    }
+    assert!(cars[0].velocity.length() > 24.);
+    assert!(cars[0].velocity.length() < 29.);
+}
+#[test]
+fn default_city_keeps_thirty_physical_npcs_and_moves_them() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("opencity/examples/default_map.road");
+    let hermes = crate::hermes::Hermes::load_with_game_data(&path, None).unwrap();
+    let mut world = super::super::DynamicWorld::new(&hermes);
+    assert_eq!(world.traffic.count(), TARGET);
+    let original: Vec<_> = world
+        .traffic
+        .drivers
+        .iter()
+        .map(|d| (d.vehicle, world.vehicles[d.vehicle].position))
+        .collect();
+    let simulation_started = std::time::Instant::now();
+    for _ in 0..900 {
+        world.step(
+            &hermes,
+            Controls::default(),
+            super::super::WalkControls::default(),
+            1. / 60.,
+        );
+    }
+    eprintln!("900 simulation ticks: {:?}", simulation_started.elapsed());
+    let moved = original
+        .iter()
+        .filter(|(id, position)| world.vehicles[*id].position.distance(*position) > 5.)
+        .count();
+    eprintln!(
+        "default traffic: {moved}/{TARGET} moved over 5 m, {} stopped after recovery",
+        world.traffic.drivers.iter().filter(|d| d.stopped).count()
+    );
+    assert!(
+        moved >= 10,
+        "traffic should move through the real default road network"
+    );
+    assert_eq!(world.traffic.count(), TARGET);
+    assert!(world.vehicles.iter().all(|v| v.position.is_finite()));
+    let mut mesh = opencity::runtime::Mesh::default();
+    world.write_moving_mesh(&mut mesh);
+    assert!(!mesh.vertices.is_empty());
+}
+#[test]
+fn left_turn_waits_for_oncoming_straight_traffic_then_takes_the_gap() {
+    let (city, graph) = map(CROSS);
+    let lane = graph
+        .paths
+        .iter()
+        .position(|p| {
+            p.speed != SpeedClass::Junction
+                && p.next.iter().any(|&id| graph.paths[id].turn == Turn::Left)
+        })
+        .unwrap();
+    let left = *graph.paths[lane]
+        .next
+        .iter()
+        .find(|&&id| graph.paths[id].turn == Turn::Left)
+        .unwrap();
+    let signal = graph.paths[left].signal.unwrap();
+    let opposite = graph
+        .signals
+        .iter()
+        .find(|s| s.forward.dot(graph.signals[signal].forward) < -0.7)
+        .unwrap();
+    let (mut traffic, mut cars) = one_driver(&city, &graph, lane, graph.paths[lane].length - 3.6);
+    traffic.drivers[0].next = Some(left);
+    traffic.time = graph.signals[signal].phase as f32 * 14.;
+    let mut oncoming = Vehicle::spawn(&city);
+    oncoming.definition = Some(0);
+    oncoming.position =
+        opposite.position - opposite.forward * 20. + Vec3::Z * oncoming.ride_height();
+    oncoming.yaw = opposite.forward.y.atan2(opposite.forward.x);
+    oncoming.velocity = opposite.forward * 8.;
+    cars.push(oncoming);
+    let input = traffic.controls(&city, &cars, None, 1. / 120.)[0].1;
+    assert!(
+        input.brake && input.throttle == 0.,
+        "left turn must wait for approaching traffic"
+    );
+    assert!(
+        !left_turn_blocked(
+            &graph,
+            signal,
+            graph.paths[left].length,
+            0,
+            &cars,
+            &[Some(Turn::Left), Some(Turn::Left)]
+        ),
+        "opposing left turns can proceed together"
+    );
+    cars.pop();
+    let input = traffic.controls(&city, &cars, None, 1. / 120.)[0].1;
+    assert!(
+        input.throttle > 0.,
+        "left turn must take the gap when oncoming traffic clears"
+    );
+}
+#[test]
+fn four_way_graph_pairs_opposite_approaches_on_each_phase() {
+    let (_, graph) = map(CROSS);
+    for phase in 0..2 {
+        let approaches: Vec<_> = graph.signals.iter().filter(|s| s.phase == phase).collect();
+        assert_eq!(approaches.len(), 2);
+        assert!(approaches[0].forward.dot(approaches[1].forward) < -0.9);
+    }
+}

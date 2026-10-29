@@ -51,6 +51,15 @@ builds; browsers return to Start. The minimap follows heading; the full map stay
 follow permitted road connections, refresh after 2 m and turn green on arrival within 6 m; red
 means disconnected. Bridges and geometric crossings alone do not connect roads.
 
+Traffic keeps up to 36 NPC cars within roughly 180 m, recycling them beyond 240 m. NPCs use
+OpenCity lane centres, permitted junction turns and ramp attachments, with physical vehicle/prop
+collisions. They brake for traffic, pedestrians and red/amber lights. Four-way signals use
+opposing green phases (10 s green, 2 s amber, 2 s all-red per axis). Left turns yield to oncoming
+straight/right traffic. The simulation pauses with the game.
+Target speeds are 30 km/h on local roads, 50 on wider ordinary roads and ramps, 70 on merges and
+100 on highways, reduced for bends and junctions. After displacement, drivers try to rejoin a
+reachable nearby lane and stop if recovery fails. Stopped NPC cars can be entered with F.
+
 The palette's **Sky: Atmosphere and stars…** panel offers presets, solar position, haze, sun and
 star settings. The automatic day/night cycle lasts 20 minutes and pauses with simulation.
 
@@ -100,6 +109,8 @@ legacy `residential_area(...)` maps use the same pipeline. There is no map-name 
 
 Static map geometry and the 4096² minimap atlas are prepared once. Scenery uses 200 m selection
 groups and 50 m draw batches with camera/shadow culling; nearby props upload dynamically.
+Vehicle body/wheel geometry uploads once; driving updates instance transforms in both render passes.
+Paused menus/maps/palette reuse frozen buffers and redraw only for input or window events.
 Full-resolution map geometry stays resident, so large maps increase startup time and GPU memory.
 
 Rendering uses 4× MSAA, 2048² PCF shadows and parallax window interiors. Background, glass and fog

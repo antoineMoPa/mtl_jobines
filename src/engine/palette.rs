@@ -105,7 +105,7 @@ impl Palette {
             self.modifiers = Default::default();
         }
         let response = self.input.on_window_event(window, event);
-        if response.repaint {
+        if response.repaint && self.is_open() {
             window.request_redraw();
         }
     }
@@ -161,7 +161,14 @@ impl Palette {
             output.textures_delta,
             output.pixels_per_point,
         );
-        if self.is_open() {
+        // Follow egui's immediate animation requests instead of polling while open.
+        // Once widgets settle, input/lifecycle events wake the paused scene.
+        if self.is_open()
+            && output
+                .viewport_output
+                .values()
+                .any(|viewport| viewport.repaint_delay.is_zero())
+        {
             window.request_redraw();
         }
         selected

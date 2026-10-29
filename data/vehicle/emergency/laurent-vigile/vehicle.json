@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "name": "Laurent Vigile",
+  "category": "emergency",
+  "roadVehicle": true,
+  "model": "model.glb",
+  "dimensions": {
+    "length": 5.2066,
+    "width": 2.326,
+    "height": 1.71
+  },
+  "physics": {
+    "mass": 2000,
+    "maxSpeed": 60,
+    "acceleration": 13.0,
+    "friction": 0.9,
+    "maxSteerAngle": 0.52,
+    "heightOffset": 0.65,
+    "wheelRadius": 0.32,
+    "wheelbase": 3.0599999999999996,
+    "track": 1.79
+  },
+  "qa": {
+    "status": "exported",
+    "triangles": 2652,
+    "parts": 30,
+    "boxes": 17,
+    "cylinders": 4,
+    "wheelSegments": 12,
+    "wheels": [
+      "wheel_rear_left",
+      "wheel_rear_right",
+      "wheel_front_left",
+      "wheel_front_right"
+    ],
+    "claydashExport": "completed",
+    "game": "drive-tested",
+    "detailPass": 1,
+    "sheetPanels": 7,
+    "sheetBends": 5,
+    "pivot": "axle-local"
+  },
+  "researchId": "vehicle-j06"
+}

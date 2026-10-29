@@ -3,7 +3,7 @@
 use super::render::{GpuMesh, Renderer};
 use crate::hermes::Hermes;
 use opencity::runtime::Mesh;
-use std::collections::BTreeMap;
+use std::ops::Range;
 // Keep the existing 200 m radius-selection groups, then cull their 50 m
 // GPU batches independently. Splitting must not shorten detail draw distance.
 const TILE_SPAN: f32 = 2.;
@@ -16,55 +16,65 @@ pub struct Scenery {
     world: Vec<Batch>,
     details: Vec<Batch>,
 }
-fn partition(mesh: Mesh) -> Vec<([f32; 4], Vec<Mesh>)> {
-    let mut tiles = BTreeMap::<(i32, i32), BTreeMap<(i32, i32), Mesh>>::new();
-    for triangle in mesh.vertices.chunks_exact(3) {
-        let center = [
-            triangle.iter().map(|v| v.position[0]).sum::<f32>() / 3.,
-            triangle.iter().map(|v| v.position[1]).sum::<f32>() / 3.,
-        ];
-        let key = |span: f32| {
-            (
-                (center[0] / span).floor() as i32,
-                (center[1] / span).floor() as i32,
-            )
-        };
-        tiles
-            .entry(key(TILE_SPAN))
-            .or_default()
-            .entry(key(DRAW_SPAN))
-            .or_default()
-            .vertices
-            .extend_from_slice(triangle);
-    }
-    drop(mesh);
-    tiles
-        .into_values()
-        .map(|meshes| {
-            let mut bounds = [
-                f32::INFINITY,
-                f32::INFINITY,
-                f32::NEG_INFINITY,
-                f32::NEG_INFINITY,
-            ];
-            for mesh in meshes.values() {
-                for v in &mesh.vertices {
-                    for i in 0..2 {
-                        bounds[i] = bounds[i].min(v.position[i]);
-                        bounds[i + 2] = bounds[i + 2].max(v.position[i]);
-                    }
-                }
-            }
-            (bounds, meshes.into_values().collect())
-        })
-        .collect()
+fn triangle_key(triangle: &[opencity::runtime::Vertex; 3]) -> (i32, i32, i32, i32) {
+    let center = [
+        triangle.iter().map(|v| v.position[0]).sum::<f32>() / 3.,
+        triangle.iter().map(|v| v.position[1]).sum::<f32>() / 3.,
+    ];
+    (
+        (center[0] / TILE_SPAN).floor() as i32,
+        (center[1] / TILE_SPAN).floor() as i32,
+        (center[0] / DRAW_SPAN).floor() as i32,
+        (center[1] / DRAW_SPAN).floor() as i32,
+    )
 }
-fn batches(renderer: &Renderer, mesh: Mesh) -> Vec<Batch> {
-    partition(mesh)
+// Sort whole triangles in place. Retain only draw ranges, never a second city-sized mesh.
+fn partition(mesh: &mut Mesh) -> Vec<([f32; 4], Vec<Range<usize>>)> {
+    let (triangles, remainder) = mesh.vertices.as_chunks_mut::<3>();
+    assert!(
+        remainder.is_empty(),
+        "scenery must contain complete triangles"
+    );
+    triangles.sort_unstable_by_key(triangle_key);
+    let mut groups: Vec<([f32; 4], Vec<Range<usize>>)> = Vec::new();
+    let mut previous = None;
+    for (index, triangle) in triangles.iter().enumerate() {
+        let key = triangle_key(triangle);
+        if previous.is_none_or(|p: (i32, i32, i32, i32)| (p.0, p.1) != (key.0, key.1)) {
+            groups.push((
+                [
+                    f32::INFINITY,
+                    f32::INFINITY,
+                    f32::NEG_INFINITY,
+                    f32::NEG_INFINITY,
+                ],
+                Vec::new(),
+            ));
+        }
+        let (bounds, draws) = groups.last_mut().unwrap();
+        if previous != Some(key) {
+            draws.push(index * 3..index * 3);
+        }
+        draws.last_mut().unwrap().end += 3;
+        for vertex in triangle {
+            for axis in 0..2 {
+                bounds[axis] = bounds[axis].min(vertex.position[axis]);
+                bounds[axis + 2] = bounds[axis + 2].max(vertex.position[axis]);
+            }
+        }
+        previous = Some(key);
+    }
+    groups
+}
+fn batches(renderer: &Renderer, mut mesh: Mesh) -> Vec<Batch> {
+    partition(&mut mesh)
         .into_iter()
-        .map(|(bounds, meshes)| Batch {
+        .map(|(bounds, ranges)| Batch {
             bounds,
-            meshes: meshes.iter().map(|mesh| renderer.upload(mesh)).collect(),
+            meshes: ranges
+                .into_iter()
+                .map(|range| renderer.upload_vertices(&mesh.vertices[range]))
+                .collect(),
         })
         .collect()
 }
@@ -98,7 +108,7 @@ mod tests {
     fn small_draw_batches_preserve_original_radius_groups_and_triangles() {
         use opencity::runtime::{Mesh, Vertex};
         let mut mesh = Mesh::default();
-        for x in [-0.1, 0.1, 1.7] {
+        for x in [1.7, 0.1, -0.1] {
             for position in [[x, 0.1, 0.], [x + 0.01, 0.1, 0.], [x, 0.11, 0.]] {
                 mesh.vertices.push(Vertex {
                     position,
@@ -108,7 +118,21 @@ mod tests {
                 });
             }
         }
-        let groups = super::partition(mesh);
+        let signature = |vertices: &[Vertex]| {
+            let mut triangles: Vec<[u32; 9]> = vertices
+                .chunks_exact(3)
+                .map(|t| std::array::from_fn(|i| t[i / 3].position[i % 3].to_bits()))
+                .collect();
+            triangles.sort_unstable();
+            triangles
+        };
+        let original = signature(&mesh.vertices);
+        let allocation = mesh.vertices.as_ptr();
+        let capacity = mesh.vertices.capacity();
+        let groups = super::partition(&mut mesh);
+        assert_eq!(allocation, mesh.vertices.as_ptr());
+        assert_eq!(capacity, mesh.vertices.capacity());
+        assert_eq!(original, signature(&mesh.vertices));
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].1.len(), 1);
         assert_eq!(groups[1].1.len(), 2);
@@ -118,13 +142,13 @@ mod tests {
             groups
                 .iter()
                 .flat_map(|(_, meshes)| meshes)
-                .map(|mesh| mesh.vertices.len())
+                .map(|range| range.len())
                 .sum::<usize>(),
             9
         );
         assert!(groups
             .iter()
             .flat_map(|(_, meshes)| meshes)
-            .all(|mesh| mesh.vertices.len() == 3));
+            .all(|range| range.len() == 3));
     }
 }

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "name": "Bonjour Electrique",
+  "category": "taxi",
+  "roadVehicle": true,
+  "model": "model.glb",
+  "dimensions": {
+    "length": 4.6658,
+    "width": 2.172,
+    "height": 1.83
+  },
+  "physics": {
+    "mass": 2380,
+    "maxSpeed": 39,
+    "acceleration": 11.0,
+    "friction": 0.9,
+    "maxSteerAngle": 0.52,
+    "heightOffset": 0.65,
+    "wheelRadius": 0.32,
+    "wheelbase": 2.7359999999999998,
+    "track": 1.6500000000000001
+  },
+  "qa": {
+    "status": "exported",
+    "triangles": 1892,
+    "parts": 30,
+    "boxes": 17,
+    "cylinders": 4,
+    "wheelSegments": 12,
+    "wheels": [
+      "wheel_rear_left",
+      "wheel_rear_right",
+      "wheel_front_left",
+      "wheel_front_right"
+    ],
+    "claydashExport": "completed",
+    "game": "drive-tested",
+    "detailPass": 1,
+    "sheetPanels": 7,
+    "sheetBends": 5,
+    "pivot": "axle-local"
+  },
+  "researchId": "vehicle-j01"
+}

@@ -1,9 +1,15 @@
 //! Mutable game entities. OpenCity's City snapshot is static geography, not
 //! the owner of vehicles, players, traffic, or future mission objects.
+mod buildings;
+pub(crate) mod catalog;
+mod contacts;
+mod lineup;
 mod player;
 mod props;
 pub use props::PropBatch;
 mod spawn;
+mod suspension;
+mod traffic;
 pub use spawn::SpawnPoint;
 #[cfg(test)]
 mod handbrake_tests;
@@ -20,8 +26,11 @@ pub struct DynamicWorld {
     vehicles: Vec<Vehicle>,
     player_vehicle: VehicleId,
     pedestrian: Option<Pedestrian>,
-    start: Option<SpawnPoint>,
+    vehicle_spawns: Vec<SpawnPoint>,
     props: props::Props,
+    traffic: traffic::Traffic,
+    buildings: buildings::Buildings,
+    building_candidates: Vec<usize>,
 }
 impl DynamicWorld {
     #[cfg(any(not(target_arch = "wasm32"), test))]
@@ -29,17 +38,48 @@ impl DynamicWorld {
         Self::with_start(hermes, None).expect("default map spawn")
     }
     pub fn with_start(hermes: &Hermes, start: Option<SpawnPoint>) -> Result<Self, String> {
-        let vehicle = match start {
+        let mut vehicle = match start {
             Some(point) => Vehicle::spawn_at(hermes.city(), point)?,
             None => Vehicle::spawn(hermes.city()),
         };
-        Ok(Self {
+        vehicle.definition = Some(0);
+        let mut world = Self {
+            traffic: traffic::Traffic::new(hermes.traffic_paths()),
+            buildings: buildings::Buildings::new(hermes.city()),
+            building_candidates: Vec::new(),
             vehicles: vec![vehicle],
             player_vehicle: VehicleId(0),
             pedestrian: None,
-            start,
+            vehicle_spawns: Vec::new(),
             props: props::Props::from_groups(hermes.prop_groups()),
-        })
+        };
+        world.add_vehicle_lineup(hermes);
+        world.vehicle_spawns = world
+            .vehicles
+            .iter()
+            .map(|v| SpawnPoint {
+                point: (v.position.truncate() / METERS_PER_UNIT).to_array(),
+                heading: Some(v.yaw),
+            })
+            .collect();
+        world.populate_traffic(hermes);
+        Ok(world)
+    }
+    fn populate_traffic(&mut self, hermes: &Hermes) {
+        let center = self.player_position();
+        self.traffic
+            .populate(hermes.city(), &mut self.vehicles, center);
+        // NPCs can be entered when stopped; reset must retain a valid lane spawn.
+        while self.vehicle_spawns.len() < self.vehicles.len() {
+            let v = &self.vehicles[self.vehicle_spawns.len()];
+            self.vehicle_spawns.push(SpawnPoint {
+                point: (v.position.truncate() / METERS_PER_UNIT).to_array(),
+                heading: Some(v.yaw),
+            });
+        }
+        for d in self.traffic.take_spawns() {
+            self.vehicle_spawns[d.0] = d.1;
+        }
     }
     pub fn player(&self) -> &Vehicle {
         &self.vehicles[self.player_vehicle.0]
@@ -64,15 +104,14 @@ impl DynamicWorld {
                 .iter()
                 .enumerate()
                 .filter(|(_, vehicle)| {
-                    vehicle.velocity.length() <= 3.
-                        && vehicle.position.distance(player.position) <= 4.
+                    vehicle.velocity.length() <= 3. && vehicle.entry_distance(player.position) <= 2.
                 })
                 .min_by(|(_, a), (_, b)| {
-                    a.position
-                        .distance_squared(player.position)
-                        .total_cmp(&b.position.distance_squared(player.position))
+                    a.entry_distance(player.position)
+                        .total_cmp(&b.entry_distance(player.position))
                 })
             {
+                self.traffic.release(index);
                 self.player_vehicle = VehicleId(index);
                 self.pedestrian = None;
                 return true;
@@ -86,20 +125,45 @@ impl DynamicWorld {
         false
     }
     pub fn reset_player(&mut self, hermes: &Hermes) {
-        self.vehicles[self.player_vehicle.0] = match self.start {
-            Some(point) => Vehicle::spawn_at(hermes.city(), point).expect("validated start"),
-            None => Vehicle::spawn(hermes.city()),
-        };
+        let definition = self.player().definition;
+        self.vehicles[self.player_vehicle.0] =
+            Vehicle::spawn_at(hermes.city(), self.vehicle_spawns[self.player_vehicle.0])
+                .expect("validated parking position");
+        self.vehicles[self.player_vehicle.0].definition = definition;
         self.pedestrian = None;
     }
     pub fn step(&mut self, hermes: &Hermes, input: Controls, walk: WalkControls, dt: f32) {
+        if !dt.is_finite() || dt <= 0. {
+            return;
+        }
+        if self.traffic.needs_refill(dt) {
+            self.populate_traffic(hermes);
+        }
+        let ai = self.traffic.controls(
+            hermes.city(),
+            &self.vehicles,
+            self.pedestrian.as_ref().map(|p| p.position),
+            dt,
+        );
         let driving = self.is_driving();
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
+            if self.traffic.inactive(i) {
+                continue;
+            }
             let before = vehicle.position;
-            vehicle.step(
+            let reach =
+                vehicle.length().hypot(vehicle.width()) * 0.5 + vehicle.velocity.length() * dt + 1.;
+            self.buildings.nearby(
+                vehicle.position.truncate(),
+                reach,
+                &mut self.building_candidates,
+            );
+            vehicle.step_with_buildings(
                 hermes.city(),
                 if driving && i == self.player_vehicle.0 {
                     input
+                } else if let Some((_, controls)) = ai.iter().find(|(id, _)| *id == i) {
+                    *controls
                 } else {
                     Controls {
                         handbrake: true,
@@ -107,9 +171,11 @@ impl DynamicWorld {
                     }
                 },
                 dt,
+                Some(&self.building_candidates),
             );
             self.props.vehicle_move(vehicle, before, hermes.city());
         }
+        contacts::resolve(&mut self.vehicles);
         if let Some(player) = &mut self.pedestrian {
             let before = player.position;
             player.step(
@@ -118,7 +184,12 @@ impl DynamicWorld {
                 walk,
                 dt,
             );
-            if self.props.blocked(player.position) {
+            if self.props.blocked(player.position)
+                || self
+                    .vehicles
+                    .iter()
+                    .any(|v| v.entry_distance(player.position) < 0.42)
+            {
                 player.position = before;
             }
         }
@@ -148,14 +219,30 @@ impl DynamicWorld {
     }
     /// Vehicles, pedestrian and moving debris; intact props use cached batches.
     pub fn write_moving_mesh(&self, mesh: &mut Mesh) {
-        self.write_actors(mesh);
+        self.write_non_vehicle_actors(mesh);
         self.props.append_moving(mesh, self.player_position());
     }
+    #[cfg(test)]
     fn write_actors(&self, mesh: &mut Mesh) {
-        mesh.vertices.clear();
+        self.write_non_vehicle_actors(mesh);
         for vehicle in &self.vehicles {
-            mesh.vertices.extend(vehicle.mesh().vertices);
+            if vehicle.position.distance(self.player_position()) <= 450. {
+                vehicle.append_mesh(mesh);
+            }
         }
+    }
+    pub(crate) fn vehicle_instances(&self) -> impl Iterator<Item = (usize, Vec<glam::Mat4>)> + '_ {
+        self.vehicles
+            .iter()
+            .filter(|v| v.position.distance(self.player_position()) <= 450.)
+            .filter_map(|v| {
+                v.definition
+                    .map(|id| (id, catalog::definitions()[id].part_transforms(v)))
+            })
+    }
+    fn write_non_vehicle_actors(&self, mesh: &mut Mesh) {
+        mesh.vertices.clear();
+        self.traffic.append_signals(mesh, self.player_position());
         if let Some(player) = &self.pedestrian {
             mesh.vertices.extend(player.mesh().vertices);
         }

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "name": "Saint-Laurent Urbain",
+  "category": "bus",
+  "roadVehicle": true,
+  "model": "model.glb",
+  "dimensions": {
+    "length": 12.2162,
+    "width": 3.047,
+    "height": 3.179
+  },
+  "physics": {
+    "mass": 12500,
+    "maxSpeed": 38,
+    "acceleration": 5.5,
+    "friction": 0.9,
+    "maxSteerAngle": 0.52,
+    "heightOffset": 0.65,
+    "wheelRadius": 0.48,
+    "wheelbase": 7.319999999999999,
+    "track": 2.26
+  },
+  "qa": {
+    "status": "exported",
+    "triangles": 1704,
+    "parts": 44,
+    "boxes": 36,
+    "cylinders": 4,
+    "wheelSegments": 12,
+    "wheels": [
+      "wheel_rear_left",
+      "wheel_rear_right",
+      "wheel_front_left",
+      "wheel_front_right"
+    ],
+    "claydashExport": "completed",
+    "game": "drive-tested",
+    "detailPass": 1,
+    "sheetPanels": 4,
+    "sheetBends": 3,
+    "pivot": "axle-local"
+  },
+  "researchId": "vehicle-j02"
+}
