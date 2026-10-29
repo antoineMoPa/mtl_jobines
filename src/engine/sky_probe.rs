@@ -11,8 +11,8 @@ pub fn validate(
     });
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("window reflection oracle"),
-        bind_group_layouts: &layouts,
-        push_constant_ranges: &[],
+        bind_group_layouts: &layouts.map(Some),
+        immediate_size: 0,
     });
     let format = wgpu::TextureFormat::Rgba8UnormSrgb;
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -37,7 +37,7 @@ pub fn validate(
         primitive: Default::default(),
         depth_stencil: None,
         multisample: Default::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     });
     let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -67,6 +67,7 @@ pub fn validate(
             label: Some("reflection oracle"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
+                depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -76,6 +77,7 @@ pub fn validate(
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
         pass.set_pipeline(&pipeline);
         for (index, group) in groups.into_iter().enumerate() {
@@ -84,15 +86,15 @@ pub fn validate(
         pass.draw(0..3, 0..1);
     }
     encoder.copy_texture_to_buffer(
-        wgpu::ImageCopyTexture {
+        wgpu::TexelCopyTextureInfo {
             texture: &texture,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
-        wgpu::ImageCopyBuffer {
+        wgpu::TexelCopyBufferInfo {
             buffer: &readback,
-            layout: wgpu::ImageDataLayout {
+            layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(256),
                 rows_per_image: Some(1),
@@ -111,11 +113,16 @@ pub fn validate(
         .map_async(wgpu::MapMode::Read, move |result| {
             let _ = tx.send(result);
         });
-    device.poll(wgpu::Maintain::Wait);
+    device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .map_err(|e| e.to_string())?;
     rx.recv()
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
-    let bytes = readback.slice(..).get_mapped_range();
+    let bytes = readback
+        .slice(..)
+        .get_mapped_range()
+        .map_err(|e| e.to_string())?;
     let difference = bytes[..72]
         .chunks_exact(8)
         .flat_map(|pair| (0..3).map(move |channel| pair[channel].abs_diff(pair[channel + 4])))

@@ -106,6 +106,7 @@ pub struct VisibilityStats {
     pub shadow_vertices: u64,
 }
 pub struct Renderer {
+    instance: wgpu::Instance,
     pub device: wgpu::Device,
     pub(super) queue: wgpu::Queue,
     pub surface: Option<wgpu::Surface<'static>>,
@@ -230,7 +231,13 @@ fn color_target(
 }
 impl Renderer {
     pub async fn new(window: Option<Arc<Window>>, width: u32, height: u32) -> Result<Self, String> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
+        let descriptor = match &window {
+            Some(window) => {
+                wgpu::InstanceDescriptor::new_with_display_handle(Box::new(window.clone()))
+            }
+            None => wgpu::InstanceDescriptor::new_without_display_handle(),
+        };
+        let instance = wgpu::Instance::new(descriptor);
         let surface = window
             .map(|w| instance.create_surface(w).map_err(|e| e.to_string()))
             .transpose()?;
@@ -239,9 +246,10 @@ impl Renderer {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: surface.as_ref(),
                 force_fallback_adapter: false,
+                ..Default::default()
             })
             .await
-            .ok_or("no wgpu adapter")?;
+            .map_err(|e| e.to_string())?;
         let adapter_name = adapter.get_info().name;
         #[cfg(not(target_arch = "wasm32"))]
         let profile = std::env::args().any(|arg| arg == "--profile" || arg == "--profile-120");
@@ -253,15 +261,13 @@ impl Renderer {
             wgpu::Features::empty()
         };
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("mtl_jobines"),
-                    required_features: timestamp_features,
-                    required_limits: wgpu::Limits::default(),
-                    memory_hints: wgpu::MemoryHints::Performance,
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("mtl_jobines"),
+                required_features: timestamp_features,
+                required_limits: wgpu::Limits::default(),
+                memory_hints: wgpu::MemoryHints::Performance,
+                ..Default::default()
+            })
             .await
             .map_err(|e| e.to_string())?;
         let supported_formats = surface
@@ -273,6 +279,7 @@ impl Renderer {
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
+            color_space: wgpu::SurfaceColorSpace::Srgb,
             width: width.max(1),
             height: height.max(1),
             present_mode: wgpu::PresentMode::AutoVsync,
@@ -368,18 +375,18 @@ impl Renderer {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
             bind_group_layouts: &[
-                &camera_layout,
-                &shadow_layout,
-                &sky.layout,
-                &commerce.layout,
+                Some(&camera_layout),
+                Some(&shadow_layout),
+                Some(&sky.layout),
+                Some(&commerce.layout),
             ],
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
         let shadow_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: &[&camera_layout],
-                push_constant_ranges: &[],
+                bind_group_layouts: &[Some(&camera_layout)],
+                immediate_size: 0,
             });
         let targets = [Some(wgpu::ColorTargetState {
             format,
@@ -398,7 +405,7 @@ impl Renderer {
                     module: &shader,
                     entry_point: Some(if shadow { "vs_shadow" } else { "vs" }),
                     compilation_options: Default::default(),
-                    buffers: &[layout()],
+                    buffers: &[Some(layout())],
                 },
                 fragment: (!(shadow && !masked)).then_some(wgpu::FragmentState {
                     module: &shader,
@@ -418,8 +425,8 @@ impl Renderer {
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: true,
-                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    depth_write_enabled: Some(true),
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: Default::default(),
                     bias: if shadow {
                         wgpu::DepthBiasState {
@@ -436,7 +443,7 @@ impl Renderer {
                     alpha_to_coverage_enabled: !shadow && masked,
                     ..Default::default()
                 },
-                multiview: None,
+                multiview_mask: None,
                 cache: None,
             })
         };
@@ -454,6 +461,7 @@ impl Renderer {
         #[cfg(target_arch = "wasm32")]
         let gpu_profile = None;
         Ok(Self {
+            instance,
             device,
             queue,
             surface,
@@ -479,6 +487,15 @@ impl Renderer {
             fps: None,
             gpu_profile,
         })
+    }
+    pub fn recreate_surface(&mut self, window: Arc<Window>) -> Result<(), String> {
+        self.surface = Some(
+            self.instance
+                .create_surface(window)
+                .map_err(|e| e.to_string())?,
+        );
+        self.resize(self.config.width, self.config.height);
+        Ok(())
     }
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
@@ -709,6 +726,7 @@ impl Renderer {
                 }),
                 timestamp_writes: self.gpu_profile.as_ref().map(|profile| profile.pass(0)),
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             pass.set_pipeline(&self.opaque_shadow_pipeline);
             pass.set_bind_group(0, &self.camera_group, &[]);
@@ -733,6 +751,7 @@ impl Renderer {
                 label: Some("world"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &self.color,
+                    depth_slice: None,
                     resolve_target: Some(target),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -749,6 +768,7 @@ impl Renderer {
                 }),
                 timestamp_writes: self.gpu_profile.as_ref().map(|profile| profile.pass(1)),
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             pass.set_pipeline(&self.opaque_pipeline);
             pass.set_bind_group(0, &self.camera_group, &[]);
@@ -800,15 +820,15 @@ impl Renderer {
         });
         let mut encoder = self.device.create_command_encoder(&Default::default());
         encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &buffer,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(row),
                     rows_per_image: None,
@@ -825,11 +845,16 @@ impl Renderer {
         buffer.slice(..).map_async(wgpu::MapMode::Read, move |r| {
             let _ = tx.send(r);
         });
-        self.device.poll(wgpu::Maintain::Wait);
+        self.device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .map_err(|e| e.to_string())?;
         rx.recv()
             .map_err(|e| e.to_string())?
             .map_err(|e| e.to_string())?;
-        let bytes = buffer.slice(..).get_mapped_range();
+        let bytes = buffer
+            .slice(..)
+            .get_mapped_range()
+            .map_err(|e| e.to_string())?;
         let mut ppm = format!(
             "P6
 {} {}

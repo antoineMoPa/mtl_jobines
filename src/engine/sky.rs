@@ -156,50 +156,54 @@ impl Sky {
                 resource: uniform.as_entire_binding(),
             }],
         });
-        let pipeline =
-            |label, source: &str, layouts: &[&wgpu::BindGroupLayout], format, samples, depth| {
-                let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some(label),
-                    source: wgpu::ShaderSource::Wgsl(source.into()),
-                });
-                let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some(label),
-                    bind_group_layouts: layouts,
-                    push_constant_ranges: &[],
-                });
-                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some(label),
-                    layout: Some(&layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: Some("vs"),
-                        buffers: &[],
-                        compilation_options: Default::default(),
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: Some("fs"),
-                        compilation_options: Default::default(),
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format,
-                            blend: None,
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                    }),
-                    primitive: Default::default(),
-                    depth_stencil: depth,
-                    multisample: wgpu::MultisampleState {
-                        count: samples,
-                        ..Default::default()
-                    },
-                    multiview: None,
-                    cache: None,
-                })
-            };
+        let pipeline = |label,
+                        source: &str,
+                        layouts: &[Option<&wgpu::BindGroupLayout>],
+                        format,
+                        samples,
+                        depth| {
+            let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(label),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            });
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some(label),
+                bind_group_layouts: layouts,
+                immediate_size: 0,
+            });
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs"),
+                    buffers: &[],
+                    compilation_options: Default::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs"),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: Default::default(),
+                depth_stencil: depth,
+                multisample: wgpu::MultisampleState {
+                    count: samples,
+                    ..Default::default()
+                },
+                multiview_mask: None,
+                cache: None,
+            })
+        };
         let generator = pipeline(
             "bake atmosphere",
             include_str!("sky_environment.wgsl"),
-            &[&generator_layout],
+            &[Some(&generator_layout)],
             wgpu::TextureFormat::Rgba16Float,
             1,
             None,
@@ -207,13 +211,13 @@ impl Sky {
         let background = pipeline(
             "sky background",
             &background_source(),
-            &[camera_layout, &layout],
+            &[Some(camera_layout), Some(&layout)],
             format,
             4,
             Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::LessEqual,
+                depth_write_enabled: Some(false),
+                depth_compare: Some(wgpu::CompareFunction::LessEqual),
                 stencil: Default::default(),
                 bias: Default::default(),
             }),
@@ -262,6 +266,7 @@ impl Sky {
                 label: Some("sky cube face"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -271,6 +276,7 @@ impl Sky {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             pass.set_pipeline(&self.generator);
             pass.set_bind_group(0, &self.generator_group, &[]);

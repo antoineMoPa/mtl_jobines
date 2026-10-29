@@ -284,7 +284,7 @@ impl Game {
         meshes.push(car);
         meshes.extend(self.prop_scenery.visible());
         match renderer.surface.as_ref().unwrap().get_current_texture() {
-            Ok(frame) => {
+            wgpu::CurrentSurfaceTexture::Success(frame) => {
                 let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
                     format: Some(renderer.config.format.add_srgb_suffix()),
                     ..Default::default()
@@ -307,7 +307,7 @@ impl Game {
                         window.request_redraw();
                     }
                 }
-                frame.present();
+                renderer.queue.present(frame);
                 if !self.overlay.paused() {
                     self.frame_rate.presented(Instant::now());
                 }
@@ -316,11 +316,27 @@ impl Game {
                     self.first_frame = false;
                 }
             }
-            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                renderer.resize(renderer.config.width, renderer.config.height)
+            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
+                drop(frame);
+                renderer.resize(renderer.config.width, renderer.config.height);
+                self.window.as_ref().unwrap().request_redraw();
             }
-            Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
-            Err(_) => {}
+            wgpu::CurrentSurfaceTexture::Outdated => {
+                renderer.resize(renderer.config.width, renderer.config.height);
+                self.window.as_ref().unwrap().request_redraw();
+            }
+            wgpu::CurrentSurfaceTexture::Lost => {
+                if let Err(error) = renderer.recreate_surface(self.window.as_ref().unwrap().clone())
+                {
+                    eprintln!("Cannot recreate game surface: {error}");
+                    event_loop.exit();
+                } else {
+                    self.window.as_ref().unwrap().request_redraw();
+                }
+            }
+            wgpu::CurrentSurfaceTexture::Timeout
+            | wgpu::CurrentSurfaceTexture::Occluded
+            | wgpu::CurrentSurfaceTexture::Validation => {}
         }
         if !self.overlay.paused() {
             self.window.as_ref().unwrap().request_redraw();

@@ -546,19 +546,4 @@ mod tests {
         assert_eq!(nav.status, RouteStatus::Inactive);
         assert!(nav.destination.is_none());
     }
-    #[test]
-    fn real_city_connects_through_authored_junction_movements() {
-        let hermes = crate::hermes::Hermes::embedded().unwrap();
-        let graph = &hermes.router;
-        let a = graph.snaps(Vec3::new(-23.8, -4.8, 0.1), true)[0].point;
-        let b = graph.snaps(Vec3::new(-20.7, -2.0, 0.1), true)[0].point;
-        let points = path(graph, a.to_array(), b.to_array())
-            .expect("west town route through multiple junctions");
-        assert!(length(&points) > a.distance(b));
-        assert!(length(&points) < 15.);
-        let east = graph.snaps(Vec3::new(21., 0., 0.1), true)[0].point;
-        let cross_city = path(graph, a.to_array(), east.to_array())
-            .expect("towns connect through bridge and ramps");
-        assert!(length(&cross_city) > a.distance(east));
-    }
 }

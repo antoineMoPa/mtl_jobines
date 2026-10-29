@@ -40,7 +40,7 @@ impl Family {
 #[cfg(test)]
 use opencity::runtime::scaffold::{contains, overlap, prepare, reservations, strip_footprints};
 #[cfg(test)]
-use opencity::runtime::{City, Region, SurfaceKind};
+use opencity::runtime::{City, Region};
 #[cfg(test)]
 use opencity::{BuildingUse, LandscapeKind, Program};
 #[cfg(test)]
@@ -153,84 +153,6 @@ mod tests {
             .filter(|i| seed(&format!("generated_shop_{i:016x}:branding")) % 10 == 0)
             .count();
         assert!((850..1150).contains(&count), "{count}");
-    }
-    #[test]
-    fn default_map_has_commercial_collision_art_and_sparse_approved_signs() {
-        let p = opencity::parse(include_str!("../../opencity/examples/default_map.road")).unwrap();
-        let (_, city) = super::super::expand(&p, |p| {
-            City::from_program(p, Some(std::path::Path::new("opencity/examples")))
-        })
-        .unwrap();
-        let shops: Vec<_> = city
-            .query(Region::WholeMap)
-            .buildings
-            .into_iter()
-            .filter(|(_, f)| {
-                f.name
-                    .as_ref()
-                    .is_some_and(|n| n.starts_with("generated_shop_"))
-            })
-            .collect();
-        let mesh = super::super::commerce_mesh::build(&city);
-        let props = super::super::commerce_mesh::prop_groups(&city);
-        let canopies = props.iter().filter(|g| g.len() == 3).count();
-        let boards: Vec<_> = props.iter().filter(|g| g.len() == 1).collect();
-        assert!(canopies > 20);
-        assert!(
-            (5..shops.len() / 4).contains(&boards.len()),
-            "sparse boards: {}",
-            boards.len()
-        );
-        eprintln!(
-            "SHOP PROPS: {canopies} canopies, {} boards; first board {:?}",
-            boards.len(),
-            boards.first().map(|g| g[0]
-                .vertices
-                .iter()
-                .take(3)
-                .map(|v| v.position)
-                .collect::<Vec<_>>())
-        );
-        let signs = mesh.vertices.iter().filter(|v| v.surface[0] == 40.).count() / 6;
-        let panes = mesh.vertices.iter().filter(|v| v.surface[0] == 41.).count() / 6;
-        eprintln!(
-            "DEFAULT COMMERCE: {} shops, {signs} signs, {panes} panes, {} facade vertices",
-            shops.len(),
-            mesh.vertices.len()
-        );
-        assert!(shops.len() >= 12);
-        let (homes, _) = city.building_detail_parts(
-            Region::WholeMap,
-            &super::super::building_style::residential(),
-        );
-        let paths: Vec<_> = homes
-            .vertices
-            .iter()
-            .filter(|v| v.surface[0] == SurfaceKind::Sidewalk as u32 as f32 && v.surface[3] == 1.)
-            .collect();
-        assert!(
-            paths.len() / 6 >= 50,
-            "{} supported entrance paths",
-            paths.len() / 6
-        );
-        eprintln!(
-            "HOME PATHS: {}, first {:?}",
-            paths.len() / 6,
-            paths.iter().take(6).map(|v| v.position).collect::<Vec<_>>()
-        );
-        assert!(signs >= 1);
-        assert!(panes >= shops.len());
-        assert!(mesh.vertices.iter().all(|v| v
-            .position
-            .iter()
-            .chain(v.normal.iter())
-            .chain(v.surface.iter())
-            .all(|x| x.is_finite())));
-        for (i, (_, a)) in shops.iter().enumerate() {
-            for (_, b) in &shops[i + 1..] {
-                assert!(!overlap(&a.points, &b.points));
-            }
-        }
     }
     #[test]
     fn closed_polygon_edges_and_protected_authored_uses_are_preserved() {

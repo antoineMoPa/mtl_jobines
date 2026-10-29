@@ -343,7 +343,10 @@ pub(super) fn run(
                 snapshot_time + frame as f32 * ticks as f32 * DT,
                 hermes.minimap_view(center, car.yaw),
             );
-            renderer.device.poll(wgpu::Maintain::Wait);
+            renderer
+                .device
+                .poll(wgpu::PollType::wait_indefinitely())
+                .map_err(|e| e.to_string())?;
             rendering.push(render_started.elapsed().as_secs_f64() * 1000.);
             let frame_ms = frame_started.elapsed().as_secs_f64() * 1000.;
             timings.push(frame_ms);

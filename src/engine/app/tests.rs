@@ -39,7 +39,7 @@ fn space_handbrake_and_shift_sprint_are_independent() {
 
 #[test]
 fn cursor_idle_deadline_resets_and_wakes_even_while_paused() {
-    let mut game = Game::new(Hermes::embedded().unwrap());
+    let mut game = Game::new(Hermes::test_map());
     let now = Instant::now();
     assert_eq!(game.cursor_wait(now), ControlFlow::Wait);
     assert!(!game.cursor_hidden);
@@ -82,7 +82,7 @@ fn cursor_idle_deadline_resets_and_wakes_even_while_paused() {
 
 #[test]
 fn menu_arrows_select_and_enter_activates_without_leaking_controls() {
-    let mut game = Game::new(Hermes::embedded().unwrap());
+    let mut game = Game::new(Hermes::test_map());
     for overlay in [Overlay::Start, Overlay::Menu] {
         game.set_overlay(overlay);
         assert_eq!(game.menu_selection, MenuItem::Resume);
@@ -140,8 +140,8 @@ fn menu_arrows_select_and_enter_activates_without_leaking_controls() {
 
 #[test]
 fn explicit_launch_position_starts_playing_immediately() {
-    let hermes = Hermes::embedded().unwrap();
-    let default = Game::new(Hermes::embedded().unwrap());
+    let hermes = Hermes::test_map();
+    let default = Game::new(Hermes::test_map());
     let point = default.world.player_position() / METERS_PER_UNIT;
     let game = Game::new_at(
         hermes,
@@ -157,7 +157,7 @@ fn explicit_launch_position_starts_playing_immediately() {
 }
 #[test]
 fn walking_left_right_keys_turn_without_strafing() {
-    let mut game = Game::new(Hermes::embedded().unwrap());
+    let mut game = Game::new(Hermes::test_map());
     game.set_overlay(Overlay::Driving);
     assert!(game.world.toggle_vehicle(&game.hermes));
     game.orbit = 0.7;
@@ -183,7 +183,7 @@ fn walking_left_right_keys_turn_without_strafing() {
 }
 #[test]
 fn first_menu_freezes_until_start_then_later_pauses_resume() {
-    let mut game = Game::new(Hermes::embedded().unwrap());
+    let mut game = Game::new(Hermes::test_map());
     assert_eq!(game.overlay, Overlay::Start);
     let position = game.world.player_position();
     game.keys.insert(KeyCode::KeyW);
@@ -204,7 +204,7 @@ fn first_menu_freezes_until_start_then_later_pauses_resume() {
 }
 #[test]
 fn menu_and_map_freeze_the_world_and_resume_without_accumulated_time_or_keys() {
-    let mut game = Game::new(Hermes::embedded().unwrap());
+    let mut game = Game::new(Hermes::test_map());
     game.set_overlay(Overlay::Driving);
     game.keys.insert(KeyCode::KeyW);
     game.simulate(0.1);

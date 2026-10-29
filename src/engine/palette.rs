@@ -209,8 +209,8 @@ impl Painter {
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("palette"),
-            bind_group_layouts: &[&layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&layout)],
+            immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("palette"),
@@ -219,11 +219,11 @@ impl Painter {
                 module: &shader,
                 entry_point: Some("vs"),
                 compilation_options: Default::default(),
-                buffers: &[wgpu::VertexBufferLayout {
+                buffers: &[Some(wgpu::VertexBufferLayout {
                     array_stride: 32,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![0=>Float32x2,1=>Float32x2,2=>Float32x4],
-                }],
+                })],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -238,7 +238,7 @@ impl Painter {
             primitive: Default::default(),
             depth_stencil: None,
             multisample: Default::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -304,7 +304,7 @@ impl Painter {
                 let pos = update.pos.unwrap_or([0, 0]);
                 let pixels: Vec<u8> = image.pixels.iter().flat_map(|p| p.to_array()).collect();
                 queue.write_texture(
-                    wgpu::ImageCopyTexture {
+                    wgpu::TexelCopyTextureInfo {
                         texture,
                         mip_level: 0,
                         origin: wgpu::Origin3d {
@@ -315,7 +315,7 @@ impl Painter {
                         aspect: wgpu::TextureAspect::All,
                     },
                     &pixels,
-                    wgpu::ImageDataLayout {
+                    wgpu::TexelCopyBufferLayout {
                         offset: 0,
                         bytes_per_row: Some(size.width * 4),
                         rows_per_image: None,
@@ -376,6 +376,7 @@ impl Painter {
                 label: Some("palette"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
@@ -385,6 +386,7 @@ impl Painter {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             pass.set_pipeline(&self.pipeline);
             pass.set_scissor_rect(x, y, right - x, bottom - y);

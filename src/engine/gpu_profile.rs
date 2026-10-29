@@ -46,11 +46,17 @@ impl GpuProfile {
             .map_async(wgpu::MapMode::Read, move |result| {
                 let _ = tx.send(result);
             });
-        device.poll(wgpu::Maintain::Wait);
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .map_err(|e| e.to_string())?;
         rx.recv()
             .map_err(|e| e.to_string())?
             .map_err(|e| e.to_string())?;
-        let values = self.readback.slice(..).get_mapped_range();
+        let values = self
+            .readback
+            .slice(..)
+            .get_mapped_range()
+            .map_err(|e| e.to_string())?;
         let mut stages = [0.; 3];
         for (stage, pair) in values.chunks_exact(16).enumerate() {
             let begin = u64::from_ne_bytes(pair[..8].try_into().unwrap());

@@ -13,7 +13,7 @@ egui_command_palette = { path = "opencity/crates/egui_command_palette" }
 flate2 = "1"
 resvg = { version = "0.45.1", default-features = false, features = ["raster-images"] }
 opencity = { path = "opencity", default-features = false, features = ["game-runtime"] }
-wgpu = "23.0.1"
+wgpu = "30.0.1"
 winit = "0.30"
 glam = "0.29"
 rapier3d = { version = "0.22", features = ["enhanced-determinism"] }
@@ -32,7 +32,7 @@ console_error_panic_hook = "0.1"
 web-sys = { version = "0.3", features = ["Window", "Location", "Document", "HtmlCanvasElement", "HtmlElement", "Element"] }
 
 [dev-dependencies]
-naga = { version = "23", features = ["wgsl-in"] }
+naga = { version = "30", features = ["wgsl-in"] }
 
 # Map geometry and SVG rasterization also need optimization during development.
 # Keep debug assertions and symbols while avoiding minute-long native startup.

@@ -64,7 +64,7 @@ impl Commerce {
                 }
             }
             queue.write_texture(
-                wgpu::ImageCopyTexture {
+                wgpu::TexelCopyTextureInfo {
                     texture: &signs,
                     mip_level: 0,
                     origin: wgpu::Origin3d {
@@ -75,7 +75,7 @@ impl Commerce {
                     aspect: wgpu::TextureAspect::All,
                 },
                 &scaled,
-                wgpu::ImageDataLayout {
+                wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(512 * 4),
                     rows_per_image: Some(128),
@@ -92,7 +92,7 @@ impl Commerce {
         queue.write_texture(
             rooms.as_image_copy(),
             &pixels,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(w * 4),
                 rows_per_image: Some(h),

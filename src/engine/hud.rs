@@ -174,8 +174,8 @@ impl Hud {
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&layout)],
+            immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("minimap overlay"),
@@ -199,7 +199,7 @@ impl Hud {
             primitive: Default::default(),
             depth_stencil: None,
             multisample: Default::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
         let route_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -209,11 +209,11 @@ impl Hud {
                 module: &shader,
                 entry_point: Some("vs_route"),
                 compilation_options: Default::default(),
-                buffers: &[wgpu::VertexBufferLayout {
+                buffers: &[Some(wgpu::VertexBufferLayout {
                     array_stride: 20,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![0=>Float32x2,1=>Float32x2,2=>Float32],
-                }],
+                })],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -228,7 +228,7 @@ impl Hud {
             primitive: Default::default(),
             depth_stencil: None,
             multisample: Default::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
         let route_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -282,14 +282,14 @@ impl Hud {
             TEXTURE_SIZE as usize * TEXTURE_SIZE as usize * 4
         );
         queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             pixels,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(TEXTURE_SIZE * 4),
                 rows_per_image: Some(TEXTURE_SIZE),
@@ -359,6 +359,7 @@ impl Hud {
             label: Some("Hermes minimap"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target,
+                depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,
@@ -368,6 +369,7 @@ impl Hud {
             depth_stencil_attachment: None,
             timestamp_writes: timestamps,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.group, &[]);

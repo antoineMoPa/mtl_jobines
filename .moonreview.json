@@ -9,6 +9,16 @@
       "name": "OpenCity UI",
       "build": "cargo build --release --manifest-path opencity/Cargo.toml --bin editor",
       "run": "OPENCITY_LAUNCH_ACTION=\"$PWD/opencity-launch.json\" cargo run --release --manifest-path opencity/Cargo.toml --bin editor"
+    },
+    {
+      "name": "Game Web",
+      "build": "make build",
+      "run": "make serve"
+    },
+    {
+      "name": "OpenCity Web",
+      "build": "make -C opencity build",
+      "run": "make -C opencity serve"
     }
   ],
   "indent": {

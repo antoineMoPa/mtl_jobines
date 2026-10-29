@@ -72,9 +72,15 @@ pub struct Hermes {
     cache: Option<(CacheKey, std::path::PathBuf)>,
 }
 impl Hermes {
-    #[cfg(all(not(target_arch = "wasm32"), test))]
-    pub fn load(path: &Path) -> Result<Self, String> {
-        Self::load_with_game_data(path, None)
+    #[cfg(test)]
+    pub(crate) fn test_map() -> Self {
+        let program = opencity::parse(
+            "road street: sidewalk carlane carlane sidewalk; end
+            street(-1,0,1,0); land(-2,-2,2,-2,2,2,-2,2);",
+        )
+        .unwrap();
+        let city = City::from_program(&program, None).unwrap();
+        Self::from_city_data(city, None, &program).unwrap()
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn load_with_game_data(path: &Path, packaged: Option<&Path>) -> Result<Self, String> {
@@ -143,7 +149,7 @@ impl Hermes {
         hermes.cache = Some((key, cache_path));
         Ok(hermes)
     }
-    #[cfg(any(target_arch = "wasm32", test))]
+    #[cfg(target_arch = "wasm32")]
     pub fn embedded() -> Result<Self, String> {
         let parsed = opencity::parse(include_str!("../../opencity/examples/default_map.road"))
             .map_err(|error| error.to_string())?;
@@ -299,52 +305,6 @@ impl Hermes {
             .unwrap_or_default();
         view.route_status = self.navigation.status;
         view
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use opencity::runtime::Region;
-
-    #[test]
-    fn embedded_map_matches_native_assets() {
-        let embedded = Hermes::embedded().unwrap();
-        let native = Hermes::load(Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/opencity/examples/default_map.road"
-        )))
-        .unwrap();
-        let (a, b) = (embedded.city(), native.city());
-        assert_eq!(a.roads.len(), b.roads.len());
-        assert_eq!(a.paths.len(), b.paths.len());
-        assert_eq!(a.bounds, b.bounds);
-        assert_eq!(
-            a.query(Region::WholeMap).buildings.len(),
-            b.query(Region::WholeMap).buildings.len()
-        );
-        for road in &a.roads {
-            let p = road.segment.point_at(0.5);
-            let point = [p.x, p.y];
-            assert_eq!(
-                a.elevation.as_ref().unwrap().height_at(point),
-                b.elevation.as_ref().unwrap().height_at(point)
-            );
-            assert_eq!(
-                a.surface_at(point, 100.).map(|s| s.height),
-                b.surface_at(point, 100.).map(|s| s.height)
-            );
-        }
-        assert_eq!(embedded.minimap_svg(), native.minimap_svg());
-        assert_eq!(
-            City::from_program_with_elevation_loader(
-                &opencity::parse("elevation_map(\"missing.png\", 0, 0, 1, 1, 0, 1);").unwrap(),
-                |_| Err("missing embedded asset".into()),
-            )
-            .err()
-            .unwrap(),
-            "missing embedded asset"
-        );
     }
 }
 

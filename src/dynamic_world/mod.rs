@@ -167,7 +167,7 @@ mod tests {
     use super::*;
     #[test]
     fn entering_requires_proximity_and_fast_exit_is_rejected() {
-        let hermes = Hermes::embedded().unwrap();
+        let hermes = Hermes::test_map();
         let mut world = DynamicWorld::new(&hermes);
         world.vehicles[0].velocity = Vec3::X * 10.;
         assert!(!world.toggle_vehicle(&hermes));
@@ -187,7 +187,7 @@ mod tests {
     }
     #[test]
     fn reset_preserves_explicit_start_and_restores_driving() {
-        let hermes = Hermes::embedded().unwrap();
+        let hermes = Hermes::test_map();
         let initial = Vehicle::spawn(hermes.city());
         let point = SpawnPoint {
             point: (initial.position.truncate() / METERS_PER_UNIT).to_array(),
