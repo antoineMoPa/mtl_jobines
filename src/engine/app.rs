@@ -1,14 +1,17 @@
+use super::frame_rate::FrameRate;
 use super::palette::Palette;
-use super::render::Renderer;
+use super::prop_scenery::PropScenery;
+use super::render::{GpuMesh, Renderer};
+#[cfg(not(target_arch = "wasm32"))]
+use super::smoke::{self, SkyOverrides, SmokeOptions};
 use super::{
     hud::{self, MenuItem, Overlay},
     scenery::Scenery,
 };
-#[cfg(not(target_arch = "wasm32"))]
-use crate::dynamic_world::Vehicle;
 use crate::dynamic_world::{Controls, DynamicWorld, SpawnPoint, WalkControls, METERS_PER_UNIT};
 use crate::hermes::Hermes;
 use glam::Vec3;
+use opencity::runtime::Mesh;
 #[cfg(not(target_arch = "wasm32"))]
 use opencity::runtime::Region;
 #[cfg(not(target_arch = "wasm32"))]
@@ -22,7 +25,7 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
-const DT: f32 = 1. / 120.;
+pub(super) const DT: f32 = 1. / 120.;
 const CURSOR_IDLE_DELAY: Duration = Duration::from_secs(2);
 fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkControls) {
     let held = |key| keys.contains(&key);
@@ -56,6 +59,9 @@ struct Game {
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     scenery: Option<Scenery>,
+    prop_scenery: PropScenery,
+    dynamic_mesh: Option<GpuMesh>,
+    dynamic_vertices: Mesh,
     palette: Option<Palette>,
     keys: HashSet<KeyCode>,
     last: Instant,
@@ -74,6 +80,7 @@ struct Game {
     hood: bool,
     first_frame: bool,
     route_revision: u64,
+    frame_rate: FrameRate,
 }
 impl Game {
     fn show_cursor(&mut self) {
@@ -126,6 +133,10 @@ impl Game {
         self.dragging = false;
         self.accumulator = 0.;
         self.last = Instant::now();
+        self.frame_rate = FrameRate::default();
+        if let Some(renderer) = &mut self.renderer {
+            renderer.fps = None;
+        }
         if let Some(window) = &self.window {
             window.request_redraw();
         }
@@ -180,6 +191,9 @@ impl Game {
             window: None,
             renderer: None,
             scenery: None,
+            prop_scenery: PropScenery::default(),
+            dynamic_mesh: None,
+            dynamic_vertices: Mesh::default(),
             palette: None,
             keys: HashSet::new(),
             last: Instant::now(),
@@ -202,10 +216,11 @@ impl Game {
             hood: false,
             first_frame: true,
             route_revision: 0,
+            frame_rate: FrameRate::default(),
         })
     }
     fn simulate(&mut self, elapsed: f32) {
-        if self.overlay.paused() || self.palette.as_ref().is_some_and(|p| p.menu.is_open()) {
+        if self.overlay.paused() || self.palette.as_ref().is_some_and(|p| p.is_open()) {
             self.accumulator = 0.;
         } else {
             self.accumulator += elapsed;
@@ -254,15 +269,20 @@ impl Game {
             .map(|s| s.height + 0.015)
             .unwrap_or(-1.);
         self.eye.z = self.eye.z.max(terrain);
-        let car = renderer.upload(&self.world.mesh());
+        let car = self.dynamic_mesh.as_mut().unwrap();
+        self.world.write_moving_mesh(&mut self.dynamic_vertices);
+        renderer.update_dynamic(car, &self.dynamic_vertices);
+        self.prop_scenery.update(renderer, &self.world);
         if let Some(pixels) = self.hermes.update_minimap(center) {
             renderer.update_minimap(pixels);
         }
         let navigation = self.hermes.minimap_view(center, self.world.player_yaw());
         renderer.overlay = self.overlay;
         renderer.menu_selection = self.menu_selection;
+        renderer.fps = self.frame_rate.value;
         let mut meshes = self.scenery.as_ref().unwrap().visible(center);
-        meshes.push(&car);
+        meshes.push(car);
+        meshes.extend(self.prop_scenery.visible());
         match renderer.surface.as_ref().unwrap().get_current_texture() {
             Ok(frame) => {
                 let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
@@ -275,6 +295,7 @@ impl Game {
                         palette.draw(self.window.as_ref().unwrap(), renderer, &view)
                     {
                         renderer.daylight = command.daylight();
+                        renderer.sky_settings.solar_hour = None;
                         let window = self.window.as_ref().unwrap();
                         window.set_title(match command {
                             super::palette::TimeCommand::Day => "MTL Jobines · day",
@@ -287,6 +308,9 @@ impl Game {
                     }
                 }
                 frame.present();
+                if !self.overlay.paused() {
+                    self.frame_rate.presented(Instant::now());
+                }
                 if self.first_frame {
                     eprintln!("Game ready: first frame presented");
                     self.first_frame = false;
@@ -378,13 +402,13 @@ impl ApplicationHandler<GameEvent> for Game {
         }
         if let (Some(palette), Some(window)) = (&mut self.palette, &self.window) {
             palette.event(window, &event);
-            let open = palette.menu.is_open();
+            let open = palette.is_open();
             let shortcut = matches!(&event, WindowEvent::KeyboardInput { event, .. }
                 if event.physical_key == PhysicalKey::Code(KeyCode::KeyP)
                     && event.state == ElementState::Pressed && !event.repeat && palette.shortcut());
             if shortcut {
                 if open {
-                    palette.menu.dismiss();
+                    palette.dismiss();
                 } else {
                     palette.menu.open();
                 }
@@ -422,7 +446,7 @@ impl ApplicationHandler<GameEvent> for Game {
             }
             WindowEvent::Focused(false) => {
                 if let Some(palette) = &mut self.palette {
-                    palette.menu.dismiss();
+                    palette.dismiss();
                 }
                 if self.overlay != Overlay::Start {
                     self.set_overlay(Overlay::Menu);
@@ -473,11 +497,12 @@ impl ApplicationHandler<GameEvent> for Game {
                                 KeyCode::Tab => self.hood = !self.hood,
                                 KeyCode::BracketLeft | KeyCode::BracketRight => {
                                     if let Some(renderer) = &mut self.renderer {
-                                        let current = super::lighting::Lighting::at_time(
-                                            self.game_time,
-                                            renderer.daylight,
-                                        )
-                                        .daylight;
+                                        let hour = renderer
+                                            .sky_settings
+                                            .hour(self.game_time, renderer.daylight);
+                                        let current = renderer
+                                            .daylight
+                                            .unwrap_or((hour.min(24. - hour) / 12.).clamp(0., 1.));
                                         let delta = if key == KeyCode::BracketRight {
                                             0.1
                                         } else {
@@ -485,6 +510,7 @@ impl ApplicationHandler<GameEvent> for Game {
                                         };
                                         let daylight = (current + delta).clamp(0., 1.);
                                         renderer.daylight = Some(daylight);
+                                        renderer.sky_settings.solar_hour = None;
                                         if let Some(window) = &self.window {
                                             window.set_title(&format!(
                                                 "MTL Jobines · daylight {daylight:.1}"
@@ -495,6 +521,7 @@ impl ApplicationHandler<GameEvent> for Game {
                                 KeyCode::KeyT => {
                                     if let Some(renderer) = &mut self.renderer {
                                         renderer.daylight = None;
+                                        renderer.sky_settings.solar_hour = None;
                                     }
                                     if let Some(window) = &self.window {
                                         window.set_title("MTL Jobines · automatic daylight");
@@ -603,219 +630,6 @@ impl ApplicationHandler<GameEvent> for Game {
     }
 }
 #[cfg(not(target_arch = "wasm32"))]
-fn smoke(
-    hermes: &mut Hermes,
-    output: PathBuf,
-    overview: bool,
-    profile: bool,
-) -> Result<(), String> {
-    let city = hermes.city();
-    let mut car = Vehicle::spawn(city);
-    let origin = car.position;
-    for _ in 0..600 {
-        car.step(
-            city,
-            Controls {
-                throttle: 1.,
-                ..Default::default()
-            },
-            DT,
-        );
-    }
-    if !car.position.is_finite() || car.position.distance(origin) < 5. {
-        return Err(format!(
-            "vehicle smoke did not travel: {:?}",
-            car.position - origin
-        ));
-    }
-    eprintln!(
-        "Driving smoke: moved {:.1} m, {:.1} km/h, {:?}, collisions {}",
-        car.position.distance(origin),
-        car.velocity.length() * 3.6,
-        car.surface,
-        car.collisions
-    );
-    let car = Vehicle::spawn(city);
-    let p = car.position / METERS_PER_UNIT;
-    let mut renderer = pollster::block_on(Renderer::new(None, 1280, 800))?;
-    let started = Instant::now();
-    let scenery = Scenery::new(&renderer, hermes);
-    eprintln!(
-        "{}: static scenery cached in {:?}",
-        renderer.adapter_name,
-        started.elapsed()
-    );
-    let mut smoke_world = DynamicWorld::new(hermes);
-    let carmesh = renderer.upload(&smoke_world.mesh());
-    if let Some(pixels) = hermes.update_minimap([p.x, p.y]) {
-        renderer.update_minimap(pixels);
-    }
-    // Exercise the route pipeline in the actual driving and expanded-map GPU snapshots.
-    let target_uv = hermes
-        .minimap_view([p.x + 4.2, p.y - 4.2], car.yaw)
-        .player_uv;
-    hermes.select_destination(target_uv, p.to_array());
-    renderer.update_route(&hermes.route_uvs());
-    let navigation = hermes.minimap_view([p.x, p.y], car.yaw);
-    let texture = renderer.device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("smoke frame"),
-        size: wgpu::Extent3d {
-            width: 1280,
-            height: 800,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: renderer.config.format,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-        view_formats: &[],
-    });
-    let f = Vec3::new(car.yaw.cos(), car.yaw.sin(), 0.);
-    let eye = if overview {
-        p + Vec3::new(-1.4, -1.7, 1.5)
-    } else {
-        p - f * 0.15 + Vec3::Z * 0.075
-    };
-    let look = if overview {
-        p
-    } else {
-        p + f * 0.04 + Vec3::Z * 0.014
-    };
-    let mut meshes = scenery.visible([p.x, p.y]);
-    meshes.push(&carmesh);
-    renderer.render(
-        &texture.create_view(&Default::default()),
-        &meshes,
-        eye,
-        look,
-        0.,
-        navigation,
-    );
-    renderer.snapshot(&texture, &output)?;
-    eprintln!("Rendered {}", output.display());
-    renderer.daylight = Some(0.);
-    renderer.render(
-        &texture.create_view(&Default::default()),
-        &meshes,
-        eye,
-        look,
-        0.,
-        navigation,
-    );
-    let night_path = output.with_file_name(format!(
-        "{}-night.ppm",
-        output.file_stem().unwrap().to_string_lossy()
-    ));
-    renderer.snapshot(&texture, &night_path)?;
-    eprintln!("Rendered {}", night_path.display());
-    renderer.daylight = None;
-    for (overlay, suffix) in [
-        (Overlay::Start, "start"),
-        (Overlay::Menu, "menu"),
-        (Overlay::Map, "map"),
-    ] {
-        renderer.overlay = overlay;
-        renderer.render(
-            &texture.create_view(&Default::default()),
-            &meshes,
-            eye,
-            look,
-            0.,
-            navigation,
-        );
-        let path = output.with_file_name(format!(
-            "{}-{suffix}.ppm",
-            output.file_stem().unwrap().to_string_lossy()
-        ));
-        renderer.snapshot(&texture, &path)?;
-        eprintln!("Rendered {}", path.display());
-    }
-
-    renderer.overlay = Overlay::Driving;
-    renderer.render(
-        &texture.create_view(&Default::default()),
-        &meshes,
-        eye,
-        look,
-        0.,
-        navigation,
-    );
-    super::palette::smoke(&renderer, &texture.create_view(&Default::default()));
-    let palette_path = output.with_file_name(format!(
-        "{}-palette.ppm",
-        output.file_stem().unwrap().to_string_lossy()
-    ));
-    renderer.snapshot(&texture, &palette_path)?;
-    eprintln!("Rendered {}", palette_path.display());
-
-    if smoke_world.toggle_vehicle(hermes) {
-        let walking_mesh = renderer.upload(&smoke_world.mesh());
-        let mut walking_meshes = scenery.visible([p.x, p.y]);
-        walking_meshes.push(&walking_mesh);
-        renderer.overlay = Overlay::Driving;
-        renderer.render(
-            &texture.create_view(&Default::default()),
-            &walking_meshes,
-            eye,
-            look,
-            0.,
-            navigation,
-        );
-        let path = output.with_file_name(format!(
-            "{}-walking.ppm",
-            output.file_stem().unwrap().to_string_lossy()
-        ));
-        renderer.snapshot(&texture, &path)?;
-        eprintln!("Rendered {}", path.display());
-    }
-    renderer.overlay = Overlay::Driving;
-    if profile {
-        smoke_world.reset_player(hermes);
-        let origin = smoke_world.player().position;
-        let mut timings = Vec::new();
-        for _ in 0..240 {
-            for _ in 0..8 {
-                smoke_world.step(
-                    hermes,
-                    Controls {
-                        throttle: 1.,
-                        ..Default::default()
-                    },
-                    WalkControls::default(),
-                    DT,
-                );
-            }
-            let car = smoke_world.player();
-            let p = car.position / METERS_PER_UNIT;
-            let center = [p.x, p.y];
-            let started = Instant::now();
-            assert!(
-                hermes.update_minimap(center).is_none(),
-                "atlas must never rebuild while driving"
-            );
-            let carmesh = renderer.upload(&smoke_world.mesh());
-            let mut meshes = scenery.visible(center);
-            meshes.push(&carmesh);
-            let f = Vec3::new(car.yaw.cos(), car.yaw.sin(), 0.);
-            renderer.render(
-                &texture.create_view(&Default::default()),
-                &meshes,
-                p - f * 0.15 + Vec3::Z * 0.075,
-                p + f * 0.04 + Vec3::Z * 0.014,
-                0.,
-                hermes.minimap_view(center, car.yaw),
-            );
-            renderer.device.poll(wgpu::Maintain::Wait);
-            timings.push(started.elapsed().as_secs_f64() * 1000.);
-        }
-        timings.sort_by(f64::total_cmp);
-        eprintln!("Cached driving: 240 synchronized GPU frames, {:.1} m traveled; median {:.2} ms, p95 {:.2} ms, max {:.2} ms; no static map rebuilds",
-            smoke_world.player().position.distance(origin), timings[120], timings[228], timings[239]);
-    }
-    Ok(())
-}
-#[cfg(not(target_arch = "wasm32"))]
 pub fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().collect();
     let start = args
@@ -863,11 +677,41 @@ pub fn run() -> Result<(), String> {
         }
     }
     if let Some(output) = option("--smoke") {
-        return smoke(
+        let size = args
+            .iter()
+            .position(|a| a == "--smoke-size")
+            .map(|i| {
+                let value = args
+                    .get(i + 1)
+                    .ok_or("--smoke-size requires WIDTHxHEIGHT")?;
+                let (width, height) = value
+                    .split_once('x')
+                    .ok_or("--smoke-size requires WIDTHxHEIGHT")?;
+                let width = width.parse::<u32>().map_err(|_| "invalid smoke width")?;
+                let height = height.parse::<u32>().map_err(|_| "invalid smoke height")?;
+                if width == 0 || height == 0 || width > 8192 || height > 8192 {
+                    return Err("smoke dimensions must be between 1 and 8192");
+                }
+                Ok((width, height))
+            })
+            .transpose()?
+            .unwrap_or((1280, 800));
+        return smoke::run(
             &mut hermes,
             output,
-            args.iter().any(|a| a == "--overview"),
-            args.iter().any(|a| a == "--profile"),
+            SmokeOptions {
+                overview: args.iter().any(|a| a == "--overview"),
+                hood: args.iter().any(|a| a == "--hood"),
+                profile: args
+                    .iter()
+                    .any(|a| a == "--profile" || a == "--profile-120"),
+                realtime: args.iter().any(|a| a == "--profile-realtime"),
+                target_120: args.iter().any(|a| a == "--profile-120"),
+                night: args.iter().any(|a| a == "--night"),
+                start,
+                size,
+                sky: SkyOverrides::from_args(&args)?,
+            },
         );
     }
     let event_loop = EventLoop::<GameEvent>::with_user_event()
@@ -884,6 +728,9 @@ impl Game {
         let started = Instant::now();
         eprintln!("Preparing static scenery...");
         self.scenery = Some(Scenery::new(&renderer, &mut self.hermes));
+        self.world.write_moving_mesh(&mut self.dynamic_vertices);
+        self.dynamic_mesh = Some(renderer.upload_dynamic(&self.dynamic_vertices));
+        self.prop_scenery.update(&renderer, &self.world);
         eprintln!(
             "Scenery ready in {:?}; preparing map atlas...",
             started.elapsed()
@@ -894,6 +741,18 @@ impl Game {
         eprintln!("Startup caches ready in {:?}", started.elapsed());
         // A resize may have arrived while browser GPU initialization was pending.
         let size = self.window.as_ref().unwrap().inner_size();
+        let refresh = self
+            .window
+            .as_ref()
+            .unwrap()
+            .current_monitor()
+            .and_then(|monitor| monitor.refresh_rate_millihertz());
+        eprintln!(
+            "Window: {}x{} physical pixels; display refresh {:?} Hz",
+            size.width,
+            size.height,
+            refresh.map(|rate| rate as f32 / 1000.)
+        );
         renderer.resize(size.width, size.height);
         self.palette = Some(Palette::new(self.window.as_ref().unwrap(), &renderer));
         self.renderer = Some(renderer);
@@ -943,234 +802,4 @@ pub fn start_web() -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn direction_keys_brake_opposing_motion_then_accelerate_either_way() {
-        for (key, direction) in [
-            (KeyCode::ArrowUp, 1.),
-            (KeyCode::KeyW, 1.),
-            (KeyCode::ArrowDown, -1.),
-            (KeyCode::KeyS, -1.),
-        ] {
-            let keys = HashSet::from([key]);
-            let (opposing, _) = movement_controls(&keys, -10. * direction);
-            assert!(opposing.brake);
-            assert_eq!(opposing.throttle, 0.);
-            for speed in [-0.1, 0., 0.1, 10. * direction] {
-                let (driving, _) = movement_controls(&keys, speed);
-                assert!(!driving.brake);
-                assert_eq!(driving.throttle, direction);
-            }
-        }
-        let (driving, _) =
-            movement_controls(&HashSet::from([KeyCode::ArrowUp, KeyCode::ArrowDown]), 10.);
-        assert_eq!(driving.throttle, 0.);
-        assert!(!driving.brake);
-    }
-
-    #[test]
-    fn space_handbrake_and_shift_sprint_are_independent() {
-        let (driving, walking) = movement_controls(&HashSet::from([KeyCode::Space]), 10.);
-        assert!(driving.handbrake);
-        assert!(!driving.brake);
-        assert!(!walking.run);
-        for key in [KeyCode::ShiftLeft, KeyCode::ShiftRight] {
-            let (driving, walking) = movement_controls(&HashSet::from([key]), 10.);
-            assert!(!driving.handbrake);
-            assert!(!driving.brake);
-            assert!(walking.run);
-        }
-    }
-
-    #[test]
-    fn cursor_idle_deadline_resets_and_wakes_even_while_paused() {
-        let mut game = Game::new(Hermes::embedded().unwrap());
-        let now = Instant::now();
-        assert_eq!(game.cursor_wait(now), ControlFlow::Wait);
-        assert!(!game.cursor_hidden);
-
-        for overlay in [
-            Overlay::Start,
-            Overlay::Driving,
-            Overlay::Menu,
-            Overlay::Map,
-        ] {
-            game.set_overlay(overlay);
-            game.cursor_activity(now);
-            let moved = now + Duration::from_secs(1);
-            game.cursor_activity(moved);
-            let deadline = moved + CURSOR_IDLE_DELAY;
-            assert_eq!(
-                game.cursor_wait(now + CURSOR_IDLE_DELAY),
-                ControlFlow::WaitUntil(deadline)
-            );
-            assert!(!game.cursor_hidden);
-            assert_eq!(game.cursor_wait(deadline), ControlFlow::Wait);
-            assert!(game.cursor_hidden);
-            assert_eq!(game.cursor_hide_at, None);
-
-            game.cursor_activity(deadline);
-            assert!(!game.cursor_hidden);
-            assert_eq!(
-                game.cursor_wait(deadline),
-                ControlFlow::WaitUntil(deadline + CURSOR_IDLE_DELAY)
-            );
-            // Leaving the window or losing focus cancels hiding.
-            game.show_cursor();
-            assert_eq!(
-                game.cursor_wait(deadline + CURSOR_IDLE_DELAY),
-                ControlFlow::Wait
-            );
-            assert!(!game.cursor_hidden);
-        }
-    }
-
-    #[test]
-    fn menu_arrows_select_and_enter_activates_without_leaking_controls() {
-        let mut game = Game::new(Hermes::embedded().unwrap());
-        for overlay in [Overlay::Start, Overlay::Menu] {
-            game.set_overlay(overlay);
-            assert_eq!(game.menu_selection, MenuItem::Resume);
-            assert_eq!(
-                game.menu_key(KeyCode::Enter, ElementState::Pressed, false),
-                Some(MenuItem::Resume)
-            );
-            for key in [
-                KeyCode::ArrowDown,
-                KeyCode::ArrowDown,
-                KeyCode::ArrowUp,
-                KeyCode::ArrowUp,
-            ] {
-                let expected = game.menu_selection.other();
-                assert_eq!(game.menu_key(key, ElementState::Pressed, false), None);
-                assert_eq!(game.menu_selection, expected);
-                assert_eq!(
-                    game.menu_key(KeyCode::Enter, ElementState::Pressed, false),
-                    Some(expected)
-                );
-                game.menu_key(key, ElementState::Pressed, true);
-                game.menu_key(key, ElementState::Released, false);
-                assert_eq!(game.menu_selection, expected);
-            }
-            assert_eq!(
-                game.menu_key(KeyCode::Enter, ElementState::Pressed, true),
-                None
-            );
-            assert_eq!(
-                game.menu_key(KeyCode::Enter, ElementState::Released, false),
-                None
-            );
-            assert_eq!(
-                game.menu_key(KeyCode::KeyQ, ElementState::Pressed, false),
-                Some(MenuItem::Exit)
-            );
-            assert!(game.keys.is_empty());
-            game.menu_key(KeyCode::ArrowDown, ElementState::Pressed, false);
-            game.set_overlay(Overlay::Driving);
-            assert_eq!(game.menu_selection, MenuItem::Resume);
-        }
-        for overlay in [Overlay::Driving, Overlay::Map] {
-            game.set_overlay(overlay);
-            for key in [
-                KeyCode::ArrowDown,
-                KeyCode::ArrowUp,
-                KeyCode::Enter,
-                KeyCode::KeyQ,
-            ] {
-                assert_eq!(game.menu_key(key, ElementState::Pressed, false), None);
-                assert_eq!(game.menu_selection, MenuItem::Resume);
-            }
-        }
-    }
-
-    #[test]
-    fn explicit_launch_position_starts_playing_immediately() {
-        let hermes = Hermes::embedded().unwrap();
-        let default = Game::new(Hermes::embedded().unwrap());
-        let point = default.world.player_position() / METERS_PER_UNIT;
-        let game = Game::new_at(
-            hermes,
-            Some(SpawnPoint {
-                point: [point.x, point.y],
-                heading: None,
-            }),
-        )
-        .unwrap();
-        assert_eq!(game.overlay, Overlay::Driving);
-        assert!((game.world.player_position().x / METERS_PER_UNIT - point.x).abs() < 1e-5);
-        assert!((game.world.player_position().y / METERS_PER_UNIT - point.y).abs() < 1e-5);
-    }
-    #[test]
-    fn walking_left_right_keys_turn_without_strafing() {
-        let mut game = Game::new(Hermes::embedded().unwrap());
-        game.set_overlay(Overlay::Driving);
-        assert!(game.world.toggle_vehicle(&game.hermes));
-        game.orbit = 0.7;
-        for (key, direction) in [
-            (KeyCode::KeyA, 1.),
-            (KeyCode::ArrowLeft, 1.),
-            (KeyCode::KeyD, -1.),
-            (KeyCode::ArrowRight, -1.),
-        ] {
-            game.keys.clear();
-            game.keys.insert(key);
-            let position = game.world.player_position();
-            let heading = game.world.player_yaw();
-            game.simulate(DT * 6.);
-            assert_eq!(game.world.player_position(), position);
-            assert!((game.world.player_yaw() - heading) * direction > 0.1);
-            assert_eq!(game.orbit, 0.7);
-        }
-        game.keys.insert(KeyCode::ArrowLeft);
-        let heading = game.world.player_yaw();
-        game.simulate(DT * 6.);
-        assert_eq!(game.world.player_yaw(), heading);
-    }
-    #[test]
-    fn first_menu_freezes_until_start_then_later_pauses_resume() {
-        let mut game = Game::new(Hermes::embedded().unwrap());
-        assert_eq!(game.overlay, Overlay::Start);
-        let position = game.world.player_position();
-        game.keys.insert(KeyCode::KeyW);
-        for _ in 0..10 {
-            game.simulate(0.1);
-        }
-        assert_eq!(game.world.player_position(), position);
-        assert_eq!(game.game_time, 0.);
-        game.set_overlay(game.overlay.escape());
-        assert_eq!(game.overlay, Overlay::Driving);
-        assert!(game.keys.is_empty());
-        game.simulate(DT);
-        assert!(game.game_time > 0.);
-        game.set_overlay(game.overlay.escape());
-        assert_eq!(game.overlay, Overlay::Menu);
-        game.set_overlay(game.overlay.escape());
-        assert_eq!(game.overlay, Overlay::Driving);
-    }
-    #[test]
-    fn menu_and_map_freeze_the_world_and_resume_without_accumulated_time_or_keys() {
-        let mut game = Game::new(Hermes::embedded().unwrap());
-        game.set_overlay(Overlay::Driving);
-        game.keys.insert(KeyCode::KeyW);
-        game.simulate(0.1);
-        for overlay in [Overlay::Menu, Overlay::Map] {
-            let position = game.world.player().position;
-            let velocity = game.world.player().velocity;
-            let time = game.game_time;
-            game.set_overlay(overlay);
-            assert!(game.keys.is_empty());
-            for _ in 0..100 {
-                game.simulate(0.1);
-            }
-            assert_eq!(game.world.player().position, position);
-            assert_eq!(game.world.player().velocity, velocity);
-            assert_eq!(game.game_time, time);
-            game.set_overlay(overlay.escape());
-            assert_eq!(game.overlay, Overlay::Driving);
-            assert_eq!(game.accumulator, 0.);
-            game.simulate(DT);
-            assert!(game.game_time > time);
-        }
-    }
-}
+mod tests;

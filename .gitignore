@@ -5,3 +5,7 @@
 # OpenCity launch snapshots may be generated beside any edited map.
 .opencity-play-*.road
 .opencity-play-*.png
+
+# Generated from commerce SVG sources with cargo xtask assets.
+/assets/commerce/**/*.png
+/assets/commerce/*.png

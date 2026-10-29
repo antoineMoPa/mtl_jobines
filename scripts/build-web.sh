@@ -4,6 +4,8 @@ set -euo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dist_dir="$repo_dir/web/dist"
 
+cargo run --quiet --locked --manifest-path "$repo_dir/xtask/Cargo.toml" -- assets
+
 # Opt in to a larger download that skips runtime mesh/SVG preparation.
 if [[ "${BUNDLE_GAME_DATA:-0}" == "1" ]]; then
   mkdir -p "$dist_dir"

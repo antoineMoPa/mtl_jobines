@@ -1,6 +1,3 @@
-# Game-owned test-map residential areas, in OpenCity coordinates.
-# residential_area(seed, min_x, min_y, max_x, max_y, centre_x, centre_y, core_radius)
-# Legacy buildings inside the core remain as downtown; the rest are replaced with
-# stable street-facing homes. The generated homes do not alter this source file.
-residential_area(1001, -30.35, -4.90, -19.70, 3.70, -23.475, 0.275, 1.50);
-residential_area(1002, 16.40, -1.95, 26.40, 3.75, 22.43864, 1.22727, 1.50);
+# Compatibility note: residential scaffold authoring now lives directly in
+# opencity/examples/default_map.road, and OpenCity owns its deterministic layout.
+# No game-side implicit default housing file is loaded.

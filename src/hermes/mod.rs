@@ -1,9 +1,12 @@
 //! Static map/navigation access. OpenCity owns authored roads and geometry;
 //! Hermes owns navigation, routing and the game’s map presentation.
 mod building_style;
+pub(crate) mod commerce_mesh;
+mod commerce_props;
+mod commercial;
 mod game_data;
 mod minimap;
-mod residential;
+
 mod routing;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data))]
 use game_data::CacheKey;
@@ -16,6 +19,49 @@ pub use routing::RouteStatus;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 use std::sync::Arc;
+/// Both platforms expand the same source, differing only in elevation asset access.
+fn expand(
+    source: &opencity::Program,
+    mut compile: impl FnMut(&opencity::Program) -> Result<City, String>,
+) -> Result<(opencity::Program, City), String> {
+    let mut program = opencity::runtime::scaffold::expand_program(source, &mut compile)?;
+    dress_scaffolds(&mut program);
+    let city = compile(&program)?;
+
+    Ok((program, city))
+}
+/// Architectural palette belongs to the game; shared footprints, elevation and
+/// height pass through unchanged to collision, preview and rendering.
+fn dress_scaffolds(program: &mut opencity::Program) {
+    use opencity::{Argument, Statement};
+    for statement in &mut program.statements {
+        let Statement::Call(call) = statement else {
+            continue;
+        };
+        if call.name != "building" {
+            continue;
+        }
+        let Some(name) = call.assigns.first() else {
+            continue;
+        };
+        if !name.starts_with("generated_shop_") && !name.starts_with("generated_home_") {
+            continue;
+        }
+        let seed = commercial::seed(name);
+        let material = match (seed >> 16) % 10 {
+            0..=4 => "red_brick",
+            5..=6 => "brown_brick",
+            7 => "buff_brick",
+            8 => "limestone",
+            _ => "pale_brick",
+        };
+        if let Some(Argument::Object(options)) = call.args.get_mut(1) {
+            if let Some((_, value)) = options.iter_mut().find(|(key, _)| key == "material") {
+                *value = Argument::Identifier(material.into());
+            }
+        }
+    }
+}
 pub struct Hermes {
     city: Arc<City>,
     minimap: minimap::Minimap,
@@ -35,24 +81,25 @@ impl Hermes {
         let source = std::fs::read(path).map_err(|e| e.to_string())?;
         let parsed = opencity::parse(std::str::from_utf8(&source).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
-        let (mut program, areas) = residential::prepare(&parsed)?;
-        let mut city = City::from_program(&program, path.parent())?;
-        if !areas.is_empty() {
-            let count = residential::populate(&mut program, &city, &areas);
-            eprintln!(
-                "Generated {count} stable residential buildings in {} areas",
-                areas.len()
-            );
-            drop(city);
-            city = City::from_program(&program, path.parent())?;
-        }
-        let elevation = city
-            .elevation
+        let elevation_spec = opencity::heightmap::ElevationMapSpec::from_program(&parsed)?;
+        let elevation = elevation_spec
             .as_ref()
-            .map(|e| std::fs::read(path.parent().unwrap_or(Path::new(".")).join(&e.spec.path)))
+            .map(|spec| std::fs::read(path.parent().unwrap_or(Path::new(".")).join(&spec.path)))
             .transpose()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
+        // All expansion stages retain the authored terrain. Decode it once,
+        // sharing the source bytes with the cache fingerprint below.
+        let elevation_map = elevation_spec
+            .map(|spec| opencity::heightmap::ElevationMap::from_png(spec, &elevation))
+            .transpose()?;
+        let (program, city) = expand(&parsed, |p| {
+            City::from_program_with_elevation_loader(p, |_| {
+                elevation_map
+                    .clone()
+                    .ok_or_else(|| "Missing elevation asset".into())
+            })
+        })?;
         let key = CacheKey::for_map(&source, &elevation);
         let cache_path = game_data::cache_path(key);
         let mut data = None;
@@ -100,25 +147,24 @@ impl Hermes {
     pub fn embedded() -> Result<Self, String> {
         let parsed = opencity::parse(include_str!("../../opencity/examples/default_map.road"))
             .map_err(|error| error.to_string())?;
-        let (mut program, areas) = residential::prepare(&parsed)?;
-        let load_elevation = |spec: &opencity::heightmap::ElevationMapSpec| match spec.path.as_str()
-        {
-            "default_elevation.png" => opencity::heightmap::ElevationMap::from_png(
-                spec.clone(),
-                include_bytes!("../../opencity/examples/default_elevation.png"),
-            ),
-            path => Err(format!("Unknown embedded elevation map: {path}")),
-        };
-        let mut city = City::from_program_with_elevation_loader(&program, load_elevation)?;
-        if !areas.is_empty() {
-            let count = residential::populate(&mut program, &city, &areas);
-            eprintln!(
-                "Generated {count} stable residential buildings in {} areas",
-                areas.len()
-            );
-            drop(city);
-            city = City::from_program_with_elevation_loader(&program, load_elevation)?;
-        }
+
+        let mut elevation_map: Option<opencity::heightmap::ElevationMap> = None;
+        let (program, city) = expand(&parsed, |p| {
+            City::from_program_with_elevation_loader(p, |spec| {
+                if let Some(map) = &elevation_map {
+                    return Ok(map.clone());
+                }
+                let map = match spec.path.as_str() {
+                    "default_elevation.png" => opencity::heightmap::ElevationMap::from_png(
+                        spec.clone(),
+                        include_bytes!("../../opencity/examples/default_elevation.png"),
+                    )?,
+                    path => return Err(format!("Unknown embedded elevation map: {path}")),
+                };
+                elevation_map = Some(map.clone());
+                Ok(map)
+            })
+        })?;
         #[cfg(bundled_game_data)]
         {
             let key = CacheKey::for_map(
@@ -168,9 +214,12 @@ impl Hermes {
             .city
             .mesh(Region::WholeMap, 0.04)
             .expect("static map mesh");
-        let (details, _) = self
+        let (mut details, _) = self
             .city
             .building_detail_parts(Region::WholeMap, &building_style::residential());
+        details
+            .vertices
+            .extend(commerce_mesh::build(&self.city).vertices);
         eprintln!(
             "Prepared {} world vertices and {} detail vertices",
             world.vertices.len(),
@@ -181,19 +230,24 @@ impl Hermes {
             match game_data::write(path, *key, &world, &details, self.minimap.pixels()) {
                 Ok(()) => eprintln!("Saved disk cache: {}", path.display()),
                 Err(error) => {
-                    eprintln!("Could not save disk cache ({error}); continuing with in-memory data")
+                    eprintln!(
+                        "Could not save disk cache ({error}); continuing with in-memory \
+                            data"
+                    )
                 }
             }
         }
         (world, details)
     }
-    pub(crate) fn prop_meshes(&self) -> Vec<Mesh> {
+    pub(crate) fn prop_groups(&self) -> Vec<Vec<Mesh>> {
         let mut props = self.city.detail_objects(Region::WholeMap);
         let (_, frontage) = self
             .city
             .building_detail_parts(Region::WholeMap, &building_style::residential());
         props.extend(frontage);
-        props
+        let mut groups: Vec<_> = props.into_iter().map(|mesh| vec![mesh]).collect();
+        groups.extend(commerce_mesh::prop_groups(&self.city));
+        groups
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write_game_data(&mut self, path: &Path) -> Result<(), String> {
@@ -291,5 +345,36 @@ mod tests {
             .unwrap(),
             "missing embedded asset"
         );
+    }
+}
+
+#[cfg(test)]
+mod scaffold_tests {
+    use super::*;
+    #[test]
+    fn game_dressing_preserves_every_shared_scaffold_proportion() {
+        let input = opencity::parse(
+            "road local: sidewalk carlane sidewalk; end
+            street=local(-2,0,2,0);ground=land(-3,-2,3,-2,3,2,-3,2);elevation(ground,0.02);
+            zone=frontage_zone(street,{use:mixed_use,side:both,start:0.1,end:0.9,
+                depth:0.16,seed:42});
+            residential_area(42,-2,-1,2,1,0,0,0);",
+        )
+        .unwrap();
+        let (preview, _) =
+            opencity::runtime::scaffold::expand(&input, |p| City::from_program(p, None)).unwrap();
+        let (game, _) = expand(&input, |p| City::from_program(p, None)).unwrap();
+        let a = opencity::runtime::scaffold::buildings(&preview);
+        let b = opencity::runtime::scaffold::buildings(&game);
+        assert!(!a.is_empty());
+        assert_eq!(a.len(), b.len());
+        for (a, b) in a.iter().zip(&b) {
+            assert_eq!(a.id, b.id);
+            assert_eq!(a.feature.points, b.feature.points);
+            assert_eq!(a.feature.height, b.feature.height);
+            assert_eq!(a.feature.elevation, b.feature.elevation);
+            assert_eq!(a.feature.front_edge, b.feature.front_edge);
+            assert_eq!(a.roof, b.roof);
+        }
     }
 }

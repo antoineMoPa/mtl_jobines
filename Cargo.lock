@@ -1303,6 +1303,7 @@ dependencies = [
  "glam",
  "naga",
  "opencity",
+ "png",
  "pollster",
  "rapier3d",
  "resvg",

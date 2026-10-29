@@ -473,7 +473,11 @@ mod tests {
     }
     #[test]
     fn shortest_distance_wins_and_crossings_do_not_connect() {
-        let graph = router("road street: carlane; end street(0,0,2,0); street(2,0,4,0); street(0,0,0,3); street(0,3,4,3); street(4,3,4,0); street(1,-1,1,1);");
+        let graph = router(
+            "road street: carlane; end street(0,0,2,0); street(2,0,4,0); \
+                street(0,0,0,3); street(0,3,4,3); street(4,3,4,0); street(1,-1,1,\
+                1);",
+        );
         assert!((length(&path(&graph, [0.5, 0., 0.], [3.5, 0., 0.]).unwrap()) - 3.).abs() < 1e-4);
         assert!(path(&graph, [0.5, 0., 0.], [1., 0.8, 0.]).is_none());
     }
@@ -486,14 +490,25 @@ mod tests {
     }
     #[test]
     fn separate_named_endpoints_do_not_connect_by_position() {
-        let graph = router("road street: carlane; end a=map_point(0,0); b=map_point(2,0); c=map_point(2,0); d=map_point(4,0); street(a,0.6,0,1.4,0,b); street(c,2.6,0,3.4,0,d);");
+        let graph = router(
+            "road street: carlane; end a=map_point(0,0); b=map_point(2,0); \
+                c=map_point(2,0); d=map_point(4,0); street(a,0.6,0,1.4,0,b); \
+                street(c,2.6,0,3.4,0,d);",
+        );
         assert!(path(&graph, [1., 0., 0.], [3., 0., 0.]).is_none());
-        let joined = router("road street: carlane; end a=map_point(0,0); b=map_point(2,0); d=map_point(4,0); street(a,0.6,0,1.4,0,b); street(b,2.6,0,3.4,0,d);");
+        let joined = router(
+            "road street: carlane; end a=map_point(0,0); b=map_point(2,0); \
+                d=map_point(4,0); street(a,0.6,0,1.4,0,b); street(b,2.6,0,3.4,0,\
+                d);",
+        );
         assert!((length(&path(&joined, [1., 0., 0.], [3., 0., 0.]).unwrap()) - 2.).abs() < 1e-4);
     }
     #[test]
     fn one_way_cycle_takes_the_legal_detour() {
-        let graph = router("road street: carlane; direction forward; end street(0,0,4,0); street(4,0,4,2); street(4,2,0,2); street(0,2,0,0);");
+        let graph = router(
+            "road street: carlane; direction forward; end street(0,0,4,0); \
+                street(4,0,4,2); street(4,2,0,2); street(0,2,0,0);",
+        );
         let points = path(&graph, [3., 0., 0.], [1., 0., 0.]).unwrap();
         assert!((length(&points) - 10.).abs() < 1e-4);
     }

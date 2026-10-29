@@ -1,0 +1,412 @@
+{
+  "brandRate": 0.1,
+  "interiorRecipes": {
+    "grocery": {
+      "index": 0,
+      "name": "Aisles and checkout",
+      "wall": "#c9c1a3"
+    },
+    "cafe": {
+      "index": 1,
+      "name": "Service counter and shelves",
+      "wall": "#c7ac8d"
+    },
+    "boutique": {
+      "index": 2,
+      "name": "Clothes rail and display table",
+      "wall": "#d6c9b0"
+    }
+  },
+  "interiorLayersMetres": {
+    "near": {
+      "depth": 0.85
+    },
+    "far": {
+      "depth": 2.6
+    },
+    "back": {
+      "depth": 4.8
+    }
+  },
+  "brandFormats": {
+    "flagship": [
+      "jean-couteau",
+      "simonac"
+    ],
+    "department": [
+      "simonac",
+      "mini",
+      "ici"
+    ],
+    "cinema": [
+      "cineplouf"
+    ],
+    "heritage": [
+      "simonac",
+      "jean-couteau",
+      "tom-houblon"
+    ],
+    "neighbourhood": [
+      "jean-couteau",
+      "st-hurtubise",
+      "couche-tot",
+      "mini",
+      "ici",
+      "piassorama",
+      "tom-houblon",
+      "belle-patente"
+    ]
+  },
+  "brands": [
+    {
+      "id": "jean-couteau",
+      "name": "Jean Couteau",
+      "category": "Pharmacie de quartier",
+      "background": "#123c55",
+      "ink": "#fff5df",
+      "accent": "#e8a05b",
+      "font": "Georgia,serif",
+      "weight": 700,
+      "size": 48,
+      "tracking": 0,
+      "icon": "blade",
+      "rule": "underline",
+      "presentation": "transparent",
+      "variants": {
+        "panel": {
+          "png": "brands/jean-couteau-panel.png",
+          "svg": "brands/jean-couteau-panel.svg",
+          "width": 418,
+          "height": 69
+        },
+        "light": {
+          "png": "brands/jean-couteau-light.png",
+          "svg": "brands/jean-couteau-light.svg",
+          "width": 410,
+          "height": 61
+        },
+        "dark": {
+          "png": "brands/jean-couteau-dark.png",
+          "svg": "brands/jean-couteau-dark.svg",
+          "width": 410,
+          "height": 61
+        }
+      }
+    },
+    {
+      "id": "st-hurtubise",
+      "name": "St-Hurtubise",
+      "category": "Rôtisserie",
+      "background": "#602f3e",
+      "ink": "#fff2d2",
+      "accent": "#d8a857",
+      "font": "Georgia,serif",
+      "weight": 700,
+      "size": 48,
+      "tracking": 0,
+      "icon": "roast",
+      "rule": "double",
+      "presentation": "panel",
+      "variants": {
+        "panel": {
+          "png": "brands/st-hurtubise-panel.png",
+          "svg": "brands/st-hurtubise-panel.svg",
+          "width": 405,
+          "height": 69
+        },
+        "light": {
+          "png": "brands/st-hurtubise-light.png",
+          "svg": "brands/st-hurtubise-light.svg",
+          "width": 397,
+          "height": 61
+        },
+        "dark": {
+          "png": "brands/st-hurtubise-dark.png",
+          "svg": "brands/st-hurtubise-dark.svg",
+          "width": 397,
+          "height": 61
+        }
+      }
+    },
+    {
+      "id": "couche-tot",
+      "name": "COUCHE-TÔT",
+      "category": "Dépanneur",
+      "background": "#262d55",
+      "ink": "#fff4d6",
+      "accent": "#d6bb76",
+      "font": "Arial,sans-serif",
+      "weight": 800,
+      "size": 43,
+      "tracking": 1,
+      "icon": "moon",
+      "rule": "night",
+      "presentation": "transparent",
+      "variants": {
+        "panel": {
+          "png": "brands/couche-tot-panel.png",
+          "svg": "brands/couche-tot-panel.svg",
+          "width": 380,
+          "height": 68
+        },
+        "light": {
+          "png": "brands/couche-tot-light.png",
+          "svg": "brands/couche-tot-light.svg",
+          "width": 372,
+          "height": 60
+        },
+        "dark": {
+          "png": "brands/couche-tot-dark.png",
+          "svg": "brands/couche-tot-dark.svg",
+          "width": 372,
+          "height": 60
+        }
+      }
+    },
+    {
+      "id": "mini",
+      "name": "mini",
+      "category": "Marché",
+      "background": "#f3e4ab",
+      "ink": "#214c78",
+      "accent": "#d17f4e",
+      "font": "Arial,sans-serif",
+      "weight": 900,
+      "size": 78,
+      "tracking": -3,
+      "icon": "basket",
+      "rule": "corner",
+      "presentation": "panel",
+      "variants": {
+        "panel": {
+          "png": "brands/mini-panel.png",
+          "svg": "brands/mini-panel.svg",
+          "width": 235,
+          "height": 102
+        },
+        "light": {
+          "png": "brands/mini-light.png",
+          "svg": "brands/mini-light.svg",
+          "width": 227,
+          "height": 94
+        },
+        "dark": {
+          "png": "brands/mini-dark.png",
+          "svg": "brands/mini-dark.svg",
+          "width": 227,
+          "height": 94
+        }
+      }
+    },
+    {
+      "id": "ici",
+      "name": "ICI",
+      "category": "Épicerie",
+      "background": "#e6edda",
+      "ink": "#2b594b",
+      "accent": "#b77742",
+      "font": "Arial,sans-serif",
+      "weight": 900,
+      "size": 74,
+      "tracking": 8,
+      "icon": "leaf",
+      "rule": "underline",
+      "presentation": "transparent",
+      "variants": {
+        "panel": {
+          "png": "brands/ici-panel.png",
+          "svg": "brands/ici-panel.svg",
+          "width": 202,
+          "height": 97
+        },
+        "light": {
+          "png": "brands/ici-light.png",
+          "svg": "brands/ici-light.svg",
+          "width": 194,
+          "height": 89
+        },
+        "dark": {
+          "png": "brands/ici-dark.png",
+          "svg": "brands/ici-dark.svg",
+          "width": 194,
+          "height": 89
+        }
+      }
+    },
+    {
+      "id": "piassorama",
+      "name": "PIASSORAMA",
+      "category": "Variétés",
+      "background": "#4c3863",
+      "ink": "#f1e8c8",
+      "accent": "#d6dc8e",
+      "font": "Arial,sans-serif",
+      "weight": 800,
+      "size": 42,
+      "tracking": 0.5,
+      "icon": "coin",
+      "rule": "corner",
+      "presentation": "panel",
+      "variants": {
+        "panel": {
+          "png": "brands/piassorama-panel.png",
+          "svg": "brands/piassorama-panel.svg",
+          "width": 373,
+          "height": 68
+        },
+        "light": {
+          "png": "brands/piassorama-light.png",
+          "svg": "brands/piassorama-light.svg",
+          "width": 365,
+          "height": 60
+        },
+        "dark": {
+          "png": "brands/piassorama-dark.png",
+          "svg": "brands/piassorama-dark.svg",
+          "width": 365,
+          "height": 60
+        }
+      }
+    },
+    {
+      "id": "tom-houblon",
+      "name": "Tom Houblon",
+      "category": "Café et comptoir",
+      "background": "#dcd8bc",
+      "ink": "#2c5046",
+      "accent": "#a66c47",
+      "font": "Georgia,serif",
+      "weight": 700,
+      "size": 47,
+      "tracking": -1,
+      "icon": "hop",
+      "rule": "double",
+      "presentation": "transparent",
+      "variants": {
+        "panel": {
+          "png": "brands/tom-houblon-panel.png",
+          "svg": "brands/tom-houblon-panel.svg",
+          "width": 409,
+          "height": 68
+        },
+        "light": {
+          "png": "brands/tom-houblon-light.png",
+          "svg": "brands/tom-houblon-light.svg",
+          "width": 401,
+          "height": 60
+        },
+        "dark": {
+          "png": "brands/tom-houblon-dark.png",
+          "svg": "brands/tom-houblon-dark.svg",
+          "width": 401,
+          "height": 60
+        }
+      }
+    },
+    {
+      "id": "belle-patente",
+      "name": "La Belle Patente",
+      "category": "Casse-croûte",
+      "background": "#cc7149",
+      "ink": "#fff0cc",
+      "accent": "#284c60",
+      "font": "Georgia,serif",
+      "weight": 700,
+      "size": 43,
+      "tracking": -1,
+      "icon": "spark",
+      "rule": "underline",
+      "presentation": "panel",
+      "variants": {
+        "panel": {
+          "png": "brands/belle-patente-panel.png",
+          "svg": "brands/belle-patente-panel.svg",
+          "width": 426,
+          "height": 68
+        },
+        "light": {
+          "png": "brands/belle-patente-light.png",
+          "svg": "brands/belle-patente-light.svg",
+          "width": 418,
+          "height": 60
+        },
+        "dark": {
+          "png": "brands/belle-patente-dark.png",
+          "svg": "brands/belle-patente-dark.svg",
+          "width": 418,
+          "height": 60
+        }
+      }
+    },
+    {
+      "id": "simonac",
+      "name": "SIMONAC",
+      "category": "Mode et maison",
+      "background": "#e8ddd0",
+      "ink": "#7f4138",
+      "accent": "#a98254",
+      "font": "Arial,sans-serif",
+      "weight": 500,
+      "size": 49,
+      "tracking": 5,
+      "icon": "weave",
+      "rule": "double",
+      "presentation": "transparent",
+      "variants": {
+        "panel": {
+          "png": "brands/simonac-panel.png",
+          "svg": "brands/simonac-panel.svg",
+          "width": 347,
+          "height": 68
+        },
+        "light": {
+          "png": "brands/simonac-light.png",
+          "svg": "brands/simonac-light.svg",
+          "width": 339,
+          "height": 60
+        },
+        "dark": {
+          "png": "brands/simonac-dark.png",
+          "svg": "brands/simonac-dark.svg",
+          "width": 339,
+          "height": 60
+        }
+      }
+    },
+    {
+      "id": "cineplouf",
+      "name": "CINÉPLOUF",
+      "category": "Cinéma",
+      "background": "#183c4c",
+      "ink": "#e8f0dc",
+      "accent": "#dc9a65",
+      "font": "Arial,sans-serif",
+      "weight": 800,
+      "size": 47,
+      "tracking": 1,
+      "icon": "screen",
+      "rule": "night",
+      "presentation": "panel",
+      "variants": {
+        "panel": {
+          "png": "brands/cineplouf-panel.png",
+          "svg": "brands/cineplouf-panel.svg",
+          "width": 364,
+          "height": 68
+        },
+        "light": {
+          "png": "brands/cineplouf-light.png",
+          "svg": "brands/cineplouf-light.svg",
+          "width": 356,
+          "height": 60
+        },
+        "dark": {
+          "png": "brands/cineplouf-dark.png",
+          "svg": "brands/cineplouf-dark.svg",
+          "width": 356,
+          "height": 60
+        }
+      }
+    }
+  ]
+}

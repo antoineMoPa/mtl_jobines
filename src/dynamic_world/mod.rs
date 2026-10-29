@@ -2,8 +2,11 @@
 //! the owner of vehicles, players, traffic, or future mission objects.
 mod player;
 mod props;
+pub use props::PropBatch;
 mod spawn;
 pub use spawn::SpawnPoint;
+#[cfg(test)]
+mod handbrake_tests;
 mod vehicle;
 use crate::hermes::Hermes;
 use glam::Vec3;
@@ -35,7 +38,7 @@ impl DynamicWorld {
             player_vehicle: VehicleId(0),
             pedestrian: None,
             start,
-            props: props::Props::new(hermes.prop_meshes()),
+            props: props::Props::from_groups(hermes.prop_groups()),
         })
     }
     pub fn player(&self) -> &Vehicle {
@@ -124,16 +127,38 @@ impl DynamicWorld {
             self.reset_player(hermes);
         }
     }
+    #[cfg(test)]
     pub fn mesh(&self) -> Mesh {
         let mut mesh = Mesh::default();
+        self.write_mesh(&mut mesh);
+        mesh
+    }
+    /// Replace the current frame's vertices while retaining the caller's capacity.
+    #[cfg(test)]
+    pub fn write_mesh(&self, mesh: &mut Mesh) {
+        self.write_actors(mesh);
+        self.props.append_visible(mesh, self.player_position());
+    }
+    /// Exact visible intact-prop selections, without copying their vertices.
+    pub fn visible_prop_batches(&self) -> Vec<PropBatch> {
+        self.props.visible_batches(self.player_position())
+    }
+    pub fn write_prop_batch(&self, batch: &PropBatch, output: &mut Mesh) {
+        self.props.write_batch(batch, output);
+    }
+    /// Vehicles, pedestrian and moving debris; intact props use cached batches.
+    pub fn write_moving_mesh(&self, mesh: &mut Mesh) {
+        self.write_actors(mesh);
+        self.props.append_moving(mesh, self.player_position());
+    }
+    fn write_actors(&self, mesh: &mut Mesh) {
+        mesh.vertices.clear();
         for vehicle in &self.vehicles {
             mesh.vertices.extend(vehicle.mesh().vertices);
         }
         if let Some(player) = &self.pedestrian {
             mesh.vertices.extend(player.mesh().vertices);
         }
-        self.props.append_visible(&mut mesh, self.player_position());
-        mesh
     }
 }
 

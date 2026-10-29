@@ -125,7 +125,10 @@ mod tests {
     }
     #[test]
     fn start_uses_exact_coordinates_support_grade_and_reverse_lane() {
-        let city = city("road street: carlane; direction reverse; end low=street(-1,0,1,0); grade(low,0.1,0.3);");
+        let city = city(
+            "road street: carlane; direction reverse; end low=street(-1,0,1,\
+                0); grade(low,0.1,0.3);",
+        );
         let car = Vehicle::spawn_at(&city, "0,0".parse().unwrap()).unwrap();
         assert!(car.position.x.abs() < 1e-6 && car.position.y.abs() < 1e-6);
         assert!((car.position.z - 20.65).abs() < 0.001);
@@ -138,7 +141,10 @@ mod tests {
     }
     #[test]
     fn invalid_building_and_water_starts_are_rejected() {
-        let building = city("road street: carlane; end street(-1,0,1,0); building(0.3,-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2);");
+        let building = city(
+            "road street: carlane; end street(-1,0,1,0); building(0.3,-0.2,\
+                -0.2,0.2,-0.2,0.2,0.2,-0.2,0.2);",
+        );
         assert!(Vehicle::spawn_at(&building, "0,0".parse().unwrap())
             .err()
             .unwrap()

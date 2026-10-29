@@ -79,6 +79,7 @@ struct Uniform {
     map: [f32; 4],
     mode: [f32; 4],
     destination: [f32; 4],
+    performance: [f32; 4],
 }
 pub struct Hud {
     texture: wgpu::Texture,
@@ -114,7 +115,7 @@ impl Hud {
         });
         let uniform = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("minimap view"),
-            size: 80,
+            size: std::mem::size_of::<Uniform>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -311,6 +312,8 @@ impl Hud {
         view: MinimapView,
         overlay: Overlay,
         menu_selection: MenuItem,
+        fps: Option<f32>,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         if !self.ready {
             return;
@@ -336,6 +339,7 @@ impl Hud {
                 },
                 0.,
             ],
+            performance: [fps.unwrap_or(0.), 0., 0., 0.],
             mode: [
                 match overlay {
                     Overlay::Driving => 0.,
@@ -362,12 +366,12 @@ impl Hud {
                 },
             })],
             depth_stencil_attachment: None,
-            timestamp_writes: None,
+            timestamp_writes: timestamps,
             occlusion_query_set: None,
         });
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.group, &[]);
-        pass.draw(0..6, 0..1);
+        pass.draw(0..if overlay == Overlay::Driving { 12 } else { 6 }, 0..1);
         if matches!(overlay, Overlay::Driving | Overlay::Map) && self.route_count > 0 {
             pass.set_pipeline(&self.route_pipeline);
             pass.set_vertex_buffer(0, self.route_buffer.slice(..));

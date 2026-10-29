@@ -13,7 +13,12 @@ fn hash_sources(path: &Path, hash: &mut u64) {
     for path in paths {
         if path.is_dir() {
             hash_sources(&path, hash);
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
+        } else if path.extension().is_some_and(|ext| {
+            matches!(
+                ext.to_str(),
+                Some("rs" | "wgsl" | "road" | "png" | "svg" | "json")
+            )
+        }) {
             hash_bytes(hash, &fs::read(path).unwrap());
         }
     }
@@ -22,10 +27,12 @@ fn main() {
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=opencity/src");
     println!("cargo:rerun-if-changed=assets/default-housing.road");
+    println!("cargo:rerun-if-changed=assets/commerce");
     println!("cargo:rerun-if-changed=Cargo.lock");
     println!("cargo:rerun-if-changed=build.rs");
     let mut hash = 0xcbf29ce484222325;
     hash_sources(Path::new("src"), &mut hash);
+    hash_sources(Path::new("assets"), &mut hash);
     hash_sources(Path::new("opencity/src"), &mut hash);
     hash_bytes(&mut hash, &fs::read("Cargo.lock").unwrap());
     hash_bytes(&mut hash, &fs::read("build.rs").unwrap());

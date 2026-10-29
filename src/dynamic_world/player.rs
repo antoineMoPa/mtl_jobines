@@ -161,7 +161,15 @@ mod tests {
         let mut vehicle = Vehicle::spawn(&city);
         vehicle.position.z += 4.;
         assert!(Pedestrian::beside(&city, &vehicle).is_none());
-        let blocked = City::from_program(&opencity::parse("road street: sidewalk carlane sidewalk; end street(-25,3,-20,3); building(0.2,-22.6,2.9,-22.4,2.9,-22.4,3.1,-22.6,3.1);").unwrap(), None).unwrap();
+        let blocked = City::from_program(
+            &opencity::parse(
+                "road street: sidewalk carlane sidewalk; end street(-25,3,-20,3); \
+                    building(0.2,-22.6,2.9,-22.4,2.9,-22.4,3.1,-22.6,3.1);",
+            )
+            .unwrap(),
+            None,
+        )
+        .unwrap();
         let vehicle = Vehicle::spawn(&blocked);
         assert!(Pedestrian::beside(&blocked, &vehicle).is_none());
     }

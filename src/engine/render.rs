@@ -1,9 +1,13 @@
+use super::commerce::Commerce;
+use super::gpu_profile::GpuProfile;
 use super::hud::{Hud, MenuItem, Overlay};
-use super::lighting::Lighting;
+use super::lighting::{Lighting, SkySettings};
+use super::sky::Sky;
 use crate::hermes::MinimapView;
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec3};
-use opencity::runtime::{Mesh, Vertex};
+use glam::{Mat4, Vec3, Vec4};
+use opencity::runtime::{Mesh, SurfaceKind, Vertex};
+use std::borrow::Cow;
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::{path::Path, sync::mpsc};
@@ -17,10 +21,89 @@ struct Camera {
     eye_time: [f32; 4],
     sun_exposure: [f32; 4],
     daylight_sky: [f32; 4],
+    inverse_view_projection: [[f32; 4]; 4],
+    sun_color: [f32; 4],
+    star_params: [f32; 4],
+    star_color: [f32; 4],
 }
 pub struct GpuMesh {
     buffer: wgpu::Buffer,
     count: u32,
+    opaque_count: u32,
+    bounds: Option<Bounds>,
+}
+#[derive(Clone, Copy)]
+struct Bounds {
+    min: Vec3,
+    max: Vec3,
+}
+impl Bounds {
+    fn of(mesh: &Mesh) -> Self {
+        let mut bounds = Self {
+            min: Vec3::splat(f32::INFINITY),
+            max: Vec3::splat(f32::NEG_INFINITY),
+        };
+        for vertex in &mesh.vertices {
+            let position = Vec3::from_array(vertex.position);
+            bounds.min = bounds.min.min(position);
+            bounds.max = bounds.max.max(position);
+        }
+        bounds
+    }
+}
+struct Frustum([Vec4; 6]);
+impl Frustum {
+    fn includes(&self, bounds: Option<Bounds>) -> bool {
+        bounds.is_none_or(|bounds| self.intersects(bounds))
+    }
+    fn from_matrix(matrix: Mat4) -> Self {
+        let rows = matrix.transpose();
+        // WebGPU clips x/y to [-w,w], but depth to [0,w]. Plane lengths
+        // do not matter for the signed half-space test.
+        Self([
+            rows.w_axis + rows.x_axis,
+            rows.w_axis - rows.x_axis,
+            rows.w_axis + rows.y_axis,
+            rows.w_axis - rows.y_axis,
+            rows.z_axis,
+            rows.w_axis - rows.z_axis,
+        ])
+    }
+    fn intersects(&self, bounds: Bounds) -> bool {
+        self.0.iter().all(|plane| {
+            // The corner furthest into this plane's positive half-space.
+            // Retain touching/intersecting boxes, including ones enclosing
+            // the eye or crossing the near plane.
+            let corner = Vec3::new(
+                if plane.x >= 0. {
+                    bounds.max.x
+                } else {
+                    bounds.min.x
+                },
+                if plane.y >= 0. {
+                    bounds.max.y
+                } else {
+                    bounds.min.y
+                },
+                if plane.z >= 0. {
+                    bounds.max.z
+                } else {
+                    bounds.min.z
+                },
+            );
+            plane.truncate().dot(corner) + plane.w >= -0.00001
+        })
+    }
+}
+#[derive(Debug)]
+#[cfg(not(target_arch = "wasm32"))]
+pub struct VisibilityStats {
+    pub candidates: usize,
+    pub candidate_vertices: u64,
+    pub camera_draws: usize,
+    pub camera_vertices: u64,
+    pub shadow_draws: usize,
+    pub shadow_vertices: u64,
 }
 pub struct Renderer {
     pub device: wgpu::Device,
@@ -28,7 +111,9 @@ pub struct Renderer {
     pub surface: Option<wgpu::Surface<'static>>,
     pub config: wgpu::SurfaceConfiguration,
     pipeline: wgpu::RenderPipeline,
+    opaque_pipeline: wgpu::RenderPipeline,
     shadow_pipeline: wgpu::RenderPipeline,
+    opaque_shadow_pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
     camera_group: wgpu::BindGroup,
     shadow_group: wgpu::BindGroup,
@@ -40,9 +125,42 @@ pub struct Renderer {
     pub overlay: Overlay,
     pub menu_selection: MenuItem,
     pub daylight: Option<f32>,
+    pub sky_settings: SkySettings,
+    sky: Sky,
+    commerce: Commerce,
+    pub fps: Option<f32>,
+    pub gpu_profile: Option<GpuProfile>,
 }
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x3,3=>Float32x4];
+fn material_vertices(mesh: &Mesh) -> (Cow<'_, [Vertex]>, u32) {
+    let masked = |triangle: &[Vertex]| {
+        triangle.iter().any(|v| {
+            v.surface[0] == SurfaceKind::Fence as u32 as f32
+                || v.surface[0] >= crate::hermes::commerce_mesh::SIGN
+        })
+    };
+    if !mesh.vertices.chunks_exact(3).any(masked) {
+        return (Cow::Borrowed(&mesh.vertices), mesh.vertices.len() as u32);
+    }
+    let mut vertices = Vec::with_capacity(mesh.vertices.len());
+    for triangle in mesh
+        .vertices
+        .chunks_exact(3)
+        .filter(|triangle| !masked(triangle))
+    {
+        vertices.extend_from_slice(triangle);
+    }
+    let opaque_count = vertices.len() as u32;
+    for triangle in mesh
+        .vertices
+        .chunks_exact(3)
+        .filter(|triangle| masked(triangle))
+    {
+        vertices.extend_from_slice(triangle);
+    }
+    (Cow::Owned(vertices), opaque_count)
+}
 fn surface_formats(formats: &[wgpu::TextureFormat]) -> (wgpu::TextureFormat, wgpu::TextureFormat) {
     let surface = formats
         .iter()
@@ -125,11 +243,20 @@ impl Renderer {
             .await
             .ok_or("no wgpu adapter")?;
         let adapter_name = adapter.get_info().name;
+        #[cfg(not(target_arch = "wasm32"))]
+        let profile = std::env::args().any(|arg| arg == "--profile" || arg == "--profile-120");
+        #[cfg(target_arch = "wasm32")]
+        let profile = false;
+        let timestamp_features = if profile {
+            adapter.features() & wgpu::Features::TIMESTAMP_QUERY
+        } else {
+            wgpu::Features::empty()
+        };
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("mtl_jobines"),
-                    required_features: wgpu::Features::empty(),
+                    required_features: timestamp_features,
                     required_limits: wgpu::Limits::default(),
                     memory_hints: wgpu::MemoryHints::Performance,
                 },
@@ -208,6 +335,7 @@ impl Renderer {
                 resource: uniform.as_entire_binding(),
             }],
         });
+        let sky = Sky::new(&device, &camera_layout, format);
         let shadow = depth(&device, 2048, 2048, "sun shadow", true);
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("shadow PCF"),
@@ -232,13 +360,19 @@ impl Renderer {
                 },
             ],
         });
+        let commerce = Commerce::new(&device, &queue);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("OpenCity procedural game shader"),
-            source: wgpu::ShaderSource::Wgsl(opencity::runtime::GAME_SHADER.into()),
+            source: wgpu::ShaderSource::Wgsl(super::commerce::shader().into()),
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&camera_layout, &shadow_layout],
+            bind_group_layouts: &[
+                &camera_layout,
+                &shadow_layout,
+                &sky.layout,
+                &commerce.layout,
+            ],
             push_constant_ranges: &[],
         });
         let shadow_pipeline_layout =
@@ -252,7 +386,7 @@ impl Renderer {
             blend: None,
             write_mask: wgpu::ColorWrites::ALL,
         })];
-        let make_pipeline = |shadow: bool| {
+        let make_pipeline = |shadow: bool, masked: bool| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(if shadow { "sun depth" } else { "world" }),
                 layout: Some(if shadow {
@@ -266,9 +400,15 @@ impl Renderer {
                     compilation_options: Default::default(),
                     buffers: &[layout()],
                 },
-                fragment: Some(wgpu::FragmentState {
+                fragment: (!(shadow && !masked)).then_some(wgpu::FragmentState {
                     module: &shader,
-                    entry_point: Some(if shadow { "fs_shadow" } else { "fs" }),
+                    entry_point: Some(if shadow {
+                        "fs_shadow_game"
+                    } else if masked {
+                        "fs_game"
+                    } else {
+                        "fs_opaque"
+                    }),
                     compilation_options: Default::default(),
                     targets: if shadow { &[] } else { &targets },
                 }),
@@ -293,25 +433,35 @@ impl Renderer {
                 }),
                 multisample: wgpu::MultisampleState {
                     count: if shadow { 1 } else { 4 },
-                    alpha_to_coverage_enabled: !shadow,
+                    alpha_to_coverage_enabled: !shadow && masked,
                     ..Default::default()
                 },
                 multiview: None,
                 cache: None,
             })
         };
-        let pipeline = make_pipeline(false);
-        let shadow_pipeline = make_pipeline(true);
+        let pipeline = make_pipeline(false, true);
+        let opaque_pipeline = make_pipeline(false, false);
+        let shadow_pipeline = make_pipeline(true, true);
+        let opaque_shadow_pipeline = make_pipeline(true, false);
         let depth = depth(&device, width.max(1), height.max(1), "depth", false);
         let color = color_target(&device, width, height, format);
         let hud = Hud::new(&device, format);
+        #[cfg(not(target_arch = "wasm32"))]
+        let gpu_profile = timestamp_features
+            .contains(wgpu::Features::TIMESTAMP_QUERY)
+            .then(|| GpuProfile::new(&device));
+        #[cfg(target_arch = "wasm32")]
+        let gpu_profile = None;
         Ok(Self {
             device,
             queue,
             surface,
             config,
             pipeline,
+            opaque_pipeline,
             shadow_pipeline,
+            opaque_shadow_pipeline,
             uniform,
             camera_group,
             shadow_group,
@@ -323,6 +473,11 @@ impl Renderer {
             overlay: Overlay::Driving,
             menu_selection: MenuItem::Resume,
             daylight: None,
+            sky_settings: SkySettings::default(),
+            sky,
+            commerce,
+            fps: None,
+            gpu_profile,
         })
     }
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -342,6 +497,24 @@ impl Renderer {
             self.config.format.add_srgb_suffix(),
         );
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn sky_update_count(&self) -> u64 {
+        self.sky.update_count()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn validate_sky_reflections(&self) -> Result<(), String> {
+        let layouts = [
+            self.opaque_pipeline.get_bind_group_layout(0),
+            self.opaque_pipeline.get_bind_group_layout(1),
+            self.opaque_pipeline.get_bind_group_layout(2),
+        ];
+        super::sky_probe::validate(
+            &self.device,
+            &self.queue,
+            [&layouts[0], &layouts[1], &layouts[2]],
+            [&self.camera_group, &self.shadow_group, &self.sky.group],
+        )
+    }
     pub fn update_route(&mut self, points: &[[f32; 2]]) {
         self.hud.update_route(&self.device, points);
     }
@@ -349,11 +522,57 @@ impl Renderer {
         self.hud.update(&self.queue, pixels);
     }
     pub fn upload(&self, mesh: &Mesh) -> GpuMesh {
+        self.upload_with_bounds(mesh, Some(Bounds::of(mesh)))
+    }
+    // Transient meshes are already assembled around the player. Avoid scanning
+    // every vertex again each frame; conservatively draw them in both passes.
+    pub fn upload_dynamic(&self, mesh: &Mesh) -> GpuMesh {
+        let mut gpu = GpuMesh {
+            buffer: self.dynamic_buffer(std::mem::size_of_val(mesh.vertices.as_slice()) as u64),
+            count: 0,
+            opaque_count: 0,
+            bounds: None,
+        };
+        self.update_dynamic(&mut gpu, mesh);
+        gpu
+    }
+    fn dynamic_buffer(&self, required: u64) -> wgpu::Buffer {
+        self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("reusable dynamic vertices"),
+            // Leave spare capacity so nearby prop count changes do not require
+            // reallocations. The draw count always uses the current mesh size.
+            size: required.max(4).next_power_of_two(),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
+    }
+    pub fn update_dynamic(&self, gpu: &mut GpuMesh, mesh: &Mesh) {
+        let (vertices, opaque_count) = material_vertices(mesh);
+        let bytes = unsafe {
+            std::slice::from_raw_parts(
+                vertices.as_ptr().cast::<u8>(),
+                std::mem::size_of_val(vertices.as_ref()),
+            )
+        };
+        if bytes.len() as u64 > gpu.buffer.size()
+            || !gpu.buffer.usage().contains(wgpu::BufferUsages::COPY_DST)
+        {
+            gpu.buffer = self.dynamic_buffer(bytes.len() as u64);
+        }
+        if !bytes.is_empty() {
+            self.queue.write_buffer(&gpu.buffer, 0, bytes);
+        }
+        gpu.count = mesh.vertices.len() as u32;
+        gpu.opaque_count = opaque_count;
+        gpu.bounds = None;
+    }
+    fn upload_with_bounds(&self, mesh: &Mesh, bounds: Option<Bounds>) -> GpuMesh {
+        let (vertices, opaque_count) = material_vertices(mesh);
         // Vertex has repr(C), f32-only fields, no padding or uninitialized bytes.
         let bytes = unsafe {
             std::slice::from_raw_parts(
-                mesh.vertices.as_ptr().cast::<u8>(),
-                std::mem::size_of_val(mesh.vertices.as_slice()),
+                vertices.as_ptr().cast::<u8>(),
+                std::mem::size_of_val(vertices.as_ref()),
             )
         };
         let buffer = self
@@ -366,7 +585,61 @@ impl Renderer {
         GpuMesh {
             buffer,
             count: mesh.vertices.len() as u32,
+            opaque_count,
+            bounds,
         }
+    }
+    fn view_matrices(&self, eye: Vec3, look: Vec3, sun: Vec3) -> (Mat4, Mat4) {
+        let projection = Mat4::perspective_rh(
+            58_f32.to_radians(),
+            self.config.width as f32 / self.config.height as f32,
+            0.003,
+            10.0,
+        );
+        let focus = Vec3::new(look.x, look.y, 0.15);
+        let light = Mat4::orthographic_rh(-1.6, 1.6, -1.6, 1.6, 0.01, 10.)
+            * Mat4::look_at_rh(
+                focus + sun * 4.,
+                focus,
+                if sun.z.abs() > 0.99 { Vec3::Y } else { Vec3::Z },
+            );
+        (projection * Mat4::look_at_rh(eye, look, Vec3::Z), light)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn visibility_stats(
+        &self,
+        meshes: &[&GpuMesh],
+        eye: Vec3,
+        look: Vec3,
+        time: f32,
+    ) -> VisibilityStats {
+        let (view, light) = self.view_matrices(
+            eye,
+            look,
+            Lighting::with_settings(time, self.daylight, self.sky_settings).sun,
+        );
+        let camera = Frustum::from_matrix(view);
+        let shadow = Frustum::from_matrix(light);
+        let mut stats = VisibilityStats {
+            candidates: meshes.len(),
+            candidate_vertices: 0,
+            camera_draws: 0,
+            camera_vertices: 0,
+            shadow_draws: 0,
+            shadow_vertices: 0,
+        };
+        for mesh in meshes {
+            stats.candidate_vertices += u64::from(mesh.count);
+            if camera.includes(mesh.bounds) {
+                stats.camera_draws += 1;
+                stats.camera_vertices += u64::from(mesh.count);
+            }
+            if shadow.includes(mesh.bounds) {
+                stats.shadow_draws += 1;
+                stats.shadow_vertices += u64::from(mesh.count);
+            }
+        }
+        stats
     }
     pub fn render(
         &self,
@@ -377,27 +650,35 @@ impl Renderer {
         time: f32,
         navigation: MinimapView,
     ) {
-        let projection = Mat4::perspective_rh(
-            58_f32.to_radians(),
-            self.config.width as f32 / self.config.height as f32,
-            0.003,
-            10.0,
-        );
-        let lighting = Lighting::at_time(time, self.daylight);
+        let lighting = Lighting::with_settings(time, self.daylight, self.sky_settings);
         let sun = lighting.sun;
-        let focus = Vec3::new(look.x, look.y, 0.15);
-        let light = Mat4::orthographic_rh(-1.6, 1.6, -1.6, 1.6, 0.01, 10.)
-            * Mat4::look_at_rh(focus + sun * 4., focus, Vec3::Z);
+        let (view, light) = self.view_matrices(eye, look, sun);
+        let camera_frustum = Frustum::from_matrix(view);
+        let shadow_frustum = Frustum::from_matrix(light);
         let data = Camera {
-            view_projection: (projection * Mat4::look_at_rh(eye, look, Vec3::Z)).to_cols_array_2d(),
+            view_projection: view.to_cols_array_2d(),
             light_view_projection: light.to_cols_array_2d(),
             eye_time: [eye.x, eye.y, eye.z, time],
             sun_exposure: [sun.x, sun.y, sun.z, 1.35],
-            daylight_sky: [
-                lighting.daylight,
-                lighting.sky[0],
-                lighting.sky[1],
-                lighting.sky[2],
+            daylight_sky: [lighting.daylight, 0., 0., 0.],
+            inverse_view_projection: view.inverse().to_cols_array_2d(),
+            sun_color: [
+                lighting.sun_color[0],
+                lighting.sun_color[1],
+                lighting.sun_color[2],
+                self.sky_settings.sun_intensity,
+            ],
+            star_params: [
+                self.sky_settings.star_density,
+                self.sky_settings.star_size,
+                self.sky_settings.star_brightness,
+                58_f32.to_radians() / self.config.height as f32,
+            ],
+            star_color: [
+                self.sky_settings.star_color[0],
+                self.sky_settings.star_color[1],
+                self.sky_settings.star_color[2],
+                lighting.star_visibility,
             ],
         };
         self.queue
@@ -407,6 +688,13 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("world frame"),
             });
+        self.sky.update(
+            &self.queue,
+            &mut encoder,
+            time,
+            self.daylight,
+            self.sky_settings,
+        );
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("sun depth"),
@@ -419,14 +707,25 @@ impl Renderer {
                     }),
                     stencil_ops: None,
                 }),
-                timestamp_writes: None,
+                timestamp_writes: self.gpu_profile.as_ref().map(|profile| profile.pass(0)),
                 occlusion_query_set: None,
             });
-            pass.set_pipeline(&self.shadow_pipeline);
+            pass.set_pipeline(&self.opaque_shadow_pipeline);
             pass.set_bind_group(0, &self.camera_group, &[]);
             for mesh in meshes {
+                if mesh.opaque_count == 0 || !shadow_frustum.includes(mesh.bounds) {
+                    continue;
+                }
                 pass.set_vertex_buffer(0, mesh.buffer.slice(..));
-                pass.draw(0..mesh.count, 0..1);
+                pass.draw(0..mesh.opaque_count, 0..1);
+            }
+            pass.set_pipeline(&self.shadow_pipeline);
+            for mesh in meshes {
+                if mesh.opaque_count == mesh.count || !shadow_frustum.includes(mesh.bounds) {
+                    continue;
+                }
+                pass.set_vertex_buffer(0, mesh.buffer.slice(..));
+                pass.draw(mesh.opaque_count..mesh.count, 0..1);
             }
         }
         {
@@ -436,33 +735,42 @@ impl Renderer {
                     view: &self.color,
                     resolve_target: Some(target),
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: f64::from(lighting.sky[0]),
-                            g: f64::from(lighting.sky[1]),
-                            b: f64::from(lighting.sky[2]),
-                            a: 1.,
-                        }),
-                        store: wgpu::StoreOp::Store,
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Discard,
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.),
-                        store: wgpu::StoreOp::Store,
+                        store: wgpu::StoreOp::Discard,
                     }),
                     stencil_ops: None,
                 }),
-                timestamp_writes: None,
+                timestamp_writes: self.gpu_profile.as_ref().map(|profile| profile.pass(1)),
                 occlusion_query_set: None,
             });
-            pass.set_pipeline(&self.pipeline);
+            pass.set_pipeline(&self.opaque_pipeline);
             pass.set_bind_group(0, &self.camera_group, &[]);
             pass.set_bind_group(1, &self.shadow_group, &[]);
+            pass.set_bind_group(2, &self.sky.group, &[]);
+            pass.set_bind_group(3, &self.commerce.group, &[]);
             for mesh in meshes {
+                if mesh.opaque_count == 0 || !camera_frustum.includes(mesh.bounds) {
+                    continue;
+                }
                 pass.set_vertex_buffer(0, mesh.buffer.slice(..));
-                pass.draw(0..mesh.count, 0..1);
+                pass.draw(0..mesh.opaque_count, 0..1);
             }
+            pass.set_pipeline(&self.pipeline);
+            for mesh in meshes {
+                if mesh.opaque_count == mesh.count || !camera_frustum.includes(mesh.bounds) {
+                    continue;
+                }
+                pass.set_vertex_buffer(0, mesh.buffer.slice(..));
+                pass.draw(mesh.opaque_count..mesh.count, 0..1);
+            }
+            self.sky.draw(&mut pass, &self.camera_group);
         }
         self.hud.render(
             &self.queue,
@@ -473,7 +781,12 @@ impl Renderer {
             navigation,
             self.overlay,
             self.menu_selection,
+            self.fps,
+            self.gpu_profile.as_ref().map(|profile| profile.pass(2)),
         );
+        if let Some(profile) = &self.gpu_profile {
+            profile.resolve(&mut encoder);
+        }
         self.queue.submit(Some(encoder.finish()));
     }
     #[cfg(not(target_arch = "wasm32"))]
@@ -535,6 +848,136 @@ impl Renderer {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn opaque_and_cutout_ranges_preserve_every_triangle_and_material() {
+        use super::*;
+        let mut mesh = Mesh::default();
+        for (id, kind) in [
+            SurfaceKind::Asphalt,
+            SurfaceKind::Fence,
+            SurfaceKind::Building,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            for corner in 0..3 {
+                mesh.vertices.push(Vertex {
+                    position: [id as f32, corner as f32, 0.],
+                    normal: [0., 0., 1.],
+                    color: [1.; 3],
+                    surface: [kind as u32 as f32, 0., 0., 0.],
+                });
+            }
+        }
+        let (vertices, opaque) = material_vertices(&mesh);
+        assert_eq!(opaque, 6);
+        assert_eq!(vertices.len(), 9);
+        assert_eq!(
+            vertices
+                .iter()
+                .map(|v| v.position[0] as usize)
+                .collect::<Vec<_>>(),
+            vec![0, 0, 0, 2, 2, 2, 1, 1, 1]
+        );
+        assert!(vertices[6..]
+            .iter()
+            .all(|v| v.surface[0] == SurfaceKind::Fence as u32 as f32));
+        mesh.vertices.truncate(3);
+        let (vertices, opaque) = material_vertices(&mesh);
+        assert!(matches!(vertices, Cow::Borrowed(_)));
+        assert_eq!(opaque, 3);
+    }
+    use super::{Bounds, Frustum};
+    use glam::{Mat4, Vec3};
+
+    fn bounds(min: [f32; 3], max: [f32; 3]) -> Bounds {
+        Bounds {
+            min: Vec3::from_array(min),
+            max: Vec3::from_array(max),
+        }
+    }
+
+    #[test]
+    fn frustum_uses_webgpu_depth_and_keeps_intersecting_bounds() {
+        let frustum = Frustum::from_matrix(Mat4::IDENTITY);
+        assert!(frustum.includes(None));
+        assert!(frustum.intersects(bounds([-0.5, -0.5, 0.1], [0.5, 0.5, 0.9])));
+        assert!(frustum.intersects(bounds([-2., -2., -1.], [2., 2., 2.])));
+        assert!(frustum.intersects(bounds([1., 0., 0.], [2., 1., 1.])));
+        assert!(frustum.intersects(bounds([-0.1, -0.1, -0.1], [0.1, 0.1, 0.1])));
+        for outside in [
+            bounds([-2., 0., 0.2], [-1.1, 0.1, 0.3]),
+            bounds([1.1, 0., 0.2], [2., 0.1, 0.3]),
+            bounds([0., -2., 0.2], [0.1, -1.1, 0.3]),
+            bounds([0., 1.1, 0.2], [0.1, 2., 0.3]),
+            bounds([0., 0., -0.2], [0.1, 0.1, -0.1]),
+            bounds([0., 0., 1.1], [0.1, 0.1, 2.]),
+        ] {
+            assert!(!frustum.intersects(outside));
+        }
+    }
+
+    #[test]
+    fn perspective_culling_keeps_eye_crossings_and_offscreen_shadow_casters() {
+        let eye = Vec3::new(0., 0., 1.);
+        let view = Mat4::perspective_rh(58_f32.to_radians(), 1.6, 0.003, 10.)
+            * Mat4::look_at_rh(eye, Vec3::new(0., 1., 0.), Vec3::Z);
+        let camera = Frustum::from_matrix(view);
+        assert!(camera.intersects(bounds([-0.1, -0.1, 0.9], [0.1, 0.1, 1.1])));
+        let caster = bounds([-0.1, -1.1, 0.], [0.1, -0.9, 0.3]);
+        assert!(!camera.intersects(caster));
+        let light = Mat4::orthographic_rh(-1.6, 1.6, -1.6, 1.6, 0.01, 10.)
+            * Mat4::look_at_rh(Vec3::new(2., -2., 4.), Vec3::ZERO, Vec3::Z);
+        assert!(Frustum::from_matrix(light).intersects(caster));
+    }
+
+    #[test]
+    fn transformed_frustum_agrees_with_homogeneous_corner_half_spaces() {
+        let matrix = Mat4::perspective_rh(58_f32.to_radians(), 1.6, 0.003, 10.)
+            * Mat4::look_at_rh(Vec3::new(3., -2., 0.4), Vec3::new(3.3, -1., 0.), Vec3::Z);
+        let frustum = Frustum::from_matrix(matrix);
+        for x in -8..8 {
+            for y in -8..8 {
+                let min = Vec3::new(x as f32, y as f32, -0.1);
+                let bounds = Bounds {
+                    min,
+                    max: min + Vec3::new(0.8, 0.8, 0.5),
+                };
+                let corners: Vec<_> = (0..8)
+                    .map(|i| {
+                        matrix
+                            * Vec3::new(
+                                if i & 1 == 0 {
+                                    bounds.min.x
+                                } else {
+                                    bounds.max.x
+                                },
+                                if i & 2 == 0 {
+                                    bounds.min.y
+                                } else {
+                                    bounds.max.y
+                                },
+                                if i & 4 == 0 {
+                                    bounds.min.z
+                                } else {
+                                    bounds.max.z
+                                },
+                            )
+                            .extend(1.)
+                    })
+                    .collect();
+                let intersects = (0..6).all(|plane| {
+                    corners.iter().any(|p| {
+                        let distance =
+                            [p.w + p.x, p.w - p.x, p.w + p.y, p.w - p.y, p.z, p.w - p.z][plane];
+                        distance >= -0.00001
+                    })
+                });
+                assert_eq!(frustum.intersects(bounds), intersects);
+            }
+        }
+    }
+
     #[test]
     fn browser_canvas_uses_supported_unorm_format_with_srgb_view() {
         use wgpu::TextureFormat::*;

@@ -173,8 +173,15 @@ mod tests {
                     continue;
                 }
                 source.push_str(&format!(
-                    "p{index}=map_point({},{}); outer{index}=map_point({dx},{dy}); street(p{index},{},{},{},{},outer{index});",
-                    dx * 0.2, dy * 0.2, dx * 0.4, dy * 0.4, dx * 0.8, dy * 0.8));
+                    "p{index}=map_point({},{}); outer{index}=map_point({dx},{dy}); \
+                        street(p{index},{},{},{},{},outer{index});",
+                    dx * 0.2,
+                    dy * 0.2,
+                    dx * 0.4,
+                    dy * 0.4,
+                    dx * 0.8,
+                    dy * 0.8
+                ));
                 ports.push_str(&format!(",{name},p{index}"));
             }
             source.push_str(&format!("intersection3(center,street{ports});"));

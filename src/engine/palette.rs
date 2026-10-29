@@ -53,6 +53,11 @@ fn commands() -> Vec<Command> {
             "Time: Resume automatic cycle",
             "Restore the twenty-minute day/night cycle",
         ),
+        (
+            "sky.settings",
+            "Sky: Atmosphere and stars…",
+            "Set solar time, location, haze, sun color and night stars",
+        ),
     ]
     .into_iter()
     .map(|(id, title, description)| Command {
@@ -69,6 +74,7 @@ pub struct Palette {
     input: Input,
     painter: Painter,
     modifiers: winit::keyboard::ModifiersState,
+    sky_open: bool,
 }
 impl Palette {
     pub fn new(window: &Window, renderer: &Renderer) -> Self {
@@ -86,6 +92,7 @@ impl Palette {
             ctx,
             input,
             modifiers: Default::default(),
+            sky_open: false,
             painter: Painter::new(&renderer.device, renderer.config.format.add_srgb_suffix()),
         }
     }
@@ -102,6 +109,13 @@ impl Palette {
             window.request_redraw();
         }
     }
+    pub fn dismiss(&mut self) {
+        self.menu.dismiss();
+        self.sky_open = false;
+    }
+    pub fn is_open(&self) -> bool {
+        self.menu.is_open() || self.sky_open
+    }
     pub fn shortcut(&self) -> bool {
         let command = if cfg!(target_os = "macos") {
             self.modifiers.super_key()
@@ -115,15 +129,27 @@ impl Palette {
     pub fn draw(
         &mut self,
         window: &Window,
-        renderer: &Renderer,
+        renderer: &mut Renderer,
         target: &wgpu::TextureView,
     ) -> Option<TimeCommand> {
         let mut selected = None;
         let output = self.ctx.run_ui(self.input.take_egui_input(window), |ui| {
-            selected = self
-                .menu
-                .show(ui.ctx(), &commands())
-                .and_then(|id| TimeCommand::from_id(&id));
+            if let Some(id) = self.menu.show(ui.ctx(), &commands()) {
+                if id == "sky.settings" {
+                    self.sky_open = true;
+                    if renderer.daylight.is_some() {
+                        renderer.sky_settings.solar_hour =
+                            Some(renderer.sky_settings.hour(0., renderer.daylight));
+                    }
+                    renderer.daylight = None;
+                } else {
+                    selected = TimeCommand::from_id(&id);
+                }
+            }
+            if self.sky_open && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
+                self.sky_open = false;
+            }
+            super::sky_controls::show(ui.ctx(), &mut self.sky_open, &mut renderer.sky_settings);
         });
         self.input
             .handle_platform_output(window, output.platform_output);
@@ -135,7 +161,7 @@ impl Palette {
             output.textures_delta,
             output.pixels_per_point,
         );
-        if self.menu.is_open() {
+        if self.is_open() {
             window.request_redraw();
         }
         selected

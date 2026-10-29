@@ -254,7 +254,17 @@ mod tests {
         let mesh = triangle();
         let mut atlas = vec![0; ATLAS_BYTES];
         atlas[0..4].copy_from_slice(&[1, 2, 3, 255]);
-        write(&path, key, &mesh, &Mesh::default(), &atlas).unwrap();
+        let mut details = triangle();
+        for vertex in &mut details.vertices {
+            vertex.surface = [40., 0.25, 0.75, 8.];
+        }
+        let mut room = triangle();
+        for vertex in &mut room.vertices {
+            vertex.surface = [41., 0.4, 0.6, 2.];
+        }
+        details.vertices.extend(room.vertices);
+        write(&path, key, &mesh, &details, &atlas).unwrap();
+
         let data = GameData::read(&path, key).unwrap();
         assert_eq!(data.world.vertices.len(), 3);
         for (actual, expected) in data.world.vertices.iter().zip(&mesh.vertices) {
@@ -263,7 +273,12 @@ mod tests {
             assert_eq!(actual.color, expected.color);
             assert_eq!(actual.surface, expected.surface);
         }
-        assert!(data.details.vertices.is_empty());
+        assert_eq!(data.details.vertices.len(), details.vertices.len());
+        for (a, b) in data.details.vertices.iter().zip(&details.vertices) {
+            assert_eq!(a.surface, b.surface);
+            assert_eq!(a.position, b.position);
+        }
+
         assert_eq!(data.atlas, atlas);
         drop(data);
         assert!(GameData::read(&path, CacheKey::for_map(b"changed", b"")).is_err());

@@ -12,3 +12,22 @@ serve:
 
 editor:
 	OPENCITY_LAUNCH_ACTION="$(CURDIR)/opencity-launch.json" cargo run --manifest-path opencity/Cargo.toml --bin editor
+
+.PHONY: assets fmt lint hooks
+
+assets:
+	cargo xtask assets
+
+fmt:
+	cargo fmt
+	cargo fmt --manifest-path xtask/Cargo.toml
+
+lint:
+	cargo xtask
+
+hooks:
+	@current=$$(git config --get core.hooksPath || true); \
+	if [ -n "$$current" ] && [ "$$current" != .githooks ]; then \
+		echo "Existing core.hooksPath=$$current; integrate .githooks/pre-commit there first."; exit 1; \
+	fi
+	git config core.hooksPath .githooks

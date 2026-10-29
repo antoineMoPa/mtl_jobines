@@ -1,12 +1,20 @@
-struct Hud { rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, destination:vec4<f32> };
+struct Hud { rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, destination:vec4<f32>, performance:vec4<f32> };
 @group(0) @binding(0) var chart:texture_2d<f32>;
 @group(0) @binding(1) var filtering:sampler;
 @group(0) @binding(2) var<uniform> hud:Hud;
 struct Vertex { @builtin(position) position:vec4<f32>, @location(0) uv:vec2<f32> };
 @vertex fn vs(@builtin(vertex_index) index:u32)->Vertex {
     let corners=array<vec2<f32>,6>(vec2<f32>(0.,0.),vec2<f32>(1.,0.),vec2<f32>(1.,1.),vec2<f32>(0.,0.),vec2<f32>(1.,1.),vec2<f32>(0.,1.));
-    let uv=corners[index];let p=hud.rect.xy+uv*hud.rect.zw;
-    var out:Vertex;out.position=vec4<f32>(p.x/hud.screen.x*2.-1.,1.-p.y/hud.screen.y*2.,0.,1.);out.uv=uv;return out;
+    let uv=corners[index%6u];
+    var rect=hud.rect;
+    if hud.mode.x==0. {
+        let size=max(1.,min(clamp(min(hud.screen.x,hud.screen.y)*0.29,60.,340.),min(hud.screen.x,hud.screen.y)-16.));
+        rect=vec4<f32>(16.,hud.screen.y-size-16.,size,size);
+        if index>=6u {rect=fps_rect();}
+    }
+    let p=rect.xy+uv*rect.zw;
+    var out:Vertex;out.position=vec4<f32>(p.x/hud.screen.x*2.-1.,1.-p.y/hud.screen.y*2.,0.,1.);
+    out.uv=select(uv,p,hud.mode.x==0.);return out;
 }
 fn inside(p:vec2<f32>, r:vec4<f32>)->bool {
     return all(p>=r.xy)&&all(p<=r.xy+r.zw);
@@ -14,6 +22,17 @@ fn inside(p:vec2<f32>, r:vec4<f32>)->bool {
 // Small bitmap lettering keeps menus independent of a platform font service.
 fn glyph(code:u32)->u32 {
     switch code {
+        case 45u: {return 31744u;}
+        case 48u: {return 15259182u;}
+        case 49u: {return 14815428u;}
+        case 50u: {return 32645678u;}
+        case 51u: {return 16267791u;}
+        case 52u: {return 8682793u;}
+        case 53u: {return 16268351u;}
+        case 54u: {return 15252526u;}
+        case 55u: {return 4334111u;}
+        case 56u: {return 15252014u;}
+        case 57u: {return 15235630u;}
         case 65u: {return 18415150u;}
         case 66u: {return 16301615u;}
         case 67u: {return 31491134u;}
@@ -42,6 +61,30 @@ fn glyph(code:u32)->u32 {
         case 90u: {return 32575775u;}
         default: {return 0u;}
     }
+}
+fn fps_scale()->f32 {return clamp(hud.screen.y/800.0,1.0,2.0);}
+fn fps_rect()->vec4<f32> {
+    let scale=fps_scale();
+    return vec4<f32>(hud.screen.x-142.0*scale,16.0*scale,126.0*scale,32.0*scale);
+}
+fn fps_lettering(p:vec2<f32>,origin:vec2<f32>,scale:f32)->bool {
+    let q=(p-origin)/scale;
+    if q.x<0.0 || q.y<0.0 || q.y>=5.0 {return false;}
+    let index=u32(q.x)/6u;let col=u32(q.x)%6u;
+    if index>=8u || col>=5u {return false;}
+    var code=32u;
+    if index<4u {
+        if hud.performance.x<=0.0 {code=45u;}
+        else {
+            let fps=u32(clamp(round(hud.performance.x),1.0,9999.0));
+            let divisor=array<u32,4>(1000u,100u,10u,1u)[index];
+            if fps>=divisor || index==3u {code=48u+(fps/divisor)%10u;}
+        }
+    }
+    if index==5u {code=70u;}
+    if index==6u {code=80u;}
+    if index==7u {code=83u;}
+    return (glyph(code)&(1u<<(u32(q.y)*5u+col)))!=0u;
 }
 fn lettering(p:vec2<f32>, origin:vec2<f32>, scale:f32, word:u32)->bool {
     let q=(p-origin)/scale;
@@ -98,8 +141,14 @@ fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32
     return color;
 }
 @fragment fn fs(v:Vertex)->@location(0) vec4<f32> {
-    let p=v.uv*hud.rect.zw;
+    let p=select(v.uv*hud.rect.zw,v.uv,hud.mode.x==0.);
     let screen=hud.screen.xy;
+    if hud.mode.x==0. && inside(p,fps_rect()) {
+        let scale=fps_scale();
+        let origin=fps_rect().xy+vec2<f32>(10.0,11.0)*scale;
+        if fps_lettering(p,origin,2.0*scale) {return vec4<f32>(0.93,0.96,0.95,1.0);}
+        return vec4<f32>(0.015,0.025,0.035,0.85);
+    }
     if hud.mode.x==1. {
         var color=vec4<f32>(0.015,0.025,0.035,0.78);
         if inside(p,vec4<f32>(screen*0.5-vec2<f32>(150.,85.),300.,220.)) {color=vec4<f32>(0.035,0.055,0.07,1.);}

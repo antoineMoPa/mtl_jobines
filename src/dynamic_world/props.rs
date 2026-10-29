@@ -8,12 +8,22 @@ use rapier3d::{
     parry::query::ShapeCastOptions,
     prelude::*,
 };
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 const TILE: f32 = 200.;
 const VIEW: f32 = 150.;
+const DRAW_TILE: f32 = 50.;
+
+/// Exact intact-prop selection for one 50 m render tile. The ordered IDs are
+/// also its cache signature: movement or destruction changes the selection.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PropBatch {
+    pub key: (i32, i32),
+    pub ids: Vec<usize>,
+}
 
 struct Prop {
+    group: usize,
     mesh: Mesh,
     center: Vec3,
     half: Vec3,
@@ -24,6 +34,7 @@ struct Prop {
 }
 
 pub struct Props {
+    groups: Vec<Vec<usize>>,
     items: Vec<Prop>,
     active: Vec<usize>,
     tiles: HashMap<(i32, i32), Vec<usize>>,
@@ -42,8 +53,15 @@ pub struct Props {
     ccd: CCDSolver,
 }
 impl Props {
+    #[cfg(test)]
     pub fn new(meshes: Vec<Mesh>) -> Self {
+        Self::from_groups(meshes.into_iter().map(|mesh| vec![mesh]).collect())
+    }
+    /// Parts collide independently, preserving open space under structures.
+    /// An impact detaches all parts of that assembly as separate rigid bodies.
+    pub fn from_groups(groups: Vec<Vec<Mesh>>) -> Self {
         let mut result = Self {
+            groups: vec![Vec::new(); groups.len()],
             items: Vec::new(),
             active: Vec::new(),
             tiles: HashMap::new(),
@@ -61,7 +79,11 @@ impl Props {
             multibody: MultibodyJointSet::new(),
             ccd: CCDSolver::new(),
         };
-        for mesh in meshes {
+        for (group, mesh) in groups
+            .into_iter()
+            .enumerate()
+            .flat_map(|(g, parts)| parts.into_iter().map(move |m| (g, m)))
+        {
             if mesh.vertices.is_empty() {
                 continue;
             }
@@ -87,6 +109,7 @@ impl Props {
             let shape = ColliderBuilder::convex_hull(&points)
                 .unwrap_or_else(|| ColliderBuilder::cuboid(half.x, half.y, half.z));
             let id = result.items.len();
+            result.groups[group].push(id);
             let handle = result.colliders.insert(
                 shape
                     .translation(vector![center.x, center.y, center.z])
@@ -102,6 +125,7 @@ impl Props {
                 .or_default()
                 .push(id);
             result.items.push(Prop {
+                group,
                 mesh,
                 center,
                 half,
@@ -151,10 +175,17 @@ impl Props {
                 break;
             }
             let id = self.colliders[handle].user_data as usize;
-            self.colliders
-                .remove(handle, &mut self.static_islands, &mut self.bodies, false);
-            self.items[id].collider = None;
-            self.break_prop(id, vehicle.velocity, city);
+            for part in self.groups[self.items[id].group].clone() {
+                if let Some(handle) = self.items[part].collider.take() {
+                    self.colliders.remove(
+                        handle,
+                        &mut self.static_islands,
+                        &mut self.bodies,
+                        false,
+                    );
+                    self.break_prop(part, vehicle.velocity, city, part == id);
+                }
+            }
             // The query tree may retain removed handles; Rapier ignores those
             // absent from the collider set, and intact colliders never move.
             hit = true;
@@ -165,14 +196,25 @@ impl Props {
             vehicle.collisions += 1;
         }
     }
-    fn break_prop(&mut self, id: usize, velocity: Vec3, city: &City) {
+    fn break_prop(&mut self, id: usize, velocity: Vec3, city: &City, direct_hit: bool) {
         let item = &mut self.items[id];
         let p = item.center;
+        // Unsupported parts collapse with a small transferred impulse. Only
+        // the part actually struck receives the full vehicle kick and spin.
+        let transfer = if direct_hit { 1. } else { 0.2 };
         let body = self.debris_bodies.insert(
             RigidBodyBuilder::dynamic()
                 .translation(vector![p.x, p.y, p.z])
-                .linvel(vector![velocity.x * 0.6, velocity.y * 0.6, 1.5])
-                .angvel(vector![velocity.y * 0.2, -velocity.x * 0.2, 0.3])
+                .linvel(vector![
+                    velocity.x * 0.6 * transfer,
+                    velocity.y * 0.6 * transfer,
+                    if direct_hit { 1.5 } else { 0. }
+                ])
+                .angvel(vector![
+                    velocity.y * 0.2 * transfer,
+                    -velocity.x * 0.2 * transfer,
+                    0.3 * transfer
+                ])
                 .ccd_enabled(true)
                 .build(),
         );
@@ -268,6 +310,7 @@ impl Props {
             true
         });
     }
+    #[cfg(test)]
     pub fn append_visible(&self, output: &mut Mesh, center: Vec3) {
         let range = (VIEW / TILE).ceil() as i32 + 1;
         let tile = (
@@ -315,6 +358,97 @@ impl Props {
             }
         }
     }
+    pub fn visible_batches(&self, center: Vec3) -> Vec<PropBatch> {
+        let range = (VIEW / TILE).ceil() as i32 + 1;
+        let tile = (
+            (center.x / TILE).floor() as i32,
+            (center.y / TILE).floor() as i32,
+        );
+        let mut batches = BTreeMap::<(i32, i32), Vec<usize>>::new();
+        // Preserve the original coarse lookup and exact individual distance
+        // cutoff; including a whole nearby render tile would extend visibility.
+        for x in tile.0 - range..=tile.0 + range {
+            for y in tile.1 - range..=tile.1 + range {
+                if let Some(ids) = self.tiles.get(&(x, y)) {
+                    for &id in ids {
+                        let item = &self.items[id];
+                        if item.collider.is_none()
+                            || (item.center.truncate() - center.truncate()).length()
+                                > VIEW + item.half.length()
+                        {
+                            continue;
+                        }
+                        let key = (
+                            (item.center.x / DRAW_TILE).floor() as i32,
+                            (item.center.y / DRAW_TILE).floor() as i32,
+                        );
+                        batches.entry(key).or_default().push(id);
+                    }
+                }
+            }
+        }
+        batches
+            .into_iter()
+            .map(|(key, ids)| PropBatch { key, ids })
+            .collect()
+    }
+    pub fn write_batch(&self, batch: &PropBatch, output: &mut Mesh) {
+        output.vertices.clear();
+        for &id in &batch.ids {
+            let item = &self.items[id];
+            // A caller holding an older descriptor must never restore a prop
+            // already removed by physics.
+            if item.collider.is_some() {
+                output.vertices.extend_from_slice(&item.mesh.vertices);
+            }
+        }
+    }
+    pub fn append_moving(&self, output: &mut Mesh, center: Vec3) {
+        let range = (VIEW / TILE).ceil() as i32 + 1;
+        let tile = (
+            (center.x / TILE).floor() as i32,
+            (center.y / TILE).floor() as i32,
+        );
+        // Debris is sparse. Iterate only active bodies, retaining the old
+        // source-tile ordering and lookup bounds even after debris has moved.
+        let mut ids = self.active.clone();
+        ids.sort_unstable_by_key(|&id| {
+            let item = &self.items[id];
+            (
+                (item.center.x / TILE).floor() as i32,
+                (item.center.y / TILE).floor() as i32,
+                id,
+            )
+        });
+        for id in ids {
+            let item = &self.items[id];
+            let source = (
+                (item.center.x / TILE).floor() as i32,
+                (item.center.y / TILE).floor() as i32,
+            );
+            if (source.0 - tile.0).abs() > range || (source.1 - tile.1).abs() > range {
+                continue;
+            }
+            let Some(handle) = item.debris else {
+                continue;
+            };
+            let body = &self.debris_bodies[handle];
+            let p = body.translation();
+            let position = Vec3::new(p.x, p.y, p.z);
+            if (position.truncate() - center.truncate()).length() > VIEW + item.half.length() {
+                continue;
+            }
+            let q = body.rotation().quaternion();
+            let rotation = Quat::from_xyzw(q.i, q.j, q.k, q.w);
+            output.vertices.extend(item.mesh.vertices.iter().map(|v| {
+                let mut v = *v;
+                let local = Vec3::from_array(v.position) * METERS_PER_UNIT - item.center;
+                v.position = ((position + rotation * local) / METERS_PER_UNIT).to_array();
+                v.normal = (rotation * Vec3::from_array(v.normal)).to_array();
+                v
+            }));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -322,6 +456,100 @@ mod tests {
     use super::*;
     use crate::dynamic_world::Controls;
     use opencity::runtime::SurfaceKind;
+
+    fn vertex_bits(mesh: &Mesh) -> Vec<Vec<u32>> {
+        let mut result: Vec<_> = mesh
+            .vertices
+            .iter()
+            .map(|v| {
+                v.position
+                    .into_iter()
+                    .chain(v.normal)
+                    .chain(v.color)
+                    .chain(v.surface)
+                    .map(f32::to_bits)
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        result.sort_unstable();
+        result
+    }
+
+    #[test]
+    fn cached_batches_match_visibility_and_remove_broken_props_immediately() {
+        let city = City::from_program(
+            &opencity::parse("road street: carlane; end street(-25,3,-20,3);").unwrap(),
+            None,
+        )
+        .unwrap();
+        let mut vehicle = Vehicle::spawn(&city);
+        let before = vehicle.position;
+        let meshes = [4., 80., 300.].map(|offset| {
+            let center = (before + Vec3::X * offset) / METERS_PER_UNIT;
+            let mut mesh = Mesh::default();
+            mesh.cuboid(
+                (center - Vec3::splat(0.005)).to_array(),
+                (center + Vec3::splat(0.005)).to_array(),
+                [0.5; 3],
+                SurfaceKind::Prop,
+            );
+            mesh
+        });
+        let mut props = Props::new(meshes.into());
+        let original_batches = props.visible_batches(before);
+        assert_eq!(original_batches.iter().flat_map(|b| &b.ids).count(), 2);
+        // Compare every vertex field, independently of draw-batch ordering.
+        let compare = |props: &Props, center| {
+            let mut original = Mesh::default();
+            props.append_visible(&mut original, center);
+            let mut cached = Mesh::default();
+            for batch in props.visible_batches(center) {
+                let mut tile = Mesh::default();
+                props.write_batch(&batch, &mut tile);
+                cached.vertices.extend(tile.vertices);
+            }
+            props.append_moving(&mut cached, center);
+            assert_eq!(vertex_bits(&original), vertex_bits(&cached));
+        };
+        for offset in [-401., -200., -0.1, 0., 150., 200., 401.] {
+            compare(&props, before + Vec3::X * offset);
+        }
+        let item = &props.items[0];
+        let cutoff = VIEW + item.half.length();
+        let selected = |center| {
+            props
+                .visible_batches(center)
+                .iter()
+                .any(|b| b.ids.contains(&0))
+        };
+        assert!(selected(item.center + Vec3::X * (cutoff - 0.1)));
+        assert!(!selected(item.center + Vec3::X * (cutoff + 0.1)));
+        vehicle.position.x += 5.;
+        vehicle.velocity = Vec3::X * 12.;
+        props.vehicle_move(&mut vehicle, before, &city);
+        assert!(props.items[0].debris.is_some());
+        assert!(props
+            .visible_batches(before)
+            .iter()
+            .all(|b| !b.ids.contains(&0)));
+        let stale = original_batches
+            .iter()
+            .find(|b| b.ids.contains(&0))
+            .unwrap();
+        let mut stale_mesh = Mesh::default();
+        props.write_batch(stale, &mut stale_mesh);
+        assert!(stale_mesh.vertices.is_empty());
+        compare(&props, before);
+        for _ in 0..1201 {
+            props.step(1. / 120.);
+        }
+        assert!(props.items[0].debris.is_none());
+        assert!(props
+            .visible_batches(before)
+            .iter()
+            .all(|b| !b.ids.contains(&0)));
+        compare(&props, before);
+    }
 
     #[test]
     fn fence_plane_blocks_and_breaks_while_retaining_its_pattern_coordinates() {
@@ -411,6 +639,104 @@ mod tests {
         assert!(gone.vertices.is_empty());
         assert!(props.debris_colliders.is_empty());
         vehicle.step(&city, Controls::default(), 1. / 120.);
+    }
+
+    #[test]
+    fn real_commercial_canopy_has_open_space_and_collapses_when_one_post_is_hit() {
+        let city = City::from_program(
+            &opencity::parse(
+                "road street: sidewalk carlane sidewalk; end street(-1,0,1,0);
+            ground=land(-2,-2,2,-2,2,2,-2,2);elevation(ground,0.02);
+            generated_shop_0000000000000003=building(0.08,{use:commercial,front_edge:0},
+                -0.04,0.06,0.04,0.06,0.04,0.16,-0.04,0.16);",
+            )
+            .unwrap(),
+            None,
+        )
+        .unwrap();
+        let groups = crate::hermes::commerce_mesh::prop_groups(&city);
+        let assembly = groups
+            .into_iter()
+            .find(|p| p.len() == 3)
+            .expect("canopy roof and two posts");
+        let mut neighbor = Mesh::default();
+        neighbor.cuboid(
+            [0.2, 0., 0.],
+            [0.21, 0.01, 0.01],
+            [0.5; 3],
+            SurfaceKind::Prop,
+        );
+        let mut props = Props::from_groups(vec![assembly, vec![neighbor]]);
+        assert!(
+            !props.blocked(Vec3::new(0., 4., 0.7)),
+            "open under the canopy"
+        );
+        assert!(
+            props.blocked(Vec3::new(-3.65, 3.95, 0.7)),
+            "post has collision"
+        );
+        let mut vehicle = Vehicle::spawn(&city);
+        let before = Vec3::new(-7., 3.95, 0.7);
+        vehicle.position = before + Vec3::X * 4.;
+        vehicle.velocity = Vec3::X * 12.;
+        vehicle.yaw = 0.;
+        props.vehicle_move(&mut vehicle, before, &city);
+        assert_eq!(vehicle.collisions, 1);
+        assert!(props.items[..3]
+            .iter()
+            .all(|p| p.collider.is_none() && p.debris.is_some()));
+        assert!(
+            props.items[3].collider.is_some(),
+            "unrelated props stay intact"
+        );
+        let roof = props.items[0].debris.unwrap();
+        let height = props.debris_bodies[roof].translation().z;
+        for _ in 0..60 {
+            props.step(1. / 120.);
+        }
+        assert!(
+            props.debris_bodies[roof].translation().z < height,
+            "roof falls with its supports"
+        );
+        assert!(
+            !props.blocked(Vec3::new(3.75, 3.95, 0.7)),
+            "other post detached too"
+        );
+    }
+
+    #[test]
+    fn actual_shop_sandwich_board_is_collidable_then_detaches_on_impact() {
+        let (city, board) = (0..64)
+            .find_map(|id| {
+                let source = format!(
+                    "road street: carlane; end street(-1,0,1,0);
+                p=concrete(-1,0.05,1,0.05,1,0.12,-1,0.12);elevation(p,0.02);
+                generated_shop_{id:016x}=building(0.08,{{use:commercial,front_edge:0}},
+                    -0.04,0.12,0.04,0.12,0.04,0.22,-0.04,0.22);"
+                );
+                let city = City::from_program(&opencity::parse(&source).unwrap(), None).unwrap();
+                let board = crate::hermes::commerce_mesh::prop_groups(&city)
+                    .into_iter()
+                    .find(|g| g.len() == 1)?;
+                Some((city, board))
+            })
+            .expect("a sparse board on eligible pavement");
+        let mut props = Props::from_groups(vec![board]);
+        let center = props.items[0].center;
+        assert!(props.blocked(center));
+        let mut car = Vehicle::spawn(&city);
+        let before = Vec3::new(center.x - 4., center.y, 0.7);
+        car.position = before + Vec3::X * 5.;
+        car.velocity = Vec3::X * 12.;
+        car.yaw = 0.;
+        props.vehicle_move(&mut car, before, &city);
+        assert_eq!(car.collisions, 1);
+        assert!(props.items[0].collider.is_none());
+        assert!(props.items[0].debris.is_some());
+        assert!(
+            props.visible_batches(center).is_empty(),
+            "intact rendering removed immediately"
+        );
     }
 
     #[test]
