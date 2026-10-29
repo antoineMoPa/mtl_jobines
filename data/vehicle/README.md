@@ -72,11 +72,11 @@ These are local task tools, separate from the Rust game and its normal build.
 The generator creates geometry through Claydash, exports GLBs, rebases wheel pivots and
 preserves existing physics settings. Editable source scenes remain under `data/vehicle/`.
 
-The research page embeds models, source downloads, JSON, viewer code and WebP images.
-It opens directly from `file://` without network access or companion files.
-The pinned viewer and upstream license link are in
-`research/montreal-vehicles/vendor/`; disposable QA images and caches remain in
-`research/montreal-vehicles/qa/`.
+The research page embeds models, source downloads, JSON and WebP images.
+Interactive 3D imports model-viewer 4.1.0 from unpkg and requires internet access.
+Saved previews and embedded downloads remain available if the CDN cannot load.
+Viewer license: https://github.com/google/model-viewer/blob/v4.1.0/LICENSE.
+Disposable QA images and caches remain in `research/montreal-vehicles/qa/`.
 
 ## Validation
 
