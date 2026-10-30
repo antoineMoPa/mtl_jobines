@@ -303,3 +303,29 @@ fn surface_retry_and_cursor_deadlines_use_the_earliest_wakeup() {
         ControlFlow::WaitUntil(now + Duration::from_secs(3))
     );
 }
+
+#[test]
+fn enter_horn_is_held_only_while_driving_and_never_leaks_from_menus() {
+    let mut game = Game::new(Hermes::test_map());
+    game.keys.insert(KeyCode::Enter);
+    assert!(!game.horn_requested());
+    game.set_overlay(Overlay::Driving);
+    assert!(!game.horn_requested(), "menu Enter is consumed on start");
+    for key in [KeyCode::Enter, KeyCode::NumpadEnter] {
+        game.keys.insert(key);
+        assert!(game.horn_requested());
+        game.keys.remove(&key);
+        assert!(!game.horn_requested());
+    }
+    game.keys.insert(KeyCode::Enter);
+    game.hidden = true;
+    assert!(!game.horn_requested());
+    game.hidden = false;
+    assert!(game.world.toggle_vehicle(&game.hermes));
+    assert!(
+        !game.horn_requested(),
+        "walking does not sound a parked vehicle's horn"
+    );
+    game.set_overlay(Overlay::Menu);
+    assert!(!game.horn_requested());
+}

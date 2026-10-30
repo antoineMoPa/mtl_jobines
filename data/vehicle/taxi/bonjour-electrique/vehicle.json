@@ -40,5 +40,34 @@
     "sheetBends": 5,
     "pivot": "axle-local"
   },
-  "researchId": "vehicle-j01"
+  "researchId": "vehicle-j01",
+  "sound": {
+    "engine": "electric",
+    "idleRpm": 1000,
+    "redlineRpm": 9000,
+    "engineGain": 1.2,
+    "firingOrder": 2,
+    "exhaustGain": 0.5,
+    "bodyGain": 0.12,
+    "roughness": 0.04,
+    "mufflerHz": 1000,
+    "machineryGain": 0,
+    "gearRatios": [
+      1,
+      0.9,
+      0.8,
+      0.7,
+      0.6,
+      0.5
+    ],
+    "finalDrive": 7.5,
+    "horn": {
+      "kind": "dual",
+      "frequenciesHz": [
+        380,
+        470
+      ],
+      "gain": 0.65
+    }
+  }
 }

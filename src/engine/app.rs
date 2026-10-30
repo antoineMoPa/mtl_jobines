@@ -53,6 +53,11 @@ enum GameEvent {
     RendererReady(Box<Result<Renderer, String>>),
 }
 struct Game {
+    audio: crate::audio::Audio,
+    sound_settings: crate::audio::Settings,
+    sound_eye: Option<Vec3>,
+    hidden: bool,
+    minimized: bool,
     #[cfg(target_arch = "wasm32")]
     proxy: winit::event_loop::EventLoopProxy<GameEvent>,
     hermes: Hermes,
@@ -151,10 +156,15 @@ impl Game {
         }
     }
     fn set_overlay(&mut self, overlay: Overlay) {
+        self.audio.silence();
+        self.sound_eye = None;
         if self.cursor.is_some() {
             self.cursor_activity(Instant::now());
         }
         self.overlay = overlay;
+        if overlay == Overlay::Driving {
+            self.audio.user_gesture();
+        }
         self.menu_selection = MenuItem::Resume;
         self.keys.clear();
         self.dragging = false;
@@ -211,6 +221,11 @@ impl Game {
         let world = DynamicWorld::with_start(&hermes, start)?;
         let p = world.player_position() / METERS_PER_UNIT;
         Ok(Self {
+            audio: crate::audio::Audio::default(),
+            sound_settings: crate::audio::Settings::default(),
+            sound_eye: None,
+            hidden: false,
+            minimized: false,
             #[cfg(target_arch = "wasm32")]
             proxy,
             hermes,
@@ -251,7 +266,15 @@ impl Game {
         })
     }
     fn simulation_paused(&self) -> bool {
-        self.overlay.paused() || self.palette.as_ref().is_some_and(|p| p.is_open())
+        self.hidden
+            || self.minimized
+            || self.overlay.paused()
+            || self.palette.as_ref().is_some_and(|p| p.is_open())
+    }
+    fn horn_requested(&self) -> bool {
+        !self.simulation_paused()
+            && self.world.is_driving()
+            && (self.keys.contains(&KeyCode::Enter) || self.keys.contains(&KeyCode::NumpadEnter))
     }
     fn refresh_scene(&self) -> bool {
         !self.simulation_paused() || self.scene_dirty
@@ -293,6 +316,7 @@ impl Game {
         if !paused {
             self.hermes.update_navigation(p.to_array());
         }
+        let horn = self.horn_requested();
         let renderer = self.renderer.as_mut().unwrap();
         if self.route_revision != self.hermes.route_revision() {
             renderer.update_route(&self.hermes.route_uvs());
@@ -318,6 +342,25 @@ impl Game {
                 .unwrap_or(-1.);
             self.eye.z = self.eye.z.max(terrain);
         }
+        let sound_eye = self.eye * METERS_PER_UNIT;
+        let sound_velocity = self.sound_eye.map_or(Vec3::ZERO, |previous| {
+            if elapsed > 0.0001 {
+                ((sound_eye - previous) / elapsed).clamp_length_max(100.)
+            } else {
+                Vec3::ZERO
+            }
+        });
+        self.sound_eye = if paused { None } else { Some(sound_eye) };
+        let mut sound_frame = self.world.sound_frame(
+            sound_eye,
+            look - self.eye,
+            sound_velocity,
+            self.sound_settings,
+        );
+        if let Some(car) = sound_frame.cars.iter_mut().find(|car| car.player) {
+            car.horn = horn;
+        }
+        self.audio.update(sound_frame, !paused);
         let car = self.dynamic_mesh.as_mut().unwrap();
         if refresh_scene {
             self.world.write_moving_mesh(&mut self.dynamic_vertices);
@@ -351,9 +394,12 @@ impl Game {
                 });
                 renderer.render(&view, &meshes, self.eye, look, self.game_time, navigation);
                 if let Some(palette) = &mut self.palette {
-                    if let Some(command) =
-                        palette.draw(self.window.as_ref().unwrap(), renderer, &view)
-                    {
+                    if let Some(command) = palette.draw(
+                        self.window.as_ref().unwrap(),
+                        renderer,
+                        &view,
+                        &mut self.sound_settings,
+                    ) {
                         renderer.daylight = command.daylight();
                         renderer.sky_settings.solar_hour = None;
                         let window = self.window.as_ref().unwrap();
@@ -419,7 +465,17 @@ impl Game {
     }
 }
 impl ApplicationHandler<GameEvent> for Game {
+    fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+        self.audio.silence();
+        self.sound_eye = None;
+        if self.overlay != Overlay::Start {
+            self.set_overlay(Overlay::Menu);
+        }
+    }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.simulation_paused() {
+            self.audio.silence();
+        }
         let now = Instant::now();
         if self.wake_surface(now) {
             if let Some(window) = &self.window {
@@ -490,6 +546,17 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        let audio_gesture = match &event {
+            WindowEvent::KeyboardInput { event, .. } => {
+                event.state == ElementState::Pressed && !event.repeat
+            }
+            WindowEvent::MouseInput { state, .. } => *state == ElementState::Pressed,
+            WindowEvent::Touch(touch) => touch.phase == winit::event::TouchPhase::Started,
+            _ => false,
+        };
+        if !self.simulation_paused() && audio_gesture {
+            self.audio.user_gesture();
+        }
         if matches!(
             event,
             WindowEvent::MouseInput { .. } | WindowEvent::MouseWheel { .. }
@@ -504,6 +571,8 @@ impl ApplicationHandler<GameEvent> for Game {
                 if event.physical_key == PhysicalKey::Code(KeyCode::KeyP)
                     && event.state == ElementState::Pressed && !event.repeat && palette.shortcut());
             if shortcut {
+                self.audio.silence();
+                self.sound_eye = None;
                 if open {
                     palette.dismiss();
                 } else {
@@ -536,12 +605,18 @@ impl ApplicationHandler<GameEvent> for Game {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
+                self.minimized = size.width == 0 || size.height == 0;
+                if self.minimized {
+                    self.audio.silence();
+                    self.sound_eye = None;
+                }
                 if let Some(r) = &mut self.renderer {
                     r.resize(size.width, size.height);
                     self.window.as_ref().unwrap().request_redraw();
                 }
             }
             WindowEvent::Focused(false) => {
+                self.audio.silence();
                 if let Some(palette) = &mut self.palette {
                     palette.dismiss();
                 }
@@ -550,7 +625,12 @@ impl ApplicationHandler<GameEvent> for Game {
                 }
                 self.show_cursor();
             }
-            WindowEvent::Occluded(false) => {
+            WindowEvent::Occluded(occluded) => {
+                self.hidden = occluded;
+                self.sound_eye = None;
+                if occluded {
+                    self.audio.silence();
+                }
                 self.surface_retry = None;
                 if let Some(window) = &self.window {
                     window.request_redraw();

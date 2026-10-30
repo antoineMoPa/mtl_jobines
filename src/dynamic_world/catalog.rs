@@ -38,6 +38,8 @@ pub struct Config {
     pub model: String,
     pub dimensions: Dimensions,
     pub physics: Physics,
+    #[serde(default)]
+    pub(crate) sound: crate::audio::VehicleSound,
     pub qa: serde_json::Value,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -71,6 +73,7 @@ fn game_vector(p: [f32; 3]) -> Vec3 {
 impl Definition {
     fn load(config: &[u8], bytes: &[u8]) -> Result<Self, String> {
         let config: Config = serde_json::from_slice(config).map_err(|e| e.to_string())?;
+        config.sound.validate()?;
         let p = &config.physics;
         if !config.research_id.starts_with("vehicle-")
             || config.category.is_empty()

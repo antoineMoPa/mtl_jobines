@@ -1,3 +1,4 @@
+mod audio;
 mod dynamic_world;
 mod engine;
 mod hermes;

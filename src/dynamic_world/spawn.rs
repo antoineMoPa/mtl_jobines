@@ -85,6 +85,11 @@ impl Vehicle {
         let gradient = Vec2::from_array(support.gradient);
         Ok(Self {
             definition: None,
+            sound_controls: super::Controls::default(),
+            sound_running: false,
+            sound_impacts: [crate::audio::Impact::default(); 3],
+            sound_impact_count: 0,
+            sound_cooldown: 0.,
             position: Vec3::new(
                 start.point[0] * METERS_PER_UNIT,
                 start.point[1] * METERS_PER_UNIT,

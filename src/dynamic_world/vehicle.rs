@@ -42,6 +42,11 @@ pub struct Controls {
     pub handbrake: bool,
 }
 pub struct Vehicle {
+    pub(crate) sound_controls: Controls,
+    pub(crate) sound_running: bool,
+    pub(super) sound_impacts: [crate::audio::Impact; 3],
+    pub(super) sound_impact_count: usize,
+    pub(super) sound_cooldown: f32,
     pub(super) definition: Option<usize>,
     pub position: Vec3,
     pub velocity: Vec3,
@@ -60,6 +65,26 @@ pub struct Vehicle {
     pub(super) body_lean_rate: Vec2,
 }
 impl Vehicle {
+    pub(super) fn sound_impact(
+        &mut self,
+        speed: f32,
+        material: crate::audio::Material,
+        broken: bool,
+    ) {
+        if speed < 0.8 || (!broken && self.sound_cooldown > 0.) {
+            return;
+        }
+        self.sound_cooldown = 0.12;
+        let slot = self.sound_impact_count.min(2);
+        self.sound_impacts[slot] = crate::audio::Impact {
+            position: self.position,
+            speed,
+            material,
+            broken,
+            ..Default::default()
+        };
+        self.sound_impact_count = (self.sound_impact_count + 1).min(3);
+    }
     pub fn spawn(city: &City) -> Self {
         let (road, band) = city
             .roads
@@ -88,6 +113,11 @@ impl Vehicle {
             .expect("spawn lane support")
             .height;
         Self {
+            sound_controls: Controls::default(),
+            sound_running: false,
+            sound_impacts: [crate::audio::Impact::default(); 3],
+            sound_impact_count: 0,
+            sound_cooldown: 0.,
             definition: None,
             position: Vec3::new(
                 p.x * METERS_PER_UNIT,
@@ -436,6 +466,7 @@ impl Vehicle {
                 self.position.x += separation.x;
                 self.position.y += separation.y;
                 let inward_speed = self.velocity.truncate().dot(normal);
+                self.sound_impact(-inward_speed, crate::audio::Material::Hard, false);
                 if inward_speed < 0. {
                     let incoming = self.velocity.truncate();
                     // Preserve the reflected ray's angle, while losing only

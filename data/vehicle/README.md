@@ -90,3 +90,67 @@ The smoke command writes PPM images regardless of filename extension. The focuse
 catalog/lineup tests load every GLB and check wheel pivots, steering animation,
 acceleration, contacts, reset behavior and parking availability on the default map.
 Browser reports in the QA directory record direct Firefox and Chrome `file://` loads.
+
+## Vehicle sound
+
+Hold **Enter** (or keypad Enter) to sound the current vehicle's horn. Menus keep
+Enter for selection; walking, pausing and focus loss cannot leave a horn held.
+The command palette's **Sound: Volume…** includes a separate horn level.
+
+Each `vehicle.json` now has an optional `sound` object, used for both player and
+NPC vehicles. These assets are embedded: rebuild the game after editing JSON.
+Preserve the `sound` object when re-exporting vehicle assets. Omitted fields use
+the ordinary petrol-car defaults; choosing `diesel` alone does not apply a preset.
+The checked-in files explicitly tune the fire, refuse, snow and grading trucks
+and the bus, independently of physical mass. The electric taxi avoids idle
+combustion noise and simulated gear shifts. No emergency siren is triggered by
+Enter.
+
+Example tuning for a large vehicle:
+
+```json
+"sound": {
+  "engine": "diesel",
+  "idleRpm": 600,
+  "redlineRpm": 2500,
+  "engineGain": 2.0,
+  "firingOrder": 3,
+  "exhaustGain": 0.95,
+  "bodyGain": 0.55,
+  "roughness": 0.65,
+  "mufflerHz": 450,
+  "machineryGain": 0.35,
+  "gearRatios": [3.8, 2.3, 1.5, 1.1, 0.84, 0.67],
+  "finalDrive": 5.0,
+  "horn": { "kind": "air", "frequenciesHz": [175, 230], "gain": 1.0 }
+}
+```
+
+| Setting | Effect / accepted range |
+| --- | --- |
+| `engine` | `petrol`, `diesel` or `electric`; changes excitation character |
+| `idleRpm`, `redlineRpm` | 100–2000 / 500–10000 RPM; redline must exceed idle |
+| `engineGain`, `exhaustGain`, `bodyGain` | Motor 0–4; exhaust 0–2; low body order 0–1 |
+| `firingOrder` | 1–6 firing events per crank revolution; 3 for six-cylinder four-stroke sound |
+| `roughness` | 0–1 irregular combustion texture |
+| `mufflerHz` | 100–3000 Hz low-pass cutoff, brightening slightly with load |
+| `machineryGain` | 0–1 load-driven accessory/rattle noise; not a simulation of working equipment |
+| `gearRatios`, `finalDrive` | Six decreasing positive ratios, each 0.1–8; final drive 1–10 |
+| `horn.kind` | `dual` electric-style horn or `air` with stronger upper harmonics and air texture |
+| `horn.frequenciesHz`, `horn.gain` | Two fundamentals, each 80–1200 Hz; gain 0–2 |
+
+The wheel radius comes from `physics.wheelRadius`. Gear ratios/RPM affect audio
+only; handling remains controlled by the existing physics settings. Invalid or
+unknown sound fields fail asset validation rather than silently changing sound.
+Profiles are procedural approximations, without recorded engine samples.
+
+Audio output uses CPAL on both native and web. Start/resume the browser game with
+a click or Enter to unlock sound; subsequent key/pointer gestures can retry a
+browser-suspended context. Menus, focus loss and document visibility changes
+silence output. Web and native share vehicle settings, synthesis, horn/collision
+events and the bounded voice pool. Native uses the Ambisonic crate; web uses a
+codec-free first-order stereo adapter with matching steady-state direction and
+distance behavior, plus Doppler. The adapter avoids the crate's mandatory MP3
+decoder, whose memory allocator does not support WASM. Neither stereo path is an
+HRTF renderer. CPAL's browser path uses scheduled audio buffers on the main thread;
+this first version does not use an AudioWorklet.

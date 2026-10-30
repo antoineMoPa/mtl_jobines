@@ -42,5 +42,34 @@
     "sheetBends": 3,
     "pivot": "axle-local"
   },
-  "researchId": "vehicle-j04"
+  "researchId": "vehicle-j04",
+  "sound": {
+    "engine": "diesel",
+    "idleRpm": 550,
+    "redlineRpm": 2200,
+    "engineGain": 2,
+    "firingOrder": 3,
+    "exhaustGain": 0.95,
+    "bodyGain": 0.6,
+    "roughness": 0.8,
+    "mufflerHz": 410,
+    "machineryGain": 0.55,
+    "gearRatios": [
+      3.8,
+      2.3,
+      1.5,
+      1.1,
+      0.84,
+      0.67
+    ],
+    "finalDrive": 5,
+    "horn": {
+      "kind": "air",
+      "frequenciesHz": [
+        190,
+        250
+      ],
+      "gain": 0.95
+    }
+  }
 }

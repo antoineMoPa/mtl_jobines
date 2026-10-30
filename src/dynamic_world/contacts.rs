@@ -38,6 +38,8 @@ pub(super) fn resolve(vehicles: &mut [Vehicle]) {
                 b.velocity += impulse * inv_b;
                 a.collisions += 1;
                 b.collisions += 1;
+                // Report the physical pair once, at one participant's chassis.
+                a.sound_impact(-closing, crate::audio::Material::Body, false);
             }
         }
     }

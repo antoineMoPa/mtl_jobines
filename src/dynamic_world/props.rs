@@ -34,6 +34,7 @@ struct Prop {
 }
 
 pub struct Props {
+    sound_materials: Vec<crate::audio::Material>,
     groups: Vec<Vec<usize>>,
     items: Vec<Prop>,
     active: Vec<usize>,
@@ -60,7 +61,29 @@ impl Props {
     /// Parts collide independently, preserving open space under structures.
     /// An impact detaches all parts of that assembly as separate rigid bodies.
     pub fn from_groups(groups: Vec<Vec<Mesh>>) -> Self {
+        let sound_materials = groups
+            .iter()
+            .map(|parts| {
+                let has_surface = |kind: SurfaceKind| {
+                    parts.iter().any(|mesh| {
+                        mesh.vertices
+                            .iter()
+                            .any(|v| v.surface[0] == kind as u32 as f32)
+                    })
+                };
+                if has_surface(SurfaceKind::Fence) {
+                    crate::audio::Material::Fence
+                } else if has_surface(SurfaceKind::Light) {
+                    crate::audio::Material::Lamp
+                } else if has_surface(SurfaceKind::Grass) {
+                    crate::audio::Material::Timber
+                } else {
+                    crate::audio::Material::Hard
+                }
+            })
+            .collect();
         let mut result = Self {
+            sound_materials,
             groups: vec![Vec::new(); groups.len()],
             items: Vec::new(),
             active: Vec::new(),
@@ -106,7 +129,9 @@ impl Props {
                     point![p.x, p.y, p.z]
                 })
                 .collect();
-            let shape = ColliderBuilder::convex_hull(&points)
+            let shape = (points.len() >= 4)
+                .then(|| ColliderBuilder::convex_hull(&points))
+                .flatten()
                 .unwrap_or_else(|| ColliderBuilder::cuboid(half.x, half.y, half.z));
             let id = result.items.len();
             result.groups[group].push(id);
@@ -170,15 +195,19 @@ impl Props {
             let n = contact.normal1;
             let normal = Vec3::new(n.x, n.y, n.z);
             let inward = vehicle.velocity.dot(normal);
+            let id = self.colliders[handle].user_data as usize;
+            let material = self.sound_materials[self.items[id].group];
             if inward >= -3. {
                 vehicle.position = before + delta * (contact.time_of_impact - 0.001).max(0.);
                 if inward < 0. {
                     vehicle.velocity -= normal * inward;
                 }
                 vehicle.collisions += 1;
+                vehicle.sound_impact(-inward, material, false);
                 break;
             }
-            let id = self.colliders[handle].user_data as usize;
+            // One assembly break event, before its individual parts detach.
+            vehicle.sound_impact(-inward, material, true);
             for part in self.groups[self.items[id].group].clone() {
                 if let Some(handle) = self.items[part].collider.take() {
                     self.colliders.remove(
@@ -603,6 +632,82 @@ mod tests {
     }
 
     #[test]
+    fn destruction_audio_follows_assembly_material_and_never_replays_removed_parts() {
+        for (surface, expected) in [
+            (SurfaceKind::Fence, crate::audio::Material::Fence),
+            (SurfaceKind::Light, crate::audio::Material::Lamp),
+            (SurfaceKind::Grass, crate::audio::Material::Timber),
+        ] {
+            let city = City::from_program(
+                &opencity::parse("road street: carlane; end street(-25,3,-20,3);").unwrap(),
+                None,
+            )
+            .unwrap();
+            let mut vehicle = Vehicle::spawn(&city);
+            let start = vehicle.position;
+            let center = (start + Vec3::X * 4.) / METERS_PER_UNIT;
+            let mut trunk = Mesh::default();
+            trunk.cuboid(
+                (center - Vec3::splat(0.005)).to_array(),
+                (center + Vec3::splat(0.005)).to_array(),
+                [0.5; 3],
+                SurfaceKind::Prop,
+            );
+            let mut part = Mesh::default();
+            part.cuboid(
+                (center - Vec3::splat(0.004)).to_array(),
+                (center + Vec3::splat(0.004)).to_array(),
+                [0.5; 3],
+                surface,
+            );
+            let mut props = Props::from_groups(vec![vec![trunk, part]]);
+            vehicle.position.x += 5.;
+            vehicle.velocity = Vec3::X * 12.;
+            props.vehicle_move(&mut vehicle, start, &city);
+            assert_eq!(
+                vehicle.sound_impact_count, 1,
+                "one assembly, not one event per detached part"
+            );
+            assert!(vehicle.sound_impacts[0].broken);
+            assert_eq!(vehicle.sound_impacts[0].material, expected);
+            assert!(vehicle.sound_impacts[0].speed >= 3.);
+            assert!(props.items.iter().all(|item| item.debris.is_some()));
+            vehicle.sound_impact_count = 0;
+            props.vehicle_move(&mut vehicle, start, &city);
+            assert_eq!(
+                vehicle.sound_impact_count, 0,
+                "removed assembly must not retrigger"
+            );
+        }
+    }
+    #[test]
+    fn resting_prop_contacts_do_not_emit_crashes() {
+        let city = City::from_program(
+            &opencity::parse("road street: carlane; end street(-25,3,-20,3);").unwrap(),
+            None,
+        )
+        .unwrap();
+        let mut vehicle = Vehicle::spawn(&city);
+        let start = vehicle.position;
+        let center = (start + Vec3::X * 4.) / METERS_PER_UNIT;
+        let mut mesh = Mesh::default();
+        mesh.cuboid(
+            (center - Vec3::splat(0.005)).to_array(),
+            (center + Vec3::splat(0.005)).to_array(),
+            [0.5; 3],
+            SurfaceKind::Prop,
+        );
+        let mut props = Props::new(vec![mesh]);
+        for _ in 0..100 {
+            vehicle.position = start + Vec3::X * 5.;
+            vehicle.velocity = Vec3::X * 0.2;
+            props.vehicle_move(&mut vehicle, start, &city);
+        }
+        assert!(vehicle.collisions > 0);
+        assert_eq!(vehicle.sound_impact_count, 0);
+        assert!(props.items[0].collider.is_some());
+    }
+    #[test]
     fn impact_breaks_prop_and_rapier_moves_then_removes_debris() {
         let city = City::from_program(
             &opencity::parse("road street: carlane; end street(-25,3,-20,3);").unwrap(),
@@ -629,6 +734,12 @@ mod tests {
         props.vehicle_move(&mut vehicle, start, &city);
         assert!(!props.blocked(center * METERS_PER_UNIT));
         assert_eq!(vehicle.collisions, 1);
+        assert_eq!(vehicle.sound_impact_count, 1);
+        assert!(vehicle.sound_impacts[0].broken);
+        assert_eq!(
+            vehicle.sound_impacts[0].material,
+            crate::audio::Material::Hard
+        );
         let handle = props.items[0].debris.expect("impact creates rigid body");
         let before = *props.debris_bodies[handle].translation();
         for _ in 0..120 {

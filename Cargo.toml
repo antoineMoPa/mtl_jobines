@@ -24,15 +24,19 @@ pollster = "0.4"
 png = "0.17"
 bytemuck = { version = "1", features = ["derive"] }
 web-time = "1.1"
+rodio = { version = "=0.13.1", default-features = false }
+cpal = { version = "=0.15.3", features = ["wasm-bindgen"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ambisonic = "=0.4.1"
 egui-winit = { version = "0.36", default-features = false }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
+js-sys = "0.3"
 wasm-bindgen-futures = "0.4"
 console_error_panic_hook = "0.1"
-web-sys = { version = "0.3", features = ["Window", "Location", "Document", "HtmlCanvasElement", "HtmlElement", "Element"] }
+web-sys = { version = "0.3", features = ["Window", "Location", "Document", "HtmlCanvasElement", "HtmlElement", "Element", "console"] }
 
 [dev-dependencies]
 naga = { version = "30", features = ["wgsl-in"] }

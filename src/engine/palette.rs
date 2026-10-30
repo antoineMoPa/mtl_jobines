@@ -58,6 +58,11 @@ fn commands() -> Vec<Command> {
             "Sky: Atmosphere and stars…",
             "Set solar time, location, haze, sun color and night stars",
         ),
+        (
+            "sound.settings",
+            "Sound: Volume…",
+            "Adjust engines, tires, surroundings and collisions",
+        ),
     ]
     .into_iter()
     .map(|(id, title, description)| Command {
@@ -75,6 +80,7 @@ pub struct Palette {
     painter: Painter,
     modifiers: winit::keyboard::ModifiersState,
     sky_open: bool,
+    sound_open: bool,
 }
 impl Palette {
     pub fn new(window: &Window, renderer: &Renderer) -> Self {
@@ -93,6 +99,7 @@ impl Palette {
             input,
             modifiers: Default::default(),
             sky_open: false,
+            sound_open: false,
             painter: Painter::new(&renderer.device, renderer.config.format.add_srgb_suffix()),
         }
     }
@@ -112,9 +119,10 @@ impl Palette {
     pub fn dismiss(&mut self) {
         self.menu.dismiss();
         self.sky_open = false;
+        self.sound_open = false;
     }
     pub fn is_open(&self) -> bool {
-        self.menu.is_open() || self.sky_open
+        self.menu.is_open() || self.sky_open || self.sound_open
     }
     pub fn shortcut(&self) -> bool {
         let command = if cfg!(target_os = "macos") {
@@ -131,11 +139,14 @@ impl Palette {
         window: &Window,
         renderer: &mut Renderer,
         target: &wgpu::TextureView,
+        sound: &mut crate::audio::Settings,
     ) -> Option<TimeCommand> {
         let mut selected = None;
         let output = self.ctx.run_ui(self.input.take_egui_input(window), |ui| {
             if let Some(id) = self.menu.show(ui.ctx(), &commands()) {
-                if id == "sky.settings" {
+                if id == "sound.settings" {
+                    self.sound_open = true;
+                } else if id == "sky.settings" {
                     self.sky_open = true;
                     if renderer.daylight.is_some() {
                         renderer.sky_settings.solar_hour =
@@ -150,6 +161,10 @@ impl Palette {
                 self.sky_open = false;
             }
             super::sky_controls::show(ui.ctx(), &mut self.sky_open, &mut renderer.sky_settings);
+            if self.sound_open && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
+                self.sound_open = false;
+            }
+            sound.show(ui.ctx(), &mut self.sound_open);
         });
         self.input
             .handle_platform_output(window, output.platform_output);

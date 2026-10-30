@@ -23,6 +23,10 @@ pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VehicleId(usize);
 pub struct DynamicWorld {
+    sound_impacts: [crate::audio::Impact; crate::audio::IMPACT_VOICES],
+    sound_serial: u64,
+    sound_foliage: f32,
+    sound_geography_timer: f32,
     vehicles: Vec<Vehicle>,
     player_vehicle: VehicleId,
     pedestrian: Option<Pedestrian>,
@@ -44,6 +48,10 @@ impl DynamicWorld {
         };
         vehicle.definition = Some(0);
         let mut world = Self {
+            sound_impacts: [crate::audio::Impact::default(); crate::audio::IMPACT_VOICES],
+            sound_serial: 0,
+            sound_foliage: 0.15,
+            sound_geography_timer: 0.,
             traffic: traffic::Traffic::new(hermes.traffic_paths()),
             buildings: buildings::Buildings::new(hermes.city()),
             building_candidates: Vec::new(),
@@ -97,6 +105,75 @@ impl DynamicWorld {
             .as_ref()
             .map_or(self.player().yaw, |p| p.yaw)
     }
+    /// Snapshot only nearby active vehicles. Parked lineup cars have no engine.
+    /// Slots are bounded, ordered by distance; slot zero reserves the player.
+    pub(crate) fn sound_frame(
+        &self,
+        eye: Vec3,
+        forward: Vec3,
+        velocity: Vec3,
+        settings: crate::audio::Settings,
+    ) -> crate::audio::Frame {
+        use crate::audio::{Car, Frame, CAR_VOICES};
+        let mut frame = Frame {
+            eye,
+            forward,
+            velocity,
+            settings,
+            impacts: self.sound_impacts,
+            ..Frame::default()
+        };
+        frame.foliage = self.sound_foliage;
+        frame.wind_speed = if self.is_driving() {
+            self.player().velocity.length()
+        } else {
+            0.
+        };
+        let mut distances = [f32::INFINITY; CAR_VOICES];
+        for (id, v) in self.vehicles.iter().enumerate() {
+            if self.traffic.inactive(id) || (!v.sound_running && v.velocity.length_squared() < 0.25)
+            {
+                continue;
+            }
+            let distance = v.position.distance_squared(eye);
+            if distance > 140. * 140. {
+                continue;
+            }
+            let player = self.is_driving() && id == self.player_vehicle.0;
+            let rank = if player { -1. } else { distance };
+            let Some(slot) = distances.iter().position(|d| rank < *d) else {
+                continue;
+            };
+            for i in (slot + 1..CAR_VOICES).rev() {
+                distances[i] = distances[i - 1];
+                frame.cars[i] = frame.cars[i - 1];
+            }
+            distances[slot] = rank;
+            frame.cars[slot] = Car {
+                id,
+                position: v.position,
+                velocity: v.velocity,
+                yaw: v.yaw,
+                throttle: v.sound_controls.throttle,
+                brake: v.sound_controls.brake,
+                handbrake: v.sound_controls.handbrake,
+                grounded: v.grounded,
+                surface: v.surface,
+                sound: v
+                    .definition()
+                    .map_or_else(crate::audio::VehicleSound::default, |definition| {
+                        definition.config.sound
+                    }),
+                wheel_radius: v
+                    .definition()
+                    .map_or(0.32, |definition| definition.config.physics.wheel_radius),
+                horn: false,
+                player,
+                engine_on: v.sound_running,
+            };
+        }
+        frame
+    }
     pub fn toggle_vehicle(&mut self, hermes: &Hermes) -> bool {
         if let Some(player) = &self.pedestrian {
             if let Some((index, _)) = self
@@ -139,6 +216,29 @@ impl DynamicWorld {
         if self.traffic.needs_refill(dt) {
             self.populate_traffic(hermes);
         }
+        self.sound_geography_timer -= dt;
+        if self.sound_geography_timer <= 0. {
+            self.sound_geography_timer = 0.5;
+            let p = self.player_position() / METERS_PER_UNIT;
+            let mut foliage = 0.;
+            for offset in [
+                glam::Vec2::ZERO,
+                glam::Vec2::X * 0.3,
+                -glam::Vec2::X * 0.3,
+                glam::Vec2::Y * 0.3,
+                -glam::Vec2::Y * 0.3,
+            ] {
+                let sample = hermes
+                    .city()
+                    .surface_at((p.truncate() + offset).to_array(), p.z + 0.1);
+                foliage += match sample.map(|s| s.kind) {
+                    Some(opencity::runtime::SurfaceKind::Grass) => 1.,
+                    Some(opencity::runtime::SurfaceKind::Sand) => 0.5,
+                    _ => 0.,
+                };
+            }
+            self.sound_foliage = foliage / 5.;
+        }
         let ai = self.traffic.controls(
             hermes.city(),
             &self.vehicles,
@@ -147,9 +247,24 @@ impl DynamicWorld {
         );
         let driving = self.is_driving();
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
+            vehicle.sound_running = false;
+            vehicle.sound_cooldown = (vehicle.sound_cooldown - dt).max(0.);
             if self.traffic.inactive(i) {
                 continue;
             }
+            let controls = if driving && i == self.player_vehicle.0 {
+                input
+            } else if let Some((_, controls)) = ai.iter().find(|(id, _)| *id == i) {
+                *controls
+            } else {
+                Controls {
+                    handbrake: true,
+                    ..Controls::default()
+                }
+            };
+            vehicle.sound_controls = controls;
+            vehicle.sound_running =
+                (driving && i == self.player_vehicle.0) || ai.iter().any(|(id, _)| *id == i);
             let before = vehicle.position;
             let reach =
                 vehicle.length().hypot(vehicle.width()) * 0.5 + vehicle.velocity.length() * dt + 1.;
@@ -160,22 +275,27 @@ impl DynamicWorld {
             );
             vehicle.step_with_buildings(
                 hermes.city(),
-                if driving && i == self.player_vehicle.0 {
-                    input
-                } else if let Some((_, controls)) = ai.iter().find(|(id, _)| *id == i) {
-                    *controls
-                } else {
-                    Controls {
-                        handbrake: true,
-                        ..Controls::default()
-                    }
-                },
+                controls,
                 dt,
                 Some(&self.building_candidates),
             );
             self.props.vehicle_move(vehicle, before, hermes.city());
         }
         contacts::resolve(&mut self.vehicles);
+        for hit in &mut self.sound_impacts {
+            hit.age += dt;
+        }
+        for vehicle in &mut self.vehicles {
+            for hit in &vehicle.sound_impacts[..vehicle.sound_impact_count] {
+                self.sound_serial = self.sound_serial.wrapping_add(1).max(1);
+                let slot = (self.sound_serial as usize - 1) % crate::audio::IMPACT_VOICES;
+                self.sound_impacts[slot] = crate::audio::Impact {
+                    serial: self.sound_serial,
+                    ..*hit
+                };
+            }
+            vehicle.sound_impact_count = 0;
+        }
         if let Some(player) = &mut self.pedestrian {
             let before = player.position;
             player.step(
@@ -252,6 +372,53 @@ impl DynamicWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sound_snapshot_uses_real_drivers_controls_and_bounded_recent_events() {
+        let hermes = Hermes::test_map();
+        let mut world = DynamicWorld::new(&hermes);
+        world.step(
+            &hermes,
+            Controls {
+                throttle: 0.7,
+                handbrake: true,
+                ..Controls::default()
+            },
+            WalkControls::default(),
+            1. / 120.,
+        );
+        let eye = world.player_position();
+        let frame = world.sound_frame(eye, Vec3::X, Vec3::ZERO, crate::audio::Settings::default());
+        assert_eq!(frame.cars[0].id, world.player_vehicle.0);
+        assert!(frame.cars[0].player && frame.cars[0].engine_on);
+        assert_eq!(frame.cars[0].throttle, 0.7);
+        assert!(frame.cars[0].handbrake);
+        assert_eq!(frame.cars[0].position, world.player_position());
+        assert!(frame
+            .cars
+            .iter()
+            .filter(|car| car.id != usize::MAX)
+            .all(|car| world.vehicles[car.id].sound_running
+                || world.vehicles[car.id].velocity.length_squared() >= 0.25));
+        for _ in 0..5 {
+            world.vehicles[0].sound_impact(12., crate::audio::Material::Fence, true);
+            world.step(
+                &hermes,
+                Controls::default(),
+                WalkControls::default(),
+                1. / 120.,
+            );
+        }
+        let hits = world
+            .sound_frame(eye, Vec3::X, Vec3::ZERO, crate::audio::Settings::default())
+            .impacts;
+        assert_eq!(hits.len(), 3);
+        assert!(hits.iter().all(|hit| hit.serial > 0
+            && hit.broken
+            && hit.material == crate::audio::Material::Fence));
+        for (slot, hit) in hits.iter().enumerate() {
+            assert_eq!((hit.serial as usize - 1) % 3, slot);
+        }
+    }
     #[test]
     fn entering_requires_proximity_and_fast_exit_is_rejected() {
         let hermes = Hermes::test_map();

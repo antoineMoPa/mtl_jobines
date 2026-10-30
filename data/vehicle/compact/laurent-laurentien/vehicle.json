@@ -40,5 +40,34 @@
     "sheetBends": 5,
     "pivot": "axle-local"
   },
-  "researchId": "vehicle-01"
+  "researchId": "vehicle-01",
+  "sound": {
+    "engine": "petrol",
+    "idleRpm": 740,
+    "redlineRpm": 4100,
+    "engineGain": 1.6,
+    "firingOrder": 2,
+    "exhaustGain": 0.72,
+    "bodyGain": 0.23,
+    "roughness": 0.2,
+    "mufflerHz": 600,
+    "machineryGain": 0,
+    "gearRatios": [
+      3.42,
+      2.12,
+      1.45,
+      1.03,
+      0.84,
+      0.69
+    ],
+    "finalDrive": 3.65,
+    "horn": {
+      "kind": "dual",
+      "frequenciesHz": [
+        380,
+        470
+      ],
+      "gain": 0.65
+    }
+  }
 }
