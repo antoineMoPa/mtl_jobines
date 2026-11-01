@@ -80,6 +80,8 @@ struct Uniform {
     mode: [f32; 4],
     destination: [f32; 4],
     performance: [f32; 4],
+    vehicle: [f32; 4],
+    vehicle_letters: [[u32; 4]; 12],
 }
 pub struct Hud {
     texture: wgpu::Texture,
@@ -313,12 +315,21 @@ impl Hud {
         overlay: Overlay,
         menu_selection: MenuItem,
         fps: Option<f32>,
+        vehicle_name: Option<&str>,
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         if !self.ready {
             return;
         }
         let rect = [0., 0., width as f32, height as f32];
+        let mut vehicle_letters = [[32; 4]; 12];
+        let mut vehicle_length = 0;
+        if let Some(name) = vehicle_name {
+            for (index, letter) in name.chars().take(48).enumerate() {
+                vehicle_letters[index / 4][index % 4] = letter as u32;
+                vehicle_length += 1;
+            }
+        }
         let data = Uniform {
             rect,
             screen: [width as f32, height as f32, view.uv_span, view.heading],
@@ -340,6 +351,8 @@ impl Hud {
                 0.,
             ],
             performance: [fps.unwrap_or(0.), 0., 0., 0.],
+            vehicle: [vehicle_length as f32, 0., 0., 0.],
+            vehicle_letters,
             mode: [
                 match overlay {
                     Overlay::Driving => 0.,
@@ -373,7 +386,7 @@ impl Hud {
         });
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.group, &[]);
-        pass.draw(0..if overlay == Overlay::Driving { 12 } else { 6 }, 0..1);
+        pass.draw(0..if overlay == Overlay::Driving { 18 } else { 6 }, 0..1);
         if matches!(overlay, Overlay::Driving | Overlay::Map) && self.route_count > 0 {
             pass.set_pipeline(&self.route_pipeline);
             pass.set_vertex_buffer(0, self.route_buffer.slice(..));

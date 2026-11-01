@@ -6,6 +6,7 @@ use super::{catalog, Controls, SpawnPoint, Vehicle, METERS_PER_UNIT};
 use crate::hermes::traffic_paths::{SpeedClass, TrafficPaths, Turn};
 use glam::Vec3;
 use opencity::runtime::City;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 const TARGET: usize = 36;
 const SPAWN_RADIUS: f32 = 180.;
@@ -17,6 +18,8 @@ struct Driver {
     next: Option<usize>,
     stopped: bool,
     stranded: f32,
+    stop_wait: f32,
+    stop_arrival: Option<f32>,
 }
 pub(super) struct Traffic {
     graph: Arc<TrafficPaths>,
@@ -26,6 +29,9 @@ pub(super) struct Traffic {
     pub(super) time: f32,
     seed: u64,
     refill: f32,
+    signal_props: super::props::Props,
+    failed_junctions: HashSet<usize>,
+    crossing: HashMap<usize, usize>,
 }
 impl Traffic {
     pub fn new(graph: &Arc<TrafficPaths>) -> Self {
@@ -37,6 +43,15 @@ impl Traffic {
             time: 0.,
             seed: 7193,
             refill: 0.,
+            signal_props: super::props::Props::from_groups(
+                graph
+                    .signals
+                    .iter()
+                    .map(|signal| vec![signals::signal_mesh(signal, None)])
+                    .collect(),
+            ),
+            failed_junctions: HashSet::new(),
+            crossing: HashMap::new(),
         }
     }
     fn random(&mut self, count: usize) -> usize {
@@ -138,6 +153,8 @@ impl Traffic {
                 next: None,
                 stopped: false,
                 stranded: 0.,
+                stop_wait: 0.,
+                stop_arrival: None,
             });
         }
     }
@@ -162,6 +179,7 @@ impl Traffic {
         dt: f32,
     ) -> Vec<(usize, Controls)> {
         self.time += dt;
+        self.update_stop_priority(vehicles, dt);
         let mut turns = vec![None; vehicles.len()];
         for driver in &self.drivers {
             let movement = driver
@@ -262,7 +280,13 @@ impl Traffic {
                         .sqrt(),
                 );
                 if let Some(signal) = next_path.signal {
-                    if !signals::is_green(&self.graph.signals[signal], self.time) {
+                    let junction = self.graph.signals[signal].junction;
+                    let permitted = if self.failed_junctions.contains(&junction) {
+                        self.crossing.get(&junction) == Some(&driver.vehicle)
+                    } else {
+                        signals::is_green(&self.graph.signals[signal], self.time)
+                    };
+                    if !permitted {
                         clearance = clearance.min((remaining - car.length() * 0.5 - 1.5).max(0.));
                     }
                 }
@@ -282,14 +306,18 @@ impl Traffic {
                 }
                 if next_path.turn == Turn::Left {
                     if let Some(signal) = next_path.signal {
-                        if left_turn_blocked(
-                            &self.graph,
-                            signal,
-                            next_path.length,
-                            driver.vehicle,
-                            vehicles,
-                            &turns,
-                        ) {
+                        if !self
+                            .failed_junctions
+                            .contains(&self.graph.signals[signal].junction)
+                            && left_turn_blocked(
+                                &self.graph,
+                                signal,
+                                next_path.length,
+                                driver.vehicle,
+                                vehicles,
+                                &turns,
+                            )
+                        {
                             clearance =
                                 clearance.min((remaining - car.length() * 0.5 - 1.5).max(0.));
                         }

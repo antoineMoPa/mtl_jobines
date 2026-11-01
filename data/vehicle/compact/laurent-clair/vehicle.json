@@ -1,0 +1,43 @@
+{
+  "category": "compact",
+  "dimensions": {
+    "height": 1.5802951365970437,
+    "length": 4.5,
+    "width": 2.034362517527366
+  },
+  "model": "model.glb",
+  "name": "Laurent Clair",
+  "physics": {
+    "acceleration": 11.0,
+    "friction": 0.9,
+    "heightOffset": 0.7,
+    "mass": 1300.0,
+    "maxSpeed": 44.0,
+    "maxSteerAngle": 0.52,
+    "track": 1.5503355221438857,
+    "wheelRadius": 0.3628992662162721,
+    "wheelbase": 2.748322149261871
+  },
+  "qa": {
+    "claydashExport": "completed",
+    "detailPass": 2,
+    "game": "runtime-validated",
+    "materials": 18,
+    "packager": "runtime-packager",
+    "parts": 50,
+    "pivot": "axle-local",
+    "sourceParts": 78,
+    "status": "exported",
+    "study": "09",
+    "triangles": 43164,
+    "wheels": [
+      "wheel_front_left",
+      "wheel_front_right",
+      "wheel_rear_left",
+      "wheel_rear_right"
+    ]
+  },
+  "researchId": "vehicle-v2-09",
+  "roadVehicle": true,
+  "schemaVersion": 1
+}

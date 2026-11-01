@@ -475,3 +475,60 @@ fn combustion_orders_stand_above_brown_noise_at_idle() {
         periodic / residue
     );
 }
+
+#[test]
+fn bus_retains_engine_tone_with_a_quieter_noise_bed() {
+    let bus = crate::dynamic_world::catalog::definitions()
+        .iter()
+        .find(|definition| definition.config.category == "bus")
+        .unwrap()
+        .config
+        .sound;
+    let measure = |sound: VehicleSound| {
+        let mut voice = Spatial::new(0);
+        voice.car(
+            Car {
+                id: 1,
+                engine_on: true,
+                sound,
+                ..Car::default()
+            },
+            &Frame::default(),
+        );
+        let mut synth = Synth::new(voice.parameters.clone(), 0, 12783);
+        for _ in 0..RATE {
+            synth.sample();
+        }
+        let samples: Vec<_> = (0..RATE).map(|_| synth.sample()).collect();
+        let total = samples.iter().map(|sample| sample * sample).sum::<f32>() / RATE as f32;
+        let mut periodic = 0.;
+        for hz in [
+            sound.idle_rpm / 60.,
+            sound.idle_rpm / 60. * sound.firing_order,
+            sound.idle_rpm / 60. * sound.firing_order * 2.,
+        ] {
+            let (mut re, mut im) = (0., 0.);
+            for (i, sample) in samples.iter().enumerate() {
+                let angle = std::f32::consts::TAU * hz * i as f32 / RATE as f32;
+                re += sample * angle.cos();
+                im += sample * angle.sin();
+            }
+            periodic += 2. * (re * re + im * im) / (RATE as f32).powi(2);
+        }
+        (periodic, (total - periodic).max(1e-12))
+    };
+    let (tone, noise) = measure(bus);
+    let (old_tone, old_noise) = measure(VehicleSound {
+        roughness: 0.6,
+        machinery_gain: 0.14,
+        ..bus
+    });
+    assert!(
+        noise < old_noise * 0.6,
+        "noise {noise} vs previous {old_noise}"
+    );
+    assert!(
+        tone > old_tone * 0.9,
+        "engine tone {tone} vs previous {old_tone}"
+    );
+}

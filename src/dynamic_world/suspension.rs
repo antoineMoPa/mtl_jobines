@@ -117,7 +117,10 @@ mod tests {
         let city = flat_city();
         for dt in [1. / 120., 1. / 30.] {
             let mut car = Vehicle::spawn(&city);
-            car.definition = Some(9); // Bus: the longest road body.
+            car.definition = catalog::definitions()
+                .iter()
+                .position(|d| d.config.research_id == "vehicle-j02");
+            assert!(car.definition.is_some());
             car.position = Vec3::new(-2500., 0., car.ride_height() + 0.15);
             car.yaw = 0.;
             car.body_lean = Vec2::new(0.03, 0.04);

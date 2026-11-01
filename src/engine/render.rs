@@ -133,6 +133,7 @@ pub struct Renderer {
     sky: Sky,
     commerce: Commerce,
     pub fps: Option<f32>,
+    pub vehicle_name: Option<String>,
     pub gpu_profile: Option<GpuProfile>,
 }
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
@@ -427,11 +428,17 @@ impl Renderer {
                 fragment: (!(shadow && !masked)).then_some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: Some(if shadow {
-                        "fs_shadow_game"
+                        if instanced {
+                            "fs_vehicle_shadow"
+                        } else {
+                            "fs_shadow_game"
+                        }
+                    } else if instanced {
+                        "fs_vehicle"
                     } else if masked {
                         "fs_game"
                     } else {
-                        "fs_opaque"
+                        "fs_opaque_game"
                     }),
                     compilation_options: Default::default(),
                     targets: if shadow { &[] } else { &targets },
@@ -468,8 +475,8 @@ impl Renderer {
         let opaque_pipeline = make_pipeline(false, false, false);
         let shadow_pipeline = make_pipeline(true, true, false);
         let opaque_shadow_pipeline = make_pipeline(true, false, false);
-        let vehicle_pipeline = make_pipeline(false, false, true);
-        let vehicle_shadow_pipeline = make_pipeline(true, false, true);
+        let vehicle_pipeline = make_pipeline(false, true, true);
+        let vehicle_shadow_pipeline = make_pipeline(true, true, true);
         let depth = depth(&device, width.max(1), height.max(1), "depth", false);
         let color = color_target(&device, width, height, format);
         let hud = Hud::new(&device, format);
@@ -506,6 +513,7 @@ impl Renderer {
             sky,
             commerce,
             fps: None,
+            vehicle_name: None,
             gpu_profile,
         })
     }
@@ -875,6 +883,7 @@ impl Renderer {
             self.overlay,
             self.menu_selection,
             self.fps,
+            self.vehicle_name.as_deref(),
             self.gpu_profile.as_ref().map(|profile| profile.pass(2)),
         );
         if let Some(profile) = &self.gpu_profile {

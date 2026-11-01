@@ -1,104 +1,116 @@
 [
   {
-    "path": "compact/laurent-laurentien",
-    "name": "Laurent Laurentien",
-    "roadVehicle": true,
-    "researchId": "vehicle-01"
+    "name": "Castor Rive",
+    "path": "pickup/castor-rive",
+    "researchId": "vehicle-v2-01",
+    "roadVehicle": true
   },
   {
-    "path": "suv/boreal-sentier",
-    "name": "Boreal Sentier",
-    "roadVehicle": true,
-    "researchId": "vehicle-04"
-  },
-  {
-    "path": "suv/laurent-traverse",
     "name": "Laurent Traverse",
-    "roadVehicle": true,
-    "researchId": "vehicle-05"
+    "path": "suv/laurent-traverse",
+    "researchId": "vehicle-05",
+    "roadVehicle": true
   },
   {
-    "path": "hatchback/montcalm-trois",
-    "name": "Montcalm Trois",
-    "roadVehicle": true,
-    "researchId": "vehicle-06"
+    "name": "Boreal Crete",
+    "path": "suv/boreal-crete",
+    "researchId": "vehicle-v2-03",
+    "roadVehicle": true
   },
   {
-    "path": "hatchback/laurent-moineau",
-    "name": "Laurent Moineau",
-    "roadVehicle": true,
-    "researchId": "vehicle-08"
+    "name": "Laurent Bosquet",
+    "path": "suv/laurent-bosquet",
+    "researchId": "vehicle-v2-04",
+    "roadVehicle": true
   },
   {
-    "path": "hatchback/boreal-echo",
-    "name": "Boreal Echo",
-    "roadVehicle": true,
-    "researchId": "vehicle-09"
+    "name": "Castor Chene",
+    "path": "pickup/castor-chene",
+    "researchId": "vehicle-v2-05",
+    "roadVehicle": true
   },
   {
-    "path": "minivan/castor-familial",
-    "name": "Castor Familial",
-    "roadVehicle": true,
-    "researchId": "vehicle-11"
-  },
-  {
-    "path": "suv/boreal-colline",
     "name": "Boreal Colline",
-    "roadVehicle": true,
-    "researchId": "vehicle-12"
+    "path": "suv/boreal-colline",
+    "researchId": "vehicle-12",
+    "roadVehicle": true
   },
   {
-    "path": "taxi/bonjour-electrique",
+    "name": "Castor Granit",
+    "path": "pickup/castor-granit",
+    "researchId": "vehicle-v2-07",
+    "roadVehicle": true
+  },
+  {
+    "name": "Boreal Rivage",
+    "path": "suv/boreal-rivage",
+    "researchId": "vehicle-v2-08",
+    "roadVehicle": true
+  },
+  {
+    "name": "Laurent Clair",
+    "path": "compact/laurent-clair",
+    "researchId": "vehicle-v2-09",
+    "roadVehicle": true
+  },
+  {
+    "name": "Boreal Sentier",
+    "path": "suv/boreal-sentier",
+    "researchId": "vehicle-04",
+    "roadVehicle": true
+  },
+  {
     "name": "Bonjour Electrique",
-    "roadVehicle": true,
-    "researchId": "vehicle-j01"
+    "path": "taxi/bonjour-electrique",
+    "researchId": "vehicle-j01",
+    "roadVehicle": true
   },
   {
-    "path": "bus/saint-laurent-urbain",
     "name": "Saint-Laurent Urbain",
-    "roadVehicle": true,
-    "researchId": "vehicle-j02"
+    "path": "bus/saint-laurent-urbain",
+    "researchId": "vehicle-j02",
+    "roadVehicle": true
   },
   {
-    "path": "municipal/castor-blizzard",
     "name": "Castor Blizzard",
-    "roadVehicle": true,
-    "researchId": "vehicle-j03"
+    "path": "municipal/castor-blizzard",
+    "researchId": "vehicle-j03",
+    "roadVehicle": true
   },
   {
-    "path": "municipal/castor-niveleur",
     "name": "Castor Niveleur",
-    "roadVehicle": true,
-    "researchId": "vehicle-j04"
+    "path": "municipal/castor-niveleur",
+    "researchId": "vehicle-j04",
+    "roadVehicle": true
   },
   {
-    "path": "municipal/castor-collecteur",
     "name": "Castor Collecteur",
-    "roadVehicle": true,
-    "researchId": "vehicle-j05"
+    "path": "municipal/castor-collecteur",
+    "researchId": "vehicle-j05",
+    "roadVehicle": true
   },
   {
-    "path": "emergency/laurent-vigile",
     "name": "Laurent Vigile",
-    "roadVehicle": true,
-    "researchId": "vehicle-j06"
+    "path": "emergency/laurent-vigile",
+    "researchId": "vehicle-j06",
+    "roadVehicle": true
   },
   {
-    "path": "emergency/saint-laurent-secours",
     "name": "Saint-Laurent Secours",
-    "roadVehicle": true,
-    "researchId": "vehicle-j07"
+    "path": "emergency/saint-laurent-secours",
+    "researchId": "vehicle-j07",
+    "roadVehicle": true
   },
   {
-    "path": "rail/azur-classique",
     "name": "Azur Classique",
-    "roadVehicle": false,
-    "researchId": "vehicle-r01"
+    "path": "rail/azur-classique",
+    "researchId": "vehicle-r01",
+    "roadVehicle": false
   },
   {
-    "path": "rail/prairie-express",
     "name": "Prairie Express",
-    "roadVehicle": false,
-    "researchId": "vehicle-r02"
+    "path": "rail/prairie-express",
+    "researchId": "vehicle-r02",
+    "roadVehicle": false
   }
 ]

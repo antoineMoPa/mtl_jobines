@@ -14,6 +14,7 @@ pub use spawn::SpawnPoint;
 #[cfg(test)]
 mod handbrake_tests;
 mod vehicle;
+mod vehicle_lights;
 use crate::hermes::Hermes;
 use glam::Vec3;
 use opencity::runtime::Mesh;
@@ -29,6 +30,7 @@ pub struct DynamicWorld {
     sound_geography_timer: f32,
     vehicles: Vec<Vehicle>,
     player_vehicle: VehicleId,
+    vehicle_notice: f32,
     pedestrian: Option<Pedestrian>,
     vehicle_spawns: Vec<SpawnPoint>,
     props: props::Props,
@@ -46,7 +48,7 @@ impl DynamicWorld {
             Some(point) => Vehicle::spawn_at(hermes.city(), point)?,
             None => Vehicle::spawn(hermes.city()),
         };
-        vehicle.definition = Some(0);
+        vehicle.set_catalog_model(Some(0));
         let mut world = Self {
             sound_impacts: [crate::audio::Impact::default(); crate::audio::IMPACT_VOICES],
             sound_serial: 0,
@@ -57,6 +59,7 @@ impl DynamicWorld {
             building_candidates: Vec::new(),
             vehicles: vec![vehicle],
             player_vehicle: VehicleId(0),
+            vehicle_notice: 4.,
             pedestrian: None,
             vehicle_spawns: Vec::new(),
             props: props::Props::from_groups(hermes.prop_groups()),
@@ -92,8 +95,26 @@ impl DynamicWorld {
     pub fn player(&self) -> &Vehicle {
         &self.vehicles[self.player_vehicle.0]
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn preview_vehicle_lamps(&mut self, model: usize, controls: Controls) {
+        for (id, vehicle) in self.vehicles.iter_mut().enumerate() {
+            if id == self.player_vehicle.0 {
+                vehicle.set_catalog_model(Some(model));
+                vehicle.sound_controls = controls;
+                vehicle.sound_running = true;
+                vehicle.velocity = Vec3::ZERO;
+            } else {
+                vehicle.position.z = -1000.;
+            }
+        }
+    }
     pub fn is_driving(&self) -> bool {
         self.pedestrian.is_none()
+    }
+    pub fn vehicle_name_notice(&self) -> Option<&str> {
+        (self.is_driving() && self.vehicle_notice > 0.)
+            .then(|| self.player().definition().map(|d| d.config.name.as_str()))
+            .flatten()
     }
     pub fn player_position(&self) -> Vec3 {
         self.pedestrian
@@ -104,6 +125,9 @@ impl DynamicWorld {
         self.pedestrian
             .as_ref()
             .map_or(self.player().yaw, |p| p.yaw)
+    }
+    pub fn camera_eye(&self, hermes: &Hermes, anchor: Vec3, desired: Vec3) -> Vec3 {
+        self.buildings.camera_eye(hermes.city(), anchor, desired)
     }
     /// Snapshot only nearby active vehicles. Parked lineup cars have no engine.
     /// Slots are bounded, ordered by distance; slot zero reserves the player.
@@ -191,6 +215,7 @@ impl DynamicWorld {
                 self.traffic.release(index);
                 self.player_vehicle = VehicleId(index);
                 self.pedestrian = None;
+                self.vehicle_notice = 4.;
                 return true;
             }
         } else if self.player().velocity.length() <= 3. {
@@ -206,13 +231,15 @@ impl DynamicWorld {
         self.vehicles[self.player_vehicle.0] =
             Vehicle::spawn_at(hermes.city(), self.vehicle_spawns[self.player_vehicle.0])
                 .expect("validated parking position");
-        self.vehicles[self.player_vehicle.0].definition = definition;
+        self.vehicles[self.player_vehicle.0].set_catalog_model(definition);
         self.pedestrian = None;
+        self.vehicle_notice = 4.;
     }
     pub fn step(&mut self, hermes: &Hermes, input: Controls, walk: WalkControls, dt: f32) {
         if !dt.is_finite() || dt <= 0. {
             return;
         }
+        self.vehicle_notice = (self.vehicle_notice - dt).max(0.);
         if self.traffic.needs_refill(dt) {
             self.populate_traffic(hermes);
         }
@@ -280,6 +307,7 @@ impl DynamicWorld {
                 Some(&self.building_candidates),
             );
             self.props.vehicle_move(vehicle, before, hermes.city());
+            self.traffic.vehicle_move(vehicle, before, hermes.city());
         }
         contacts::resolve(&mut self.vehicles);
         for hit in &mut self.sound_impacts {
@@ -314,6 +342,7 @@ impl DynamicWorld {
             }
         }
         self.props.step(dt);
+        self.traffic.step_debris(dt);
         if self.player_position().z < -40. {
             self.reset_player(hermes);
         }
@@ -362,6 +391,11 @@ impl DynamicWorld {
     }
     fn write_non_vehicle_actors(&self, mesh: &mut Mesh) {
         mesh.vertices.clear();
+        for vehicle in &self.vehicles {
+            if vehicle.position.distance(self.player_position()) <= 450. {
+                vehicle.append_lights(mesh);
+            }
+        }
         self.traffic.append_signals(mesh, self.player_position());
         if let Some(player) = &self.pedestrian {
             mesh.vertices.extend(player.mesh().vertices);
@@ -423,17 +457,29 @@ mod tests {
     fn entering_requires_proximity_and_fast_exit_is_rejected() {
         let hermes = Hermes::test_map();
         let mut world = DynamicWorld::new(&hermes);
+        let expected_name = world.player().definition().unwrap().config.name.clone();
+        assert_eq!(world.vehicle_name_notice(), Some(expected_name.as_str()));
+        world.vehicle_notice = 0.;
+        assert!(world.vehicle_name_notice().is_none());
         world.vehicles[0].velocity = Vec3::X * 10.;
         assert!(!world.toggle_vehicle(&hermes));
         assert!(world.is_driving());
         world.vehicles[0].velocity = Vec3::ZERO;
         assert!(world.toggle_vehicle(&hermes));
         assert!(!world.is_driving());
+        assert!(world.vehicle_name_notice().is_none());
         assert_ne!(world.player_position(), world.player().position);
         assert!(world.toggle_vehicle(&hermes));
         assert!(world.is_driving());
+        assert_eq!(world.vehicle_name_notice(), Some(expected_name.as_str()));
         assert!(world.toggle_vehicle(&hermes));
-        world.pedestrian.as_mut().unwrap().position += Vec3::X * 20.;
+        let beyond_lineup = world
+            .vehicles
+            .iter()
+            .map(|v| v.position.x)
+            .fold(f32::NEG_INFINITY, f32::max)
+            + 100.;
+        world.pedestrian.as_mut().unwrap().position.x = beyond_lineup;
         assert!(!world.toggle_vehicle(&hermes));
         assert!(!world.is_driving());
         world.reset_player(&hermes);

@@ -40,7 +40,7 @@ fn bundled_machinery_has_authored_sound_and_horns_independent_of_mass() {
     };
     let fire = find("vehicle-j07");
     let refuse = find("vehicle-j05");
-    let compact = find("vehicle-01");
+    let compact = find("vehicle-v2-09");
     assert_eq!(fire.engine, EngineKind::Diesel);
     assert_eq!(refuse.engine, EngineKind::Diesel);
     assert_eq!(fire.horn.kind, HornKind::Air);

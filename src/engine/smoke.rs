@@ -55,6 +55,7 @@ impl SkyOverrides {
 pub(super) struct SmokeOptions {
     pub(super) overview: bool,
     pub(super) vehicle_lineup: bool,
+    pub(super) vehicle_lamps: bool,
     pub(super) hood: bool,
     pub(super) profile: bool,
     pub(super) realtime: bool,
@@ -119,6 +120,7 @@ pub(super) fn run(
         Some(start) => DynamicWorld::with_start(hermes, Some(start))?,
         None => DynamicWorld::new(hermes),
     };
+    renderer.vehicle_name = smoke_world.vehicle_name_notice().map(str::to_owned);
     let mut vehicles = super::vehicle_scenery::VehicleScenery::new(&renderer);
     vehicles.update(&renderer, &smoke_world);
     let mut moving = Mesh::default();
@@ -241,6 +243,7 @@ pub(super) fn run(
     eprintln!("Rendered {}", palette_path.display());
 
     if smoke_world.toggle_vehicle(hermes) {
+        renderer.vehicle_name = None;
         smoke_world.write_moving_mesh(&mut moving);
         let walking_mesh = renderer.upload_dynamic(&moving);
         let mut walking_props = PropScenery::default();
@@ -266,6 +269,80 @@ pub(super) fn run(
         eprintln!("Rendered {}", path.display());
     }
     renderer.overlay = Overlay::Driving;
+    // Close rear views exercise the actual dynamic lamp and name HUD paths.
+    // Keep these separate from the benchmark's vehicle/scene buffers.
+    let mut lamp_world = match options.start {
+        Some(start) => DynamicWorld::with_start(hermes, Some(start))?,
+        None => DynamicWorld::new(hermes),
+    };
+    let mut lamp_vehicles = super::vehicle_scenery::VehicleScenery::new(&renderer);
+    let model_count = if options.vehicle_lamps {
+        crate::dynamic_world::catalog::definitions().len()
+    } else {
+        1
+    };
+    for model in 0..model_count {
+        for (suffix, controls) in [
+            ("idle", Controls::default()),
+            (
+                "brake",
+                Controls {
+                    brake: true,
+                    ..Default::default()
+                },
+            ),
+            (
+                "reverse",
+                Controls {
+                    throttle: -1.,
+                    ..Default::default()
+                },
+            ),
+        ] {
+            if options.vehicle_lamps {
+                lamp_world.preview_vehicle_lamps(model, controls);
+            } else {
+                lamp_world.step(hermes, controls, WalkControls::default(), DT);
+            }
+            lamp_world.write_moving_mesh(&mut moving);
+            let lamp_mesh = renderer.upload_dynamic(&moving);
+            lamp_vehicles.update(&renderer, &lamp_world);
+            let mut lamp_props = PropScenery::default();
+            lamp_props.update(&renderer, &lamp_world);
+            let car = lamp_world.player();
+            let at = car.position / METERS_PER_UNIT;
+            let forward = Vec3::new(car.yaw.cos(), car.yaw.sin(), 0.);
+            let rear_distance = (car.length() * 0.5 + 4.) / METERS_PER_UNIT;
+            let lamp_eye = lamp_world.camera_eye(
+                hermes,
+                at + Vec3::Z * 0.014,
+                at - forward * rear_distance + Vec3::Z * 0.025,
+            );
+            let mut lamp_meshes = scenery.visible([at.x, at.y]);
+            lamp_meshes.push(&lamp_mesh);
+            lamp_meshes.extend(lamp_props.visible());
+            lamp_meshes.extend(lamp_vehicles.visible());
+            renderer.vehicle_name = lamp_world.vehicle_name_notice().map(str::to_owned);
+            renderer.daylight = Some(0.);
+            renderer.render(
+                &texture.create_view(&Default::default()),
+                &lamp_meshes,
+                lamp_eye,
+                at + Vec3::Z * 0.004,
+                snapshot_time,
+                hermes.minimap_view([at.x, at.y], car.yaw),
+            );
+            let stem = output.file_stem().unwrap().to_string_lossy();
+            let path = output.with_file_name(if options.vehicle_lamps {
+                format!("{stem}-model-{model:02}-{suffix}.ppm")
+            } else {
+                format!("{stem}-{suffix}.ppm")
+            });
+            renderer.snapshot(&texture, &path)?;
+            eprintln!("Rendered {}", path.display());
+        }
+    }
+    renderer.vehicle_name = None;
     if options.profile {
         renderer.daylight = if options.sky.automatic {
             None

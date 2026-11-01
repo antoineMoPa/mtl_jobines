@@ -1,25 +1,53 @@
 # Vehicle blockouts
 
-The research page, editable Claydash scenes and game use the same exported GLBs.
-All 17 vehicles have a first detail pass, currently about 1,100–2,700 triangles each.
-Native sheet bends shape roofs, hoods and plow blades; circular sheet cuts form
-wheel arches. Glazing, mirrors, doors, lights and equipment remain separate parts.
-Names and performance are fictional blockout tuning, not manufacturer specifications.
+The game uses 19 checked-in models: ten new consumer studies and nine preserved
+taxi, municipal, emergency, transit and rail assets. Consumer models retain the
+research geometry (13,740–117,144 triangles each), transparent glass and interiors.
+Names and performance are fictional arcade tuning, not manufacturer specifications.
+The original research page retains its earlier embedded model snapshots.
 
 Assets live in `data/vehicle/<category>/<fictive-name>/`:
 
-- `model.claydash`: native editable formed sheets, boxes and 12-sided wheels.
+- `model.claydash`: native editable source scene.
 - `model.glb`: Claydash CLI export with axle-local wheel pivots packaged losslessly.
 - `vehicle.json`: identity, dimensions, SI physics settings and QA metadata.
+
+### Consumer-study runtime integration
+
+The ten completed second-pass scenes and exports come from
+`research/montreal-vehicle-2/studies/`. Three existing identities match the original
+research headings; seven new fictional identities replace unmatched consumer entries.
+Old asset folders remain available locally but are absent from the active catalog.
+
+| Current asset folder | Research ID | Study |
+| --- | --- | --- |
+| `pickup/castor-rive` | `vehicle-v2-01` | `01` |
+| `suv/laurent-traverse` | `vehicle-05` | `02` |
+| `suv/boreal-crete` | `vehicle-v2-03` | `03` |
+| `suv/laurent-bosquet` | `vehicle-v2-04` | `04` |
+| `pickup/castor-chene` | `vehicle-v2-05` | `05` |
+| `suv/boreal-colline` | `vehicle-12` | `06` |
+| `pickup/castor-granit` | `vehicle-v2-07` | `07` |
+| `suv/boreal-rivage` | `vehicle-v2-08` | `08` |
+| `compact/laurent-clair` | `vehicle-v2-09` | `09` |
+| `suv/boreal-sentier` | `vehicle-04` | `10` |
+
+The Rust [runtime packager](../../research/montreal-vehicle-2/tools/runtime-packager/README.md)
+rotates each source into the game frame, scales it uniformly, grounds its tires and
+assembles four axle-local wheels including every rim, hub and lug. Its `audit.json`
+records bounds, pivots and component membership. Geometry fields update to match;
+the three existing vehicles retain their handling and sound settings. The saved
+scene is authoritative; embedded DSL may describe an earlier foundation.
 
 `researchId` links each model to a stable card anchor in the exploration page.
 For example, `vehicle-j03` links to `research/montreal-vehicles/index.html#vehicle-j03`.
 These neutral IDs are independent of headings and vehicle names.
 Real names are retained only in raw frequency research; runtime data uses fictional names.
-`catalog.json` preserves exploration-page order. `src/dynamic_world/catalog.rs` embeds
+`catalog.json` orders the ten studies followed by preserved special assets.
+`src/dynamic_world/catalog.rs` embeds
 these files into both native and web builds; add its `asset!` entry for a new vehicle.
-15 road vehicles park on supported, unoccupied ground near the selected spawn. On the
-default map they are all within 21 m. Restricted custom maps can have fewer parking spaces.
+17 road vehicles park on supported, unoccupied ground near the selected spawn.
+Restricted custom maps can have fewer parking spaces.
 Subway and commuter rail models are display assets;
 rail driving and vehicle missions are future work.
 
@@ -39,7 +67,8 @@ Every wheel mesh is centered on its axle, with its cylinder axis along local Z.
 The node translation positions that axle in the vehicle. The export packager moves
 baked positions into wheel-local coordinates and records `role`, `steer` and
 `axleAxis` in node extras. Node names are the runtime contract; a misspelled
-`wheel_` name is rejected. Each wheel is a single opaque 12-sided cylinder.
+`wheel_` name is rejected. New consumer wheels contain multiple original material
+primitives under one named mesh; preserved special vehicles use simple cylinders.
 
 Four tire contacts at the front/rear axles support the arcade chassis, including
 six-wheel trucks. Middle wheels animate visually. Body lean does not move wheels.

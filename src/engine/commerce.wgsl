@@ -51,6 +51,43 @@ fn commerce_color(v:Output,du:vec2<f32>,dv:vec2<f32>,dx:vec3<f32>,dy:vec3<f32>)-
     let sky=textureSampleLevel(sky_environment,sky_sampler,-view,0.0).rgb*camera.sun_exposure.w;
     return vec4<f32>(mix(lit,sky/(sky+vec3<f32>(1.0)),fog),coverage);
 }
+// Colored vehicle/signal lamps carry an explicit marker; ordinary street
+// lighting retains its authored warm emission in the shared shader.
+fn lamp_color(v:Output)->vec4<f32> {
+        let eye=camera.eye_time.xyz-v.world;
+        let distance=length(eye);
+        let radiance=v.color*2.0*camera.sun_exposure.w;
+        let lit=radiance/(radiance+vec3<f32>(1.0));
+        let fog=1.0-exp(-distance*0.025)*(1.0-smoothstep(5.8,7.6,distance));
+        let sky=textureSampleLevel(sky_environment,sky_sampler,-eye/max(distance,0.00001),0.0).rgb*camera.sun_exposure.w;
+        return vec4<f32>(mix(lit,sky/(sky+vec3<f32>(1.0)),fog),1.0);
+}
+// No reachable discard, preserving early depth rejection for opaque scenery.
+@fragment fn fs_opaque_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
+    let surface=prepare_surface(v);
+    if v.surface.x>8.5 && v.surface.x<9.5 && v.surface.w>=2.0 && v.surface.w<=13.0 {
+        let strip=v.surface.w>=10.0;
+        let state=u32(v.surface.w)-select(2u,10u,strip);
+        // A small inset segment of each original lens is clear for reversing.
+        // Continuous bars retain their silhouette with two end segments.
+        let u=v.fence_uv.x;let z=v.fence_uv.y;
+        let clear_lens=select(u>0.18 && u<0.82 && z>0.12 && z<0.32,
+            ((u>0.08 && u<0.14)||(u>0.86 && u<0.92)) && z>0.18 && z<0.82,strip);
+        let lit_lens=select((state&1u)!=0u,(state&2u)!=0u,clear_lens);
+        var lens=v;
+        lens.surface.x=7.0;
+        if clear_lens {lens.color=vec3<f32>(0.62,0.65,0.64);}
+        if lit_lens {
+            lens.color=select(vec3<f32>(1.0,0.001,0.0005),vec3<f32>(1.0,1.0,0.98),clear_lens);
+            return lamp_color(lens);
+        }
+        return shade_surface(lens,front,1.0,surface);
+    }
+    if v.surface.x>8.5 && v.surface.x<9.5 && v.surface.w==1.0 {
+        return lamp_color(v);
+    }
+    return shade_surface(v,front,1.0,surface);
+}
 @fragment fn fs_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
     let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);let dx=dpdx(v.world);let dy=dpdy(v.world);
     let surface=prepare_surface(v);let footprint=fwidth(v.fence_uv);

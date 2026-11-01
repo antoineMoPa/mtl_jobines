@@ -37,7 +37,7 @@ impl DynamicWorld {
                     },
                 )
                 .ok()?;
-                vehicle.definition = Some(id);
+                vehicle.set_catalog_model(Some(id));
                 for other in &self.vehicles {
                     let delta = point - other.position.truncate();
                     if delta.dot(forward).abs() < (dims.length + other.length()) * 0.5 + 2.
@@ -102,16 +102,20 @@ mod tests {
             .join("opencity/examples/default_map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
         let world = DynamicWorld::new(&hermes);
+        let road_count = catalog::definitions()
+            .iter()
+            .filter(|d| d.config.road_vehicle)
+            .count();
         assert_eq!(
             world.vehicles.len() - world.traffic.count(),
-            15,
+            road_count,
             "default map must offer all road vehicles"
         );
         let origin = world.vehicles[0].position;
         let rows = world
             .vehicles
             .iter()
-            .take(15)
+            .take(road_count)
             .map(|v| {
                 assert!(
                     v.position.distance(origin) < 120.,
@@ -133,10 +137,24 @@ mod tests {
     fn all_road_vehicles_spawn_separately_and_reset_retains_selected_model() {
         let hermes = Hermes::test_map();
         let mut world = DynamicWorld::new(&hermes);
-        assert_eq!(world.vehicles.len() - world.traffic.count(), 15);
-        for (i, a) in world.vehicles.iter().take(15).enumerate() {
+        let road_count = catalog::definitions()
+            .iter()
+            .filter(|d| d.config.road_vehicle)
+            .count();
+        assert_eq!(world.vehicles.len() - world.traffic.count(), road_count);
+        for (i, a) in world.vehicles.iter().take(road_count).enumerate() {
             assert_eq!(a.definition, Some(i));
             assert!(a.definition().unwrap().config.road_vehicle);
+            let surface = hermes
+                .city()
+                .surface_at(
+                    (a.position.truncate() / METERS_PER_UNIT).to_array(),
+                    (a.position.z + 0.4) / METERS_PER_UNIT,
+                )
+                .unwrap();
+            assert!(
+                (a.position.z - a.ride_height() - surface.height * METERS_PER_UNIT).abs() < 0.001
+            );
             for b in &world.vehicles[..i] {
                 assert!(a.position.distance(b.position) > 3.);
             }
@@ -144,6 +162,18 @@ mod tests {
         world.player_vehicle = super::super::VehicleId(9);
         world.reset_player(&hermes);
         assert_eq!(world.player().definition, Some(9));
+        let player = world.player();
+        let surface = hermes
+            .city()
+            .surface_at(
+                (player.position.truncate() / METERS_PER_UNIT).to_array(),
+                (player.position.z + 0.4) / METERS_PER_UNIT,
+            )
+            .unwrap();
+        assert!(
+            (player.position.z - player.ride_height() - surface.height * METERS_PER_UNIT).abs()
+                < 0.001
+        );
     }
     #[test]
     fn every_road_model_drives_and_renders_steering_wheels() {

@@ -342,6 +342,9 @@ impl Game {
                 .unwrap_or(-1.);
             self.eye.z = self.eye.z.max(terrain);
         }
+        self.eye = self
+            .world
+            .camera_eye(&self.hermes, p + Vec3::Z * 0.014, self.eye);
         let sound_eye = self.eye * METERS_PER_UNIT;
         let sound_velocity = self.sound_eye.map_or(Vec3::ZERO, |previous| {
             if elapsed > 0.0001 {
@@ -379,6 +382,7 @@ impl Game {
         renderer.overlay = self.overlay;
         renderer.menu_selection = self.menu_selection;
         renderer.fps = self.frame_rate.value;
+        renderer.vehicle_name = self.world.vehicle_name_notice().map(str::to_owned);
         let mut meshes = self.scenery.as_ref().unwrap().visible(center);
         meshes.push(car);
         meshes.extend(self.prop_scenery.visible());
@@ -888,6 +892,7 @@ pub fn run() -> Result<(), String> {
             SmokeOptions {
                 overview: args.iter().any(|a| a == "--overview"),
                 vehicle_lineup: args.iter().any(|a| a == "--vehicle-lineup"),
+                vehicle_lamps: args.iter().any(|a| a == "--vehicle-lamps"),
                 hood: args.iter().any(|a| a == "--hood"),
                 profile: args
                     .iter()

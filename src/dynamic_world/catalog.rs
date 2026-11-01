@@ -58,6 +58,31 @@ fn part_role(name: &str) -> Result<PartRole, String> {
         _ => Ok(PartRole::Body),
     }
 }
+/// Exact authored lens names; body panels and emergency beacons are excluded.
+fn rear_lens(name: &str) -> bool {
+    matches!(
+        name,
+        "rear_lamp0"
+            | "rear_lamp1"
+            | "rear_lamp_-1"
+            | "rear_lamp_1"
+            | "taillight_-1"
+            | "taillight_1"
+            | "taill"
+            | "tailr"
+            | "tailL"
+            | "tailR"
+            | "tail_lamp0"
+            | "tail_lamp1"
+            | "taillampm"
+            | "taillampp"
+            | "tail1"
+            | "tail2"
+            | "rearLamp0"
+            | "rearLamp2"
+            | "rear_lamp"
+    )
+}
 struct Part {
     role: PartRole,
     pivot: Vec3,
@@ -66,11 +91,15 @@ struct Part {
 pub struct Definition {
     pub config: Config,
     parts: Vec<Part>,
+    rear_lenses: Vec<Vertex>,
 }
 fn game_vector(p: [f32; 3]) -> Vec3 {
     Vec3::new(p[0], -p[2], p[1])
 }
 impl Definition {
+    pub(super) fn rear_lenses(&self) -> &[Vertex] {
+        &self.rear_lenses
+    }
     fn load(config: &[u8], bytes: &[u8]) -> Result<Self, String> {
         let config: Config = serde_json::from_slice(config).map_err(|e| e.to_string())?;
         config.sound.validate()?;
@@ -103,12 +132,14 @@ impl Definition {
         let glb = gltf::Gltf::from_slice(bytes).map_err(|e| e.to_string())?;
         let binary = glb.blob.as_deref().ok_or("GLB has no embedded buffer")?;
         let mut parts = Vec::new();
+        let mut rear_lenses = Vec::new();
         fn walk(
             node: gltf::Node<'_>,
             parent: Mat4,
             binary: &[u8],
             ride: f32,
             parts: &mut Vec<Part>,
+            rear_lenses: &mut Vec<Vertex>,
         ) -> Result<(), String> {
             let transform = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
             if let Some(mesh) = node.mesh() {
@@ -137,6 +168,17 @@ impl Definition {
                         .material()
                         .pbr_metallic_roughness()
                         .base_color_factor();
+                    let coverage = match primitive.material().alpha_mode() {
+                        gltf::material::AlphaMode::Opaque => 1.,
+                        gltf::material::AlphaMode::Blend => color[3].clamp(0., 1.),
+                        gltf::material::AlphaMode::Mask => {
+                            if color[3] >= primitive.material().alpha_cutoff().unwrap_or(0.5) {
+                                1.
+                            } else {
+                                0.
+                            }
+                        }
+                    };
                     for index in indices {
                         let i = index as usize;
                         let position = positions.get(i).ok_or("Index outside positions")?;
@@ -161,18 +203,43 @@ impl Definition {
                             )
                             .to_array(),
                             color: [color[0], color[1], color[2]],
-                            surface: [SurfaceKind::Prop as u32 as f32, 0., 0., 0.],
+                            // Vehicle shaders use y as MSAA coverage for GLB glass.
+                            surface: [SurfaceKind::Prop as u32 as f32, coverage, 0., 0.],
                         });
                     }
                 }
-                parts.push(Part {
-                    role,
-                    pivot,
-                    vertices,
-                });
+                if rear_lens(node.name().unwrap_or("")) {
+                    let (lo, hi) = vertices.iter().fold(
+                        (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+                        |(lo, hi), v| {
+                            let p = Vec3::from_array(v.position);
+                            (lo.min(p), hi.max(p))
+                        },
+                    );
+                    // Lens coordinates select an inset white segment without
+                    // adding vertices or changing the authored lens silhouette.
+                    let width = (hi.y - lo.y).max(0.001);
+                    let height = (hi.z - lo.z).max(0.001);
+                    let strip = lo.y < -0.2 && hi.y > 0.2;
+                    for mut vertex in vertices {
+                        vertex.surface = [
+                            SurfaceKind::Light as u32 as f32,
+                            (vertex.position[1] - lo.y) / width,
+                            (vertex.position[2] - lo.z) / height,
+                            if strip { 10. } else { 2. },
+                        ];
+                        rear_lenses.push(vertex);
+                    }
+                } else {
+                    parts.push(Part {
+                        role,
+                        pivot,
+                        vertices,
+                    });
+                }
             }
             for child in node.children() {
-                walk(child, transform, binary, ride, parts)?;
+                walk(child, transform, binary, ride, parts, rear_lenses)?;
             }
             Ok(())
         }
@@ -183,6 +250,7 @@ impl Definition {
                 binary,
                 config.physics.height_offset,
                 &mut parts,
+                &mut rear_lenses,
             )?;
         }
         if parts.is_empty() {
@@ -206,9 +274,13 @@ impl Definition {
                 vertices: body,
             },
         );
+        if rear_lenses.is_empty() {
+            return Err(format!("Missing authored rear lenses: {}", config.name));
+        }
         Ok(Self {
             config,
             parts: articulated,
+            rear_lenses,
         })
     }
     pub fn part_vertices(&self) -> impl Iterator<Item = &[Vertex]> {
@@ -301,14 +373,16 @@ pub fn definitions() -> &'static [Definition] {
     })
 }
 const ASSETS: &[(&[u8], &[u8])] = &[
-    asset!("compact/laurent-laurentien"),
-    asset!("suv/boreal-sentier"),
+    asset!("pickup/castor-rive"),
     asset!("suv/laurent-traverse"),
-    asset!("hatchback/montcalm-trois"),
-    asset!("hatchback/laurent-moineau"),
-    asset!("hatchback/boreal-echo"),
-    asset!("minivan/castor-familial"),
+    asset!("suv/boreal-crete"),
+    asset!("suv/laurent-bosquet"),
+    asset!("pickup/castor-chene"),
     asset!("suv/boreal-colline"),
+    asset!("pickup/castor-granit"),
+    asset!("suv/boreal-rivage"),
+    asset!("compact/laurent-clair"),
+    asset!("suv/boreal-sentier"),
     asset!("taxi/bonjour-electrique"),
     asset!("bus/saint-laurent-urbain"),
     asset!("municipal/castor-blizzard"),
@@ -324,14 +398,94 @@ const ASSETS: &[(&[u8], &[u8])] = &[
 mod tests {
     use super::*;
     #[test]
+    fn authored_lenses_are_moved_once_without_adding_or_dropping_source_triangles() {
+        for (definition, (_, bytes)) in definitions().iter().zip(ASSETS) {
+            let glb = gltf::Gltf::from_slice(bytes).unwrap();
+            let source_vertices: usize = glb
+                .meshes()
+                .flat_map(|m| m.primitives())
+                .map(|p| p.indices().unwrap().count())
+                .sum();
+            let lamp_vertices: usize = glb
+                .nodes()
+                .filter(|n| rear_lens(n.name().unwrap_or("")))
+                .flat_map(|n| n.mesh().unwrap().primitives())
+                .map(|p| p.indices().unwrap().count())
+                .sum();
+            assert_eq!(
+                definition.rear_lenses.len(),
+                lamp_vertices,
+                "{}",
+                definition.config.name
+            );
+            assert_eq!(
+                definition
+                    .parts
+                    .iter()
+                    .map(|part| part.vertices.len())
+                    .sum::<usize>()
+                    + definition.rear_lenses.len(),
+                source_vertices,
+                "{}",
+                definition.config.name
+            );
+            assert!(
+                definition
+                    .rear_lenses
+                    .iter()
+                    .all(|v| v.color[0] > v.color[1] * 1.5 && v.color[0] > v.color[2] * 1.5),
+                "only authored red rear lenses: {}",
+                definition.config.name
+            );
+        }
+        for name in [
+            "tailgate",
+            "tailgate_inset",
+            "rear_bumper",
+            "lamp0",
+            "frontlamp0",
+        ] {
+            assert!(!rear_lens(name), "non-lens part must stay intact: {name}");
+        }
+    }
+    #[test]
+    fn bundled_catalog_matches_the_manifest_and_consumer_glass_survives_loading() {
+        let manifest: Vec<serde_json::Value> =
+            serde_json::from_slice(include_bytes!("../../data/vehicle/catalog.json")).unwrap();
+        assert_eq!(manifest.len(), definitions().len());
+        for (entry, definition) in manifest.iter().zip(definitions()) {
+            assert_eq!(entry["name"], definition.config.name);
+            assert_eq!(entry["researchId"], definition.config.research_id);
+            assert_eq!(entry["roadVehicle"], definition.config.road_vehicle);
+        }
+        let studies = definitions()
+            .iter()
+            .filter(|d| d.config.qa["packager"] == "runtime-packager")
+            .collect::<Vec<_>>();
+        assert_eq!(studies.len(), 10);
+        for definition in studies {
+            let vertices = definition.parts.iter().flat_map(|p| &p.vertices);
+            assert!(vertices
+                .clone()
+                .any(|v| (v.surface[1] - 0.7).abs() < 0.0001));
+            assert!(vertices.clone().any(|v| v.surface[1] == 1.));
+            assert!(vertices.clone().all(|v| (0. ..=1.).contains(&v.surface[1])));
+            for wheel in definition.parts.iter().filter(|p| p.role != PartRole::Body) {
+                // Tires and metal rim/hub details must move together at one axle.
+                let first = wheel.vertices[0].color;
+                assert!(wheel.vertices.iter().any(|v| v.color != first));
+            }
+        }
+    }
+    #[test]
     fn every_export_loads_with_four_or_six_axle_local_wheels_and_si_data() {
-        assert_eq!(definitions().len(), 17);
+        assert_eq!(definitions().len(), 19);
         assert_eq!(
             definitions()
                 .iter()
                 .filter(|d| d.config.road_vehicle)
                 .count(),
-            15
+            17
         );
         let mut page_ids = std::collections::HashSet::new();
         for def in definitions() {

@@ -40,6 +40,8 @@ fn one_driver(
         next: None,
         stopped: false,
         stranded: 0.,
+        stop_wait: 0.,
+        stop_arrival: None,
     });
     (traffic, vec![car])
 }
@@ -155,6 +157,134 @@ fn red_light_stops_before_line_then_green_releases_traffic() {
     assert_ne!(traffic.drivers[0].path, path, "failed to leave on green");
 }
 #[test]
+fn hitting_a_signal_detaches_it_and_turns_the_whole_junction_dark() {
+    let (city, graph) = map(CROSS);
+    let mut traffic = Traffic::new(&graph);
+    let signal = &graph.signals[0];
+    let right = Vec3::new(signal.forward.y, -signal.forward.x, 0.);
+    let base = signal.position + right * 2.8;
+    let mut car = Vehicle::spawn(&city);
+    car.set_catalog_model(Some(0));
+    car.yaw = signal.forward.y.atan2(signal.forward.x);
+    let before = base - signal.forward * 8. + Vec3::Z * car.ride_height();
+    car.position = base + signal.forward * 5. + Vec3::Z * car.ride_height();
+    car.velocity = signal.forward * 14.;
+    traffic.vehicle_move(&mut car, before, &city);
+    assert!(!traffic.signal_props.group_intact(0));
+    assert!(traffic.failed_junctions.contains(&signal.junction));
+    assert!(car.collisions > 0);
+    let mut mesh = opencity::runtime::Mesh::default();
+    traffic.append_signals(&mut mesh, base);
+    assert!(
+        !mesh.vertices.is_empty(),
+        "fallen pole and standing signals remain visible"
+    );
+    assert!(mesh
+        .vertices
+        .iter()
+        .all(|v| v.surface[0] != opencity::runtime::SurfaceKind::Light as u32 as f32));
+    for _ in 0..1201 {
+        traffic.step_debris(1. / 120.);
+    }
+    assert!(
+        !traffic.signal_props.group_intact(0),
+        "signals do not respawn after debris expires"
+    );
+    assert!(traffic.failed_junctions.contains(&signal.junction));
+}
+
+#[test]
+fn failed_signal_requires_a_full_stop_then_releases_even_on_red() {
+    let (city, graph) = map(CROSS);
+    let path = graph
+        .paths
+        .iter()
+        .position(|p| !p.next.is_empty() && graph.paths[p.next[0]].signal.is_some())
+        .unwrap();
+    let signal = graph.paths[graph.paths[path].next[0]].signal.unwrap();
+    let junction = graph.signals[signal].junction;
+    let (mut traffic, mut cars) = one_driver(&city, &graph, path, graph.paths[path].length - 25.);
+    traffic.failed_junctions.insert(junction);
+    let mut stopped_ticks = 0;
+    let mut crossed = false;
+    for _ in 0..900 {
+        // Hold the normal signal red to prove failure mode overrides its clock.
+        traffic.time = ((graph.signals[signal].phase + 1) % 2) as f32 * 14.;
+        tick(&mut traffic, &city, &mut cars, 1. / 60.);
+        if traffic.drivers[0].path == path && cars[0].velocity.length() < 0.5 {
+            stopped_ticks += 1;
+        }
+        if traffic.drivers[0].path != path {
+            crossed = true;
+            break;
+        }
+    }
+    assert!(crossed, "failed signal left traffic stuck");
+    assert!(
+        stopped_ticks >= 60,
+        "driver rolled through without a one-second stop: {stopped_ticks}"
+    );
+}
+
+#[test]
+fn all_way_stop_reserves_one_crossing_in_arrival_order() {
+    let (city, graph) = map(CROSS);
+    let approaches: Vec<_> = graph
+        .paths
+        .iter()
+        .enumerate()
+        .filter_map(|(id, path)| {
+            path.next
+                .first()
+                .and_then(|&next| graph.paths[next].signal.map(|signal| (id, next, signal)))
+        })
+        .collect();
+    let (path, next, signal) = approaches[0];
+    let (mut traffic, mut cars) = one_driver(&city, &graph, path, graph.paths[path].length - 4.5);
+    let junction = graph.signals[signal].junction;
+    traffic.failed_junctions.insert(junction);
+    traffic.drivers[0].next = Some(next);
+    traffic.drivers[0].stop_wait = 1.;
+    traffic.drivers[0].stop_arrival = Some(1.);
+    let (other_path, other_next, _) = approaches
+        .iter()
+        .copied()
+        .find(|(_, _, id)| *id != signal)
+        .unwrap();
+    let (other_traffic, mut other_cars) = one_driver(
+        &city,
+        &graph,
+        other_path,
+        graph.paths[other_path].length - 4.5,
+    );
+    cars.push(other_cars.remove(0));
+    let mut driver = other_traffic.drivers.into_iter().next().unwrap();
+    driver.vehicle = 1;
+    driver.next = Some(other_next);
+    driver.stop_wait = 1.;
+    driver.stop_arrival = Some(2.);
+    traffic.drivers.push(driver);
+    // Exact stop-line placement is based on each model's length.
+    for driver in &traffic.drivers {
+        let car = &mut cars[driver.vehicle];
+        let at = graph.paths[driver.path].length - car.length() * 0.5 - 1.5;
+        car.position = graph.paths[driver.path].sample(at).0 + Vec3::Z * car.ride_height();
+    }
+    traffic.time = 3.;
+    traffic.update_stop_priority(&cars, 1. / 60.);
+    assert_eq!(traffic.crossing.get(&junction), Some(&0));
+    traffic.update_stop_priority(&cars, 1. / 60.);
+    assert_eq!(
+        traffic.crossing.get(&junction),
+        Some(&0),
+        "second approach must wait"
+    );
+    traffic.release(0);
+    cars[0].position += Vec3::Z * 20.;
+    traffic.update_stop_priority(&cars, 1. / 60.);
+    assert_eq!(traffic.crossing.get(&junction), Some(&1));
+}
+#[test]
 fn drivers_move_follow_speed_limit_and_brake_for_parked_cars() {
     let (city, graph) = map(STRAIGHT);
     let (mut traffic, mut cars) = one_driver(&city, &graph, 1, 120.);
@@ -201,7 +331,8 @@ fn physical_contact_deflects_npc_and_takeover_removes_ai_control() {
     let (city, graph) = map(STRAIGHT);
     let (mut traffic, mut cars) = one_driver(&city, &graph, 1, 120.);
     let mut player = Vehicle::spawn(&city);
-    player.position = cars[0].position - Vec3::X * 3.;
+    player.position =
+        cars[0].position - Vec3::X * ((player.length() + cars[0].length()) * 0.5 - 0.1);
     player.yaw = cars[0].yaw;
     player.velocity = Vec3::X * 12.;
     cars.push(player);

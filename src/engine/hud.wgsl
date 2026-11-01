@@ -1,4 +1,4 @@
-struct Hud { rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, destination:vec4<f32>, performance:vec4<f32> };
+struct Hud { rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, vehicle:vec4<f32>, vehicle_letters:array<vec4<u32>,12> };
 @group(0) @binding(0) var chart:texture_2d<f32>;
 @group(0) @binding(1) var filtering:sampler;
 @group(0) @binding(2) var<uniform> hud:Hud;
@@ -11,6 +11,7 @@ struct Vertex { @builtin(position) position:vec4<f32>, @location(0) uv:vec2<f32>
         let size=max(1.,min(clamp(min(hud.screen.x,hud.screen.y)*0.29,60.,340.),min(hud.screen.x,hud.screen.y)-16.));
         rect=vec4<f32>(16.,hud.screen.y-size-16.,size,size);
         if index>=6u {rect=fps_rect();}
+        if index>=12u {rect=vehicle_rect();}
     }
     let p=rect.xy+uv*rect.zw;
     var out:Vertex;out.position=vec4<f32>(p.x/hud.screen.x*2.-1.,1.-p.y/hud.screen.y*2.,0.,1.);
@@ -33,36 +34,50 @@ fn glyph(code:u32)->u32 {
         case 55u: {return 4334111u;}
         case 56u: {return 15252014u;}
         case 57u: {return 15235630u;}
-        case 65u: {return 18415150u;}
-        case 66u: {return 16301615u;}
-        case 67u: {return 31491134u;}
-        case 68u: {return 16303663u;}
-        case 69u: {return 32554047u;}
-        case 70u: {return 1096767u;}
-        case 71u: {return 32044094u;}
-        case 72u: {return 18415153u;}
-        case 73u: {return 32641183u;}
-        case 74u: {return 6594844u;}
-        case 75u: {return 18128177u;}
-        case 76u: {return 32539681u;}
-        case 77u: {return 18405233u;}
-        case 78u: {return 18667121u;}
-        case 79u: {return 15255086u;}
-        case 80u: {return 1097263u;}
-        case 81u: {return 32294446u;}
-        case 82u: {return 18136623u;}
-        case 83u: {return 16267326u;}
-        case 84u: {return 4329631u;}
-        case 85u: {return 15255089u;}
-        case 86u: {return 4539953u;}
-        case 87u: {return 18732593u;}
-        case 88u: {return 18157905u;}
-        case 89u: {return 4329809u;}
-        case 90u: {return 32575775u;}
+        case 65u, 97u: {return 18415150u;}
+        case 66u, 98u: {return 16301615u;}
+        case 67u, 99u: {return 31491134u;}
+        case 68u, 100u: {return 16303663u;}
+        case 69u, 101u: {return 32554047u;}
+        case 70u, 102u: {return 1096767u;}
+        case 71u, 103u: {return 32044094u;}
+        case 72u, 104u: {return 18415153u;}
+        case 73u, 105u: {return 32641183u;}
+        case 74u, 106u: {return 6594844u;}
+        case 75u, 107u: {return 18128177u;}
+        case 76u, 108u: {return 32539681u;}
+        case 77u, 109u: {return 18405233u;}
+        case 78u, 110u: {return 18667121u;}
+        case 79u, 111u: {return 15255086u;}
+        case 80u, 112u: {return 1097263u;}
+        case 81u, 113u: {return 32294446u;}
+        case 82u, 114u: {return 18136623u;}
+        case 83u, 115u: {return 16267326u;}
+        case 84u, 116u: {return 4329631u;}
+        case 85u, 117u: {return 15255089u;}
+        case 86u, 118u: {return 4539953u;}
+        case 87u, 119u: {return 18732593u;}
+        case 88u, 120u: {return 18157905u;}
+        case 89u, 121u: {return 4329809u;}
+        case 90u, 122u: {return 32575775u;}
         default: {return 0u;}
     }
 }
 fn fps_scale()->f32 {return clamp(hud.screen.y/800.0,1.0,2.0);}
+fn vehicle_scale()->f32 {return min(2.0*fps_scale(),max(0.5,(hud.screen.x-40.0)/max(6.0*hud.vehicle.x,1.0)));}
+fn vehicle_rect()->vec4<f32> {
+    let scale=vehicle_scale();
+    let width=hud.vehicle.x*6.0*scale+20.0;
+    return vec4<f32>(hud.screen.x-width-16.0,hud.screen.y-48.0,width,32.0);
+}
+fn vehicle_lettering(p:vec2<f32>)->bool {
+    let q=(p-vehicle_rect().xy-vec2<f32>(10.0,10.0))/vehicle_scale();
+    if q.x<0.0 || q.y<0.0 || q.y>=5.0 {return false;}
+    let index=u32(q.x)/6u;let col=u32(q.x)%6u;
+    if index>=u32(hud.vehicle.x) || col>=5u {return false;}
+    let code=hud.vehicle_letters[index/4u][index%4u];
+    return (glyph(code)&(1u<<(u32(q.y)*5u+col)))!=0u;
+}
 fn fps_rect()->vec4<f32> {
     let scale=fps_scale();
     return vec4<f32>(hud.screen.x-142.0*scale,16.0*scale,126.0*scale,32.0*scale);
@@ -143,6 +158,11 @@ fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32
 @fragment fn fs(v:Vertex)->@location(0) vec4<f32> {
     let p=select(v.uv*hud.rect.zw,v.uv,hud.mode.x==0.);
     let screen=hud.screen.xy;
+    if hud.mode.x==0. && inside(p,vehicle_rect()) {
+        if hud.vehicle.x<1.0 {discard;}
+        if vehicle_lettering(p) {return vec4<f32>(0.93,0.96,0.95,1.0);}
+        return vec4<f32>(0.015,0.025,0.035,0.85);
+    }
     if hud.mode.x==0. && inside(p,fps_rect()) {
         let scale=fps_scale();
         let origin=fps_rect().xy+vec2<f32>(10.0,11.0)*scale;

@@ -17,6 +17,18 @@ struct VehicleTransform {
     let model = mat4x4<f32>(instance.x, instance.y, instance.z, instance.translation);
     var o: ShadowOutput;
     o.clip = camera.light_view_projection * model * vec4<f32>(v.position, 1.0);
-    o.fence_uv = v.surface.yz; o.kind_pattern = v.surface.xw;
+    o.fence_uv = v.surface.yz; o.kind_pattern = v.surface.xy;
     return o;
+}
+// Alpha-to-coverage retains depth-correct seats behind glass without sorting
+// every triangle of each moving vehicle. Opaque parts still cover all samples.
+@fragment fn fs_vehicle(v: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+    return shade_surface(v, front, clamp(v.surface.y, 0.0, 1.0), prepare_surface(v));
+}
+@fragment fn fs_vehicle_shadow(v: ShadowOutput) {
+    let pattern = array<f32, 16>(0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
+        3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+    let pixel = vec2<u32>(v.clip.xy) % vec2<u32>(4u);
+    let threshold = (pattern[pixel.y * 4u + pixel.x] + 0.5) / 16.0;
+    if v.kind_pattern.y <= threshold { discard; }
 }

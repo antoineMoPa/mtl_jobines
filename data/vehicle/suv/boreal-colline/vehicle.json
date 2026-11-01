@@ -1,57 +1,52 @@
 {
-  "schemaVersion": 1,
-  "name": "Boreal Colline",
   "category": "suv",
-  "roadVehicle": true,
-  "model": "model.glb",
   "dimensions": {
+    "height": 2.0591542425508296,
     "length": 4.5055,
-    "width": 2.172,
-    "height": 1.652
+    "width": 2.0415546500350548
   },
+  "model": "model.glb",
+  "name": "Boreal Colline",
   "physics": {
-    "mass": 1500,
-    "maxSpeed": 44,
     "acceleration": 10.5,
     "friction": 0.9,
-    "maxSteerAngle": 0.52,
     "heightOffset": 0.65,
-    "wheelRadius": 0.32,
-    "wheelbase": 2.64,
-    "track": 1.6500000000000001
+    "mass": 1500,
+    "maxSpeed": 44,
+    "maxSteerAngle": 0.52,
+    "track": 1.6895624400560878,
+    "wheelRadius": 0.387192428437204,
+    "wheelbase": 2.896392840016025
   },
   "qa": {
-    "status": "exported",
-    "triangles": 1152,
-    "parts": 28,
-    "boxes": 15,
-    "cylinders": 4,
-    "wheelSegments": 12,
-    "wheels": [
-      "wheel_rear_left",
-      "wheel_rear_right",
-      "wheel_front_left",
-      "wheel_front_right"
-    ],
     "claydashExport": "completed",
-    "game": "drive-tested",
-    "detailPass": 1,
-    "sheetPanels": 7,
-    "sheetBends": 5,
-    "pivot": "axle-local"
+    "detailPass": 2,
+    "game": "runtime-validated",
+    "materials": 19,
+    "packager": "runtime-packager",
+    "parts": 44,
+    "pivot": "axle-local",
+    "sourceParts": 72,
+    "status": "exported",
+    "study": "06",
+    "triangles": 25180,
+    "wheels": [
+      "wheel_front_left",
+      "wheel_front_right",
+      "wheel_rear_left",
+      "wheel_rear_right"
+    ]
   },
   "researchId": "vehicle-12",
+  "roadVehicle": true,
+  "schemaVersion": 1,
   "sound": {
-    "engine": "petrol",
-    "idleRpm": 680,
-    "redlineRpm": 3600,
-    "engineGain": 1.6,
-    "firingOrder": 2,
-    "exhaustGain": 0.82,
     "bodyGain": 0.31,
-    "roughness": 0.28,
-    "mufflerHz": 600,
-    "machineryGain": 0,
+    "engine": "petrol",
+    "engineGain": 1.6,
+    "exhaustGain": 0.82,
+    "finalDrive": 3.65,
+    "firingOrder": 2,
     "gearRatios": [
       3.42,
       2.12,
@@ -60,14 +55,18 @@
       0.84,
       0.69
     ],
-    "finalDrive": 3.65,
     "horn": {
-      "kind": "dual",
       "frequenciesHz": [
         380,
         470
       ],
-      "gain": 0.65
-    }
+      "gain": 0.65,
+      "kind": "dual"
+    },
+    "idleRpm": 680,
+    "machineryGain": 0,
+    "mufflerHz": 600,
+    "redlineRpm": 3600,
+    "roughness": 0.28
   }
 }

@@ -141,6 +141,12 @@ impl Vehicle {
     pub(super) fn definition(&self) -> Option<&'static super::catalog::Definition> {
         self.definition.map(|id| &super::catalog::definitions()[id])
     }
+    pub(super) fn set_catalog_model(&mut self, definition: Option<usize>) {
+        let previous_height = self.ride_height();
+        self.definition = definition;
+        // Keep tire ground contact when selecting a model with another chassis height.
+        self.position.z += self.ride_height() - previous_height;
+    }
     #[cfg(test)]
     pub fn name(&self) -> &str {
         self.definition()

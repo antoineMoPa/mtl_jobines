@@ -51,10 +51,16 @@ mod tests {
     fn a_heavy_parked_vehicle_blocks_and_receives_less_velocity_than_a_compact() {
         let hermes = crate::hermes::Hermes::test_map();
         let mut a = Vehicle::spawn(hermes.city());
-        a.definition = Some(0);
+        a.definition = super::super::catalog::definitions()
+            .iter()
+            .position(|d| d.config.research_id == "vehicle-v2-09");
+        assert!(a.definition.is_some());
         a.yaw = 0.;
         let mut b = Vehicle::spawn(hermes.city());
-        b.definition = Some(9);
+        b.definition = super::super::catalog::definitions()
+            .iter()
+            .position(|d| d.config.research_id == "vehicle-j02");
+        assert!(b.definition.is_some());
         b.yaw = 0.;
         b.position = a.position + Vec3::X * ((a.length() + b.length()) * 0.5 - 0.1);
         a.velocity = Vec3::X * 5.;

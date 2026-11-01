@@ -1,0 +1,43 @@
+{
+  "category": "pickup",
+  "dimensions": {
+    "height": 2.3256238697767855,
+    "length": 5.800000000000001,
+    "width": 2.183296405938533
+  },
+  "model": "model.glb",
+  "name": "Castor Chene",
+  "physics": {
+    "acceleration": 11,
+    "friction": 0.9,
+    "heightOffset": 0.7,
+    "mass": 2300.0,
+    "maxSpeed": 44.0,
+    "maxSteerAngle": 0.52,
+    "track": 1.8227157290178715,
+    "wheelRadius": 0.46606325429855605,
+    "wheelbase": 3.51665251832535
+  },
+  "qa": {
+    "claydashExport": "completed",
+    "detailPass": 2,
+    "game": "runtime-validated",
+    "materials": 28,
+    "packager": "runtime-packager",
+    "parts": 81,
+    "pivot": "axle-local",
+    "sourceParts": 109,
+    "status": "exported",
+    "study": "05",
+    "triangles": 46408,
+    "wheels": [
+      "wheel_front_left",
+      "wheel_front_right",
+      "wheel_rear_left",
+      "wheel_rear_right"
+    ]
+  },
+  "researchId": "vehicle-v2-05",
+  "roadVehicle": true,
+  "schemaVersion": 1
+}

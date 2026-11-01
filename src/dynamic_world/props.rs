@@ -54,6 +54,11 @@ pub struct Props {
     ccd: CCDSolver,
 }
 impl Props {
+    pub(super) fn group_intact(&self, group: usize) -> bool {
+        self.groups[group]
+            .iter()
+            .any(|&id| self.items[id].collider.is_some())
+    }
     #[cfg(test)]
     pub fn new(meshes: Vec<Mesh>) -> Self {
         Self::from_groups(meshes.into_iter().map(|mesh| vec![mesh]).collect())

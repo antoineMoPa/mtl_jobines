@@ -1,0 +1,43 @@
+{
+  "category": "suv",
+  "dimensions": {
+    "height": 2.118003143302929,
+    "length": 4.5,
+    "width": 2.197043831933852
+  },
+  "model": "model.glb",
+  "name": "Boreal Crete",
+  "physics": {
+    "acceleration": 11.0,
+    "friction": 0.9,
+    "heightOffset": 0.7,
+    "mass": 1500.0,
+    "maxSpeed": 44.0,
+    "maxSteerAngle": 0.52,
+    "track": 1.7396248205151337,
+    "wheelRadius": 0.44051396823474676,
+    "wheelbase": 3.2234222857366537
+  },
+  "qa": {
+    "claydashExport": "completed",
+    "detailPass": 2,
+    "game": "runtime-validated",
+    "materials": 17,
+    "packager": "runtime-packager",
+    "parts": 85,
+    "pivot": "axle-local",
+    "sourceParts": 113,
+    "status": "exported",
+    "study": "03",
+    "triangles": 54736,
+    "wheels": [
+      "wheel_front_left",
+      "wheel_front_right",
+      "wheel_rear_left",
+      "wheel_rear_right"
+    ]
+  },
+  "researchId": "vehicle-v2-03",
+  "roadVehicle": true,
+  "schemaVersion": 1
+}
