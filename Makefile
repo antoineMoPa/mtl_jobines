@@ -19,11 +19,10 @@ assets:
 	cargo xtask assets
 
 fmt:
-	cargo fmt
-	cargo fmt --manifest-path xtask/Cargo.toml
+	cargo xtask
 
 lint:
-	cargo xtask
+	cargo xtask --check
 
 hooks:
 	@current=$$(git config --get core.hooksPath || true); \

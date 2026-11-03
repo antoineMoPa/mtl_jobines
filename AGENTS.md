@@ -9,3 +9,8 @@
   conversion.
 - Do not ever add real brand or people names in the source code or artworks.
 - Do not introduce new programming or scripting languages to the repo like python - stick to rust.
+
+
+# Cleanup
+
+Run cargo `xtask --staged` once done with a task to detect files to clean.

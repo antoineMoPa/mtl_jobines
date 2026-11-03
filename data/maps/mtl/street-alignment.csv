@@ -1,4 +1,4 @@
-corridor,point,reference_x,reference_y,world_x,world_y,deck_height
+corridor,point,reference_x,reference_y,legacy_world_x,legacy_world_y,legacy_deck_height
 arterial_west,0,805.000,887.000,16.406643,0.149678,0.109475
 arterial_west,1,829.929,903.608,19.425851,1.521620,0.110473
 arterial_west,2,854.412,920.056,22.395385,2.880193,0.355473

@@ -1,4 +1,4 @@
-corridor,point,reference_x,reference_y,world_x,world_y,deck_height
+corridor,point,reference_x,reference_y,legacy_world_x,legacy_world_y,legacy_deck_height
 bridge_134,0,1073.000,749.000,43.889914,-7.197495,0.350000
 bridge_134,1,1089.654,757.994,45.736768,-6.324639,0.350000
 bridge_134,2,1117.494,764.850,48.920797,-5.643250,0.350000

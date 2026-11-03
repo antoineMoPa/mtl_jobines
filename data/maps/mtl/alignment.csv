@@ -1,4 +1,4 @@
-point,reference_x,reference_y,world_x,world_y,deck_height
+point,reference_x,reference_y,legacy_world_x,legacy_world_y,legacy_deck_height
 0,1216.000,720.000,75.101127,14.811726,0.109412
 1,1183.000,715.974,70.268177,14.307176,0.109412
 2,1161.000,712.895,67.029370,13.925818,0.139394

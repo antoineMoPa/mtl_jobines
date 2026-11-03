@@ -1,612 +1,1612 @@
-# Work-in-progress terrain, independent highways and major streets.
-# Reference-image mappings and endpoint coordinates: README.md and CSV files.
 elevation_map("elevation.png", -76.8, -76.8, 153.6, 153.6, -0.18, 1.2);
+
 water_level(0);
 
 road interstate_three_lane:
     verge carlane carlane carlane middle carlane carlane carlane verge;
-    direction both;
     role highway;
 end
 
-main_p000 = map_point(75.101127, 14.811726);
-main_p001 = map_point(70.268177, 14.307176);
-main_p002 = map_point(67.029370, 13.925818);
-main_p003 = map_point(63.786074, 13.532462);
-main_p004 = map_point(60.557371, 13.178098);
-main_p005 = map_point(57.391534, 12.991703);
-main_p006 = map_point(54.239168, 12.841302);
-main_p007 = map_point(51.073331, 12.654907);
-main_p008 = map_point(47.746038, 12.413139);
-main_p009 = map_point(42.770517, 11.527661);
-main_p010 = map_point(42.247060, 11.633108);
-main_p011 = map_point(41.799941, 11.942518);
-main_p012 = map_point(40.533073, 13.821802);
-main_p013 = map_point(39.786472, 14.459077);
-main_p014 = map_point(38.614934, 14.713004);
-main_p015 = map_point(37.155647, 14.574122);
-main_p016 = map_point(36.034097, 14.209585);
-main_p017 = map_point(33.256043, 12.803217);
-main_p018 = map_point(32.119584, 12.398846);
-main_p019 = map_point(28.621717, 10.573289);
-main_p020 = map_point(25.159113, 8.841949);
-main_p021 = map_point(22.048593, 7.675316);
-main_p022 = map_point(17.648156, 5.694296);
-main_p023 = map_point(14.184978, 3.585410);
-main_p024 = map_point(12.366211, 2.862058);
-main_p025 = map_point(10.151569, 1.456995);
-southern_span_000 = interstate_three_lane(main_p000, 73.490144, 14.643543, 71.878213, 14.483884, main_p001);
-grade(southern_span_000, 0.109412, 0.109412);
-southern_span_001 = interstate_three_lane(main_p001, 69.187628, 14.188581, 68.108747, 14.054820, main_p002);
-grade(southern_span_001, 0.109412, 0.139394);
-southern_span_002 = interstate_three_lane(main_p002, 65.948046, 13.796582, 64.867881, 13.657444, main_p003);
-grade(southern_span_002, 0.139394, 0.270076);
-southern_span_003 = interstate_three_lane(main_p003, 62.710548, 13.408205, 61.635873, 13.269302, main_p004);
-grade(southern_span_003, 0.270076, 0.400000);
-southern_span_004 = interstate_three_lane(main_p004, 59.504360, 13.089050, 58.447125, 13.047972, main_p005);
-grade(southern_span_004, 0.400000, 0.400000);
-southern_span_005 = interstate_three_lane(main_p005, 56.341057, 12.935707, 55.289644, 12.897298, main_p006);
-grade(southern_span_005, 0.400000, 0.400000);
-southern_span_006 = interstate_three_lane(main_p006, 53.183576, 12.785033, 52.128122, 12.724461, main_p007);
-grade(southern_span_006, 0.400000, 0.400000);
-southern_span_007 = interstate_three_lane(main_p007, 49.963745, 12.581740, 48.846535, 12.562550, main_p008);
-grade(southern_span_007, 0.400000, 0.266557);
-southern_span_008 = interstate_three_lane(main_p008, 46.078930, 12.186801, 44.428344, 11.762824, main_p009);
-grade(southern_span_008, 0.266557, 0.109412);
-route_15_009 = interstate_three_lane(main_p009, 42.595352, 11.502813, 42.407357, 11.564592, main_p010);
-grade(route_15_009, 0.109412, 0.109412);
-route_15_010 = interstate_three_lane(main_p010, 42.083832, 11.702877, 41.910487, 11.801354, main_p011);
-grade(route_15_010, 0.109412, 0.109412);
-route_15_011 = interstate_three_lane(main_p011, 41.339158, 12.530919, 41.001396, 13.236462, main_p012);
-grade(route_15_011, 0.109412, 0.109412);
-route_15_012 = interstate_three_lane(main_p012, 40.330240, 14.075315, 40.074323, 14.325336, main_p013);
-grade(route_15_012, 0.109412, 0.109412);
-route_15_013 = interstate_three_lane(main_p013, 39.434944, 14.622404, 39.009446, 14.695752, main_p014);
-grade(route_15_013, 0.109412, 0.109412);
-route_15_014 = interstate_three_lane(main_p014, 38.132504, 14.734101, 37.632387, 14.667115, main_p015);
-grade(route_15_014, 0.109412, 0.109425);
-route_15_015 = interstate_three_lane(main_p015, 36.772108, 14.499308, 36.391171, 14.371741, main_p016);
-grade(route_15_015, 0.109425, 0.123422);
-route_15_016 = interstate_three_lane(main_p016, 35.091303, 13.781439, 34.196537, 13.238262, main_p017);
-grade(route_15_016, 0.123422, 0.153798);
-route_15_017 = interstate_three_lane(main_p017, 32.891699, 12.634682, 32.481278, 12.572885, main_p018);
-grade(route_15_017, 0.153798, 0.202048);
-route_15_018 = interstate_three_lane(main_p018, 30.936503, 11.829575, 29.792817, 11.171737, main_p019);
-grade(route_15_018, 0.202048, 0.202048);
-route_15_019 = interstate_three_lane(main_p019, 27.472661, 9.986105, 26.338277, 9.361822, main_p020);
-grade(route_15_019, 0.202048, 0.194368);
-route_15_020 = interstate_three_lane(main_p020, 24.147236, 8.395831, 23.069395, 8.103109, main_p021);
-grade(route_15_020, 0.194368, 0.117662);
-route_15_021 = interstate_three_lane(main_p021, 20.565743, 7.053891, 19.072550, 6.435130, main_p022);
-grade(route_15_021, 0.117662, 0.111587);
-route_15_022 = interstate_three_lane(main_p022, 16.451346, 5.071828, 15.372419, 4.222129, main_p023);
-grade(route_15_022, 0.111587, 0.109475);
-route_15_023 = interstate_three_lane(main_p023, 13.611770, 3.278049, 12.940780, 3.165255, main_p024);
-grade(route_15_023, 0.109475, 0.109412);
-route_15_024 = interstate_three_lane(main_p024, 11.596310, 2.455784, 10.889783, 1.925349, main_p025);
-grade(route_15_024, 0.109412, 0.109412);
+main_p000 = map_point(72.923457337, 25.323488885);
+
+main_p001 = map_point(68.684023837, 24.813099131);
+
+main_p002 = map_point(65.857164491, 24.422468627);
+
+main_p003 = map_point(63.030154754, 24.018405574);
+
+main_p004 = map_point(60.203637696, 23.657996574);
+
+main_p005 = map_point(57.379245314, 23.485639648);
+
+main_p006 = map_point(54.555307749, 23.353580320);
+
+main_p007 = map_point(51.730915367, 23.181223393);
+
+main_p008 = map_point(48.777547529, 22.948523951);
+
+main_p009 = map_point(44.533295107, 22.011660865);
+
+main_p010 = map_point(44.021531603, 22.136319956);
+
+main_p011 = map_point(43.512348502, 22.489328707);
+
+main_p012 = map_point(41.740278848, 24.616423167);
+
+main_p013 = map_point(40.850419619, 25.341451135);
+
+main_p014 = map_point(39.699163229, 25.640598615);
+
+main_p015 = map_point(38.414662771, 25.501622330);
+
+main_p016 = map_point(37.512131971, 25.105057474);
+
+main_p017 = map_point(35.441953741, 23.556955882);
+
+main_p018 = map_point(34.538918825, 23.115794309);
+
+main_p019 = map_point(31.950341104, 21.104988139);
+
+main_p020 = map_point(29.362955399, 19.199663943);
+
+main_p021 = map_point(26.910986759, 17.924914371);
+
+main_p022 = map_point(23.550796164, 15.749964014);
+
+main_p023 = map_point(21.086909116, 13.420301743);
+
+southern_span_000 = interstate_three_lane(main_p000, 71.510311878, 25.153359625, 70.093503659, 24.992821360, main_p001);
+
+grade(southern_span_000, 0.109412000, 0.139394000);
+
+southern_span_001 = interstate_three_lane(main_p001, 67.738075711, 24.692481544, 66.798629263, 24.554797512, main_p002);
+
+grade(southern_span_001, 0.139394000, 0.270076007);
+
+southern_span_002 = interstate_three_lane(main_p002, 64.914002020, 24.289899895, 63.975153539, 24.146187601, main_p003);
+
+grade(southern_span_002, 0.270076007, 0.400000006);
+
+southern_span_003 = interstate_three_lane(main_p003, 62.090643927, 23.891364747, 61.156718065, 23.747852851, main_p004);
+
+grade(southern_span_003, 0.400000006, 0.400000006);
+
+southern_span_004 = interstate_three_lane(main_p004, 59.273082781, 23.570265229, 58.322919298, 23.536498618, main_p005);
+
+grade(southern_span_004, 0.400000006, 0.400000006);
+
+southern_span_005 = interstate_three_lane(main_p005, 56.440142427, 23.435027321, 55.494408061, 23.404192626, main_p006);
+
+grade(southern_span_005, 0.400000006, 0.400000006);
+
+southern_span_006 = interstate_three_lane(main_p006, 53.611631191, 23.302721328, 52.669495184, 23.247023369, main_p007);
+
+grade(southern_span_006, 0.400000006, 0.400000006);
+
+southern_span_007 = interstate_three_lane(main_p007, 50.743576097, 23.112005437, 49.731556408, 23.103543355, main_p008);
+
+grade(southern_span_007, 0.400000006, 0.400000006);
+
+southern_span_008 = interstate_three_lane(main_p008, 47.332349497, 22.713689217, 45.967135222, 22.256523402, main_p009);
+
+grade(southern_span_008, 0.400000006, 0.266557008);
+
+route_15_009 = interstate_three_lane(main_p009, 44.381796809, 21.985788302, 44.190146730, 22.057430792, main_p010);
+
+grade(route_15_009, 0.266557008, 0.223826513);
+
+route_15_010 = interstate_three_lane(main_p010, 43.849832300, 22.216652291, 43.659482362, 22.329370169, main_p011);
+
+grade(route_15_010, 0.223826513, 0.173947215);
+
+route_15_011 = interstate_three_lane(main_p011, 42.899062932, 23.156071263, 42.359430956, 23.953032263, main_p012);
+
+grade(route_15_011, 0.173947215, 0.109412000);
+
+route_15_012 = interstate_three_lane(main_p012, 41.472119683, 24.903740696, 41.156724239, 25.187755594, main_p013);
+
+grade(route_15_012, 0.109412000, 0.250000000);
+
+route_15_013 = interstate_three_lane(main_p013, 40.476354154, 25.529147733, 40.064422552, 25.616579757, main_p014);
+
+grade(route_15_013, 0.250000000, 0.250000000);
+
+route_15_014 = interstate_three_lane(main_p014, 39.252503321, 25.669971075, 38.818656150, 25.600549278, main_p015);
+
+grade(route_15_014, 0.250000000, 0.250000000);
+
+route_15_015 = interstate_three_lane(main_p015, 38.089646064, 25.422034165, 37.784332670, 25.283124581, main_p016);
+
+grade(route_15_015, 0.250000000, 0.250000000);
+
+route_15_016 = interstate_three_lane(main_p016, 36.793431999, 24.634901505, 36.156292642, 24.034892986, main_p017);
+
+grade(route_15_016, 0.250000000, 0.250000000);
+
+route_15_017 = interstate_three_lane(main_p017, 35.165223129, 23.371804340, 34.811427305, 23.307162348, main_p018);
+
+grade(route_15_017, 0.250000000, 0.250000000);
+
+route_15_018 = interstate_three_lane(main_p018, 33.647556932, 22.489839042, 32.821196941, 21.763876846, main_p019);
+
+grade(route_15_018, 0.250000000, 0.250000000);
+
+route_15_019 = interstate_three_lane(main_p019, 31.095876431, 20.458500700, 30.266974316, 19.770143699, main_p020);
+
+grade(route_15_019, 0.250000000, 0.250000000);
+
+route_15_020 = interstate_three_lane(main_p020, 28.587188982, 18.710119094, 27.700907657, 18.393758555, main_p021);
+
+grade(route_15_020, 0.250000000, 0.194368005);
+
+route_15_021 = interstate_three_lane(main_p021, 25.763521195, 17.243858007, 24.605753844, 16.565916923, main_p022);
+
+grade(route_15_021, 0.194368005, 0.117661998);
+
+route_15_022 = interstate_three_lane(main_p022, 22.664395274, 15.064379114, 21.960088797, 14.122013778, main_p023);
+
+grade(route_15_022, 0.117661998, 0.111587003);
 
 road highway_undivided:
     verge carlane carlane carlane carlane verge;
-    direction both;
     role highway;
 end
 
 road underground_expressway:
     verge carlane carlane carlane middle carlane carlane carlane verge;
-    direction both;
     role highway;
 end
 
-# bridge_134: independent corridor; no interchange joins.
-bridge_134_p000 = map_point(43.889914, -7.197495);
-bridge_134_p001 = map_point(45.736768, -6.324639);
-bridge_134_p002 = map_point(48.920797, -5.643250);
-bridge_134_p003 = map_point(50.471146, -5.626578);
-bridge_134_p004 = map_point(52.580550, -5.793339);
-bridge_134_p005 = map_point(55.018948, -6.050179);
-bridge_134_s000 = highway_undivided(bridge_134_p000, 44.505532, -6.906543, 45.090292, -6.524362, bridge_134_p001);
-grade(bridge_134_s000, 0.350000, 0.350000);
-bridge_134_s001 = highway_undivided(bridge_134_p001, 46.767253, -6.006280, 47.851723, -5.800880, bridge_134_p002);
-grade(bridge_134_s001, 0.350000, 0.350000);
-bridge_134_s002 = highway_undivided(bridge_134_p002, 49.429849, -5.568193, 49.955273, -5.605421, bridge_134_p003);
-grade(bridge_134_s002, 0.350000, 0.350000);
-bridge_134_s003 = highway_undivided(bridge_134_p003, 51.175191, -5.655451, 51.878321, -5.727930, bridge_134_p004);
-grade(bridge_134_s003, 0.350000, 0.350000);
-bridge_134_s004 = highway_undivided(bridge_134_p004, 53.394255, -5.869131, 54.206149, -5.964566, bridge_134_p005);
-grade(bridge_134_s004, 0.350000, 0.350000);
+bridge_134_p000 = map_point(49.211437978, 0.984383027);
 
-# route_40: independent corridor; no interchange joins.
-route_40_p000 = map_point(-75.636433, 29.348991);
-route_40_p001 = map_point(-70.523760, 29.775959);
-route_40_p002 = map_point(-65.617649, 30.195667);
-route_40_p003 = map_point(-63.839025, 30.074673);
-route_40_p004 = map_point(-62.620148, 29.618117);
-route_40_p005 = map_point(-60.368037, 28.165380);
-route_40_p006 = map_point(-58.223243, 26.820142);
-route_40_p007 = map_point(-56.257784, 25.002579);
-route_40_p008 = map_point(-53.515990, 23.514508);
-route_40_p009 = map_point(-51.171844, 22.307208);
-route_40_p010 = map_point(-49.274361, 21.061965);
-route_40_p011 = map_point(-47.420565, 19.811900);
-route_40_p012 = map_point(-46.063073, 19.177489);
-route_40_p013 = map_point(-44.390909, 16.955986);
-route_40_p014 = map_point(-41.627717, 14.882240);
-route_40_p015 = map_point(-38.914690, 12.757512);
-route_40_p016 = map_point(-36.330133, 10.869433);
-route_40_p017 = map_point(-33.720979, 9.004473);
-route_40_p018 = map_point(-30.814325, 7.609627);
-route_40_p019 = map_point(-26.847772, 7.516683);
-route_40_p020 = map_point(-26.036435, 7.209109);
-route_40_p021 = map_point(-24.848470, 5.964653);
-route_40_p022 = map_point(-23.768224, 5.454084);
-route_40_p023 = map_point(-22.789088, 5.353809);
-route_40_p024 = map_point(-19.325899, 5.326406);
-route_40_p025 = map_point(-15.941079, 5.116651);
-route_40_p026 = map_point(-12.659661, 5.238564);
-route_40_p027 = map_point(-9.364367, 5.401614);
-route_40_p028 = map_point(-6.028302, 5.561591);
-route_40_p029 = map_point(-2.832430, 5.613659);
-route_40_p030 = map_point(-0.209108, 4.976589);
-route_40_p031 = map_point(2.266255, 4.290856);
-route_40_p032 = map_point(5.940609, 3.682349);
-route_40_p033 = map_point(7.343418, 2.978602);
-route_40_p034 = map_point(8.800502, 1.221033);
-route_40_p035 = map_point(9.036267, 0.431599);
-route_40_p036 = map_point(9.938480, -2.456626);
-route_40_p037 = map_point(11.579044, -4.777011);
-route_40_p038 = map_point(13.585327, -7.592669);
-route_40_p039 = map_point(15.610323, -10.572884);
-route_40_p040 = map_point(17.736292, -13.354629);
-route_40_p041 = map_point(19.763630, -16.091977);
-route_40_p042 = map_point(22.432175, -18.504582);
-route_40_p043 = map_point(24.441767, -20.494035);
-route_40_p044 = map_point(26.629197, -22.574833);
-route_40_p045 = map_point(28.704556, -24.546938);
-route_40_p046 = map_point(31.452820, -27.511270);
-route_40_p047 = map_point(34.130175, -30.320004);
-route_40_p048 = map_point(35.112055, -31.126161);
-route_40_p049 = map_point(38.455273, -32.206185);
-route_40_p050 = map_point(39.715878, -34.612864);
-route_40_p051 = map_point(42.079059, -35.834141);
-route_40_p052 = map_point(42.354924, -36.148972);
-route_40_p053 = map_point(43.114922, -39.062509);
-route_40_p054 = map_point(44.915281, -41.172166);
-route_40_p055 = map_point(46.755337, -43.251178);
-route_40_p056 = map_point(48.608136, -45.320353);
-route_40_p057 = map_point(50.350268, -47.277206);
-route_40_p058 = map_point(52.152030, -49.363759);
-route_40_p059 = map_point(53.946059, -51.452945);
-route_40_p060 = map_point(55.740390, -53.544544);
-route_40_p061 = map_point(57.435387, -55.522743);
-route_40_p062 = map_point(60.378669, -57.770074);
-route_40_p063 = map_point(61.065794, -60.554334);
-route_40_p064 = map_point(63.015837, -64.759286);
-route_40_p065 = map_point(64.519602, -67.792158);
-route_40_p066 = map_point(64.855752, -69.219839);
-route_40_s000 = interstate_three_lane(route_40_p000, -73.932209, 29.491313, -72.227842, 29.631948, route_40_p001);
-grade(route_40_s000, 0.300000, 0.300000);
-route_40_s001 = interstate_three_lane(route_40_p001, -68.888247, 29.914174, -67.253601, 30.122563, route_40_p002);
-grade(route_40_s001, 0.300000, 0.300000);
-route_40_s002 = interstate_three_lane(route_40_p002, -65.025356, 30.222134, -64.416544, 30.185947, route_40_p003);
-grade(route_40_s002, 0.300000, 0.300000);
-route_40_s003 = interstate_three_lane(route_40_p003, -63.417377, 29.993431, -62.998369, 29.826166, route_40_p004);
-grade(route_40_s003, 0.300000, 0.300000);
-route_40_s004 = interstate_three_lane(route_40_p004, -61.841373, 29.189735, -61.121699, 28.644974, route_40_p005);
-grade(route_40_s004, 0.300000, 0.300000);
-route_40_s005 = interstate_three_lane(route_40_p005, -59.656064, 27.712316, -58.889178, 27.332573, route_40_p006);
-grade(route_40_s005, 0.300000, 0.198730);
-route_40_s006 = interstate_three_lane(route_40_p006, -57.519094, 26.278306, -56.982431, 25.511457, route_40_p007);
-grade(route_40_s006, 0.198730, 0.109082);
-route_40_s007 = interstate_three_lane(route_40_p007, -55.413347, 24.409579, -54.434742, 24.001415, route_40_p008);
-grade(route_40_s007, 0.109082, 0.109135);
-route_40_s008 = interstate_three_lane(route_40_p008, -52.739429, 23.102958, -51.931688, 22.746555, route_40_p009);
-grade(route_40_s008, 0.109135, 0.109149);
-route_40_s009 = interstate_three_lane(route_40_p009, -50.517811, 21.929041, -49.904251, 21.480961, route_40_p010);
-grade(route_40_s009, 0.109149, 0.109149);
-route_40_s010 = interstate_three_lane(route_40_p010, -48.653824, 20.649192, -48.061477, 20.188006, route_40_p011);
-grade(route_40_s010, 0.109149, 0.128843);
-route_40_s011 = interstate_three_lane(route_40_p011, -46.991047, 19.559847, -46.416721, 19.510856, route_40_p012);
-grade(route_40_s011, 0.128843, 0.188780);
-route_40_s012 = interstate_three_lane(route_40_p012, -45.406836, 18.558885, -45.050194, 17.594445, route_40_p013);
-grade(route_40_s012, 0.188780, 0.300000);
-route_40_s013 = interstate_three_lane(route_40_p013, -43.571742, 16.162695, -42.541583, 15.582877, route_40_p014);
-grade(route_40_s013, 0.300000, 0.300000);
-route_40_s014 = interstate_three_lane(route_40_p014, -40.716176, 14.183386, -39.830200, 13.450992, route_40_p015);
-grade(route_40_s014, 0.300000, 0.300000);
-route_40_s015 = interstate_three_lane(route_40_p015, -38.064339, 12.113389, -37.194887, 11.494315, route_40_p016);
-grade(route_40_s015, 0.300000, 0.300000);
-route_40_s016 = interstate_three_lane(route_40_p016, -35.463650, 10.243302, -34.637869, 9.546350, route_40_p017);
-grade(route_40_s016, 0.300000, 0.171714);
-route_40_s017 = interstate_three_lane(route_40_p017, -32.799266, 8.459747, -31.841409, 7.831952, route_40_p018);
-grade(route_40_s017, 0.171714, 0.109412);
-route_40_s018 = interstate_three_lane(route_40_p018, -29.550340, 7.336021, -28.154610, 7.626232, route_40_p019);
-grade(route_40_s018, 0.109412, 0.109412);
-route_40_s019 = interstate_three_lane(route_40_p019, -26.561980, 7.492726, -26.259860, 7.382550, route_40_p020);
-grade(route_40_s019, 0.109412, 0.109412);
-route_40_s020 = interstate_three_lane(route_40_p020, -25.593426, 6.865207, -25.294664, 6.309895, route_40_p021);
-grade(route_40_s020, 0.109412, 0.109412);
-route_40_s021 = interstate_three_lane(route_40_p021, -24.538594, 5.724887, -24.144621, 5.565729, route_40_p022);
-grade(route_40_s021, 0.109412, 0.109412);
-route_40_s022 = interstate_three_lane(route_40_p022, -23.458161, 5.362114, -23.116788, 5.363228, route_40_p023);
-grade(route_40_s022, 0.109412, 0.109412);
-route_40_s023 = interstate_three_lane(route_40_p023, -21.636013, 5.320668, -20.479220, 5.366347, route_40_p024);
-grade(route_40_s023, 0.109412, 0.109412);
-route_40_s024 = interstate_three_lane(route_40_p024, -18.196550, 5.287295, -17.070034, 5.131528, route_40_p025);
-grade(route_40_s024, 0.109412, 0.109412);
-route_40_s025 = interstate_three_lane(route_40_p025, -14.847955, 5.102247, -13.753175, 5.191183, route_40_p026);
-grade(route_40_s025, 0.109412, 0.109391);
-route_40_s026 = interstate_three_lane(route_40_p026, -11.560937, 5.286170, -10.462839, 5.348105, route_40_p027);
-grade(route_40_s026, 0.109391, 0.109315);
-route_40_s027 = interstate_three_lane(route_40_p027, -8.252386, 5.455780, -7.140876, 5.525473, route_40_p028);
-grade(route_40_s027, 0.109315, 0.109412);
-route_40_s028 = interstate_three_lane(route_40_p028, -4.963564, 5.596155, -3.884007, 5.719374, route_40_p029);
-grade(route_40_s028, 0.109412, 0.109412);
-route_40_s029 = interstate_three_lane(route_40_p029, -1.944276, 5.524373, -1.080016, 5.202538, route_40_p030);
-grade(route_40_s029, 0.109412, 0.109412);
-route_40_s030 = interstate_three_lane(route_40_p030, 0.619545, 4.761603, 1.429551, 4.466944, route_40_p031);
-grade(route_40_s030, 0.109412, 0.109412);
-route_40_s031 = interstate_three_lane(route_40_p031, 3.479457, 4.035531, 4.749955, 3.990087, route_40_p032);
-grade(route_40_s031, 0.109412, 0.109412);
-route_40_s032 = interstate_three_lane(route_40_p032, 6.442343, 3.552670, 6.955057, 3.312838, route_40_p033);
-grade(route_40_s032, 0.109412, 0.109412);
-route_40_s033 = interstate_three_lane(route_40_p033, 7.908354, 2.492399, 8.385855, 1.844896, route_40_p034);
-grade(route_40_s033, 0.109412, 0.109412);
-route_40_s034 = interstate_three_lane(route_40_p034, 8.950138, 0.995895, 8.955087, 0.693952, route_40_p035);
-grade(route_40_s034, 0.109412, 0.109412);
-route_40_s035 = interstate_three_lane(route_40_p035, 9.334413, -0.531934, 9.501388, -1.561288, route_40_p036);
-grade(route_40_s035, 0.109412, 0.109412);
-route_40_s036 = interstate_three_lane(route_40_p036, 10.348980, -3.297491, 11.030632, -4.004654, route_40_p037);
-grade(route_40_s036, 0.109412, 0.109412);
-route_40_s037 = interstate_three_lane(route_40_p037, 12.246248, -5.716669, 12.927319, -6.646634, route_40_p038);
-grade(route_40_s037, 0.109412, 0.115281);
-route_40_s038 = interstate_three_lane(route_40_p038, 14.271079, -8.578591, 14.908566, -9.598773, route_40_p039);
-grade(route_40_s038, 0.115281, 0.259412);
-route_40_s039 = interstate_three_lane(route_40_p039, 16.292220, -11.519426, 17.034577, -12.422158, route_40_p040);
-grade(route_40_s039, 0.259412, 0.259412);
-route_40_s040 = interstate_three_lane(route_40_p040, 18.419012, -14.261856, 19.002340, -15.257075, route_40_p041);
-grade(route_40_s040, 0.259412, 0.259412);
-route_40_s041 = interstate_three_lane(route_40_p041, 20.567635, -16.973726, 21.559087, -17.683019, route_40_p042);
-grade(route_40_s041, 0.259412, 0.115430);
-route_40_s042 = interstate_three_lane(route_40_p042, 23.118466, -19.150371, 23.765144, -19.837849, route_40_p043);
-grade(route_40_s042, 0.115430, 0.109412);
-route_40_s043 = interstate_three_lane(route_40_p043, 25.164151, -21.194600, 25.899876, -21.881421, route_40_p044);
-grade(route_40_s043, 0.109412, 0.109412);
-route_40_s044 = interstate_three_lane(route_40_p044, 27.320806, -23.232388, 28.037928, -23.864719, route_40_p045);
-grade(route_40_s044, 0.109412, 0.109412);
-route_40_s045 = interstate_three_lane(route_40_p045, 29.645802, -25.510198, 30.530067, -26.529425, route_40_p046);
-grade(route_40_s045, 0.109412, 0.109412);
-route_40_s046 = interstate_three_lane(route_40_p046, 32.338606, -28.453780, 33.211276, -29.412240, route_40_p047);
-grade(route_40_s046, 0.109412, 0.109412);
-route_40_s047 = interstate_three_lane(route_40_p047, 34.431021, -30.617204, 34.729183, -30.959190, route_40_p048);
-grade(route_40_s047, 0.109412, 0.109412);
-route_40_s048 = interstate_three_lane(route_40_p048, 36.170882, -31.587917, 37.589873, -31.550775, route_40_p049);
-grade(route_40_s048, 0.109412, 0.109412);
-route_40_s049 = interstate_three_lane(route_40_p049, 39.124481, -32.713009, 39.105540, -34.001824, route_40_p050);
-grade(route_40_s049, 0.109412, 0.109412);
-route_40_s050 = interstate_three_lane(route_40_p050, 40.313469, -35.211142, 41.318982, -35.391723, route_40_p051);
-grade(route_40_s050, 0.109412, 0.109412);
-route_40_s051 = interstate_three_lane(route_40_p051, 42.198664, -35.903759, 42.312781, -36.017628, route_40_p052);
-grade(route_40_s051, 0.109412, 0.109412);
-route_40_s052 = interstate_three_lane(route_40_p052, 42.658069, -37.093751, 42.670668, -38.190922, route_40_p053);
-grade(route_40_s052, 0.109412, 0.109412);
-route_40_s053 = interstate_three_lane(route_40_p053, 43.524120, -39.865321, 44.308863, -40.474421, route_40_p054);
-grade(route_40_s053, 0.109412, 0.109412);
-route_40_s054 = interstate_three_lane(route_40_p054, 45.522335, -41.870644, 46.139986, -42.559954, route_40_p055);
-grade(route_40_s054, 0.109412, 0.109412);
-route_40_s055 = interstate_three_lane(route_40_p055, 47.370938, -43.942682, 47.991498, -44.629769, route_40_p056);
-grade(route_40_s055, 0.109412, 0.109412);
-route_40_s056 = interstate_three_lane(route_40_p056, 49.189808, -45.971778, 49.774651, -46.620456, route_40_p057);
-grade(route_40_s056, 0.109412, 0.109412);
-route_40_s057 = interstate_three_lane(route_40_p057, 50.955949, -47.968258, 51.552400, -48.667417, route_40_p058);
-grade(route_40_s057, 0.109412, 0.109412);
-route_40_s058 = interstate_three_lane(route_40_p058, 52.750996, -50.059330, 53.348219, -50.756404, route_40_p059);
-grade(route_40_s058, 0.109412, 0.109412);
-route_40_s059 = interstate_three_lane(route_40_p059, 54.544339, -52.149999, 55.142482, -52.847170, route_40_p060);
-grade(route_40_s059, 0.109412, 0.109412);
-route_40_s060 = interstate_three_lane(route_40_p060, 56.305591, -54.203770, 56.796910, -54.941082, route_40_p061);
-grade(route_40_s060, 0.109412, 0.109412);
-route_40_s061 = interstate_three_lane(route_40_p061, 58.343003, -56.349592, 59.696679, -56.824864, route_40_p062);
-grade(route_40_s061, 0.109412, 0.185288);
-route_40_s062 = interstate_three_lane(route_40_p062, 60.906814, -58.502062, 60.729798, -59.663852, route_40_p063);
-grade(route_40_s062, 0.185288, 0.300000);
-route_40_s063 = interstate_three_lane(route_40_p063, 61.608854, -61.993589, 62.350494, -63.364989, route_40_p064);
-grade(route_40_s063, 0.300000, 0.300000);
-route_40_s064 = interstate_three_lane(route_40_p064, 63.501763, -65.777597, 64.091697, -66.754777, route_40_p065);
-grade(route_40_s064, 0.300000, 0.300000);
-route_40_s065 = interstate_three_lane(route_40_p065, 64.705002, -68.241628, 64.743702, -68.743945, route_40_p066);
-grade(route_40_s065, 0.300000, 0.300000);
+bridge_134_p001 = map_point(51.005893364, 1.938645844);
 
-# route_20: independent corridor; no interchange joins.
-route_20_p000 = map_point(-68.491615, 35.637794);
-route_20_p001 = map_point(-66.814051, 34.596605);
-route_20_p002 = map_point(-64.377893, 33.450892);
-route_20_p003 = map_point(-62.374416, 32.592873);
-route_20_p004 = map_point(-60.362365, 31.736564);
-route_20_p005 = map_point(-58.337649, 30.889926);
-route_20_p006 = map_point(-56.631466, 30.260686);
-route_20_p007 = map_point(-53.051616, 29.320390);
-route_20_p008 = map_point(-50.668964, 28.259412);
-route_20_p009 = map_point(-48.371701, 27.782987);
-route_20_p010 = map_point(-45.797815, 27.140642);
-route_20_p011 = map_point(-43.229101, 27.035353);
-route_20_p012 = map_point(-40.652340, 25.738568);
-route_20_p013 = map_point(-38.164413, 24.995308);
-route_20_p014 = map_point(-35.366537, 24.207319);
-route_20_p015 = map_point(-32.421831, 23.408172);
-route_20_p016 = map_point(-29.625070, 22.617688);
-route_20_p017 = map_point(-26.425826, 21.414377);
-route_20_p018 = map_point(-23.635556, 20.270892);
-route_20_p019 = map_point(-22.296139, 20.152160);
-route_20_p020 = map_point(-19.157901, 20.179990);
-route_20_p021 = map_point(-17.076743, 20.207163);
-route_20_p022 = map_point(-12.797846, 20.165596);
-route_20_p023 = map_point(-10.354742, 20.380926);
-route_20_p024 = map_point(-7.384364, 21.035626);
-route_20_p025 = map_point(-4.126596, 20.474312);
-route_20_p026 = map_point(-0.044321, 20.605811);
-route_20_p027 = map_point(3.990922, 20.754853);
-route_20_p028 = map_point(8.151067, 20.875847);
-route_20_p029 = map_point(12.157875, 20.946246);
-route_20_p030 = map_point(15.098054, 21.368413);
-route_20_p031 = map_point(17.502727, 22.033354);
-route_20_p032 = map_point(19.747801, 22.602391);
-route_20_p033 = map_point(21.853889, 22.764538);
-route_20_p034 = map_point(23.243702, 22.451802);
-route_20_p035 = map_point(24.894790, 21.515086);
-route_20_p036 = map_point(26.824980, 19.653591);
-route_20_p037 = map_point(28.787658, 17.702376);
-route_20_p038 = map_point(29.904787, 16.769162);
-route_20_p039 = map_point(31.540104, 15.561746);
-route_20_s000 = interstate_three_lane(route_20_p000, -67.932427, 35.290731, -67.394223, 34.905031, route_20_p001);
-grade(route_20_s000, 0.300000, 0.300000);
-route_20_s001 = interstate_three_lane(route_20_p001, -66.022983, 34.176063, -65.195697, 33.819990, route_20_p002);
-grade(route_20_s001, 0.300000, 0.300000);
-route_20_s002 = interstate_three_lane(route_20_p002, -63.715819, 33.152080, -63.042565, 32.878122, route_20_p003);
-grade(route_20_s002, 0.300000, 0.300000);
-route_20_s003 = interstate_three_lane(route_20_p003, -61.704056, 32.306679, -61.033945, 32.019876, route_20_p004);
-grade(route_20_s003, 0.300000, 0.300000);
-route_20_s004 = interstate_three_lane(route_20_p004, -59.688356, 31.452227, -59.017738, 31.158957, route_20_p005);
-grade(route_20_s004, 0.300000, 0.212216);
-route_20_s005 = interstate_three_lane(route_20_p005, -57.774105, 30.666998, -57.211967, 30.433049, route_20_p006);
-grade(route_20_s005, 0.212216, 0.139475);
-route_20_s006 = interstate_three_lane(route_20_p006, -55.449956, 29.909870, -54.217528, 29.711721, route_20_p007);
-grade(route_20_s006, 0.139475, 0.109391);
-route_20_s007 = interstate_three_lane(route_20_p007, -52.230028, 29.044630, -51.490207, 28.529199, route_20_p008);
-grade(route_20_s007, 0.109391, 0.109391);
-route_20_s008 = interstate_three_lane(route_20_p008, -49.930235, 28.016731, -49.133752, 27.958010, route_20_p009);
-grade(route_20_s008, 0.109391, 0.109391);
-route_20_s009 = interstate_three_lane(route_20_p009, -47.510036, 27.585086, -46.668362, 27.267203, route_20_p010);
-grade(route_20_s009, 0.109391, 0.109363);
-route_20_s010 = interstate_three_lane(route_20_p010, -44.954162, 27.017991, -44.037352, 27.255591, route_20_p011);
-grade(route_20_s010, 0.109363, 0.109412);
-route_20_s011 = interstate_three_lane(route_20_p011, -42.322194, 26.788233, -41.540822, 26.096446, route_20_p012);
-grade(route_20_s011, 0.109412, 0.109412);
-route_20_s012 = interstate_three_lane(route_20_p012, -39.852593, 25.416431, -38.995732, 25.236133, route_20_p013);
-grade(route_20_s012, 0.109412, 0.109412);
-route_20_s013 = interstate_three_lane(route_20_p013, -37.233798, 24.725717, -36.300422, 24.465426, route_20_p014);
-grade(route_20_s013, 0.109412, 0.109412);
-route_20_s014 = interstate_three_lane(route_20_p014, -34.386228, 23.936381, -33.402015, 23.679554, route_20_p015);
-grade(route_20_s014, 0.109412, 0.109412);
-route_20_s015 = interstate_three_lane(route_20_p015, -31.488193, 23.149677, -30.543545, 22.923100, route_20_p016);
-grade(route_20_s015, 0.109412, 0.109412);
-route_20_s016 = interstate_three_lane(route_20_p016, -28.544876, 22.258501, -27.486543, 21.829985, route_20_p017);
-grade(route_20_s016, 0.109412, 0.109412);
-route_20_s017 = interstate_three_lane(route_20_p017, -25.490038, 21.047719, -24.587587, 20.561876, route_20_p018);
-grade(route_20_s017, 0.109412, 0.109412);
-route_20_s018 = interstate_three_lane(route_20_p018, -23.211025, 20.141137, -22.743824, 20.161249, route_20_p019);
-grade(route_20_s018, 0.109412, 0.109412);
-route_20_s019 = interstate_three_lane(route_20_p019, -21.251273, 20.130948, -20.203961, 20.168967, route_20_p020);
-grade(route_20_s019, 0.109412, 0.109412);
-route_20_s020 = interstate_three_lane(route_20_p020, -18.464163, 20.187301, -17.770480, 20.208733, route_20_p021);
-grade(route_20_s020, 0.109412, 0.109398);
-route_20_s021 = interstate_three_lane(route_20_p021, -15.650462, 20.203935, -14.222163, 20.128777, route_20_p022);
-grade(route_20_s021, 0.109398, 0.109282);
-route_20_s022 = interstate_three_lane(route_20_p022, -11.981496, 20.186698, -11.160249, 20.251468, route_20_p023);
-grade(route_20_s022, 0.109282, 0.109341);
-route_20_s023 = interstate_three_lane(route_20_p023, -9.355755, 20.541479, -8.379199, 21.020710, route_20_p024);
-grade(route_20_s023, 0.109341, 0.109412);
-route_20_s024 = interstate_three_lane(route_20_p024, -6.303150, 21.051838, -5.221046, 20.538401, route_20_p025);
-grade(route_20_s024, 0.109412, 0.109412);
-route_20_s025 = interstate_three_lane(route_20_p025, -2.774365, 20.395129, -1.404969, 20.558787, route_20_p026);
-grade(route_20_s025, 0.109412, 0.109412);
-route_20_s026 = interstate_three_lane(route_20_p026, 1.300870, 20.652301, 2.645664, 20.710527, route_20_p027);
-grade(route_20_s026, 0.109412, 0.109412);
-route_20_s027 = interstate_three_lane(route_20_p027, 5.377460, 20.800539, 6.764169, 20.843345, route_20_p028);
-grade(route_20_s027, 0.109412, 0.109412);
-route_20_s028 = interstate_three_lane(route_20_p028, 9.486487, 20.907143, 10.827957, 20.851950, route_20_p029);
-grade(route_20_s028, 0.109412, 0.109412);
-route_20_s029 = interstate_three_lane(route_20_p029, 13.143619, 21.016138, 14.129755, 21.171467, route_20_p030);
-grade(route_20_s029, 0.109412, 0.109412);
-route_20_s030 = interstate_three_lane(route_20_p030, 15.911372, 21.533836, 16.698960, 21.820046, route_20_p031);
-grade(route_20_s030, 0.109412, 0.109412);
-route_20_s031 = interstate_three_lane(route_20_p031, 18.248876, 22.231372, 18.989242, 22.474920, route_20_p032);
-grade(route_20_s031, 0.109412, 0.109412);
-route_20_s032 = interstate_three_lane(route_20_p032, 20.439629, 22.718648, 21.157941, 22.794517, route_20_p033);
-grade(route_20_s032, 0.109412, 0.109412);
-route_20_s033 = interstate_three_lane(route_20_p033, 22.323242, 22.744321, 22.809141, 22.630355, route_20_p034);
-grade(route_20_s033, 0.109412, 0.109412);
-route_20_s034 = interstate_three_lane(route_20_p034, 23.822774, 22.213871, 24.399991, 21.901694, route_20_p035);
-grade(route_20_s034, 0.109412, 0.109412);
-route_20_s035 = interstate_three_lane(route_20_p035, 25.593751, 20.968957, 26.186407, 20.279016, route_20_p036);
-grade(route_20_s035, 0.109412, 0.109540);
-route_20_s036 = interstate_three_lane(route_20_p036, 27.484030, 19.008112, 28.114902, 18.332454, route_20_p037);
-grade(route_20_s036, 0.109540, 0.110365);
-route_20_s037 = interstate_three_lane(route_20_p037, 29.141504, 17.370978, 29.521941, 17.066909, route_20_p038);
-grade(route_20_s037, 0.110365, 0.113151);
-route_20_s038 = interstate_three_lane(route_20_p038, 30.439423, 16.353366, 30.994998, 15.964218, route_20_p039);
-grade(route_20_s038, 0.113151, 0.113151);
+bridge_134_p002 = map_point(53.994803557, 2.663143294);
 
-# route_136: independent corridor; no interchange joins.
-route_136_p000 = map_point(35.149695, 10.943748);
-route_136_p001 = map_point(35.895108, 9.558260);
-route_136_p002 = map_point(36.485861, 9.011336);
-route_136_p003 = map_point(36.922737, 8.636079);
-route_136_p004 = map_point(38.293804, 8.153634);
-route_136_p005 = map_point(38.777881, 7.585106);
-route_136_p006 = map_point(38.982207, 6.346319);
-route_136_p007 = map_point(40.442688, 4.858602);
-route_136_p008 = map_point(41.904232, 3.588788);
-route_136_p009 = map_point(42.102662, 3.011949);
-route_136_p010 = map_point(42.172855, 1.507475);
-route_136_p011 = map_point(42.655106, -0.311116);
-route_136_p012 = map_point(42.561666, -1.095277);
-route_136_s000 = underground_expressway(route_136_p000, 35.398166, 10.481919, 35.600481, 9.984360, route_136_p001);
-grade(route_136_s000, 0.154266, 0.154266);
-route_136_s001 = underground_expressway(route_136_p001, 36.045870, 9.340222, 36.286171, 9.190535, route_136_p002);
-grade(route_136_s001, 0.154266, 0.154266);
-route_136_s002 = underground_expressway(route_136_p002, 36.628714, 8.883141, 36.751713, 8.717214, route_136_p003);
-grade(route_136_s002, 0.154266, 0.154266);
-route_136_s003 = underground_expressway(route_136_p003, 37.354361, 8.431313, 37.885290, 8.385065, route_136_p004);
-grade(route_136_s003, 0.154266, 0.147973);
-route_136_s004 = underground_expressway(route_136_p004, 38.503671, 8.034740, 38.692305, 7.809776, route_136_p005);
-grade(route_136_s004, 0.147973, 0.115932);
-route_136_s005 = underground_expressway(route_136_p005, 38.921772, 7.207337, 38.773623, 6.687924, route_136_p006);
-grade(route_136_s005, 0.115932, 0.062057);
-route_136_s006 = underground_expressway(route_136_p006, 39.328558, 5.779089, 39.937677, 5.335183, route_136_p007);
-grade(route_136_s006, 0.062057, -0.027401);
-route_136_s007 = underground_expressway(route_136_p007, 40.911686, 4.416006, 41.483476, 4.056863, route_136_p008);
-grade(route_136_s007, -0.027401, -0.110481);
-route_136_s008 = underground_expressway(route_136_p008, 42.036801, 3.441312, 42.076850, 3.211942, route_136_p009);
-grade(route_136_s008, -0.110481, -0.120000);
-route_136_s009 = underground_expressway(route_136_p009, 42.166391, 2.518171, 42.090983, 1.999954, route_136_p010);
-grade(route_136_s009, -0.120000, -0.120000);
-route_136_s010 = underground_expressway(route_136_p010, 42.275131, 0.892266, 42.563819, 0.299973, route_136_p011);
-grade(route_136_s010, -0.120000, -0.120000);
-route_136_s011 = underground_expressway(route_136_p011, 42.693423, -0.567611, 42.592813, -0.833890, route_136_p012);
-grade(route_136_s011, -0.120000, -0.120000);
+bridge_134_p003 = map_point(55.410049425, 2.663594835);
+
+bridge_134_p004 = map_point(57.311525449, 2.452392914);
+
+bridge_134_p005 = map_point(59.501413038, 2.136614774);
+
+bridge_134_s000 = highway_undivided(bridge_134_p000, 49.809589173, 1.302470889, 50.391225405, 1.722922304, bridge_134_p001);
+
+grade(bridge_134_s000, 0.349999994, 0.349999994);
+
+bridge_134_s001 = highway_undivided(bridge_134_p001, 51.985679739, 2.282509603, 53.000296976, 2.499441718, bridge_134_p002);
+
+grade(bridge_134_s001, 0.349999994, 0.349999994);
+
+bridge_134_s002 = highway_undivided(bridge_134_p002, 54.468348085, 2.741091389, 54.942529330, 2.693302579, bridge_134_p003);
+
+grade(bridge_134_s002, 0.349999994, 0.349999994);
+
+bridge_134_s003 = highway_undivided(bridge_134_p003, 56.048102947, 2.623052358, 56.679776905, 2.533764704, bridge_134_p004);
+
+grade(bridge_134_s003, 0.349999994, 0.349999994);
+
+bridge_134_s004 = highway_undivided(bridge_134_p004, 58.043564680, 2.358103916, 58.771451702, 2.241873507, bridge_134_p005);
+
+grade(bridge_134_s004, 0.349999994, 0.349999994);
+
+route_40_p000 = map_point(-69.247420181, 43.431230246);
+
+route_40_p001 = map_point(-64.727537275, 43.851139495);
+
+route_40_p002 = map_point(-60.393548263, 44.265312286);
+
+route_40_p003 = map_point(-58.732608107, 44.108453003);
+
+route_40_p004 = map_point(-57.471640244, 43.581004196);
+
+route_40_p005 = map_point(-54.941651927, 41.921770259);
+
+route_40_p006 = map_point(-52.544794607, 40.384619469);
+
+route_40_p007 = map_point(-50.156242722, 38.318700536);
+
+route_40_p008 = map_point(-47.168307241, 36.614007631);
+
+route_40_p009 = map_point(-44.635054882, 35.229554112);
+
+route_40_p010 = map_point(-42.496466373, 33.807694767);
+
+route_40_p011 = map_point(-40.396114035, 32.380928260);
+
+route_40_p012 = map_point(-38.950375855, 31.651952113);
+
+route_40_p013 = map_point(-36.696466677, 29.135463736);
+
+route_40_p014 = map_point(-33.496636057, 26.772247291);
+
+route_40_p015 = map_point(-30.325782913, 24.352317913);
+
+route_40_p016 = map_point(-27.349766556, 22.199878676);
+
+route_40_p017 = map_point(-24.358924801, 20.073135580);
+
+route_40_p018 = map_point(-21.251345338, 18.471289208);
+
+route_40_p019 = map_point(-17.605348630, 18.320287318);
+
+route_40_p020 = map_point(-16.764788343, 17.965069014);
+
+route_40_p021 = map_point(-15.273175437, 16.552418536);
+
+route_40_p022 = map_point(-14.120825071, 15.965888002);
+
+route_40_p023 = map_point(-13.195414642, 15.841695822);
+
+route_40_p024 = map_point(-10.029758003, 15.770264725);
+
+route_40_p025 = map_point(-6.875632098, 15.494797594);
+
+route_40_p026 = map_point(-3.924707039, 15.593323601);
+
+route_40_p027 = map_point(-0.974647459, 15.737922957);
+
+route_40_p028 = map_point(2.013583859, 15.878590059);
+
+route_40_p029 = map_point(4.909478484, 15.899617068);
+
+route_40_p030 = map_point(7.509878872, 15.152801160);
+
+route_40_p031 = map_point(9.991401957, 14.353026126);
+
+route_40_p032 = map_point(13.540422511, 13.625982675);
+
+route_40_p033 = map_point(15.050243096, 12.818544291);
+
+route_40_p034 = map_point(16.955709605, 10.826020364);
+
+route_40_p035 = map_point(17.429931418, 9.935965797);
+
+route_40_p036 = map_point(18.868388554, 6.683427018);
+
+route_40_p037 = map_point(20.068475489, 4.069782227);
+
+route_40_p038 = map_point(21.538887738, 0.898087361);
+
+route_40_p039 = map_point(23.005416902, -2.457816436);
+
+route_40_p040 = map_point(24.589236898, -5.592997745);
+
+route_40_p041 = map_point(26.088805417, -8.677382080);
+
+route_40_p042 = map_point(28.214149675, -11.406197680);
+
+route_40_p043 = map_point(29.792712028, -13.654160584);
+
+route_40_p044 = map_point(31.521747982, -16.006341793);
+
+route_40_p045 = map_point(33.162463680, -18.235679689);
+
+route_40_p046 = map_point(35.290263981, -21.582310511);
+
+route_40_p047 = map_point(37.373231319, -24.754136981);
+
+route_40_p048 = map_point(38.165620171, -25.667012077);
+
+route_40_p049 = map_point(41.075490681, -26.913798920);
+
+route_40_p050 = map_point(41.918268732, -29.619470278);
+
+route_40_p051 = map_point(43.916873024, -31.012692419);
+
+route_40_p052 = map_point(44.128258618, -31.367938066);
+
+route_40_p053 = map_point(44.450242128, -34.634448518);
+
+route_40_p054 = map_point(45.822795259, -37.014355406);
+
+route_40_p055 = map_point(47.235431279, -39.360464194);
+
+route_40_p056 = map_point(48.660934141, -41.695723844);
+
+route_40_p057 = map_point(49.999858264, -43.904099109);
+
+route_40_p058 = map_point(51.376630180, -46.258190128);
+
+route_40_p059 = map_point(52.746018512, -48.615134349);
+
+route_40_p060 = map_point(54.115375061, -50.974780062);
+
+route_40_p061 = map_point(55.408619939, -53.206469052);
+
+route_40_p062 = map_point(57.805414648, -55.753716910);
+
+route_40_p063 = map_point(58.077425703, -58.874829189);
+
+route_40_p064 = map_point(59.319789215, -63.599218671);
+
+route_40_p065 = map_point(60.304522059, -67.007882419);
+
+route_40_p066 = map_point(60.429247344, -68.608100777);
+
+route_40_s000 = interstate_three_lane(route_40_p000, -67.740789474, 43.571200256, -66.233482762, 43.709271020, route_40_p001);
+
+grade(route_40_s000, 0.300000012, 0.300000012);
+
+route_40_s001 = interstate_three_lane(route_40_p001, -63.282187394, 43.987297546, -61.860684329, 44.202339562, route_40_p002);
+
+grade(route_40_s001, 0.300000012, 0.300000012);
+
+route_40_s002 = interstate_three_lane(route_40_p002, -59.862371294, 44.288110570, -59.295560973, 44.240296102, route_40_p003);
+
+grade(route_40_s002, 0.300000012, 0.300000012);
+
+route_40_s003 = interstate_three_lane(route_40_p003, -58.321593949, 44.012193816, -57.884725611, 43.819279536, route_40_p004);
+
+grade(route_40_s003, 0.300000012, 0.300000012);
+
+route_40_s004 = interstate_three_lane(route_40_p004, -56.621075581, 43.090385605, -55.786150895, 42.469654421, route_40_p005);
+
+grade(route_40_s004, 0.300000012, 0.300000012);
+
+route_40_s005 = interstate_three_lane(route_40_p005, -54.143867363, 41.404194046, -53.320118263, 40.968381909, route_40_p006);
+
+grade(route_40_s005, 0.300000012, 0.300000012);
+
+route_40_s006 = interstate_three_lane(route_40_p006, -51.724979442, 39.767357648, -50.983912198, 38.899158930, route_40_p007);
+
+grade(route_40_s006, 0.300000012, 0.198730007);
+
+route_40_s007 = interstate_three_lane(route_40_p007, -49.191749526, 37.642287061, -48.165684997, 37.172048716, route_40_p008);
+
+grade(route_40_s007, 0.198730007, 0.109411791);
+
+route_40_s008 = interstate_three_lane(route_40_p008, -46.325289949, 36.142333730, -45.471965302, 35.732275587, route_40_p009);
+
+grade(route_40_s008, 0.109411791, 0.109411791);
+
+route_40_s009 = interstate_three_lane(route_40_p009, -43.914685671, 34.796837878, -43.208241487, 34.286017440, route_40_p010);
+
+grade(route_40_s009, 0.109411791, 0.128842995);
+
+route_40_s010 = interstate_three_lane(route_40_p010, -41.795260799, 33.336476937, -41.103846814, 32.811173365, route_40_p011);
+
+grade(route_40_s010, 0.128842995, 0.188779995);
+
+route_40_s011 = interstate_three_lane(route_40_p011, -39.921815377, 32.092592573, -39.382231536, 32.030791536, route_40_p012);
+
+grade(route_40_s011, 0.188779995, 0.300000012);
+
+route_40_s012 = interstate_three_lane(route_40_p012, -38.149017165, 30.948970358, -37.507126933, 29.860797227, route_40_p013);
+
+grade(route_40_s012, 0.300000012, 0.300000012);
+
+route_40_s013 = interstate_three_lane(route_40_p013, -35.689214890, 28.234229330, -34.559770369, 27.570453914, route_40_p014);
+
+grade(route_40_s013, 0.300000012, 0.300000012);
+
+route_40_s014 = interstate_three_lane(route_40_p014, -32.436206750, 25.976071968, -31.388063753, 25.142499072, route_40_p015);
+
+grade(route_40_s014, 0.300000012, 0.300000012);
+
+route_40_s015 = interstate_three_lane(route_40_p015, -29.339106998, 23.618375881, -28.343248239, 22.912363824, route_40_p016);
+
+grade(route_40_s015, 0.300000012, 0.300000012);
+
+route_40_s016 = interstate_three_lane(route_40_p016, -26.354296963, 21.485969953, -25.372664134, 20.692937843, route_40_p017);
+
+grade(route_40_s016, 0.300000012, 0.300000012);
+
+route_40_s017 = interstate_three_lane(route_40_p017, -23.339855801, 19.450074434, -22.260553219, 18.733222785, route_40_p018);
+
+grade(route_40_s017, 0.300000012, 0.171713993);
+
+route_40_s018 = interstate_three_lane(route_40_p018, -20.009360756, 18.148938739, -18.832501686, 18.458747936, route_40_p019);
+
+grade(route_40_s018, 0.171713993, 0.109412000);
+
+route_40_s019 = interstate_three_lane(route_40_p019, -17.336982237, 18.290007532, -17.025411062, 18.162629960, route_40_p020);
+
+grade(route_40_s019, 0.109412000, 0.109412000);
+
+route_40_s020 = interstate_three_lane(route_40_p020, -16.248020856, 17.573341235, -15.793286394, 16.945690048, route_40_p021);
+
+grade(route_40_s020, 0.109412000, 0.109412000);
+
+route_40_s021 = interstate_three_lane(route_40_p021, -14.911964676, 16.279296580, -14.500581125, 16.095788165, route_40_p022);
+
+grade(route_40_s021, 0.109412000, 0.109412000);
+
+route_40_s022 = interstate_three_lane(route_40_p022, -13.807994178, 15.858880009, -13.497204058, 15.856126883, route_40_p023);
+
+grade(route_40_s022, 0.109412000, 0.109412000);
+
+route_40_s023 = interstate_three_lane(route_40_p023, -12.133514180, 15.790918788, -11.094115988, 15.828687598, route_40_p024);
+
+grade(route_40_s023, 0.109412000, 0.109412000);
+
+route_40_s024 = interstate_three_lane(route_40_p024, -8.987522581, 15.713055644, -7.909547938, 15.524763862, route_40_p025);
+
+grade(route_40_s024, 0.109412000, 0.109412000);
+
+route_40_s025 = interstate_three_lane(route_40_p025, -5.874531003, 15.465783492, -4.905867253, 15.552899067, route_40_p026);
+
+grade(route_40_s025, 0.109412000, 0.109412000);
+
+route_40_s026 = interstate_three_lane(route_40_p026, -2.938871652, 15.633940004, -1.958314084, 15.690668845, route_40_p027);
+
+grade(route_40_s026, 0.109412000, 0.109412000);
+
+route_40_s027 = interstate_three_lane(route_40_p027, 0.021116440, 15.785756999, 1.011350809, 15.851048283, route_40_p028);
+
+grade(route_40_s027, 0.109412000, 0.109412000);
+
+route_40_s028 = interstate_three_lane(route_40_p028, 2.972725601, 15.904946754, 3.916251910, 16.030773670, route_40_p029);
+
+grade(route_40_s028, 0.109412000, 0.109412000);
+
+route_40_s029 = interstate_three_lane(route_40_p029, 5.748350097, 15.788843525, 6.641833697, 15.416975539, route_40_p030);
+
+grade(route_40_s029, 0.109412000, 0.109412000);
+
+route_40_s030 = interstate_three_lane(route_40_p030, 8.335807843, 14.901444332, 9.170912340, 14.560757908, route_40_p031);
+
+grade(route_40_s030, 0.109412000, 0.109412000);
+
+route_40_s031 = interstate_three_lane(route_40_p031, 11.181093710, 14.051818590, 12.354065642, 13.985835622, route_40_p032);
+
+grade(route_40_s031, 0.109412000, 0.109412000);
+
+route_40_s032 = interstate_three_lane(route_40_p032, 14.040346060, 13.474342762, 14.586462099, 13.198767072, route_40_p033);
+
+grade(route_40_s032, 0.109412000, 0.109412000);
+
+route_40_s033 = interstate_three_lane(route_40_p033, 15.724890357, 12.265445826, 16.372827963, 11.532079200, route_40_p034);
+
+grade(route_40_s033, 0.109412000, 0.109412000);
+
+route_40_s034 = interstate_three_lane(route_40_p034, 17.166057719, 10.571219775, 17.269754992, 10.231791291, route_40_p035);
+
+grade(route_40_s034, 0.109412000, 0.109412000);
+
+route_40_s035_frame_p001 = map_point(18.691570774, 7.503036225);
+
+route_40_s035_frame_s000 = interstate_three_lane(route_40_p035, 17.863622665, 9.134990692, 18.390381717, 8.361040799, route_40_s035_frame_p001);
+
+grade(route_40_s035_frame_s000, 0.109412000, 0.109412000);
+
+route_40_s035_frame_s001 = interstate_three_lane(route_40_s035_frame_p001, 18.785751615, 7.234738873, 18.793638229, 6.947825432, route_40_p036);
+
+grade(route_40_s035_frame_s001, 0.109412000, 0.320000000);
+
+route_40_s036 = interstate_three_lane(route_40_p036, 19.135554822, 5.738448836, 19.666886478, 4.939780390, route_40_p037);
+
+grade(route_40_s036, 0.320000000, 0.320000000);
+
+route_40_s037 = interstate_three_lane(route_40_p037, 20.557053279, 3.011332916, 21.059503271, 1.963558631, route_40_p038);
+
+grade(route_40_s037, 0.320000000, 0.420000000);
+
+route_40_s038 = interstate_three_lane(route_40_p038, 22.038484546, -0.212307128, 22.489729235, -1.360440318, route_40_p039);
+
+grade(route_40_s038, 0.420000000, 0.420000000);
+
+route_40_s039 = interstate_three_lane(route_40_p039, 23.506510179, -3.524135337, 24.068287858, -4.542179603, route_40_p040);
+
+grade(route_40_s039, 0.420000000, 0.420000000);
+
+route_40_s040 = interstate_three_lane(route_40_p040, 25.096083997, -6.615368342, 25.501139712, -7.734955903, route_40_p041);
+
+grade(route_40_s040, 0.420000000, 0.420000000);
+
+route_40_s041 = interstate_three_lane(route_40_p041, 26.709443915, -9.672689173, 27.522884424, -10.477374413, route_40_p042);
+
+grade(route_40_s041, 0.420000000, 0.420000000);
+
+route_40_s042 = interstate_three_lane(route_40_p042, 28.757518844, -12.136299723, 29.259477899, -12.912547435, route_40_p043);
+
+grade(route_40_s042, 0.420000000, 0.420000000);
+
+route_40_s043 = interstate_three_lane(route_40_p043, 30.362009333, -14.445928962, 30.945216668, -15.222487790, route_40_p044);
+
+grade(route_40_s043, 0.420000000, 0.350000000);
+
+route_40_s044 = interstate_three_lane(route_40_p044, 32.068468341, -16.749660549, 32.641651804, -17.465077397, route_40_p045);
+
+grade(route_40_s044, 0.350000000, 0.109412000);
+
+route_40_s045 = interstate_three_lane(route_40_p045, 33.897823399, -19.323733858, 34.574125293, -20.473693915, route_40_p046);
+
+grade(route_40_s045, 0.109412000, 0.109412000);
+
+route_40_s046 = interstate_three_lane(route_40_p046, 35.977715222, -22.646512148, 36.651179341, -23.728394101, route_40_p047);
+
+grade(route_40_s046, 0.109412000, 0.109412000);
+
+route_40_s047 = interstate_three_lane(route_40_p047, 37.609631739, -25.089963449, 37.837884044, -25.475832051, route_40_p048);
+
+grade(route_40_s047, 0.109412000, 0.109412000);
+
+route_40_s048 = interstate_three_lane(route_40_p048, 39.071971094, -26.195719326, 40.370090582, -26.170839588, route_40_p049);
+
+grade(route_40_s048, 0.109412000, 0.109412000);
+
+route_40_s049 = interstate_three_lane(route_40_p049, 41.620972892, -27.488324550, 41.439708617, -28.929111801, route_40_p050);
+
+grade(route_40_s049, 0.109412000, 0.109412000);
+
+route_40_s050 = interstate_three_lane(route_40_p050, 42.386835008, -30.295411190, 43.280368563, -30.509112894, route_40_p051);
+
+grade(route_40_s050, 0.109412000, 0.109412000);
+
+route_40_s051 = interstate_three_lane(route_40_p051, 44.017034170, -31.091934814, 44.106560422, -31.220589035, route_40_p052);
+
+grade(route_40_s051, 0.109412000, 0.109412000);
+
+route_40_s052 = interstate_three_lane(route_40_p052, 44.284349859, -32.427840636, 44.156220240, -33.654724248, route_40_p053);
+
+grade(route_40_s052, 0.109412000, 0.109412000);
+
+route_40_s053 = interstate_three_lane(route_40_p053, 44.721064070, -35.536865948, 45.358841398, -36.227101281, route_40_p054);
+
+grade(route_40_s053, 0.109412000, 0.109412000);
+
+route_40_s054 = interstate_three_lane(route_40_p054, 46.287236915, -37.802437769, 46.762502131, -38.580396440, route_40_p055);
+
+grade(route_40_s054, 0.109412000, 0.109412000);
+
+route_40_s055 = interstate_three_lane(route_40_p055, 47.708550377, -40.140847866, 48.186751580, -40.916354091, route_40_p056);
+
+grade(route_40_s055, 0.109412000, 0.109412000);
+
+route_40_s056 = interstate_three_lane(route_40_p056, 49.108227566, -42.430900371, 49.558760814, -43.163041541, route_40_p057);
+
+grade(route_40_s056, 0.109412000, 0.109412000);
+
+route_40_s057 = interstate_three_lane(route_40_p057, 50.463992292, -44.683862743, 50.918682675, -45.472581116, route_40_p058);
+
+grade(route_40_s057, 0.109412000, 0.109412000);
+
+route_40_s058 = interstate_three_lane(route_40_p058, 51.834069209, -47.042927724, 52.289730472, -47.829326399, route_40_p059);
+
+grade(route_40_s058, 0.109412000, 0.109412000);
+
+route_40_s059 = interstate_three_lane(route_40_p059, 53.202643339, -49.401520592, 53.659129950, -50.188040947, route_40_p060);
+
+grade(route_40_s059, 0.109412000, 0.109412000);
+
+route_40_s060 = interstate_three_lane(route_40_p060, 54.546663478, -51.718484240, 54.900671206, -52.548629399, route_40_p061);
+
+grade(route_40_s060, 0.109412000, 0.185287997);
+
+route_40_s061 = interstate_three_lane(route_40_p061, 56.130684606, -54.141606448, 57.304065606, -54.688885946, route_40_p062);
+
+grade(route_40_s061, 0.185287997, 0.300000012);
+
+route_40_s062 = interstate_three_lane(route_40_p062, 58.193667786, -56.578343043, 57.884481935, -57.875249736, route_40_p063);
+
+grade(route_40_s062, 0.300000012, 0.300000012);
+
+route_40_s063 = interstate_three_lane(route_40_p063, 58.389272889, -60.490414149, 58.890760595, -62.032465774, route_40_p064);
+
+grade(route_40_s063, 0.300000012, 0.300000012);
+
+route_40_s064 = interstate_three_lane(route_40_p064, 59.633125182, -64.743480467, 60.046498567, -65.842976615, route_40_p065);
+
+grade(route_40_s064, 0.300000012, 0.300000012);
+
+route_40_s065 = interstate_three_lane(route_40_p065, 60.416316706, -67.512607947, 60.387676058, -68.074691266, route_40_p066);
+
+grade(route_40_s065, 0.300000012, 0.300000012);
+
+route_20_p000 = map_point(-64.800843272, 50.415737882);
+
+route_20_p001 = map_point(-62.929738926, 49.225806268);
+
+route_20_p002 = map_point(-60.332849743, 47.909494264);
+
+route_20_p003 = map_point(-58.224850008, 46.921613807);
+
+route_20_p004 = map_point(-56.109596901, 45.935554721);
+
+route_20_p005 = map_point(-53.985976672, 44.960216816);
+
+route_20_p006 = map_point(-52.224109507, 44.232961675);
+
+route_20_p007 = map_point(-48.652237286, 43.134110991);
+
+route_20_p008 = map_point(-46.131953171, 41.913665086);
+
+route_20_p009 = map_point(-43.881522647, 41.351232409);
+
+route_20_p010 = map_point(-41.324449766, 40.599067638);
+
+route_20_p011 = map_point(-38.948511138, 40.450590458);
+
+route_20_p012 = map_point(-36.173837673, 38.962830683);
+
+route_20_p013 = map_point(-33.661965341, 38.098250469);
+
+route_20_p014 = map_point(-30.852885004, 37.179760431);
+
+route_20_p015 = map_point(-27.906305555, 36.247006638);
+
+route_20_p016 = map_point(-25.097421933, 35.325725413);
+
+route_20_p017 = map_point(-21.786068452, 33.935723041);
+
+route_20_p018 = map_point(-18.867142349, 32.617760643);
+
+route_20_p019 = map_point(-17.607277118, 32.468596677);
+
+route_20_p020 = map_point(-14.755953133, 32.463057441);
+
+route_20_p021 = map_point(-12.867928965, 32.469181800);
+
+route_20_p022 = map_point(-8.954111548, 32.372260828);
+
+route_20_p023 = map_point(-6.797986551, 32.585618758);
+
+route_20_p024 = map_point(-4.305588384, 33.286622741);
+
+route_20_p025 = map_point(-1.151783581, 32.617509645);
+
+route_20_p026 = map_point(2.525964000, 32.717413951);
+
+route_20_p027 = map_point(6.155079700, 32.837587600);
+
+route_20_p028 = map_point(9.907255682, 32.924771159);
+
+route_20_p029 = map_point(13.536287030, 32.956887205);
+
+route_20_p030 = map_point(16.077545027, 33.396888807);
+
+route_20_p031 = map_point(18.050945812, 34.116040267);
+
+route_20_p032 = map_point(19.910377992, 34.729272394);
+
+route_20_p033 = map_point(21.776787313, 34.886809001);
+
+route_20_p034 = map_point(23.146317169, 34.519001957);
+
+route_20_p035 = map_point(24.958970137, 33.446803946);
+
+route_20_p036 = map_point(27.329806182, 31.331921199);
+
+route_20_p037 = map_point(29.759727189, 29.115816027);
+
+route_20_p038 = map_point(31.084532597, 28.053818701);
+
+route_20_p039 = map_point(32.971733998, 26.677551035);
+
+route_20_s000 = interstate_three_lane(route_20_p000, -64.177140839, 50.019092344, -63.559877231, 49.579268194, route_20_p001);
+
+grade(route_20_s000, 0.300000012, 0.300000012);
+
+route_20_s001 = interstate_three_lane(route_20_p001, -62.070541402, 48.743855357, -61.199511592, 48.333936661, route_20_p002);
+
+grade(route_20_s001, 0.300000012, 0.300000012);
+
+route_20_s002 = interstate_three_lane(route_20_p002, -59.631220518, 47.565875880, -58.927561448, 47.250058097, route_20_p003);
+
+grade(route_20_s002, 0.300000012, 0.300000012);
+
+route_20_s003 = interstate_three_lane(route_20_p003, -57.519811498, 46.592079400, -56.814798304, 46.261862318, route_20_p004);
+
+grade(route_20_s003, 0.300000012, 0.300000012);
+
+route_20_s004 = interstate_three_lane(route_20_p004, -55.401841163, 45.608064523, -54.694244981, 45.270574137, route_20_p005);
+
+grade(route_20_s004, 0.300000012, 0.300000012);
+
+route_20_s005 = interstate_three_lane(route_20_p005, -53.399082505, 44.703043923, -52.809849657, 44.433499777, route_20_p006);
+
+grade(route_20_s005, 0.300000012, 0.212216005);
+
+route_20_s006 = interstate_three_lane(route_20_p006, -51.031935364, 43.824798454, -49.843503447, 43.587628900, route_20_p007);
+
+grade(route_20_s006, 0.212216005, 0.139475003);
+
+route_20_s007 = interstate_three_lane(route_20_p007, -47.812782483, 42.814529968, -46.969130639, 42.226529395, route_20_p008);
+
+grade(route_20_s007, 0.139475003, 0.109411791);
+
+route_20_s008 = interstate_three_lane(route_20_p008, -45.378892945, 41.632235790, -44.633615963, 41.556890751, route_20_p009);
+
+grade(route_20_s008, 0.109411791, 0.109411791);
+
+route_20_s009 = interstate_three_lane(route_20_p009, -43.031116690, 41.118692114, -42.159516935, 40.751529398, route_20_p010);
+
+grade(route_20_s009, 0.109411791, 0.109412000);
+
+route_20_s010 = interstate_three_lane(route_20_p010, -40.515180310, 40.451314378, -39.757570359, 40.707610187, route_20_p011);
+
+grade(route_20_s010, 0.109412000, 0.109412000);
+
+route_20_s011 = interstate_three_lane(route_20_p011, -38.040697925, 40.162198254, -37.101238147, 39.375492482, route_20_p012);
+
+grade(route_20_s011, 0.109412000, 0.109412000);
+
+route_20_s012 = interstate_three_lane(route_20_p012, -35.339057318, 38.591380671, -34.498811888, 38.378680958, route_20_p013);
+
+grade(route_20_s012, 0.109412000, 0.109412000);
+
+route_20_s013 = interstate_three_lane(route_20_p013, -32.725162885, 37.784324571, -31.788897108, 37.480817252, route_20_p014);
+
+grade(route_20_s013, 0.109412000, 0.109412000);
+
+route_20_s014 = interstate_three_lane(route_20_p014, -29.870342085, 36.863736208, -28.888879582, 36.563527717, route_20_p015);
+
+grade(route_20_s014, 0.109412000, 0.109412000);
+
+route_20_s015 = interstate_three_lane(route_20_p015, -26.970392132, 35.945516374, -26.034926638, 35.679770161, route_20_p016);
+
+grade(route_20_s015, 0.109412000, 0.109412000);
+
+route_20_s016 = interstate_three_lane(route_20_p016, -23.994847253, 34.909342143, -22.889424675, 34.415292171, route_20_p017);
+
+grade(route_20_s016, 0.109412000, 0.109412000);
+
+route_20_s017 = interstate_three_lane(route_20_p017, -20.812663416, 33.512635792, -19.830494212, 32.955983538, route_20_p018);
+
+grade(route_20_s017, 0.109412000, 0.109412000);
+
+route_20_s018 = interstate_three_lane(route_20_p018, -18.437563593, 32.466940152, -18.018322328, 32.484064885, route_20_p019);
+
+grade(route_20_s018, 0.109412000, 0.109412000);
+
+route_20_s019 = interstate_three_lane(route_20_p019, -16.647925345, 32.432495597, -15.705802416, 32.462940025, route_20_p020);
+
+grade(route_20_s019, 0.109412000, 0.109412000);
+
+route_20_s020 = interstate_three_lane(route_20_p020, -14.126021009, 32.463136212, -13.500776733, 32.479085122, route_20_p021);
+
+grade(route_20_s020, 0.109412000, 0.109412000);
+
+route_20_s021 = interstate_three_lane(route_20_p021, -11.566831040, 32.448820744, -10.240264462, 32.347588004, route_20_p022);
+
+grade(route_20_s021, 0.109412000, 0.109411791);
+
+route_20_s022 = interstate_three_lane(route_20_p022, -8.216950459, 32.386401852, -7.489670173, 32.449564987, route_20_p023);
+
+grade(route_20_s022, 0.109411791, 0.109412000);
+
+route_20_s023 = interstate_three_lane(route_20_p023, -5.940162687, 32.754352801, -5.207468654, 33.281529569, route_20_p024);
+
+grade(route_20_s023, 0.109412000, 0.109412000);
+
+route_20_s024 = interstate_three_lane(route_20_p024, -3.325400588, 33.292159035, -2.170414277, 32.702382891, route_20_p025);
+
+grade(route_20_s024, 0.109412000, 0.109412000);
+
+route_20_s025 = interstate_three_lane(route_20_p025, 0.106770113, 32.512645803, 1.301197154, 32.680523997, route_20_p026);
+
+grade(route_20_s025, 0.109412000, 0.109412000);
+
+route_20_s026 = interstate_three_lane(route_20_p026, 3.736817302, 32.753885264, 4.943453995, 32.803550672, route_20_p027);
+
+grade(route_20_s026, 0.109412000, 0.109412000);
+
+route_20_s027 = interstate_three_lane(route_20_p027, 7.403884712, 32.872669288, 8.653791644, 32.904512659, route_20_p028);
+
+grade(route_20_s027, 0.109412000, 0.109412000);
+
+route_20_s028 = interstate_three_lane(route_20_p028, 11.114194769, 32.944278435, 12.355058829, 32.866505437, route_20_p029);
+
+grade(route_20_s028, 0.109412000, 0.109412000);
+
+route_20_s029 = interstate_three_lane(route_20_p029, 14.411821213, 33.023877681, 15.259647984, 33.186890547, route_20_p030);
+
+grade(route_20_s029, 0.109412000, 0.109412000);
+
+route_20_s030 = interstate_three_lane(route_20_p030, 16.764534023, 33.573275132, 17.388392034, 33.885721110, route_20_p031);
+
+grade(route_20_s030, 0.109412000, 0.109412000);
+
+route_20_s031 = interstate_three_lane(route_20_p031, 18.666003992, 34.329850485, 19.260834595, 34.594900675, route_20_p032);
+
+grade(route_20_s031, 0.109412000, 0.109412000);
+
+route_20_s032 = interstate_three_lane(route_20_p032, 20.502780381, 34.851824318, 21.132591759, 34.928669733, route_20_p033);
+
+grade(route_20_s032, 0.109412000, 0.109412000);
+
+route_20_s033 = interstate_three_lane(route_20_p033, 22.211237974, 34.858580306, 22.691566232, 34.724786898, route_20_p034);
+
+grade(route_20_s033, 0.109412000, 0.180000000);
+
+route_20_s034 = interstate_three_lane(route_20_p034, 23.752294170, 34.244784276, 24.380967540, 33.887138467, route_20_p035);
+
+grade(route_20_s034, 0.180000000, 0.320000000);
+
+route_20_s035 = interstate_three_lane(route_20_p035, 25.775465638, 32.824779935, 26.542305749, 32.042363430, route_20_p036);
+
+grade(route_20_s035, 0.320000000, 0.500000000);
+
+route_20_s036 = interstate_three_lane(route_20_p036, 28.142558510, 30.598699432, 28.939541189, 29.831889273, route_20_p037);
+
+grade(route_20_s036, 0.500000000, 0.500000000);
+
+route_20_s037 = interstate_three_lane(route_20_p037, 30.191116477, 28.739187383, 30.637763832, 28.392965586, route_20_p038);
+
+grade(route_20_s037, 0.500000000, 0.500000000);
+
+route_20_s038 = interstate_three_lane(route_20_p038, 31.708432981, 27.580211028, 32.342667364, 27.136307073, route_20_p039);
+
+grade(route_20_s038, 0.500000000, 0.500000000);
+
+route_136_p000 = map_point(37.778820311, 21.444778945);
+
+route_136_p001 = map_point(38.913380680, 19.878806985);
+
+route_136_p002 = map_point(39.631506519, 19.257157962);
+
+route_136_p003 = map_point(40.152983638, 18.830260304);
+
+route_136_p004 = map_point(41.561175245, 18.271927873);
+
+route_136_p005 = map_point(42.189163999, 17.627248481);
+
+route_136_p006 = map_point(42.782339613, 16.232510103);
+
+route_136_p007 = map_point(44.602257501, 14.543247893);
+
+route_136_p008 = map_point(46.351564324, 13.098886433);
+
+route_136_p009 = map_point(46.721919411, 12.448217160);
+
+route_136_p010 = map_point(47.280111182, 10.756432179);
+
+route_136_p011 = map_point(48.317074601, 8.706759338);
+
+route_136_p012 = map_point(48.489497885, 7.826493735);
+
+route_136_s000 = underground_expressway(route_136_p000, 38.157007495, 20.922788983, 38.504858527, 20.361180716, route_136_p001);
+
+grade(route_136_s000, 0.500000000, 0.500000000);
+
+route_136_s001 = underground_expressway(route_136_p001, 39.122424206, 19.631973621, 39.390625679, 19.460911994, route_136_p002);
+
+grade(route_136_s001, 0.500000000, 0.500000000);
+
+route_136_s002 = underground_expressway(route_136_p002, 39.803828201, 19.111396009, 39.970444853, 18.923458514, route_136_p003);
+
+grade(route_136_s002, 0.500000000, 0.500000000);
+
+route_136_s003 = underground_expressway(route_136_p003, 40.613669737, 18.595048008, 41.112794191, 18.536838900, route_136_p004);
+
+grade(route_136_s003, 0.500000000, 0.500000000);
+
+route_136_s004 = underground_expressway(route_136_p004, 41.791521227, 18.135834622, 42.037361051, 17.880771305, route_136_p005);
+
+grade(route_136_s004, 0.500000000, 0.300000000);
+
+route_136_s005 = underground_expressway(route_136_p005, 42.444414046, 17.200964740, 42.480003719, 16.618905898, route_136_p006);
+
+grade(route_136_s005, 0.300000000, 0.062057000);
+
+route_136_s006 = underground_expressway(route_136_p006, 43.284368115, 15.590905404, 43.985390323, 15.084828756, route_136_p007);
+
+grade(route_136_s006, 0.062057000, -0.027401004);
+
+route_136_s007 = underground_expressway(route_136_p007, 45.175133857, 14.040287446, 45.814289071, 13.629918069, route_136_p008);
+
+grade(route_136_s007, -0.027401000, -0.110481001);
+
+route_136_s008 = underground_expressway(route_136_p008, 46.520843860, 12.931574753, 46.632696276, 12.673303119, route_136_p009);
+
+grade(route_136_s008, -0.110481001, -0.119999997);
+
+route_136_s009 = underground_expressway(route_136_p009, 46.942209646, 11.892485192, 47.043710345, 11.310917055, route_136_p010);
+
+grade(route_136_s009, -0.119999997, -0.119999997);
+
+route_136_s010 = underground_expressway(route_136_p010, 47.575427615, 10.063764825, 48.033128933, 9.394667007, route_136_p011);
+
+grade(route_136_s010, -0.119999997, -0.119999997);
+
+route_136_s011 = underground_expressway(route_136_p011, 48.436258435, 8.418020896, 48.432022477, 8.119915592, route_136_p012);
+
+grade(route_136_s011, -0.119999997, -0.119999997);
 
 road urban_arterial:
     sidewalk carlane carlane carlane carlane sidewalk;
-    direction both;
-    role ordinary;
 end
 
-# arterial_west: independent corridor; no interchange joins.
-arterial_west_p000 = map_point(16.406643, 0.149678);
-arterial_west_p001 = map_point(19.425851, 1.521620);
-arterial_west_p002 = map_point(22.395385, 2.880193);
-arterial_west_p003 = map_point(24.780774, 3.815399);
-arterial_west_p004 = map_point(25.692016, 3.904007);
-arterial_west_p005 = map_point(27.869807, 3.691423);
-arterial_west_p006 = map_point(29.509856, 3.949397);
-arterial_west_p007 = map_point(30.848394, 3.858920);
-arterial_west_p008 = map_point(32.734395, 4.064231);
-arterial_west_p009 = map_point(33.830153, 4.026690);
-arterial_west_s000 = urban_arterial(arterial_west_p000, 17.413046, 0.606992, 18.420032, 1.063026, arterial_west_p001);
-grade(arterial_west_s000, 0.109475, 0.110473);
-arterial_west_s001 = urban_arterial(arterial_west_p001, 20.416279, 1.973197, 21.395177, 2.451754, arterial_west_p002);
-grade(arterial_west_s001, 0.110473, 0.355473);
-arterial_west_s002 = urban_arterial(arterial_west_p002, 23.180152, 3.216347, 23.971187, 3.563971, arterial_west_p003);
-grade(arterial_west_s002, 0.355473, 0.560446);
-arterial_west_s003 = urban_arterial(arterial_west_p003, 25.070064, 3.905242, 25.388277, 3.916197, arterial_west_p004);
-grade(arterial_west_s003, 0.560446, 0.633689);
-arterial_west_s004 = urban_arterial(arterial_west_p004, 26.417954, 3.874872, 27.146210, 3.682820, arterial_west_p005);
-grade(arterial_west_s004, 0.633689, 0.808741);
-arterial_west_s005 = urban_arterial(arterial_west_p005, 28.418823, 3.697950, 28.960732, 3.918518, arterial_west_p006);
-grade(arterial_west_s005, 0.808741, 0.941558);
-arterial_west_s006 = urban_arterial(arterial_west_p006, 29.953594, 3.974351, 30.403157, 3.843064, arterial_west_p007);
-grade(arterial_west_s006, 0.941558, 1.048885);
-arterial_west_s007 = urban_arterial(arterial_west_p007, 31.478003, 3.881342, 32.104504, 4.028789, arterial_west_p008);
-grade(arterial_west_s007, 1.048885, 1.049097);
-arterial_west_s008 = urban_arterial(arterial_west_p008, 33.098423, 4.084713, 33.464900, 4.039204, arterial_west_p009);
-grade(arterial_west_s008, 1.049097, 1.049097);
+arterial_west_p000 = map_point(24.240549574, 9.532627367);
 
-# arterial_central: independent corridor; no interchange joins.
-arterial_central_p000 = map_point(44.194822, 1.262694);
-arterial_central_p001 = map_point(40.882692, -0.409415);
-arterial_central_p002 = map_point(38.844925, -1.263114);
-arterial_central_p003 = map_point(37.336093, -2.063480);
-arterial_central_p004 = map_point(36.246101, -3.849942);
-arterial_central_p005 = map_point(35.978473, -4.015745);
-arterial_central_p006 = map_point(34.042669, -4.352985);
-arterial_central_p007 = map_point(33.145325, -4.819085);
-arterial_central_p008 = map_point(31.680413, -6.266438);
-arterial_central_p009 = map_point(29.559313, -6.655461);
-arterial_central_p010 = map_point(26.834803, -8.162374);
-arterial_central_p011 = map_point(24.241474, -9.413877);
-arterial_central_p012 = map_point(21.689273, -10.716952);
-arterial_central_p013 = map_point(18.861269, -11.968799);
-arterial_central_p014 = map_point(16.521825, -12.876033);
-arterial_central_p015 = map_point(14.282582, -13.700258);
-arterial_central_p016 = map_point(12.737932, -14.228417);
-arterial_central_p017 = map_point(10.883285, -14.898486);
-arterial_central_p018 = map_point(9.558227, -15.338993);
-arterial_central_p019 = map_point(7.569514, -16.001608);
-arterial_central_s000 = urban_arterial(arterial_central_p000, 43.090779, 0.705324, 42.000417, 0.118289, arterial_central_p001);
-grade(arterial_central_s000, 0.130103, 0.419628);
-arterial_central_s001 = urban_arterial(arterial_central_p001, 40.217118, -0.723647, 39.511682, -0.952152, arterial_central_p002);
-grade(arterial_central_s001, 0.419628, 0.596377);
-arterial_central_s002 = urban_arterial(arterial_central_p002, 38.329482, -1.503507, 37.725382, -1.675988, arterial_central_p003);
-grade(arterial_central_s002, 0.596377, 0.647452);
-arterial_central_s003 = urban_arterial(arterial_central_p003, 36.859107, -2.538264, 36.639464, -3.284283, arterial_central_p004);
-grade(arterial_central_s003, 0.647452, 0.666064);
-arterial_central_s004 = urban_arterial(arterial_central_p004, 36.186924, -3.935038, 36.079900, -3.992589, arterial_central_p005);
-grade(arterial_central_s004, 0.666064, 0.691250);
-arterial_central_s005 = urban_arterial(arterial_central_p005, 35.345423, -4.160270, 34.666187, -4.176186, arterial_central_p006);
-grade(arterial_central_s005, 0.691250, 0.691250);
-arterial_central_s006 = urban_arterial(arterial_central_p006, 33.721804, -4.443966, 33.404638, -4.609039, arterial_central_p007);
-grade(arterial_central_s006, 0.691250, 0.683528);
-arterial_central_s007 = urban_arterial(arterial_central_p007, 32.617219, -5.246857, 32.264307, -5.967429, arterial_central_p008);
-grade(arterial_central_s007, 0.683528, 0.571458);
-arterial_central_s008 = urban_arterial(arterial_central_p008, 31.068970, -6.579555, 30.220258, -6.396854, arterial_central_p009);
-grade(arterial_central_s008, 0.571458, 0.398940);
-arterial_central_s009 = urban_arterial(arterial_central_p009, 28.605055, -7.028833, 27.755710, -7.684691, arterial_central_p010);
-grade(arterial_central_s009, 0.398940, 0.149862);
-arterial_central_s010 = urban_arterial(arterial_central_p010, 25.983097, -8.604163, 25.101138, -8.987084, arterial_central_p011);
-grade(arterial_central_s010, 0.149862, 0.109564);
-arterial_central_s011 = urban_arterial(arterial_central_p011, 23.385961, -9.838610, 22.551799, -10.307360, arterial_central_p012);
-grade(arterial_central_s011, 0.109564, 0.109412);
-arterial_central_s012 = urban_arterial(arterial_central_p012, 20.758398, -11.159000, 19.812217, -11.571470, arterial_central_p013);
-grade(arterial_central_s012, 0.109412, 0.109412);
-arterial_central_s013 = urban_arterial(arterial_central_p013, 18.089735, -12.291164, 17.304126, -12.580201, arterial_central_p014);
-grade(arterial_central_s013, 0.109412, 0.109412);
-arterial_central_s014 = urban_arterial(arterial_central_p014, 15.777897, -13.157354, 15.031507, -13.432588, arterial_central_p015);
-grade(arterial_central_s014, 0.109412, 0.109412);
-arterial_central_s015 = urban_arterial(arterial_central_p015, 13.770209, -13.883383, 13.251114, -14.047524, arterial_central_p016);
-grade(arterial_central_s015, 0.109412, 0.142242);
-arterial_central_s016 = urban_arterial(arterial_central_p016, 12.118015, -14.446933, 11.503800, -14.681759, arterial_central_p017);
-grade(arterial_central_s016, 0.142242, 0.300000);
-arterial_central_s017 = urban_arterial(arterial_central_p017, 10.443898, -15.051951, 9.999854, -15.191980, arterial_central_p018);
-grade(arterial_central_s017, 0.300000, 0.300000);
-arterial_central_s018 = urban_arterial(arterial_central_p018, 8.895264, -15.559687, 8.232419, -15.780736, arterial_central_p019);
-grade(arterial_central_s018, 0.300000, 0.300000);
+arterial_west_p001 = map_point(26.541845516, 11.039206372);
 
-# arterial_east: independent corridor; no interchange joins.
-arterial_east_p000 = map_point(43.211842, -1.929022);
-arterial_east_p001 = map_point(40.392959, -3.348440);
-arterial_east_p002 = map_point(37.490370, -5.226188);
-arterial_east_p003 = map_point(35.114415, -6.173923);
-arterial_east_p004 = map_point(33.905882, -6.895650);
-arterial_east_p005 = map_point(30.768867, -7.917093);
-arterial_east_p006 = map_point(28.925169, -9.512516);
-arterial_east_p007 = map_point(26.117601, -11.374567);
-arterial_east_p008 = map_point(23.700594, -12.278353);
-arterial_east_p009 = map_point(21.259323, -13.268464);
-arterial_east_p010 = map_point(18.484573, -14.139490);
-arterial_east_p011 = map_point(16.423537, -15.031263);
-arterial_east_p012 = map_point(13.929313, -15.738358);
-arterial_east_s000 = urban_arterial(arterial_east_p000, 42.272214, -2.402161, 41.303145, -2.823919, arterial_east_p001);
-grade(arterial_east_s000, 0.129109, 0.211284);
-arterial_east_s001 = urban_arterial(arterial_east_p001, 39.395987, -3.922975, 38.501618, -4.684890, arterial_east_p002);
-grade(arterial_east_s001, 0.211284, 0.255378);
-arterial_east_s002 = urban_arterial(arterial_east_p002, 36.742103, -5.626718, 35.885130, -5.814966, arterial_east_p003);
-grade(arterial_east_s002, 0.255378, 0.255378);
-arterial_east_s003 = urban_arterial(arterial_east_p003, 34.690300, -6.371453, 34.339086, -6.721875, arterial_east_p004);
-grade(arterial_east_s003, 0.255378, 0.248593);
-arterial_east_s004 = urban_arterial(arterial_east_p004, 32.890570, -7.302932, 31.723558, -7.415499, arterial_east_p005);
-grade(arterial_east_s004, 0.248593, 0.187437);
-arterial_east_s005 = urban_arterial(arterial_east_p005, 30.063320, -8.287787, 29.576127, -9.028632, arterial_east_p006);
-grade(arterial_east_s005, 0.187437, 0.121653);
-arterial_east_s006 = urban_arterial(arterial_east_p006, 28.025705, -10.181124, 27.103766, -10.852502, arterial_east_p007);
-grade(arterial_east_s006, 0.121653, 0.110337);
-arterial_east_s007 = urban_arterial(arterial_east_p007, 25.362241, -11.774447, 24.501930, -11.965969, arterial_east_p008);
-grade(arterial_east_s007, 0.110337, 0.109412);
-arterial_east_s008 = urban_arterial(arterial_east_p008, 22.882503, -12.597268, 22.085710, -12.973599, arterial_east_p009);
-grade(arterial_east_s008, 0.109412, 0.109412);
-arterial_east_s009 = urban_arterial(arterial_east_p009, 20.347036, -13.593979, 19.394147, -13.807921, arterial_east_p010);
-grade(arterial_east_s009, 0.109412, 0.109412);
-arterial_east_s010 = urban_arterial(arterial_east_p010, 17.782219, -14.395521, 17.128323, -14.783887, arterial_east_p011);
-grade(arterial_east_s010, 0.109412, 0.109412);
-arterial_east_s011 = urban_arterial(arterial_east_p011, 15.609903, -15.316843, 14.760721, -15.502659, arterial_east_p012);
-grade(arterial_east_s011, 0.109412, 0.108948);
+arterial_west_p002 = map_point(28.802255854, 12.531342012);
+
+arterial_west_p003 = map_point(30.669298892, 13.554485484);
+
+arterial_west_p004 = map_point(31.470777701, 13.643385899);
+
+arterial_west_p005 = map_point(33.525640578, 13.378900387);
+
+arterial_west_p006 = map_point(34.935782326, 13.649609987);
+
+arterial_west_p007 = map_point(36.185564741, 13.532213690);
+
+arterial_west_p008 = map_point(37.837188278, 13.740846840);
+
+arterial_west_p009 = map_point(38.848290465, 13.685796618);
+
+arterial_west_s000 = urban_arterial(arterial_west_p000, 25.007648417, 10.034820373, 25.775699820, 10.535567799, arterial_west_p001);
+
+grade(arterial_west_s000, 0.136433989, 0.356481254);
+
+arterial_west_s001 = urban_arterial(arterial_west_p001, 27.296267881, 11.535138646, 28.031319022, 12.061530635, arterial_west_p002);
+
+grade(arterial_west_s001, 0.356481254, 0.573178887);
+
+arterial_west_s002 = urban_arterial(arterial_west_p002, 29.407137507, 12.899956869, 30.013963416, 13.281390063, arterial_west_p003);
+
+grade(arterial_west_s002, 0.573178887, 0.743679523);
+
+arterial_west_s003 = urban_arterial(arterial_west_p003, 30.903470790, 13.652070899, 31.189918954, 13.660650555, arterial_west_p004);
+
+grade(arterial_west_s003, 0.743679523, 0.808740973);
+
+arterial_west_s004 = urban_arterial(arterial_west_p004, 32.142031650, 13.602122475, 32.868916416, 13.377720589, arterial_west_p005);
+
+grade(arterial_west_s004, 0.808740973, 0.941558003);
+
+arterial_west_s005 = urban_arterial(arterial_west_p005, 34.023918197, 13.379795063, 34.445405555, 13.621345969, arterial_west_p006);
+
+grade(arterial_west_s005, 0.941558003, 1.048884988);
+
+arterial_west_s006 = urban_arterial(arterial_west_p006, 35.332047104, 13.672450995, 35.784944532, 13.519616019, arterial_west_p007);
+
+grade(arterial_west_s006, 1.048884988, 1.049096942);
+
+arterial_west_s007 = urban_arterial(arterial_west_p007, 36.752079834, 13.550028152, 37.274692406, 13.708401773, arterial_west_p008);
+
+grade(arterial_west_s007, 1.049096942, 1.049096942);
+
+arterial_west_s008 = urban_arterial(arterial_west_p008, 38.162267180, 13.759596767, 38.511256834, 13.704147194, arterial_west_p009);
+
+grade(arterial_west_s008, 1.049096942, 1.049096942);
+
+arterial_central_p000 = map_point(49.203518910, 10.457586861);
+
+arterial_central_p001 = map_point(46.733831368, 8.617070244);
+
+arterial_central_p002 = map_point(45.156866964, 7.681458570);
+
+arterial_central_p003 = map_point(43.891009079, 6.801560840);
+
+arterial_central_p004 = map_point(42.670168552, 4.816925365);
+
+arterial_central_p005 = map_point(42.405130554, 4.634682748);
+
+arterial_central_p006 = map_point(40.597755067, 4.280329921);
+
+arterial_central_p007 = map_point(39.720525973, 3.769716558);
+
+arterial_central_p008 = map_point(38.201101774, 2.168633844);
+
+arterial_central_p009 = map_point(36.218241875, 1.758556969);
+
+arterial_central_p010 = map_point(33.543130361, 0.105658915);
+
+arterial_central_p011 = map_point(31.020089481, -1.263207069);
+
+arterial_central_p012 = map_point(28.527973777, -2.690217671);
+
+arterial_central_p013 = map_point(25.790985698, -4.056714988);
+
+arterial_central_p014 = map_point(23.543165907, -5.043636233);
+
+arterial_central_p015 = map_point(21.397240952, -5.938921614);
+
+arterial_central_p016 = map_point(19.922103302, -6.511328045);
+
+arterial_central_p017 = map_point(18.146349190, -7.238765503);
+
+arterial_central_p018 = map_point(16.882520647, -7.715745521);
+
+arterial_central_p019 = map_point(14.985515514, -8.433275833);
+
+arterial_central_s000 = urban_arterial(arterial_central_p000, 48.380289553, 9.844080945, 47.579275146, 9.197072390, arterial_central_p001);
+
+grade(arterial_central_s000, 0.419627964, 0.596377015);
+
+arterial_central_s001 = urban_arterial(arterial_central_p001, 46.230391624, 8.271696296, 45.662457277, 8.023143316, arterial_central_p002);
+
+grade(arterial_central_s001, 0.596377015, 0.629775167);
+
+arterial_central_s002_frame_p001 = map_point(44.361177552, 7.172626084);
+
+arterial_central_s002_frame_s000 = urban_arterial(arterial_central_p002, 44.901287079, 7.508734226, 44.614693103, 7.351901167, arterial_central_s002_frame_p001);
+
+grade(arterial_central_s002_frame_s000, 0.629775167, 0.647451997);
+
+arterial_central_s002_frame_s001 = urban_arterial(arterial_central_s002_frame_p001, 44.198532262, 7.057608269, 44.030879974, 6.949926376, arterial_central_p003);
+
+grade(arterial_central_s002_frame_s001, 0.647451997, 0.666064024);
+
+arterial_central_s003 = urban_arterial(arterial_central_p003, 43.395827067, 6.276306153, 43.100695093, 5.444767510, arterial_central_p004);
+
+grade(arterial_central_s003, 0.666064024, 0.691250026);
+
+arterial_central_s004 = urban_arterial(arterial_central_p004, 42.605400998, 4.722474642, 42.500525560, 4.659383258, arterial_central_p005);
+
+grade(arterial_central_s004, 0.691250026, 0.691250026);
+
+arterial_central_s005 = urban_arterial(arterial_central_p005, 41.809723910, 4.480517830, 41.188581981, 4.470691521, arterial_central_p006);
+
+grade(arterial_central_s005, 0.691250026, 0.691250026);
+
+arterial_central_s006 = urban_arterial(arterial_central_p006, 40.293714677, 4.182369640, 39.983613387, 4.001524554, arterial_central_p007);
+
+grade(arterial_central_s006, 0.691250026, 0.691250026);
+
+arterial_central_s007 = urban_arterial(arterial_central_p007, 39.184729145, 3.297625109, 38.771361035, 2.496101933, arterial_central_p008);
+
+grade(arterial_central_s007, 0.691250026, 0.683528006);
+
+arterial_central_s008 = urban_arterial(arterial_central_p008, 37.603934707, 1.825714776, 36.853593464, 2.039948268, arterial_central_p009);
+
+grade(arterial_central_s008, 0.683528006, 0.571457982);
+
+arterial_central_s009 = urban_arterial(arterial_central_p009, 35.300935808, 1.352289604, 34.443311328, 0.628946701, arterial_central_p010);
+
+grade(arterial_central_s009, 0.571457982, 0.398939997);
+
+arterial_central_s010 = urban_arterial(arterial_central_p010, 32.710593357, -0.378308216, 31.857971110, -0.796100783, arterial_central_p011);
+
+grade(arterial_central_s010, 0.398939997, 0.110000000);
+
+arterial_central_s011 = urban_arterial(arterial_central_p011, 30.186253283, -1.728058882, 29.366276827, -2.242376457, arterial_central_p012);
+
+grade(arterial_central_s011, 0.110000000, 0.110000000);
+
+arterial_central_s012 = urban_arterial(arterial_central_p012, 27.623242181, -3.173545802, 26.708323746, -3.623622930, arterial_central_p013);
+
+grade(arterial_central_s012, 0.110000000, 0.110000000);
+
+arterial_central_s013 = urban_arterial(arterial_central_p013, 25.046721050, -4.408096310, 24.293868873, -4.722048111, arterial_central_p014);
+
+grade(arterial_central_s013, 0.110000000, 0.110000000);
+
+arterial_central_s014 = urban_arterial(arterial_central_p014, 22.829286483, -5.349450540, 22.113937475, -5.648428937, arterial_central_p015);
+
+grade(arterial_central_s014, 0.110000000, 0.110000000);
+
+arterial_central_s015 = urban_arterial(arterial_central_p015, 20.906916944, -6.137660113, 20.412880838, -6.315094894, arterial_central_p016);
+
+grade(arterial_central_s015, 0.110000000, 0.110000000);
+
+arterial_central_s016 = urban_arterial(arterial_central_p016, 19.329250739, -6.748375085, 18.739519837, -7.003725383, arterial_central_p017);
+
+grade(arterial_central_s016, 0.110000000, 0.110000000);
+
+arterial_central_s017 = urban_arterial(arterial_central_p017, 17.726325074, -7.405198459, 17.303765650, -7.556553621, arterial_central_p018);
+
+grade(arterial_central_s017, 0.110000000, 0.110000000);
+
+arterial_central_s018 = urban_arterial(arterial_central_p018, 16.250154481, -7.954722573, 15.617851225, -8.194098664, arterial_central_p019);
+
+grade(arterial_central_s018, 0.110000000, 0.110000000);
+
+arterial_east_p000 = map_point(49.263792932, 6.882960509);
+
+arterial_east_p001 = map_point(46.513795246, 5.328996876);
+
+arterial_east_p002 = map_point(43.629178391, 3.263561547);
+
+arterial_east_p003 = map_point(41.342925543, 2.231784936);
+
+arterial_east_p004 = map_point(40.149523086, 1.439008796);
+
+arterial_east_p005 = map_point(37.160193960, 0.333749100);
+
+arterial_east_p006 = map_point(35.276669101, -1.428445013);
+
+arterial_east_p007 = map_point(32.480660171, -3.477444518);
+
+arterial_east_p008 = map_point(30.162581400, -4.459600595);
+
+arterial_east_p009 = map_point(27.811401491, -5.537991038);
+
+arterial_east_p010 = map_point(25.171412987, -6.479321350);
+
+arterial_east_p011 = map_point(23.179326123, -7.452222200);
+
+arterial_east_p012 = map_point(20.815893777, -8.213554282);
+
+arterial_east_s000 = urban_arterial(arterial_east_p000, 48.347125862, 6.364973151, 47.410164932, 5.904779373, arterial_east_p001);
+
+grade(arterial_east_s000, 0.211283997, 0.255378008);
+
+arterial_east_s001 = urban_arterial(arterial_east_p001, 45.531959485, 4.698312308, 44.619798004, 3.856916847, arterial_east_p002);
+
+grade(arterial_east_s001, 0.255378008, 0.255378008);
+
+arterial_east_s002 = urban_arterial(arterial_east_p002, 42.896175435, 2.824512205, 42.091101613, 2.624088290, arterial_east_p003);
+
+grade(arterial_east_s002, 0.255378008, 0.255378008);
+
+arterial_east_s003 = urban_arterial(arterial_east_p003, 40.931214312, 2.015904882, 40.566494760, 1.628222027, arterial_east_p004);
+
+grade(arterial_east_s003, 0.255378008, 0.255378008);
+
+arterial_east_s004 = urban_arterial(arterial_east_p004, 39.172253615, 0.995543460, 38.094211099, 0.883374861, arterial_east_p005);
+
+grade(arterial_east_s004, 0.255378008, 0.248593003);
+
+arterial_east_s005 = urban_arterial(arterial_east_p005, 36.469925947, -0.072442577, 35.931582494, -0.895057040, arterial_east_p006);
+
+grade(arterial_east_s005, 0.248593003, 0.187436998);
+
+arterial_east_s006 = urban_arterial(arterial_east_p006, 34.371738997, -2.165455191, 33.445969589, -2.905299228, arterial_east_p007);
+
+grade(arterial_east_s006, 0.187436998, 0.121652998);
+
+arterial_east_s007 = urban_arterial(arterial_east_p007, 31.741274846, -3.915684331, 30.932740318, -4.119729112, arterial_east_p008);
+
+grade(arterial_east_s007, 0.121652998, 0.110336997);
+
+arterial_east_s008 = urban_arterial(arterial_east_p008, 29.376320092, -4.806577964, 28.602165032, -5.218001657, arterial_east_p009);
+
+grade(arterial_east_s008, 0.110336997, 0.109412000);
+
+arterial_east_s009 = urban_arterial(arterial_east_p009, 26.938441718, -5.891242403, 26.042671349, -6.119269584, arterial_east_p010);
+
+grade(arterial_east_s009, 0.109412000, 0.109412000);
+
+arterial_east_s010 = urban_arterial(arterial_east_p010, 24.498645967, -6.757346733, 23.853208106, -7.183902488, arterial_east_p011);
+
+grade(arterial_east_s010, 0.109412000, 0.109412000);
+
+arterial_east_s011 = urban_arterial(arterial_east_p011, 22.401369023, -7.761980279, 21.603704852, -7.959776004, arterial_east_p012);
+
+grade(arterial_east_s011, 0.109412000, 0.109412000);
+
+road interchange_ramp:
+    verge carlane verge;
+    direction forward;
+    role ramp;
+end
+
+road interchange_mouth:
+    verge carlane verge;
+    direction forward;
+    role merge;
+end
+
+interchange_south_through = interstate_three_lane(route_20_p039, 34.400000000, 25.650000000, 36.650000000, 23.000000000, route_136_p000);
+
+grade(interchange_south_through, 0.500000000, 0.500000000);
+
+interchange_north_15n_40e_entry = lane_point(route_15_022, 6.000000000, 1.000000000);
+
+interchange_north_15n_40e_merge = lane_point(route_40_s036, 6.000000000, 0.750000000);
+
+interchange_north_15n_40e_p00 = map_point(19.970207111, 13.380914835);
+
+interchange_north_15n_40e_p01 = map_point(17.524378573, 11.643943643);
+
+interchange_north_15n_40e_p02 = map_point(17.197656392, 8.054000958);
+
+interchange_north_15n_40e_p03 = map_point(19.006264775, 5.001796793);
+
+interchange_north_15n_40e_entry_mouth = terminal_three_mouth(interchange_north_15n_40e_entry, 20.763974132, 13.263413952, 20.220205332, 13.381884779, interchange_north_15n_40e_p00);
+
+grade(interchange_north_15n_40e_entry_mouth, 0.111587003, 0.111587003);
+
+interchange_north_15n_40e_s00 = terminal_three_lane(interchange_north_15n_40e_p00, 18.803549229, 13.376387465, 17.987371705, 12.664579845, interchange_north_15n_40e_p01);
+
+grade(interchange_north_15n_40e_s00, 0.111587003, 0.447372675);
+
+interchange_north_15n_40e_s01 = terminal_three_lane(interchange_north_15n_40e_p01, 17.061385442, 10.623307440, 16.951576703, 9.293842656, interchange_north_15n_40e_p02);
+
+grade(interchange_north_15n_40e_s01, 0.447372666, 0.517019663);
+
+interchange_north_15n_40e_s02 = terminal_three_lane(interchange_north_15n_40e_p02, 17.443736080, 6.814159261, 18.045704196, 5.663940649, interchange_north_15n_40e_p03);
+
+grade(interchange_north_15n_40e_s02, 0.517019663, 0.319999993);
+
+interchange_north_15n_40e_merge_mouth = terminal_three_mouth(interchange_north_15n_40e_p03, 19.212099075, 4.859909058, 19.576501846, 4.870440483, interchange_north_15n_40e_merge);
+
+grade(interchange_north_15n_40e_merge_mouth, 0.319999993, 0.319999993);
+
+interchange_north_40w_15s_entry = lane_point(route_40_s036, 2.000000000, 0.300000000);
+
+interchange_north_40w_15s_merge = lane_point(route_15_022, 2.000000000, 1.000000000);
+
+interchange_north_40w_15s_p00 = map_point(19.405207871, 6.628204044);
+
+interchange_north_40w_15s_p01 = map_point(19.415054839, 8.777244646);
+
+interchange_north_40w_15s_p02 = map_point(19.528599223, 10.572640192);
+
+interchange_north_40w_15s_p03 = map_point(20.376165922, 12.423682581);
+
+interchange_north_40w_15s_entry_mouth = terminal_three_mouth(interchange_north_40w_15s_entry, 19.153162003, 6.100095749, 19.388179779, 6.378784657, interchange_north_40w_15s_p00);
+
+grade(interchange_north_40w_15s_entry_mouth, 0.319999993, 0.319999993);
+
+interchange_north_40w_15s_s00 = terminal_three_lane(interchange_north_40w_15s_p00, 19.461243391, 7.448968632, 19.429507664, 8.142577060, interchange_north_40w_15s_p01);
+
+grade(interchange_north_40w_15s_s00, 0.319999993, 0.392540019);
+
+interchange_north_40w_15s_s01 = terminal_three_lane(interchange_north_40w_15s_p01, 19.400602015, 9.411912232, 19.403432093, 9.987638975, interchange_north_40w_15s_p02);
+
+grade(interchange_north_40w_15s_s01, 0.392540008, 0.220000000);
+
+interchange_north_40w_15s_s02 = terminal_three_lane(interchange_north_40w_15s_p02, 19.653766354, 11.157641409, 19.901270537, 11.751917100, interchange_north_40w_15s_p03);
+
+grade(interchange_north_40w_15s_s02, 0.220000000, 0.220000000);
+
+interchange_north_40w_15s_merge_mouth = terminal_three_mouth(interchange_north_40w_15s_p03, 20.520479792, 12.627822737, 20.864201488, 13.138696240, interchange_north_40w_15s_merge);
+
+grade(interchange_north_40w_15s_merge_mouth, 0.220000000, 0.111587003);
+
+interchange_north_40e_15s_entry = lane_point(route_40_s032, 7.000000000, 0.300000012);
+
+interchange_north_40e_15s_merge = lane_point(interchange_north_40w_15s_s02, 1.000000000, 0.550000000);
+
+interchange_north_40e_15s_p00 = map_point(14.340399179, 12.735929531);
+
+interchange_north_40e_15s_p01 = map_point(15.881939385, 11.139467174);
+
+interchange_north_40e_15s_p02 = map_point(17.556439997, 10.145427213);
+
+interchange_north_40e_15s_p03 = map_point(19.204700021, 11.205741855);
+
+interchange_north_40e_15s_entry_mouth = interchange_mouth(interchange_north_40e_15s_entry, 14.151307022, 13.254238469, 14.184378909, 12.931269427, interchange_north_40e_15s_p00);
+
+grade(interchange_north_40e_15s_entry_mouth, 0.109412000, 0.109412000);
+
+interchange_north_40e_15s_s00 = interchange_ramp(interchange_north_40e_15s_p00, 14.749336499, 12.223933405, 15.304557908, 11.631498423, interchange_north_40e_15s_p01);
+
+grade(interchange_north_40e_15s_s00, 0.109412000, 0.251641573);
+
+interchange_north_40e_15s_s01 = interchange_ramp(interchange_north_40e_15s_p01, 16.459320862, 10.647435925, 17.058862407, 10.255808408, interchange_north_40e_15s_p02);
+
+grade(interchange_north_40e_15s_s01, 0.251641573, 0.251648924);
+
+interchange_north_40e_15s_s02 = interchange_ramp(interchange_north_40e_15s_p02, 18.054018021, 10.035045624, 18.804185235, 10.906429465, interchange_north_40e_15s_p03);
+
+grade(interchange_north_40e_15s_s02, 0.251648933, 0.220000000);
+
+interchange_north_40e_15s_merge_mouth = interchange_mouth(interchange_north_40e_15s_p03, 19.404957414, 11.355398049, 19.728823127, 11.378064139, interchange_north_40e_15s_merge);
+
+grade(interchange_north_40e_15s_merge_mouth, 0.220000000, 0.220000000);
+
+interchange_south_15n_20w_entry = lane_point(route_15_017, 7.000000000, 0.500000000);
+
+interchange_south_15n_20w_merge = lane_point(route_20_s036, 1.000000000, 0.699999988);
+
+interchange_south_15n_20w_p00 = map_point(34.236231239, 23.601741590);
+
+interchange_south_15n_20w_p01 = map_point(32.370799013, 25.167439342);
+
+interchange_south_15n_20w_p02 = map_point(31.633432410, 27.879840612);
+
+interchange_south_15n_20w_p03 = map_point(29.823859355, 29.755077852);
+
+interchange_south_15n_20w_entry_mouth = interchange_mouth(interchange_south_15n_20w_entry, 34.738091895, 23.372534517, 34.484872937, 23.575716483, interchange_south_15n_20w_p00);
+
+grade(interchange_south_15n_20w_entry_mouth, 0.250000000, 0.250000000);
+
+interchange_south_15n_20w_s00 = interchange_ramp(interchange_south_15n_20w_p00, 33.181934885, 23.712093861, 32.682361480, 24.344207975, interchange_south_15n_20w_p01);
+
+grade(interchange_south_15n_20w_s00, 0.250000000, 0.534775150);
+
+interchange_south_15n_20w_s01 = interchange_ramp(interchange_south_15n_20w_p01, 32.059236546, 25.990670710, 31.935685016, 27.005019330, interchange_south_15n_20w_p02);
+
+grade(interchange_south_15n_20w_s01, 0.534775150, 0.683333333);
+
+interchange_south_15n_20w_s02 = interchange_ramp(interchange_south_15n_20w_p02, 31.331179805, 28.754661894, 30.850226124, 29.489955837, interchange_south_15n_20w_p03);
+
+grade(interchange_south_15n_20w_s02, 0.683333333, 0.500000000);
+
+interchange_south_15n_20w_merge_mouth = interchange_mouth(interchange_south_15n_20w_p03, 29.581804477, 29.817603334, 29.273538510, 29.715746349, interchange_south_15n_20w_merge);
+
+grade(interchange_south_15n_20w_merge_mouth, 0.500000000, 0.500000000);
+
+interchange_south_20e_15n_entry = lane_point(route_20_s037, 7.000000000, 0.600000024);
+
+interchange_south_20e_15n_merge = lane_point(route_15_020, 7.000000000, 0.500000000);
+
+interchange_south_20e_15n_p00 = map_point(30.697430324, 27.682280456);
+
+interchange_south_20e_15n_p01 = map_point(31.213142645, 24.708662811);
+
+interchange_south_20e_15n_p02 = map_point(30.282660400, 22.001169419);
+
+interchange_south_20e_15n_p03 = map_point(28.458016683, 19.286600678);
+
+interchange_south_20e_15n_entry_mouth = interchange_mouth(interchange_south_20e_15n_entry, 30.645365664, 28.231542936, 30.595800279, 27.910690907, interchange_south_20e_15n_p00);
+
+grade(interchange_south_20e_15n_entry_mouth, 0.500000000, 0.500000000);
+
+interchange_south_20e_15n_s00 = interchange_ramp(interchange_south_20e_15n_p00, 31.171703869, 26.616365021, 31.312939471, 25.640336895, interchange_south_20e_15n_p01);
+
+grade(interchange_south_20e_15n_s00, 0.500000000, 0.585172445);
+
+interchange_south_20e_15n_s01 = interchange_ramp(interchange_south_20e_15n_p01, 31.113345819, 23.776988727, 30.772516566, 22.889668686, interchange_south_20e_15n_p02);
+
+grade(interchange_south_20e_15n_s01, 0.585172445, 0.492567113);
+
+interchange_south_20e_15n_s02 = interchange_ramp(interchange_south_20e_15n_p02, 29.792804235, 21.112670153, 29.153921157, 20.222991661, interchange_south_20e_15n_p03);
+
+grade(interchange_south_20e_15n_s02, 0.492567113, 0.222184002);
+
+interchange_south_20e_15n_merge_mouth = interchange_mouth(interchange_south_20e_15n_p03, 28.308894296, 19.085945467, 28.287090727, 18.762020543, interchange_south_20e_15n_merge);
+
+grade(interchange_south_20e_15n_merge_mouth, 0.222184002, 0.222184002);
+
+interchange_south_15s_136e_entry = lane_point(route_15_020, 1.000000000, 0.200000003);
+
+interchange_south_15s_136e_merge = lane_point(route_136_s000, 7.000000000, 0.699999988);
+
+interchange_south_15s_136e_p00 = map_point(29.662427179, 18.743524201);
+
+interchange_south_15s_136e_p01 = map_point(32.620562885, 19.543986874);
+
+interchange_south_15s_136e_p02 = map_point(35.056723555, 20.727888016);
+
+interchange_south_15s_136e_p03 = map_point(37.781553131, 20.504943002);
+
+interchange_south_15s_136e_entry_mouth = interchange_mouth(interchange_south_15s_136e_entry, 29.138832379, 18.917445118, 29.412428653, 18.742665741, interchange_south_15s_136e_p00);
+
+grade(interchange_south_15s_136e_entry_mouth, 0.238873601, 0.238873601);
+
+interchange_south_15s_136e_s00 = interchange_ramp(interchange_south_15s_136e_p00, 30.825539802, 18.747518166, 31.766549263, 19.113799315, interchange_south_15s_136e_p01);
+
+grade(interchange_south_15s_136e_s00, 0.238873601, 0.503693512);
+
+interchange_south_15s_136e_s01 = interchange_ramp(interchange_south_15s_136e_p01, 33.474576507, 19.974174434, 34.241594289, 20.468268405, interchange_south_15s_136e_p02);
+
+grade(interchange_south_15s_136e_s01, 0.503693512, 0.590735645);
+
+interchange_south_15s_136e_s02 = interchange_ramp(interchange_south_15s_136e_p02, 35.871852822, 20.987507628, 36.735093572, 21.012652880, interchange_south_15s_136e_p03);
+
+grade(interchange_south_15s_136e_s02, 0.590735645, 0.500000000);
+
+interchange_south_15s_136e_merge_mouth = interchange_mouth(interchange_south_15s_136e_p03, 38.006478337, 20.395816234, 38.328793788, 20.434745685, interchange_south_15s_136e_merge);
+
+grade(interchange_south_15s_136e_merge_mouth, 0.500000000, 0.500000000);
+
+interchange_south_136w_15s_entry = lane_point(route_136_s002, 1.000000000, 0.500000000);
+
+interchange_south_136w_15s_merge = lane_point(route_15_015, 1.000000000, 0.600000024);
+
+interchange_south_136w_15s_p00 = map_point(39.790810657, 19.815261569);
+
+interchange_south_136w_15s_p01 = map_point(38.577062780, 21.571065374);
+
+interchange_south_136w_15s_p02 = map_point(37.374631095, 23.002540657);
+
+interchange_south_136w_15s_p03 = map_point(37.542428170, 24.564708872);
+
+interchange_south_136w_15s_entry_mouth = interchange_mouth(interchange_south_136w_15s_entry, 39.807651797, 19.263794094, 39.877629393, 19.580820730, interchange_south_136w_15s_p00);
+
+grade(interchange_south_136w_15s_entry_mouth, 0.500000000, 0.500000000);
+
+interchange_south_136w_15s_s00 = interchange_ramp(interchange_south_136w_15s_p00, 39.535332284, 20.505142197, 39.055254516, 21.065131163, interchange_south_136w_15s_p01);
+
+grade(interchange_south_136w_15s_s00, 0.500000000, 0.594444444);
+
+interchange_south_136w_15s_s01 = interchange_ramp(interchange_south_136w_15s_p01, 38.098871044, 22.076999586, 37.622565340, 22.528879044, interchange_south_136w_15s_p02);
+
+grade(interchange_south_136w_15s_s01, 0.594444444, 0.433859909);
+
+interchange_south_136w_15s_s02 = interchange_ramp(interchange_south_136w_15s_p02, 37.126696851, 23.476202270, 37.107134067, 23.971646039, interchange_south_136w_15s_p03);
+
+grade(interchange_south_136w_15s_s02, 0.433859909, 0.250000000);
+
+interchange_south_136w_15s_merge_mouth = interchange_mouth(interchange_south_136w_15s_p03, 37.690353348, 24.766248302, 37.710228099, 25.090297289, interchange_south_136w_15s_merge);
+
+grade(interchange_south_136w_15s_merge_mouth, 0.250000000, 0.250000000);
+
+interchange_arterial_40e_exit_entry = lane_point(route_40_s038, 7.000000000, 0.400000006);
+
+interchange_arterial_40e_exit_merge = lane_point(arterial_central_s015, 4.000000000, 0.500000000);
+
+interchange_arterial_40e_exit_p00 = map_point(21.874056732, -1.204427484);
+
+interchange_arterial_40e_exit_p01 = map_point(21.864865859, -2.852855932);
+
+interchange_arterial_40e_exit_p02 = map_point(21.779025614, -4.231863466);
+
+interchange_arterial_40e_exit_p03 = map_point(21.054198345, -5.575650560);
+
+interchange_arterial_40e_exit_entry_mouth = interchange_mouth(interchange_arterial_40e_exit_entry, 22.093467600, -0.698207304, 21.895244941, -0.955326983, interchange_arterial_40e_exit_p00);
+
+grade(interchange_arterial_40e_exit_entry_mouth, 0.419999987, 0.419999987);
+
+interchange_arterial_40e_exit_s00 = interchange_ramp(interchange_arterial_40e_exit_p00, 21.821286042, -1.824829394, 21.849463398, -2.361294406, interchange_arterial_40e_exit_p01);
+
+grade(interchange_arterial_40e_exit_s00, 0.419999987, 0.316666658);
+
+interchange_arterial_40e_exit_s01 = interchange_ramp(interchange_arterial_40e_exit_p01, 21.880268320, -3.344417458, 21.882895886, -3.791075499, interchange_arterial_40e_exit_p02);
+
+grade(interchange_arterial_40e_exit_s01, 0.316666658, 0.213333329);
+
+interchange_arterial_40e_exit_s02 = interchange_ramp(interchange_arterial_40e_exit_p02, 21.675155343, -4.672651433, 21.464787234, -5.107569327, interchange_arterial_40e_exit_p03);
+
+grade(interchange_arterial_40e_exit_s02, 0.213333329, 0.109999999);
+
+interchange_arterial_40e_exit_merge_mouth = interchange_mouth(interchange_arterial_40e_exit_p03, 20.889340861, -5.763592067, 20.841418815, -6.084693654, interchange_arterial_40e_exit_merge);
+
+grade(interchange_arterial_40e_exit_merge_mouth, 0.109999999, 0.109999999);
+
+interchange_arterial_40e_entry_entry = lane_point(arterial_central_s015, 1.000000000, 0.150000006);
+
+interchange_arterial_40e_entry_merge = lane_point(route_40_s040, 7.000000000, 0.899999976);
+
+interchange_arterial_40e_entry_p00 = map_point(21.905856636, -6.242469108);
+
+interchange_arterial_40e_entry_p01 = map_point(23.152773872, -6.620956022);
+
+interchange_arterial_40e_entry_p02 = map_point(24.076396911, -7.300332280);
+
+interchange_arterial_40e_entry_p03 = map_point(25.164840832, -8.127262097);
+
+interchange_arterial_40e_entry_entry_mouth = interchange_mouth(interchange_arterial_40e_entry_entry, 21.405808770, -6.009333672, 21.657426662, -6.214495042, interchange_arterial_40e_entry_p00);
+
+grade(interchange_arterial_40e_entry_entry_mouth, 0.109999999, 0.109999999);
+
+interchange_arterial_40e_entry_s00 = interchange_ramp(interchange_arterial_40e_entry_p00, 22.429613090, -6.301445879, 22.818134664, -6.436126839, interchange_arterial_40e_entry_p01);
+
+grade(interchange_arterial_40e_entry_s00, 0.109999999, 0.213333329);
+
+interchange_arterial_40e_entry_s01 = interchange_ramp(interchange_arterial_40e_entry_p01, 23.487413080, -6.805785205, 23.768169922, -7.040762613, interchange_arterial_40e_entry_p02);
+
+grade(interchange_arterial_40e_entry_s01, 0.213333329, 0.316666658);
+
+interchange_arterial_40e_entry_s02 = interchange_ramp(interchange_arterial_40e_entry_p02, 24.384623899, -7.559901947, 24.720321035, -7.844063874, interchange_arterial_40e_entry_p03);
+
+grade(interchange_arterial_40e_entry_s02, 0.316666658, 0.419999987);
+
+interchange_arterial_40e_entry_merge_mouth = interchange_mouth(interchange_arterial_40e_entry_p03, 25.375687000, -8.261589658, 25.700341364, -8.260074670, interchange_arterial_40e_entry_merge);
+
+grade(interchange_arterial_40e_entry_merge_mouth, 0.419999987, 0.419999987);
+
+interchange_arterial_40w_exit_entry = lane_point(route_40_s040, 1.000000000, 0.699999988);
+
+interchange_arterial_40w_exit_merge = lane_point(arterial_central_s012, 1.000000000, 0.100000001);
+
+interchange_arterial_40w_exit_p00 = map_point(25.807803475, -7.018658656);
+
+interchange_arterial_40w_exit_p01 = map_point(26.168479025, -5.665207653);
+
+interchange_arterial_40w_exit_p02 = map_point(26.969493494, -4.681268818);
+
+interchange_arterial_40w_exit_p03 = map_point(27.942821737, -3.527283052);
+
+interchange_arterial_40w_exit_entry_mouth = interchange_mouth(interchange_arterial_40w_exit_entry, 25.616595470, -7.536190779, 25.800361695, -7.268547871, interchange_arterial_40w_exit_p00);
+
+grade(interchange_arterial_40w_exit_entry_mouth, 0.419999987, 0.419999987);
+
+interchange_arterial_40w_exit_s00 = interchange_ramp(interchange_arterial_40w_exit_p00, 25.824858267, -6.445971950, 25.959973736, -6.024797121, interchange_arterial_40w_exit_p01);
+
+grade(interchange_arterial_40w_exit_s00, 0.419999987, 0.316666658);
+
+interchange_arterial_40w_exit_s01 = interchange_ramp(interchange_arterial_40w_exit_p01, 26.376984314, -5.305618186, 26.658879423, -5.007614079, interchange_arterial_40w_exit_p02);
+
+grade(interchange_arterial_40w_exit_s01, 0.316666658, 0.213333329);
+
+interchange_arterial_40w_exit_s02 = interchange_ramp(interchange_arterial_40w_exit_p02, 27.280107565, -4.354923556, 27.619440599, -4.000237140, interchange_arterial_40w_exit_p03);
+
+grade(interchange_arterial_40w_exit_s02, 0.213333329, 0.109999999);
+
+interchange_arterial_40w_exit_merge_mouth = interchange_mouth(interchange_arterial_40w_exit_p03, 28.083927612, -3.320911708, 28.092959619, -2.996379468, interchange_arterial_40w_exit_merge);
+
+grade(interchange_arterial_40w_exit_merge_mouth, 0.109999999, 0.109999999);
+
+interchange_arterial_40w_entry_entry = lane_point(arterial_central_s012, 4.000000000, 0.699999988);
+
+interchange_arterial_40w_entry_merge = lane_point(route_40_s038, 1.000000000, 0.100000001);
+
+interchange_arterial_40w_entry_p00 = map_point(25.871737494, -3.503678864);
+
+interchange_arterial_40w_entry_p01 = map_point(24.397122815, -2.798780924);
+
+interchange_arterial_40w_entry_p02 = map_point(23.577168427, -1.314293201);
+
+interchange_arterial_40w_entry_p03 = map_point(22.409495040, 0.225930162);
+
+interchange_arterial_40w_entry_entry_mouth = interchange_mouth(interchange_arterial_40w_entry_entry, 26.388351143, -3.697354721, 26.121588346, -3.512313207, interchange_arterial_40w_entry_p00);
+
+grade(interchange_arterial_40w_entry_entry_mouth, 0.109999999, 0.109999999);
+
+interchange_arterial_40w_entry_s00 = interchange_ramp(interchange_arterial_40w_entry_p00, 25.159713743, -3.479072753, 24.723863255, -3.203892654, interchange_arterial_40w_entry_p01);
+
+grade(interchange_arterial_40w_entry_s00, 0.109999999, 0.213333329);
+
+interchange_arterial_40w_entry_s01 = interchange_ramp(interchange_arterial_40w_entry_p01, 24.070382376, -2.393669195, 23.852751985, -1.858625835, interchange_arterial_40w_entry_p02);
+
+grade(interchange_arterial_40w_entry_s01, 0.213333329, 0.316666658);
+
+interchange_arterial_40w_entry_s02 = interchange_ramp(interchange_arterial_40w_entry_p02, 23.301584870, -0.769960568, 22.968048146, -0.216338661, interchange_arterial_40w_entry_p03);
+
+grade(interchange_arterial_40w_entry_s02, 0.316666658, 0.419999987);
+
+interchange_arterial_40w_entry_merge_mouth = interchange_mouth(interchange_arterial_40w_entry_p03, 22.213497408, 0.381123359, 21.890391461, 0.412829797, interchange_arterial_40w_entry_merge);
+
+grade(interchange_arterial_40w_entry_merge_mouth, 0.419999987, 0.419999987);
+
+road terminal_three_lane:
+    verge carlane carlane carlane verge;
+    direction forward;
+    role ramp;
+end
+
+road terminal_three_mouth:
+    carlane carlane carlane;
+    direction forward;
+    role merge;
+end
+
+road_boundary(main_p009);
+
+road_boundary(main_p018);
+
+road_boundary(route_136_p000);
+
+road_boundary(route_20_p039);
+
+road_boundary(route_40_p032);
+
+road_path(southern_span_000, "Champlain Bridge & approaches");
+
+road_routes(southern_span_000, "Autoroute 10", "Autoroute 15", "Autoroute 20");
+
+road_path(route_15_009, "Southwest approach");
+
+road_routes(route_15_009, "Autoroute 15");
+
+road_path(route_15_018, "Décarie");
+
+road_routes(route_15_018, "Autoroute 15");
+
+road_path(bridge_134_s000, "Jacques-Cartier Bridge");
+
+road_routes(bridge_134_s000, "Route 134");
+
+road_path(route_40_s000, "West Island corridor");
+
+road_routes(route_40_s000, "Autoroute 40");
+
+road_path(route_40_s032, "Métropolitaine corridor");
+
+road_routes(route_40_s032, "Autoroute 40");
+
+road_path(route_20_s000, "West Island corridor");
+
+road_routes(route_20_s000, "Autoroute 20");
+
+road_path(route_136_s000, "Downtown expressway");
+
+road_routes(route_136_s000, "Route 136");
+
+road_path(arterial_west_s000, "Chemin de la Côte-des-Neiges");
+
+road_path(arterial_central_s000, "Boulevard Saint-Laurent");
+
+road_path(arterial_east_s000, "Rue Saint-Denis");
+
+road_path(interchange_south_through, "Autoroute 15 / Autoroute 20 / Route 136", "Turcot interchange");
+
+road_path(interchange_north_15n_40e_entry_mouth, "Autoroutes 15 / 40", "North interchange");
+
+road_path(interchange_north_40w_15s_entry_mouth, "Autoroutes 15 / 40", "North interchange");
+
+road_path(interchange_north_40e_15s_entry_mouth, "Autoroutes 15 / 40", "North interchange");
+
+road_path(interchange_south_15n_20w_entry_mouth, "Autoroute 15 / Autoroute 20 / Route 136", "Turcot interchange");
+
+road_path(interchange_south_20e_15n_entry_mouth, "Autoroute 15 / Autoroute 20 / Route 136", "Turcot interchange");
+
+road_path(interchange_south_15s_136e_entry_mouth, "Autoroute 15 / Autoroute 20 / Route 136", "Turcot interchange");
+
+road_path(interchange_south_136w_15s_entry_mouth, "Autoroute 15 / Autoroute 20 / Route 136", "Turcot interchange");
+
+road_path(interchange_arterial_40e_exit_entry_mouth, "Autoroute 40 / Boulevard Saint-Laurent", "Entry / exit ramps");
+
+road_path(interchange_arterial_40e_entry_entry_mouth, "Autoroute 40 / Boulevard Saint-Laurent", "Entry / exit ramps");
+
+road_path(interchange_arterial_40w_exit_entry_mouth, "Autoroute 40 / Boulevard Saint-Laurent", "Entry / exit ramps");
+
+road_path(interchange_arterial_40w_entry_entry_mouth, "Autoroute 40 / Boulevard Saint-Laurent", "Entry / exit ramps");
