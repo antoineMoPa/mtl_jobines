@@ -97,11 +97,34 @@ impl DynamicWorld {
 mod tests {
     use super::*;
     #[test]
+    fn current_map_starts_without_parked_catalog_and_resets_on_supported_ground() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
+        let hermes = Hermes::load_with_game_data(&path, None).unwrap();
+        let mut world = DynamicWorld::new(&hermes);
+        assert_eq!(world.vehicles.len() - world.traffic.count(), 1);
+        let spawn = world.player().position;
+        let surface = hermes
+            .city()
+            .surface_at(
+                (spawn.truncate() / METERS_PER_UNIT).to_array(),
+                (spawn.z + 0.4) / METERS_PER_UNIT,
+            )
+            .unwrap();
+        assert_ne!(surface.kind, SurfaceKind::Water);
+        assert!(
+            (spawn.z - world.player().ride_height() - surface.height * METERS_PER_UNIT).abs()
+                < 0.001
+        );
+        world.vehicles[0].position += glam::Vec3::new(20., 20., 20.);
+        world.reset_player(&hermes);
+        assert_eq!(world.player().position, spawn);
+    }
+    #[test]
     fn default_map_has_every_road_vehicle_near_spawn() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("opencity/examples/default_map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
-        let world = DynamicWorld::new(&hermes);
+        let world = DynamicWorld::with_vehicle_lineup(&hermes, None, true).unwrap();
         let road_count = catalog::definitions()
             .iter()
             .filter(|d| d.config.road_vehicle)
@@ -136,7 +159,7 @@ mod tests {
     #[test]
     fn all_road_vehicles_spawn_separately_and_reset_retains_selected_model() {
         let hermes = Hermes::test_map();
-        let mut world = DynamicWorld::new(&hermes);
+        let mut world = DynamicWorld::with_vehicle_lineup(&hermes, None, true).unwrap();
         let road_count = catalog::definitions()
             .iter()
             .filter(|d| d.config.road_vehicle)

@@ -42,6 +42,8 @@ pub struct Controls {
     pub handbrake: bool,
 }
 pub struct Vehicle {
+    pub(super) route_signal: crate::hermes::RouteSignal,
+    pub(super) signal_time: f32,
     pub(crate) sound_controls: Controls,
     pub(crate) sound_running: bool,
     pub(super) sound_impacts: [crate::audio::Impact; 3],
@@ -113,6 +115,8 @@ impl Vehicle {
             .expect("spawn lane support")
             .height;
         Self {
+            route_signal: crate::hermes::RouteSignal::Off,
+            signal_time: 0.,
             sound_controls: Controls::default(),
             sound_running: false,
             sound_impacts: [crate::audio::Impact::default(); 3],

@@ -65,6 +65,10 @@ star settings. The automatic day/night cycle lasts 20 minutes and pauses with si
 
 ## Maps and editor launch
 
+Native and browser builds start on the work-in-progress map in `data/maps/mtl/map.road`.
+Normal play spawns the player vehicle and moving traffic, without the parked catalog lineup.
+Use `--smoke /tmp/vehicle-lineup.ppm --vehicle-lineup` for the explicit lineup QA view.
+
 ```sh
 make editor
 cargo run --release -- --map /path/to/map.road --start '-24,3,90'

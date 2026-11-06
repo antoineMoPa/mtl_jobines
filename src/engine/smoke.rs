@@ -116,10 +116,8 @@ pub(super) fn run(
         renderer.adapter_name,
         started.elapsed()
     );
-    let mut smoke_world = match options.start {
-        Some(start) => DynamicWorld::with_start(hermes, Some(start))?,
-        None => DynamicWorld::new(hermes),
-    };
+    let mut smoke_world =
+        DynamicWorld::with_vehicle_lineup(hermes, options.start, options.vehicle_lineup)?;
     renderer.vehicle_name = smoke_world.vehicle_name_notice().map(str::to_owned);
     let mut vehicles = super::vehicle_scenery::VehicleScenery::new(&renderer);
     vehicles.update(&renderer, &smoke_world);

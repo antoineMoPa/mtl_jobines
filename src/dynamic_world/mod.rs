@@ -44,6 +44,13 @@ impl DynamicWorld {
         Self::with_start(hermes, None).expect("default map spawn")
     }
     pub fn with_start(hermes: &Hermes, start: Option<SpawnPoint>) -> Result<Self, String> {
+        Self::with_vehicle_lineup(hermes, start, false)
+    }
+    pub(crate) fn with_vehicle_lineup(
+        hermes: &Hermes,
+        start: Option<SpawnPoint>,
+        vehicle_lineup: bool,
+    ) -> Result<Self, String> {
         let mut vehicle = match start {
             Some(point) => Vehicle::spawn_at(hermes.city(), point)?,
             None => Vehicle::spawn(hermes.city()),
@@ -64,7 +71,9 @@ impl DynamicWorld {
             vehicle_spawns: Vec::new(),
             props: props::Props::from_groups(hermes.prop_groups()),
         };
-        world.add_vehicle_lineup(hermes);
+        if vehicle_lineup {
+            world.add_vehicle_lineup(hermes);
+        }
         world.vehicle_spawns = world
             .vehicles
             .iter()
@@ -274,6 +283,12 @@ impl DynamicWorld {
         );
         let driving = self.is_driving();
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
+            let signal = if driving && i == self.player_vehicle.0 {
+                hermes.route_signal()
+            } else {
+                crate::hermes::RouteSignal::Off
+            };
+            vehicle.update_route_signal(signal, dt);
             vehicle.sound_running = false;
             vehicle.sound_cooldown = (vehicle.sound_cooldown - dt).max(0.);
             if self.traffic.inactive(i) {

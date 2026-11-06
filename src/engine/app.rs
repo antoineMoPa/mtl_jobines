@@ -838,7 +838,7 @@ pub fn run() -> Result<(), String> {
             .map(PathBuf::from)
     };
     let path = option("--map").unwrap_or_else(|| {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("opencity/examples/default_map.road")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road")
     });
     let started = Instant::now();
     eprintln!("Loading map: {}", path.display());

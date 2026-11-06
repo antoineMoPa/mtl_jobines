@@ -7,7 +7,9 @@ mod commercial;
 mod game_data;
 mod minimap;
 
+mod route_signal;
 mod routing;
+pub use route_signal::RouteSignal;
 pub(crate) mod traffic_paths;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data))]
 use game_data::CacheKey;
@@ -153,7 +155,7 @@ impl Hermes {
     }
     #[cfg(target_arch = "wasm32")]
     pub fn embedded() -> Result<Self, String> {
-        let parsed = opencity::parse(include_str!("../../opencity/examples/default_map.road"))
+        let parsed = opencity::parse(include_str!("../../data/maps/mtl/map.road"))
             .map_err(|error| error.to_string())?;
 
         let mut elevation_map: Option<opencity::heightmap::ElevationMap> = None;
@@ -163,9 +165,9 @@ impl Hermes {
                     return Ok(map.clone());
                 }
                 let map = match spec.path.as_str() {
-                    "default_elevation.png" => opencity::heightmap::ElevationMap::from_png(
+                    "elevation.png" => opencity::heightmap::ElevationMap::from_png(
                         spec.clone(),
-                        include_bytes!("../../opencity/examples/default_elevation.png"),
+                        include_bytes!("../../data/maps/mtl/elevation.png"),
                     )?,
                     path => return Err(format!("Unknown embedded elevation map: {path}")),
                 };
@@ -176,8 +178,8 @@ impl Hermes {
         #[cfg(bundled_game_data)]
         {
             let key = CacheKey::for_map(
-                include_bytes!("../../opencity/examples/default_map.road"),
-                include_bytes!("../../opencity/examples/default_elevation.png"),
+                include_bytes!("../../data/maps/mtl/map.road"),
+                include_bytes!("../../data/maps/mtl/elevation.png"),
             );
             match GameData::decode(
                 include_bytes!(env!("MTL_JOBINES_BUNDLED_GAME_DATA")).as_slice(),

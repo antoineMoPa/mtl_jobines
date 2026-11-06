@@ -87,6 +87,8 @@ impl Vehicle {
             definition: None,
             sound_controls: super::Controls::default(),
             sound_running: false,
+            route_signal: crate::hermes::RouteSignal::Off,
+            signal_time: 0.,
             sound_impacts: [crate::audio::Impact::default(); 3],
             sound_impact_count: 0,
             sound_cooldown: 0.,

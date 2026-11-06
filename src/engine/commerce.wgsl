@@ -65,9 +65,11 @@ fn lamp_color(v:Output)->vec4<f32> {
 // No reachable discard, preserving early depth rejection for opaque scenery.
 @fragment fn fs_opaque_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
     let surface=prepare_surface(v);
-    if v.surface.x>8.5 && v.surface.x<9.5 && v.surface.w>=2.0 && v.surface.w<=13.0 {
-        let strip=v.surface.w>=10.0;
-        let state=u32(v.surface.w)-select(2u,10u,strip);
+    if v.surface.x>8.5 && v.surface.x<9.5 && v.surface.w>=2.0 && v.surface.w<=45.0 {
+        let encoded=u32(v.surface.w);
+        let base=encoded&15u;
+        let strip=base>=10u;
+        let state=base-select(2u,10u,strip);
         // A small inset segment of each original lens is clear for reversing.
         // Continuous bars retain their silhouette with two end segments.
         let u=v.fence_uv.x;let z=v.fence_uv.y;
@@ -76,6 +78,12 @@ fn lamp_color(v:Output)->vec4<f32> {
         let lit_lens=select((state&1u)!=0u,(state&2u)!=0u,clear_lens);
         var lens=v;
         lens.surface.x=7.0;
+        let flashing=((encoded&16u)!=0u && (!strip || u>0.75)) ||
+            ((encoded&32u)!=0u && (!strip || u<0.25));
+        if flashing && !clear_lens {
+            lens.color=vec3<f32>(1.0,0.3,0.001);
+            return lamp_color(lens);
+        }
         if clear_lens {lens.color=vec3<f32>(0.62,0.65,0.64);}
         if lit_lens {
             lens.color=select(vec3<f32>(1.0,0.001,0.0005),vec3<f32>(1.0,1.0,0.98),clear_lens);
