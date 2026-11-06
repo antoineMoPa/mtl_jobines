@@ -10,6 +10,33 @@ pub struct SpawnPoint {
     /// Radians counterclockwise from east. Missing heading follows the nearest road.
     pub heading: Option<f32>,
 }
+impl SpawnPoint {
+    /// Authored default shared by native and browser maps; CLI coordinates override it.
+    pub(crate) fn from_program(program: &opencity::Program) -> Result<Option<Self>, String> {
+        let mut result = None;
+        for statement in &program.statements {
+            let opencity::Statement::Call(call) = statement else {
+                continue;
+            };
+            if call.name != "player_start" {
+                continue;
+            }
+            if result.is_some() {
+                return Err("Only one player_start is allowed".into());
+            }
+            let values = call
+                .args
+                .iter()
+                .map(|argument| match argument {
+                    opencity::Argument::Number(value) => Ok(value.as_str()),
+                    _ => Err("player_start expects x,y[,heading-degrees]".to_string()),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            result = Some(values.join(",").parse()?);
+        }
+        Ok(result)
+    }
+}
 impl FromStr for SpawnPoint {
     type Err = String;
     fn from_str(value: &str) -> Result<Self, String> {
@@ -115,6 +142,25 @@ impl Vehicle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn authored_start_is_optional_and_rejects_invalid_or_duplicate_metadata() {
+        let read = |s| SpawnPoint::from_program(&opencity::parse(s).unwrap());
+        assert_eq!(read("").unwrap(), None);
+        assert_eq!(
+            read("player_start(2,3,90);").unwrap(),
+            Some(SpawnPoint {
+                point: [2., 3.],
+                heading: Some(std::f32::consts::FRAC_PI_2),
+            })
+        );
+        for invalid in [
+            "player_start(2);",
+            "player_start(a,2);",
+            "player_start(1,2); player_start(3,4);",
+        ] {
+            assert!(read(invalid).is_err());
+        }
+    }
     #[test]
     fn explicit_coordinates_and_heading_are_checked() {
         assert_eq!(

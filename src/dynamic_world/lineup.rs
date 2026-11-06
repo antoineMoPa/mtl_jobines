@@ -103,6 +103,22 @@ mod tests {
         let mut world = DynamicWorld::new(&hermes);
         assert_eq!(world.vehicles.len() - world.traffic.count(), 1);
         let spawn = world.player().position;
+        let authored = hermes
+            .default_start()
+            .expect("current map has an authored start");
+        assert_eq!(world.vehicle_spawns[0].point, authored.point);
+        assert!((spawn.x / METERS_PER_UNIT - authored.point[0]).abs() < 0.00001);
+        assert!((spawn.y / METERS_PER_UNIT - authored.point[1]).abs() < 0.00001);
+        assert!((world.player().yaw - authored.heading.unwrap()).abs() < 0.00001);
+        let overridden = DynamicWorld::with_start(
+            &hermes,
+            Some(SpawnPoint {
+                point: authored.point,
+                heading: Some(0.),
+            }),
+        )
+        .unwrap();
+        assert_eq!(overridden.player().yaw, 0.);
         let surface = hermes
             .city()
             .surface_at(
@@ -117,7 +133,11 @@ mod tests {
         );
         world.vehicles[0].position += glam::Vec3::new(20., 20., 20.);
         world.reset_player(&hermes);
-        assert_eq!(world.player().position, spawn);
+        assert!(
+            world.player().position.distance(spawn) < 0.0001,
+            "reset shifted {spawn:?} to {:?}",
+            world.player().position
+        );
     }
     #[test]
     fn default_map_has_every_road_vehicle_near_spawn() {

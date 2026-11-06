@@ -3,6 +3,7 @@
 mod buildings;
 pub(crate) mod catalog;
 mod contacts;
+mod landmark_respawn;
 mod lineup;
 mod player;
 mod props;
@@ -51,6 +52,7 @@ impl DynamicWorld {
         start: Option<SpawnPoint>,
         vehicle_lineup: bool,
     ) -> Result<Self, String> {
+        let start = start.or(hermes.default_start());
         let mut vehicle = match start {
             Some(point) => Vehicle::spawn_at(hermes.city(), point)?,
             None => Vehicle::spawn(hermes.city()),
@@ -82,6 +84,10 @@ impl DynamicWorld {
                 heading: Some(v.yaw),
             })
             .collect();
+        if let Some(start) = start {
+            // Preserve authored coordinates instead of rounding through game metres.
+            world.vehicle_spawns[0].point = start.point;
+        }
         world.populate_traffic(hermes);
         Ok(world)
     }

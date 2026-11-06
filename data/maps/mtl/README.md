@@ -1,4 +1,118 @@
-# WIP geographic terrain and independent corridors
+# Authored geographic map
+
+## Current installed street network
+
+The installed map has 2,822 segments and 200 native surface junctions, covering
+57 selected corridors from an inventory of 6,254 exact source street names.
+The final candidate has zero design-rule issues, unresolved roads or naming
+conflicts. The terrain-aware audit also finds zero missing junction seams or blocked
+lane entrances. Both active road and terrain files match the validated research artifacts.
+The sections below describe the earlier geographic migration and interchange work;
+their historical segment counts and pending street-authoring notes are superseded
+by this installed network.
+
+New streets use simplified two-way profiles, explicit shared junctions and 51
+authored clearance crossings. Nine corridor offsets (up to 1.81 map units) and
+local endpoint adjustments fit the old screenshot traces. Source selections are
+preserved separately; the research page compares source and authored placement.
+This is a gameplay map, not a surveyed road network. Exact lane counts, one-way
+restrictions and real-world over/under arrangements are not reproduced.
+
+New surface grades are limited to approximately 11.5%. Two pre-existing highway
+transitions remain at approximately 25.5% and 24.9%. The terrain uses a broad,
+smoothed painted hill and gradual river/canal banks, independent of road alignments.
+The hill peak is approximately 78.92 game metres instead of 111.05. Shore tapering
+uses water connected to the map frame; isolated hill ponds do not flatten the summit.
+Every water cell is preserved. These are authored game heights, not a surveyed DEM.
+
+Street endpoints are lower by a median of 10.03 game metres, with a maximum
+reduction of 55.90 m. Existing interchange attachments retain their reviewed heights.
+Elevated crossings remain decks rather than seeds for spreading raised terrain;
+unrelated nearby streets no longer inherit their heights. Road-bed fitting changes
+194,210 pixels relative to the independent natural-relief raster and interpolates
+through 165,224 block pixels. Its 1,729,791 full-width samples give a 0.50 m minimum,
+0.80 m median, 1.21 m 95th percentile and 2.92 m maximum sampled road-center gap,
+excluding intentional elevated/protected and water-crossing areas. No new water
+pixels are created. Source road XY, names, junctions and routing are preserved.
+
+Research, exact validation receipts, geometry/terrain audits and QA evidence are
+in `research/montreal-street-decimation/`, attached to the map task. That directory
+remains ignored. Authoring uses frozen road and elevation inputs, so installing
+the result does not feed the edited terrain back into future generation.
+
+Junction seam discovery follows short, fully clipped approach pieces to the
+visible pavement; runtime height interpolation and safety barriers use those same
+seams. Curved entrances stay open while closed junction sides keep their barriers.
+Turn-room limits follow subdivided connecting roads. Two adjacent source T ends
+share one junction, and one wholly hidden dead-end stub is removed.
+
+Verification: 175 game tests pass (one profiling test ignored). There are 110 focused
+core checks across the recorded batches, including external models, junctions,
+terrain support and indexed building collisions, plus five research-helper checks.
+Native and browser builds succeed. The final downtown driving check travels 75.3 m
+on asphalt at 106.6 km/h without collisions. Its inspected screenshot shows
+continuous junction pavement. Neighborhood and both tower views are inspected. Research
+page controls/layout pass desktop and mobile checks. This samples driving rather
+than exhaustively checking every possible route. The task includes screenshots
+and `completion.json` with the full evidence and limits.
+
+## Neighborhoods, shops and landmarks
+
+The live map includes 51,898 residential buildings, 1,612 mixed-use buildings,
+and 22 researched landmark models on fitted plinths: 53,554 building features
+including the 22 foundations. Existing detailed street frontages are joined by
+51,085 packed background and infill buildings. Background occupancy and orientation
+come from local source-density cells; new infill follows nearby surface streets.
+Lots reserve street strips, rendered junction pavement, existing buildings and
+8,289 anonymous protected green-space polygons. Water and unsupported sites are
+excluded. They represent developed areas rather than
+individual source parcels. Neighborhood form varies by height, density, lot width, setback and
+depth: garden houses in the west, central plex blocks, southwest row/plex blocks,
+eastern low/mid-rise housing, and glass/concrete towers in the financial core.
+These are representative authored patterns, not parcel-by-parcel reconstruction.
+
+The density pass enlarges 48,851 background buildings, increasing the retained
+background footprint area by approximately 114%. It adds 966 street-facing and
+1,235 block-interior buildings and removes 8,880 generated buildings from protected
+green space. Foundations fit the authored slopes with steps up to six game metres;
+the terrain, roads, starts and landmark models are preserved. Parks, woods, wetlands,
+gardens, cemeteries and other protected land come from the anonymous authoring layer
+`green-spaces.road`. Relation outer rings are conservatively reserved, including
+their interiors. The reproducible Rust authoring tool is in `tools/city-density`.
+
+Landmark locations and footprints come from the local PBF and the shared geographic
+calibration. Study 01 is installed at its actual mapped footprint. Model shapes are
+uniformly sized to those footprints in the compressed map; two use smaller scales
+to clear simplified roads. Studies 20, 22, 23, 26, 28 and 30 remain reserved because
+roads occupy their geographic sites. No model is silently moved to an invented site.
+Full source IDs, coordinates and fitting decisions are in research `population.json`.
+
+`data/landmarks` contains compact models baked in Rust from the textured research
+GLBs, with transformed geometry/normals and sampled texture colors. The renderer
+replaces their visual proxy boxes and retains conservative collision footprints.
+Parcel generation is baked into `.road` buildings; the editable zoning source is
+retained in research `population-source.road`. Both platforms load the baked map.
+Developed-area source cells and the Rust baker are retained beside that zoning file.
+Interior area shops use compact glass/door panels; authored street frontages retain
+their detailed shops, stairs and balconies. Interior blocks use existing procedural-
+window materials; detailed masonry palettes stay on the authored curb facades.
+Flat terrain runs share quads while
+sloped cells retain the original support triangles. The combined scene has
+17,875,167 vertices, below the existing 20-million cache cap.
+Native City preparation currently takes approximately 40–50 seconds on the working
+machine, including cached-mesh loads. Dense-map startup remains a performance limit.
+
+The canonical live files are `data/maps/mtl/map.road` and `elevation.png`. Native
+loads them at startup; browser builds embed them and require a rebuild/reload.
+The research helper's `--apply-terrain` checks the candidate against the active
+road source and verifies terrain acceptance before installing it. After changing
+terrain, regenerate fitted population foundations before rebuilding the browser.
+The base population recipe is `--settle-city`, `--fill-development`, `--validate`,
+then `--audit`, using frozen inputs. `--settle-city` also refits existing foundations
+and preserves the explicit study_02/study_14 height corrections. Do not run the
+historical `--ground` pass against this expanded map.
+After a population rebuild, reapply the density authoring pass using the frozen
+map, terrain and `green-spaces.road` inputs before installing and rebuilding the browser.
 
 ## Geographic frame
 
@@ -53,7 +167,7 @@ from exact reprojection. Profiles and lane widths are unchanged; bridge 134
 remains undivided, while the expressways retain their medians.
 
 The initial geographic migration retained 189 segments in eight separate chains.
-The current map has 243 segments, eleven one-way ramp movements and a divided
+The initial interchange map had 243 segments, eleven one-way ramp movements and a divided
 20–136 through link. Only existing roads connect:
 
 - North interchange: 15 north to 40 east, 40 west to 15 south, 40 east to 15 south.
@@ -115,3 +229,24 @@ For example: Route 134 > Jacques-Cartier Bridge > bridge_134_s001. These labels
 are map data and survive editor rename/copy operations; they do not alter geometry.
 Concurrent route numbers use additive road_routes anchors. Ramps retain their own
 interchange labels. All existing segment names and geometry were preserved during migration.
+
+## Surface-road ground correction and game start
+
+The preceding ground-correction map had 578 segments. Its 41 ordinary surface curves were split into
+376 exact cubic pieces so grades follow the existing painted terrain rather than
+remaining tens of game metres above it. XY alignment is preserved. Lane attachments
+were remapped to the corresponding child curves; bridges and ramps retain their geometry.
+
+Local road-bed earthworks affect 3,381 of the 1,048,576 elevation pixels (about 0.32%).
+Water pixels and terrain around highway/ramp footprints are preserved. Away from
+intentional overpass areas, sampled road-centre clearance is 0.80 game metres at the
+median, 0.92 m at the 95th percentile, and 2.14 m maximum. These are authored game
+heights, not surveyed elevations. The corrected road network has zero design-rule issues.
+
+`player_start(47.771893, 9.284870, -143.036250);` starts the game on the central
+surface corridor near downtown, facing toward the north of the street grid.
+The generic game metadata uses world XY and heading degrees. Explicit `--start`
+coordinates, including editor launches, override this default.
+
+The subsequent street-decimation network is now installed; see the current
+network section above for counts, validation and remaining artistic limits.

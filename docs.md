@@ -51,6 +51,16 @@ builds; browsers return to Start. The minimap follows heading; the full map stay
 follow permitted road connections, refresh after 2 m and turn green on arrival within 6 m; red
 means disconnected. Bridges and geometric crossings alone do not connect roads.
 
+In native builds, choose **Bug: Report a bug…** in the command palette to capture the current
+scene, then describe the problem and click **Save report**. Reports go into
+`bug-reports/<number>/` under the working directory, with `screenshot.png` and `report.json`.
+The JSON includes the description, player map coordinates (x/y/z in map units, 100 metres per
+unit), `camera_position` and `camera_look_at` (the renderer's absolute eye and target points in
+the same map units), and the nearest authored intersection's reference, coordinates and road
+names. A map without intersections records `null`. The scene stays paused while typing; Cancel
+or Escape discards the draft. Existing reports are preserved and the next number follows the
+highest one.
+
 Traffic keeps up to 36 NPC cars within roughly 180 m, recycling them beyond 240 m. NPCs use
 OpenCity lane centres, permitted junction turns and ramp attachments, with physical vehicle/prop
 collisions. They brake for traffic, pedestrians and red/amber lights. Four-way signals use

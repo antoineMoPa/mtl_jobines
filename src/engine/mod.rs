@@ -1,5 +1,7 @@
 //! Native platform, frame coordination, cameras and GPU presentation.
 mod app;
+#[cfg(not(target_arch = "wasm32"))]
+mod bug_report;
 mod commerce;
 mod frame_rate;
 mod gpu_profile;
@@ -9,6 +11,8 @@ mod palette;
 mod prop_scenery;
 mod render;
 mod scenery;
+#[cfg(not(target_arch = "wasm32"))]
+mod screen_capture;
 mod sky;
 mod sky_controls;
 #[cfg(not(target_arch = "wasm32"))]

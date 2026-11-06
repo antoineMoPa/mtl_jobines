@@ -8,9 +8,9 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3, Vec4};
 use opencity::runtime::{Mesh, SurfaceKind, Vertex};
 use std::borrow::Cow;
-use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
-use std::{path::Path, sync::mpsc};
+use std::path::Path;
+use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 #[repr(C)]
@@ -893,50 +893,7 @@ impl Renderer {
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn snapshot(&self, texture: &wgpu::Texture, path: &Path) -> Result<(), String> {
-        let row = (self.config.width * 4).div_ceil(256) * 256;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("screenshot"),
-            size: row as u64 * self.config.height as u64,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        encoder.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo {
-                texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(row),
-                    rows_per_image: None,
-                },
-            },
-            wgpu::Extent3d {
-                width: self.config.width,
-                height: self.config.height,
-                depth_or_array_layers: 1,
-            },
-        );
-        self.queue.submit(Some(encoder.finish()));
-        let (tx, rx) = mpsc::channel();
-        buffer.slice(..).map_async(wgpu::MapMode::Read, move |r| {
-            let _ = tx.send(r);
-        });
-        self.device
-            .poll(wgpu::PollType::wait_indefinitely())
-            .map_err(|e| e.to_string())?;
-        rx.recv()
-            .map_err(|e| e.to_string())?
-            .map_err(|e| e.to_string())?;
-        let bytes = buffer
-            .slice(..)
-            .get_mapped_range()
-            .map_err(|e| e.to_string())?;
+        let bytes = self.rgba_pixels(texture)?;
         let mut ppm = format!(
             "P6
 {} {}
@@ -945,10 +902,8 @@ impl Renderer {
             self.config.width, self.config.height
         )
         .into_bytes();
-        for row in bytes.chunks(row as usize) {
-            for pixel in row[..self.config.width as usize * 4].chunks(4) {
-                ppm.extend_from_slice(&pixel[..3]);
-            }
+        for pixel in bytes.chunks_exact(4) {
+            ppm.extend_from_slice(&pixel[..3]);
         }
         std::fs::write(path, ppm).map_err(|e| e.to_string())
     }

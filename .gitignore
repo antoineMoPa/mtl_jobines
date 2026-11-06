@@ -1,6 +1,7 @@
 /target/
 *.ppm
 /web/dist/
+/bug-reports/
 
 # OpenCity launch snapshots may be generated beside any edited map.
 .opencity-play-*.road

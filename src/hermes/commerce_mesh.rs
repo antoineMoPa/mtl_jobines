@@ -203,6 +203,38 @@ fn parts(city: &City) -> (Mesh, Vec<Vec<Mesh>>) {
             continue;
         };
         let name = feature.name.as_deref().unwrap_or("authored_shop");
+        if !super::detailed_frontage(feature) {
+            // Interior developed areas retain visible shops without repeating
+            // every street-front reveal, fitting and breakable display assembly.
+            let door = (f.width * 0.16).min(0.018);
+            panel(
+                &mut mesh,
+                f,
+                0.002,
+                0.003,
+                f.width - door - 0.005,
+                0.029,
+                0.0008,
+                [0.18, 0.21, 0.18],
+                SHOP,
+                (seed(name) % 3) as f32,
+                [0., 1.],
+            );
+            panel(
+                &mut mesh,
+                f,
+                f.width - door,
+                0.001,
+                door - 0.002,
+                0.03,
+                0.001,
+                [0.10, 0.15, 0.14],
+                8.,
+                0.,
+                [0., 1.],
+            );
+            continue;
+        }
         let id = name
             .strip_prefix("generated_shop_")
             .and_then(|n| u64::from_str_radix(n, 16).ok())
@@ -522,6 +554,19 @@ fn parts(city: &City) -> (Mesh, Vec<Vec<Mesh>>) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn developed_area_shops_keep_storefronts_with_a_small_mesh() {
+        let p = opencity::parse(
+            "road local: carlane; end; local(-1,0,1,0);
+            generated_area_0=building(0.12,{use:mixed_use},-0.1,0.1,0.1,0.1,0.1,0.3,-0.1,0.3);",
+        )
+        .unwrap();
+        let city = opencity::runtime::City::from_program(&p, None).unwrap();
+        let mesh = super::build(&city);
+        assert!(mesh.vertices.iter().any(|v| v.surface[0] == super::SHOP));
+        assert!(mesh.vertices.len() <= 24);
+        assert!(city.building_collision([0., 0.2], 0.01, 0., 0.1));
+    }
     use super::*;
     #[test]
     fn roof_skins_have_no_open_edges_above_the_wall_top() {

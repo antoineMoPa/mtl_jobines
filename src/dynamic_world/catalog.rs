@@ -460,14 +460,39 @@ mod tests {
         }
         let studies = definitions()
             .iter()
-            .filter(|d| d.config.qa["packager"] == "runtime-packager")
+            .filter(|d| {
+                matches!(
+                    d.config.qa["packager"].as_str(),
+                    Some("runtime-packager" | "claydash-game-package")
+                )
+            })
             .collect::<Vec<_>>();
         assert_eq!(studies.len(), 10);
         for definition in studies {
+            let glass = if definition.config.research_id == "vehicle-v2-09" {
+                assert_eq!(definition.config.name, "Laurent Clair");
+                assert_eq!(definition.config.qa["interiorPrimitives"], 8);
+                let source = gltf::Gltf::from_slice(include_bytes!(
+                    "../../data/vehicle/compact/laurent-clair/model.glb"
+                ))
+                .unwrap();
+                assert_eq!(source.nodes().count(), 28);
+                assert_eq!(source.images().count(), 0);
+                assert_eq!(
+                    source
+                        .nodes()
+                        .filter(|n| n.name().is_some_and(|name| name.starts_with("interior_")))
+                        .count(),
+                    8
+                );
+                0.65
+            } else {
+                0.7
+            };
             let vertices = definition.parts.iter().flat_map(|p| &p.vertices);
             assert!(vertices
                 .clone()
-                .any(|v| (v.surface[1] - 0.7).abs() < 0.0001));
+                .any(|v| (v.surface[1] - glass).abs() < 0.0001));
             assert!(vertices.clone().any(|v| v.surface[1] == 1.));
             assert!(vertices.clone().all(|v| (0. ..=1.).contains(&v.surface[1])));
             for wheel in definition.parts.iter().filter(|p| p.role != PartRole::Body) {

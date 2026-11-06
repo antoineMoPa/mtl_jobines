@@ -5,6 +5,9 @@ pub(crate) mod commerce_mesh;
 mod commerce_props;
 mod commercial;
 mod game_data;
+mod landmark_destinations;
+mod landmarks;
+pub(crate) use landmark_destinations::Landmark;
 mod minimap;
 
 mod route_signal;
@@ -27,7 +30,16 @@ fn expand(
     source: &opencity::Program,
     mut compile: impl FnMut(&opencity::Program) -> Result<City, String>,
 ) -> Result<(opencity::Program, City), String> {
-    let mut program = opencity::runtime::scaffold::expand_program(source, &mut compile)?;
+    let frontage = opencity::project_frontage_zones(source);
+    let residential = source
+        .statements
+        .iter()
+        .any(|s| matches!(s,opencity::Statement::Call(c)if c.name=="residential_area"));
+    let mut program = if frontage.zones.is_empty() && frontage.errors.is_empty() && !residential {
+        source.clone()
+    } else {
+        opencity::runtime::scaffold::expand_program(source, &mut compile)?
+    };
     dress_scaffolds(&mut program);
     let city = compile(&program)?;
 
@@ -51,12 +63,31 @@ fn dress_scaffolds(program: &mut opencity::Program) {
             continue;
         }
         let seed = commercial::seed(name);
-        let material = match (seed >> 16) % 10 {
-            0..=4 => "red_brick",
-            5..=6 => "brown_brick",
-            7 => "buff_brick",
-            8 => "limestone",
-            _ => "pale_brick",
+        let height = match call.args.first() {
+            Some(Argument::Number(value)) => value.parse::<f32>().unwrap_or(0.),
+            _ => 0.,
+        };
+        let material = if height >= 0.24 {
+            match (seed >> 16) % 4 {
+                0..=1 => "glass",
+                2 => "concrete",
+                _ => "limestone",
+            }
+        } else if height <= 0.085 {
+            match (seed >> 16) % 4 {
+                0 => "pale_brick",
+                1 => "buff_brick",
+                2 => "brown_brick",
+                _ => "red_brick",
+            }
+        } else {
+            match (seed >> 16) % 10 {
+                0..=4 => "red_brick",
+                5..=6 => "brown_brick",
+                7 => "buff_brick",
+                8 => "limestone",
+                _ => "pale_brick",
+            }
         };
         if let Some(Argument::Object(options)) = call.args.get_mut(1) {
             if let Some((_, value)) = options.iter_mut().find(|(key, _)| key == "material") {
@@ -65,10 +96,20 @@ fn dress_scaffolds(program: &mut opencity::Program) {
         }
     }
 }
+// Developed-block interiors keep their shader facades and full collision shells;
+// the authored street frontage receives balconies, stairs and garden objects.
+fn detailed_frontage(feature: &opencity::LandscapeFeature) -> bool {
+    !feature
+        .name
+        .as_deref()
+        .is_some_and(|name| name.starts_with("generated_area_"))
+}
 pub struct Hermes {
+    default_start: Option<crate::dynamic_world::SpawnPoint>,
     city: Arc<City>,
     minimap: minimap::Minimap,
     prepared: Option<(Mesh, Mesh)>,
+    landmark_mesh: Mesh,
     router: routing::Router,
     traffic_paths: Arc<traffic_paths::TrafficPaths>,
     navigation: routing::Navigation,
@@ -78,11 +119,14 @@ pub struct Hermes {
 impl Hermes {
     #[cfg(test)]
     pub(crate) fn test_map() -> Self {
-        let program = opencity::parse(
+        Self::test_map_from_source(
             "road street: sidewalk carlane carlane sidewalk; end
             street(-1,0,1,0); land(-2,-2,2,-2,2,2,-2,2);",
         )
-        .unwrap();
+    }
+    #[cfg(test)]
+    pub(crate) fn test_map_from_source(source: &str) -> Self {
+        let program = opencity::parse(source).unwrap();
         let city = City::from_program(&program, None).unwrap();
         Self::from_city_data(city, None, &program).unwrap()
     }
@@ -206,28 +250,37 @@ impl Hermes {
             None => (minimap::Minimap::new(&city)?, None),
         };
         let router = routing::Router::new(&city, program);
+        let landmark_mesh = landmarks::build(&city)?;
         Ok(Self {
+            default_start: crate::dynamic_world::SpawnPoint::from_program(program)?,
             traffic_paths: Arc::new(traffic_paths::TrafficPaths::new(&city, program)),
             router,
             navigation: routing::Navigation::default(),
             city: Arc::new(city),
             minimap,
             prepared,
+            landmark_mesh,
             #[cfg(not(target_arch = "wasm32"))]
             cache: None,
         })
+    }
+    pub(crate) fn default_start(&self) -> Option<crate::dynamic_world::SpawnPoint> {
+        self.default_start
     }
     pub fn take_geometry(&mut self) -> (Mesh, Mesh) {
         if let Some(meshes) = self.prepared.take() {
             return meshes;
         }
-        let world = self
+        let mut world = self
             .city
-            .mesh(Region::WholeMap, 0.04)
+            .mesh_with_external_models(Region::WholeMap, 0.04)
             .expect("static map mesh");
-        let (mut details, _) = self
-            .city
-            .building_detail_parts(Region::WholeMap, &building_style::residential());
+        world.vertices.append(&mut self.landmark_mesh.vertices);
+        let (mut details, _) = self.city.building_detail_parts_matching(
+            Region::WholeMap,
+            &building_style::residential(),
+            detailed_frontage,
+        );
         details
             .vertices
             .extend(commerce_mesh::build(&self.city).vertices);
@@ -252,9 +305,11 @@ impl Hermes {
     }
     pub(crate) fn prop_groups(&self) -> Vec<Vec<Mesh>> {
         let mut props = self.city.detail_objects(Region::WholeMap);
-        let (_, frontage) = self
-            .city
-            .building_detail_parts(Region::WholeMap, &building_style::residential());
+        let (_, frontage) = self.city.building_detail_parts_matching(
+            Region::WholeMap,
+            &building_style::residential(),
+            detailed_frontage,
+        );
         props.extend(frontage);
         let mut groups: Vec<_> = props.into_iter().map(|mesh| vec![mesh]).collect();
         groups.extend(commerce_mesh::prop_groups(&self.city));

@@ -1,0 +1,18 @@
+[package]
+name = "city-density"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+opencity = { path = "../../opencity", default-features = false, features = ["game-runtime"] }
+osmpbfreader = "0.19.1"
+serde_json = "=1.0.151"
+
+[dev-dependencies]
+png = "0.17"
+
+[profile.dev]
+opt-level = 1

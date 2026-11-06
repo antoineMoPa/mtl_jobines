@@ -1,5 +1,32 @@
 use super::*;
 #[test]
+fn landmark_command_resumes_driving_and_moves_camera_without_stale_input() {
+    let mut game = Game::new(Hermes::test_map_from_source(
+        "road street: sidewalk carlane carlane sidewalk; end
+         street(-1,0,1,0); land(-2,-2,2,-2,2,2,-2,2);
+         player_start(-0.8,0);
+         site_model_01 = building(0.1, \"study_01\", 0.4,0.2,0.6,0.2,0.6,0.4,0.4,0.4);",
+    ));
+    game.set_overlay(Overlay::Map);
+    game.keys.insert(KeyCode::ArrowUp);
+    game.orbit = 1.;
+    game.hood = true;
+    game.sound_eye = Some(Vec3::splat(100.));
+    let before = game.world.player_position();
+    game.apply_palette_action(PaletteAction::Respawn("site_model_01".into()));
+    let position = game.world.player_position();
+    assert!(position.distance(before) > 50.);
+    assert_eq!(game.overlay, Overlay::Driving);
+    assert!(game.world.is_driving());
+    assert_eq!(game.orbit, 0.);
+    assert!(!game.hood);
+    assert!(game.keys.is_empty());
+    assert!(game.sound_eye.is_none());
+    assert!(game.scene_dirty);
+    assert!(game.eye.distance(position / METERS_PER_UNIT) < 1.);
+}
+
+#[test]
 fn direction_keys_brake_opposing_motion_then_accelerate_either_way() {
     for (key, direction) in [
         (KeyCode::ArrowUp, 1.),
@@ -328,4 +355,32 @@ fn enter_horn_is_held_only_while_driving_and_never_leaks_from_menus() {
     );
     game.set_overlay(Overlay::Menu);
     assert!(!game.horn_requested());
+}
+
+/// Run explicitly on the native output device to measure the Start CPU path.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+#[ignore]
+fn profile_start_transition() {
+    let hermes =
+        Hermes::load_with_game_data(std::path::Path::new("data/maps/mtl/map.road"), None).unwrap();
+    let mut game = Game::new(hermes);
+    let started = Instant::now();
+    game.audio.prepare();
+    eprintln!("Startup audio preparation: {:?}", started.elapsed());
+    let started = Instant::now();
+    game.set_overlay(Overlay::Driving);
+    eprintln!("Start overlay: {:?}", started.elapsed());
+    for frame in 0..3 {
+        let started = Instant::now();
+        game.simulate(1. / 60.);
+        eprintln!("Start frame {frame} simulation: {:?}", started.elapsed());
+        let p = game.world.player_position() / METERS_PER_UNIT;
+        let started = Instant::now();
+        game.hermes.update_navigation(p.to_array());
+        eprintln!("Start frame {frame} navigation: {:?}", started.elapsed());
+        let started = Instant::now();
+        game.audio.update(crate::audio::Frame::default(), true);
+        eprintln!("Start frame {frame} audio: {:?}", started.elapsed());
+    }
 }

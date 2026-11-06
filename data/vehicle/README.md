@@ -1,8 +1,8 @@
 # Vehicle blockouts
 
 The game uses 19 checked-in models: ten new consumer studies and nine preserved
-taxi, municipal, emergency, transit and rail assets. Consumer models retain the
-research geometry (13,740–117,144 triangles each), transparent glass and interiors.
+taxi, municipal, emergency, transit and rail assets. Consumer models retain detailed
+geometry (13,740–117,144 triangles each), transparent glass and interiors.
 Names and performance are fictional arcade tuning, not manufacturer specifications.
 The original research page retains its earlier embedded model snapshots.
 
@@ -14,8 +14,9 @@ Assets live in `data/vehicle/<category>/<fictive-name>/`:
 
 ### Consumer-study runtime integration
 
-The ten completed second-pass scenes and exports come from
-`research/montreal-vehicle-2/studies/`. Three existing identities match the original
+Nine completed second-pass scenes and exports come from
+`research/montreal-vehicle-2/studies/`. The compact study 09 now uses the detailed
+replacement delivered in this task's notes. Three existing identities match the original
 research headings; seven new fictional identities replace unmatched consumer entries.
 Old asset folders remain available locally but are absent from the active catalog.
 
@@ -32,12 +33,20 @@ Old asset folders remain available locally but are absent from the active catalo
 | `compact/laurent-clair` | `vehicle-v2-09` | `09` |
 | `suv/boreal-sentier` | `vehicle-04` | `10` |
 
-The Rust [runtime packager](../../research/montreal-vehicle-2/tools/runtime-packager/README.md)
+For the nine research exports, the Rust
+[runtime packager](../../research/montreal-vehicle-2/tools/runtime-packager/README.md)
 rotates each source into the game frame, scales it uniformly, grounds its tires and
 assembles four axle-local wheels including every rim, hub and lug. Its `audit.json`
 records bounds, pivots and component membership. Geometry fields update to match;
 the three existing vehicles retain their handling and sound settings. The saved
 scene is authoritative; embedded DSL may describe an earlier foundation.
+
+`compact/laurent-clair` keeps its catalog identity, research ID and arcade handling.
+Its replacement GLB has 54,748 triangles in 28 mesh nodes, four axle-local wheel
+assemblies, eight interior primitives, detailed grille and wipers, and glass opacity
+0.65. Its dimensions, wheel radius, wheelbase, track and chassis offset match the new
+geometry. The editable scene is replaced alongside the packaged GLB; no external
+textures or authoring runtime are required to play.
 
 `researchId` links each model to a stable card anchor in the exploration page.
 For example, `vehicle-j03` links to `research/montreal-vehicles/index.html#vehicle-j03`.

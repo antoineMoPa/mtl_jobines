@@ -68,8 +68,9 @@ pub(super) struct SmokeOptions {
 pub(super) fn run(
     hermes: &mut Hermes,
     output: PathBuf,
-    options: SmokeOptions,
+    mut options: SmokeOptions,
 ) -> Result<(), String> {
+    options.start = options.start.or_else(|| hermes.default_start());
     let city = hermes.city();
     let spawn_car = || match options.start {
         Some(start) => Vehicle::spawn_at(city, start),

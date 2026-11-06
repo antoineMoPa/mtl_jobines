@@ -1,6 +1,7 @@
 //! Shared OpenCity palette, with a small painter for the game's wgpu 23 device.
 //! egui-wgpu 0.36 targets a newer wgpu, so its renderer cannot share this device.
 use super::render::Renderer;
+use crate::hermes::Landmark;
 #[cfg(not(target_arch = "wasm32"))]
 use egui_winit::State as Input;
 #[cfg(target_arch = "wasm32")]
@@ -36,8 +37,27 @@ impl TimeCommand {
         }
     }
 }
-fn commands() -> Vec<Command> {
-    [
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum PaletteAction {
+    Time(TimeCommand),
+    Respawn(String),
+    #[cfg(not(target_arch = "wasm32"))]
+    BugReport,
+}
+impl PaletteAction {
+    fn from_id(id: &str) -> Option<Self> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if id == "bug.report" {
+            return Some(Self::BugReport);
+        }
+        TimeCommand::from_id(id).map(Self::Time).or_else(|| {
+            id.strip_prefix("respawn.")
+                .map(|landmark| Self::Respawn(landmark.into()))
+        })
+    }
+}
+fn commands(landmarks: &[Landmark]) -> Vec<Command> {
+    let mut commands: Vec<_> = [
         (
             "time.day",
             "Time: Set day",
@@ -71,7 +91,21 @@ fn commands() -> Vec<Command> {
         description: description.into(),
         shortcut: String::new(),
     })
-    .collect()
+    .collect();
+    #[cfg(not(target_arch = "wasm32"))]
+    commands.push(Command {
+        id: "bug.report".into(),
+        title: "Bug: Report a bug…".into(),
+        description: "Save a screenshot, map location and description to bug-reports".into(),
+        shortcut: String::new(),
+    });
+    commands.extend(landmarks.iter().map(|landmark| Command {
+        id: format!("respawn.{}", landmark.id),
+        title: format!("Respawn with car: {}", landmark.title),
+        description: "Move to a nearby driving lane and get behind the wheel".into(),
+        shortcut: String::new(),
+    }));
+    commands
 }
 pub struct Palette {
     pub menu: CommandPalette,
@@ -81,9 +115,12 @@ pub struct Palette {
     modifiers: winit::keyboard::ModifiersState,
     sky_open: bool,
     sound_open: bool,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) bug_report: super::bug_report::Dialog,
+    commands: Vec<Command>,
 }
 impl Palette {
-    pub fn new(window: &Window, renderer: &Renderer) -> Self {
+    pub fn new(window: &Window, renderer: &Renderer, landmarks: &[Landmark]) -> Self {
         let ctx = egui::Context::default();
         let input = Input::new(
             ctx.clone(),
@@ -100,6 +137,9 @@ impl Palette {
             modifiers: Default::default(),
             sky_open: false,
             sound_open: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            bug_report: Default::default(),
+            commands: commands(landmarks),
             painter: Painter::new(&renderer.device, renderer.config.format.add_srgb_suffix()),
         }
     }
@@ -120,9 +160,14 @@ impl Palette {
         self.menu.dismiss();
         self.sky_open = false;
         self.sound_open = false;
+        #[cfg(not(target_arch = "wasm32"))]
+        self.bug_report.dismiss();
     }
     pub fn is_open(&self) -> bool {
-        self.menu.is_open() || self.sky_open || self.sound_open
+        let open = self.menu.is_open() || self.sky_open || self.sound_open;
+        #[cfg(not(target_arch = "wasm32"))]
+        let open = open || self.bug_report.is_open();
+        open
     }
     pub fn shortcut(&self) -> bool {
         let command = if cfg!(target_os = "macos") {
@@ -140,10 +185,10 @@ impl Palette {
         renderer: &mut Renderer,
         target: &wgpu::TextureView,
         sound: &mut crate::audio::Settings,
-    ) -> Option<TimeCommand> {
+    ) -> Option<PaletteAction> {
         let mut selected = None;
         let output = self.ctx.run_ui(self.input.take_egui_input(window), |ui| {
-            if let Some(id) = self.menu.show(ui.ctx(), &commands()) {
+            if let Some(id) = self.menu.show(ui.ctx(), &self.commands) {
                 if id == "sound.settings" {
                     self.sound_open = true;
                 } else if id == "sky.settings" {
@@ -154,7 +199,7 @@ impl Palette {
                     }
                     renderer.daylight = None;
                 } else {
-                    selected = TimeCommand::from_id(&id);
+                    selected = PaletteAction::from_id(&id);
                 }
             }
             if self.sky_open && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
@@ -165,6 +210,8 @@ impl Palette {
                 self.sound_open = false;
             }
             sound.show(ui.ctx(), &mut self.sound_open);
+            #[cfg(not(target_arch = "wasm32"))]
+            self.bug_report.show(ui.ctx());
         });
         self.input
             .handle_platform_output(window, output.platform_output);
@@ -441,7 +488,7 @@ pub fn smoke(renderer: &Renderer, target: &wgpu::TextureView) {
             ..Default::default()
         };
         let output = ctx.run_ui(input, |ui| {
-            menu.show(ui.ctx(), &commands());
+            menu.show(ui.ctx(), &commands(&[]));
         });
         painter.paint(
             renderer,
@@ -480,7 +527,7 @@ mod tests {
         };
         let mut chosen = None;
         let mut output = ctx.run_ui(input, |ui| {
-            if let Some(id) = menu.show(ui.ctx(), &commands()) {
+            if let Some(id) = menu.show(ui.ctx(), &commands(&[])) {
                 chosen = TimeCommand::from_id(&id);
             }
         });
@@ -511,6 +558,49 @@ mod tests {
         }
     }
     #[test]
+    fn landmark_search_selects_respawn_and_dismisses() {
+        let landmark = Landmark {
+            id: "site_model_01".into(),
+            title: "Orange sphere",
+            point: [0., 0.],
+        };
+        let commands = commands(&[landmark]);
+        let ctx = egui::Context::default();
+        let mut menu = CommandPalette::default();
+        menu.open();
+        let mut chosen = None;
+        for events in [
+            vec![],
+            vec![egui::Event::Text("orange sphere".into())],
+            vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+        ] {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280., 800.),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    if let Some(id) = menu.show(ui.ctx(), &commands) {
+                        chosen = PaletteAction::from_id(&id);
+                    }
+                },
+            );
+            output.textures_delta.clear();
+        }
+        assert_eq!(chosen, Some(PaletteAction::Respawn("site_model_01".into())));
+        assert!(!menu.is_open());
+    }
+    #[test]
     fn palette_shader_validates() {
         let module = naga::front::wgsl::parse_str(include_str!("palette.wgsl")).unwrap();
         naga::valid::Validator::new(
@@ -519,5 +609,44 @@ mod tests {
         )
         .validate(&module)
         .unwrap();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn bug_report_search_selects_capture_and_dismisses_palette() {
+        let ctx = egui::Context::default();
+        let mut menu = CommandPalette::default();
+        menu.open();
+        let mut chosen = None;
+        for events in [
+            vec![],
+            vec![egui::Event::Text("report a bug".into())],
+            vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+        ] {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280., 800.),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    if let Some(id) = menu.show(ui.ctx(), &commands(&[])) {
+                        chosen = PaletteAction::from_id(&id);
+                    }
+                },
+            );
+            output.textures_delta.clear();
+        }
+        assert_eq!(chosen, Some(PaletteAction::BugReport));
+        assert!(!menu.is_open());
     }
 }

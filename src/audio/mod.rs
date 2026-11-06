@@ -157,6 +157,13 @@ pub(crate) struct Audio {
     attempted: bool,
 }
 impl Audio {
+    /// Discover the native device before the title is interactive. The stream
+    /// remains silent until gameplay supplies its first active sound frame.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn prepare(&mut self) {
+        self.ensure_backend(true, output::Backend::open);
+    }
+
     fn ensure_backend(
         &mut self,
         active: bool,

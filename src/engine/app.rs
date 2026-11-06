@@ -1,5 +1,5 @@
 use super::frame_rate::FrameRate;
-use super::palette::Palette;
+use super::palette::{Palette, PaletteAction, TimeCommand};
 use super::prop_scenery::PropScenery;
 use super::render::{GpuMesh, Renderer};
 #[cfg(not(target_arch = "wasm32"))]
@@ -53,6 +53,8 @@ enum GameEvent {
     RendererReady(Box<Result<Renderer, String>>),
 }
 struct Game {
+    #[cfg(not(target_arch = "wasm32"))]
+    profile_shutdown: bool,
     audio: crate::audio::Audio,
     sound_settings: crate::audio::Settings,
     sound_eye: Option<Vec3>,
@@ -221,6 +223,8 @@ impl Game {
         let world = DynamicWorld::with_start(&hermes, start)?;
         let p = world.player_position() / METERS_PER_UNIT;
         Ok(Self {
+            #[cfg(not(target_arch = "wasm32"))]
+            profile_shutdown: false,
             audio: crate::audio::Audio::default(),
             sound_settings: crate::audio::Settings::default(),
             sound_eye: None,
@@ -292,6 +296,48 @@ impl Game {
         while self.accumulator >= DT {
             self.world.step(&self.hermes, input, walk, DT);
             self.accumulator -= DT;
+        }
+    }
+    fn apply_palette_action(&mut self, action: PaletteAction) {
+        match action {
+            #[cfg(not(target_arch = "wasm32"))]
+            PaletteAction::BugReport => {
+                unreachable!("bug report capture is handled before present")
+            }
+            PaletteAction::Time(command) => {
+                if let Some(renderer) = &mut self.renderer {
+                    renderer.daylight = command.daylight();
+                    renderer.sky_settings.solar_hour = None;
+                }
+                if let Some(window) = &self.window {
+                    window.set_title(match command {
+                        TimeCommand::Day => "MTL Jobines · day",
+                        TimeCommand::Night => "MTL Jobines · night",
+                        TimeCommand::Automatic => "MTL Jobines · automatic daylight",
+                    });
+                    window.request_redraw();
+                }
+            }
+            PaletteAction::Respawn(id) => {
+                let Some(landmark) = self.hermes.landmarks().into_iter().find(|l| l.id == id)
+                else {
+                    return;
+                };
+                match self.world.respawn_near(&self.hermes, landmark.point) {
+                    Ok(()) => {
+                        self.orbit = 0.;
+                        self.hood = false;
+                        let p = self.world.player_position() / METERS_PER_UNIT;
+                        let yaw = self.world.player_yaw();
+                        let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
+                        self.eye = p - forward * (0.15 * self.zoom) + Vec3::Z * (0.075 * self.zoom);
+                        self.hermes.update_navigation(p.to_array());
+                        self.scene_dirty = true;
+                        self.set_overlay(Overlay::Driving);
+                    }
+                    Err(error) => eprintln!("Cannot respawn near {}: {error}", landmark.title),
+                }
+            }
         }
     }
     fn frame(&mut self, event_loop: &ActiveEventLoop) {
@@ -389,6 +435,7 @@ impl Game {
         meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());
         let texture = renderer.surface.as_ref().unwrap().get_current_texture();
         let suboptimal = matches!(&texture, wgpu::CurrentSurfaceTexture::Suboptimal(_));
+        let mut palette_action = None;
         match texture {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
@@ -398,23 +445,32 @@ impl Game {
                 });
                 renderer.render(&view, &meshes, self.eye, look, self.game_time, navigation);
                 if let Some(palette) = &mut self.palette {
-                    if let Some(command) = palette.draw(
+                    palette_action = palette.draw(
                         self.window.as_ref().unwrap(),
                         renderer,
                         &view,
                         &mut self.sound_settings,
-                    ) {
-                        renderer.daylight = command.daylight();
-                        renderer.sky_settings.solar_hour = None;
-                        let window = self.window.as_ref().unwrap();
-                        window.set_title(match command {
-                            super::palette::TimeCommand::Day => "MTL Jobines · day",
-                            super::palette::TimeCommand::Night => "MTL Jobines · night",
-                            super::palette::TimeCommand::Automatic => {
-                                "MTL Jobines · automatic daylight"
-                            }
-                        });
-                        window.request_redraw();
+                    );
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if palette_action == Some(PaletteAction::BugReport) {
+                        let screenshot = renderer.report_screenshot(
+                            &meshes,
+                            self.eye,
+                            look,
+                            self.game_time,
+                            navigation,
+                        );
+                        palette.bug_report.begin(
+                            super::bug_report::Report::new(
+                                self.hermes.city(),
+                                p.to_array(),
+                                self.eye.to_array(),
+                                look.to_array(),
+                            ),
+                            screenshot,
+                        );
+                        palette_action = None;
+                        self.window.as_ref().unwrap().request_redraw();
                     }
                 }
                 renderer.queue.present(frame);
@@ -429,6 +485,10 @@ impl Game {
                 if self.first_frame {
                     eprintln!("Game ready: first frame presented");
                     self.first_frame = false;
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if self.profile_shutdown {
+                        event_loop.exit();
+                    }
                 }
             }
             wgpu::CurrentSurfaceTexture::Outdated => {
@@ -463,12 +523,27 @@ impl Game {
                 event_loop.exit();
             }
         }
+        if let Some(action) = palette_action {
+            self.apply_palette_action(action);
+        }
         if !self.simulation_paused() && self.surface_retry.is_none() {
             self.window.as_ref().unwrap().request_redraw();
         }
     }
 }
 impl ApplicationHandler<GameEvent> for Game {
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        let started = Instant::now();
+        if let Some(window) = &self.window {
+            window.set_visible(false);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.profile_shutdown {
+            eprintln!("Shutdown hide window: {:?}", started.elapsed());
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = started;
+    }
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
         self.audio.silence();
         self.sound_eye = None;
@@ -909,9 +984,34 @@ pub fn run() -> Result<(), String> {
     let event_loop = EventLoop::<GameEvent>::with_user_event()
         .build()
         .map_err(|e| e.to_string())?;
-    event_loop
-        .run_app(&mut Game::new_at(hermes, start)?)
-        .map_err(|e| e.to_string())
+    let mut game = Game::new_at(hermes, start)?;
+    game.profile_shutdown = args.iter().any(|a| a == "--profile-shutdown");
+    let result = event_loop.run_app(&mut game).map_err(|e| e.to_string());
+    let started = Instant::now();
+    let profile = game.profile_shutdown;
+    if profile {
+        macro_rules! release {
+            ($label:literal, $value:expr) => {{
+                let stage = Instant::now();
+                drop($value);
+                eprintln!(concat!("Shutdown ", $label, ": {:?}"), stage.elapsed());
+            }};
+        }
+        // Match declaration order to expose the existing destructor costs.
+        release!("audio", std::mem::take(&mut game.audio));
+        release!("window handle", game.window.take());
+        release!("renderer", game.renderer.take());
+        release!("scenery", game.scenery.take());
+        release!("props", std::mem::take(&mut game.prop_scenery));
+        release!("vehicles", game.vehicle_scenery.take());
+        release!("dynamic mesh", game.dynamic_mesh.take());
+        release!("palette", game.palette.take());
+    }
+    drop(game);
+    if profile {
+        eprintln!("Shutdown game resources: {:?}", started.elapsed());
+    }
+    result
 }
 
 impl Game {
@@ -950,8 +1050,14 @@ impl Game {
         );
         renderer.resize(size.width, size.height);
         eprintln!("Window configured; initializing command palette...");
-        self.palette = Some(Palette::new(self.window.as_ref().unwrap(), &renderer));
+        self.palette = Some(Palette::new(
+            self.window.as_ref().unwrap(),
+            &renderer,
+            &self.hermes.landmarks(),
+        ));
         self.renderer = Some(renderer);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.audio.prepare();
         self.last = Instant::now();
         self.game_time = 0.;
         // Ensure startup gets another opportunity even if the initial redraw is coalesced

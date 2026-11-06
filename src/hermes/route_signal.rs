@@ -1,6 +1,10 @@
 use super::{routing::Navigation, Hermes, RouteStatus};
 use glam::Vec2;
 
+// Map units are 100 metres. Accumulating heading change also catches
+// turns authored as several short curve segments.
+const SIGNAL_DISTANCE: f32 = 0.4;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RouteSignal {
     #[default]
@@ -22,7 +26,7 @@ impl Navigation {
             if length < 0.0001 {
                 continue;
             }
-            if distance > 0.4 {
+            if distance > SIGNAL_DISTANCE {
                 break;
             }
             let first = *heading.get_or_insert(delta);
