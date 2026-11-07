@@ -102,7 +102,7 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
     commands.extend(landmarks.iter().map(|landmark| Command {
         id: format!("respawn.{}", landmark.id),
         title: format!("Respawn with car: {}", landmark.title),
-        description: "Move to a nearby driving lane and get behind the wheel".into(),
+        description: "Bring your current car beside the landmark and face the view".into(),
         shortcut: String::new(),
     }));
     commands
@@ -563,6 +563,8 @@ mod tests {
             id: "site_model_01".into(),
             title: "Orange sphere",
             point: [0., 0.],
+            target_height: 0.,
+            radius: 0.,
         };
         let commands = commands(&[landmark]);
         let ctx = egui::Context::default();

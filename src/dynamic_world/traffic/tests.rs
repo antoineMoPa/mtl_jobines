@@ -35,6 +35,7 @@ fn one_driver(
     car.position.z = point.z + car.ride_height();
     traffic.drivers.push(Driver {
         vehicle: 0,
+        spawned_at: 0.,
         path,
         distance,
         next: None,
@@ -64,6 +65,7 @@ fn population_is_nearby_separated_and_reuses_slots_after_travel() {
     assert_eq!(traffic.drivers.len(), TARGET);
     for (i, a) in cars.iter().enumerate() {
         assert!(a.position.length() < SPAWN_RADIUS + 1.);
+        assert!(a.position.truncate().length() >= 30.);
         for b in &cars[..i] {
             assert!(a.position.distance(b.position) > 9.);
         }
@@ -481,5 +483,47 @@ fn four_way_graph_pairs_opposite_approaches_on_each_phase() {
         let approaches: Vec<_> = graph.signals.iter().filter(|s| s.phase == phase).collect();
         assert_eq!(approaches.len(), 2);
         assert!(approaches[0].forward.dot(approaches[1].forward) < -0.9);
+    }
+}
+
+#[test]
+fn spawned_traffic_fades_and_reused_slots_start_invisible() {
+    let (city, graph) = map(STRAIGHT);
+    let mut traffic = Traffic::new(&graph);
+    let mut cars = Vec::new();
+    traffic.populate(&city, &mut cars, Vec3::ZERO);
+    let first = traffic.drivers[0].vehicle;
+    assert_eq!(traffic.opacity(first), 0.);
+    traffic.time += 0.4;
+    assert!((traffic.opacity(first) - 0.5).abs() < 0.0001);
+    traffic.time += 0.4;
+    assert_eq!(traffic.opacity(first), 1.);
+    traffic.populate(&city, &mut cars, Vec3::X * 600.);
+    traffic.populate(&city, &mut cars, Vec3::ZERO);
+    assert!(!traffic.drivers.is_empty());
+    for driver in &traffic.drivers {
+        assert_eq!(traffic.opacity(driver.vehicle), 0.);
+        assert!(
+            cars[driver.vehicle]
+                .position
+                .truncate()
+                .distance(glam::Vec2::ZERO)
+                >= 30.
+        );
+    }
+    let released = traffic.drivers[0].vehicle;
+    traffic.release(released);
+    assert_eq!(traffic.opacity(released), 1.);
+}
+
+#[test]
+fn street_furniture_bases_touch_supporting_surface() {
+    let (city, _) = map(STRAIGHT);
+    let features = city.street_features(opencity::runtime::Region::WholeMap);
+    assert!(!features.is_empty());
+    for feature in features {
+        let p = feature.position;
+        let support = city.surface_at([p[0], p[1]], p[2] + 0.001).unwrap();
+        assert!((p[2] - support.height).abs() < 0.00001);
     }
 }

@@ -1,7 +1,7 @@
-//! Resolve landmark visits onto supported, clear lanes in the current map.
+//! Resolve landmark visits onto supported, unobstructed viewing spots.
 use super::{DynamicWorld, SpawnPoint, Vehicle, METERS_PER_UNIT};
-use crate::hermes::{traffic_paths::SpeedClass, Hermes};
-use glam::Vec2;
+use crate::hermes::{traffic_paths::SpeedClass, Hermes, Landmark};
+use glam::{Vec2, Vec3};
 use opencity::runtime::SurfaceKind;
 
 fn vehicles_overlap(a: &Vehicle, b: &Vehicle) -> bool {
@@ -27,6 +27,63 @@ fn vehicles_overlap(a: &Vehicle, b: &Vehicle) -> bool {
 }
 
 impl DynamicWorld {
+    pub(crate) fn respawn_at_landmark(
+        &mut self,
+        hermes: &Hermes,
+        landmark: &Landmark,
+    ) -> Result<(), String> {
+        // A lane can be on a bridge or behind a whole block. First look for a
+        // supported viewing spot beside the landmark with a clear chase-camera ray.
+        let origin = Vec2::from_array(landmark.point);
+        for extra in [0.12, 0.17, 0.22, 0.30, 0.40, 0.55] {
+            let radius = landmark.radius + extra;
+            for step in 0..48 {
+                let angle = step as f32 * std::f32::consts::TAU / 48.;
+                let direction = Vec2::new(angle.cos(), angle.sin());
+                let point = origin - direction * radius;
+                let spawn = SpawnPoint {
+                    point: point.to_array(),
+                    heading: Some(angle),
+                };
+                let Ok(mut car) = Vehicle::spawn_at(hermes.city(), spawn) else {
+                    continue;
+                };
+                car.set_catalog_model(self.player().definition);
+                if !self.clear_respawn(hermes, &car) {
+                    continue;
+                }
+                let p = car.position / METERS_PER_UNIT;
+                let eye = p - direction.extend(0.) * 0.15 + Vec3::Z * 0.075;
+                let target = origin.extend(landmark.target_height);
+                let mut visible = true;
+                for sample in 0..=64 {
+                    let t = sample as f32 / 64.;
+                    let ray = eye.lerp(target, t);
+                    if ray.truncate().distance(origin) <= landmark.radius + 0.005 {
+                        break;
+                    }
+                    let xy = ray.truncate().to_array();
+                    if hermes
+                        .city()
+                        .building_collision(xy, 0.003, ray.z - 0.003, ray.z + 0.003)
+                        || hermes
+                            .city()
+                            .surface_at(xy, f32::INFINITY)
+                            .is_some_and(|s| s.height > ray.z - 0.003)
+                    {
+                        visible = false;
+                        break;
+                    }
+                }
+                if visible {
+                    self.finish_respawn(hermes, car, spawn);
+                    return Ok(());
+                }
+            }
+        }
+        self.respawn_near(hermes, landmark.point)
+    }
+
     pub(crate) fn respawn_near(&mut self, hermes: &Hermes, point: [f32; 2]) -> Result<(), String> {
         let center = Vec2::from_array(point) * METERS_PER_UNIT;
         let paths = hermes.traffic_paths();
@@ -81,15 +138,19 @@ impl DynamicWorld {
             {
                 continue;
             }
-            self.vehicles[self.player_vehicle.0] = vehicle;
-            self.vehicle_spawns[self.player_vehicle.0] = spawn;
-            self.pedestrian = None;
-            self.vehicle_notice = 4.;
-            self.sound_geography_timer = 0.;
-            self.populate_traffic(hermes);
+            self.finish_respawn(hermes, vehicle, spawn);
             return Ok(());
         }
         Err("No clear driving lane within 500 m of this landmark".into())
+    }
+
+    fn finish_respawn(&mut self, hermes: &Hermes, vehicle: Vehicle, spawn: SpawnPoint) {
+        self.vehicles[self.player_vehicle.0] = vehicle;
+        self.vehicle_spawns[self.player_vehicle.0] = spawn;
+        self.pedestrian = None;
+        self.vehicle_notice = 4.;
+        self.sound_geography_timer = 0.;
+        self.populate_traffic(hermes);
     }
 
     fn clear_respawn(&self, hermes: &Hermes, vehicle: &Vehicle) -> bool {
@@ -118,8 +179,10 @@ impl DynamicWorld {
                     return false;
                 };
                 let ground = support.height * METERS_PER_UNIT;
-                if support.kind != SurfaceKind::Asphalt
-                    || (ground - expected).abs() > 0.5
+                if !matches!(
+                    support.kind,
+                    SurfaceKind::Asphalt | SurfaceKind::Grass | SurfaceKind::Sand
+                ) || (ground - expected).abs() > 0.5
                     || hermes.city().building_collision(
                         xy,
                         0.004,
@@ -219,7 +282,7 @@ mod tests {
         let mut world = DynamicWorld::new(&hermes);
         let mut failures = Vec::new();
         for landmark in landmarks {
-            if let Err(error) = world.respawn_near(&hermes, landmark.point) {
+            if let Err(error) = world.respawn_at_landmark(&hermes, &landmark) {
                 failures.push(format!("{}: {error}", landmark.title));
                 continue;
             }
@@ -232,6 +295,13 @@ mod tests {
                 .distance(Vec2::from_array(landmark.point) * METERS_PER_UNIT);
             eprintln!("{}: {distance:.1} m", landmark.title);
             assert!(distance <= 500.);
+            if landmark.id == "site_model_01" {
+                assert!(distance < 40., "sphere visit must stay beside the model");
+                let toward = Vec2::from_array(landmark.point) * METERS_PER_UNIT
+                    - world.player().position.truncate();
+                let forward = Vec2::new(world.player_yaw().cos(), world.player_yaw().sin());
+                assert!(forward.dot(toward) > toward.length() * 0.99);
+            }
         }
         assert!(failures.is_empty(), "{}", failures.join("\n"));
     }

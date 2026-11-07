@@ -61,6 +61,12 @@ names. A map without intersections records `null`. The scene stays paused while 
 or Escape discards the draft. Existing reports are preserved and the next number follows the
 highest one.
 
+Replay saved report locations through the native renderer with
+`cargo run --release -- --replay-reports bug-reports --replay-output /tmp/report-replay`.
+This writes driving views and area overviews. Recorded camera poses are used when present;
+older reports use a reconstructed driving view. Add `--replay-landmark site_model_01` to
+capture the result of visiting a palette destination as `landmark-spawn.png`.
+
 Traffic keeps up to 36 NPC cars within roughly 180 m, recycling them beyond 240 m. NPCs use
 OpenCity lane centres, permitted junction turns and ramp attachments, with physical vehicle/prop
 collisions. They brake for traffic, pedestrians and red/amber lights. Four-way signals use

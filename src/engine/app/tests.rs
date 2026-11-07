@@ -10,6 +10,7 @@ fn landmark_command_resumes_driving_and_moves_camera_without_stale_input() {
     game.set_overlay(Overlay::Map);
     game.keys.insert(KeyCode::ArrowUp);
     game.orbit = 1.;
+    game.zoom = 3.;
     game.hood = true;
     game.sound_eye = Some(Vec3::splat(100.));
     let before = game.world.player_position();
@@ -19,6 +20,7 @@ fn landmark_command_resumes_driving_and_moves_camera_without_stale_input() {
     assert_eq!(game.overlay, Overlay::Driving);
     assert!(game.world.is_driving());
     assert_eq!(game.orbit, 0.);
+    assert_eq!(game.zoom, 1.);
     assert!(!game.hood);
     assert!(game.keys.is_empty());
     assert!(game.sound_eye.is_none());
@@ -123,7 +125,11 @@ fn menu_arrows_select_and_enter_activates_without_leaking_controls() {
             KeyCode::ArrowUp,
             KeyCode::ArrowUp,
         ] {
-            let expected = game.menu_selection.other();
+            let expected = if key == KeyCode::ArrowUp {
+                game.menu_selection.previous()
+            } else {
+                game.menu_selection.other()
+            };
             assert_eq!(game.menu_key(key, ElementState::Pressed, false), None);
             assert_eq!(game.menu_selection, expected);
             assert_eq!(

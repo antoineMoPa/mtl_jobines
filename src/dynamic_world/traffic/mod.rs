@@ -13,6 +13,7 @@ const SPAWN_RADIUS: f32 = 180.;
 const RETAIN_RADIUS: f32 = 240.;
 struct Driver {
     vehicle: usize,
+    spawned_at: f32,
     path: usize,
     distance: f32,
     next: Option<usize>,
@@ -87,8 +88,8 @@ impl Traffic {
             })
             .filter(|&(id, distance)| {
                 let point = self.graph.paths[id].sample(distance).0;
-                let radius = point.distance(center);
-                (25. ..SPAWN_RADIUS).contains(&radius)
+                let radius = point.truncate().distance(center.truncate());
+                (30. ..SPAWN_RADIUS).contains(&radius)
             })
             .collect();
         if candidates.is_empty() {
@@ -148,6 +149,7 @@ impl Traffic {
             ));
             self.drivers.push(Driver {
                 vehicle: index,
+                spawned_at: self.time,
                 path,
                 distance,
                 next: None,
@@ -157,6 +159,12 @@ impl Traffic {
                 stop_arrival: None,
             });
         }
+    }
+    pub fn opacity(&self, index: usize) -> f32 {
+        self.drivers
+            .iter()
+            .find(|d| d.vehicle == index)
+            .map_or(1., |d| ((self.time - d.spawned_at) / 0.8).clamp(0., 1.))
     }
     pub fn inactive(&self, index: usize) -> bool {
         self.inactive.contains(&index)

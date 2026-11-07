@@ -2,11 +2,15 @@
 
 ## Current installed street network
 
-The installed map has 2,822 segments and 200 native surface junctions, covering
+The installed map has 2,834 segments and 200 native surface junctions, covering
 57 selected corridors from an inventory of 6,254 exact source street names.
 The final candidate has zero design-rule issues, unresolved roads or naming
-conflicts. The terrain-aware audit also finds zero missing junction seams or blocked
-lane entrances. Both active road and terrain files match the validated research artifacts.
+conflicts. A bug-report follow-up adds twelve straight, level approach pieces at three
+junctions, corrects nearby surface grades and terrain, and aligns 128 generated building
+footprints with the street axes. All 53,554 building features and the protected green-space
+reservations are retained. A runtime regression drives all twelve junction directions
+without collisions; all 22 landmark visits pass. Canonical files include these later
+repairs; frozen research candidates document the earlier milestones.
 The sections below describe the earlier geographic migration and interchange work;
 their historical segment counts and pending street-authoring notes are superseded
 by this installed network.

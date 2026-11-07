@@ -6,6 +6,8 @@ pub(crate) struct Landmark {
     pub id: String,
     pub title: &'static str,
     pub point: [f32; 2],
+    pub target_height: f32,
+    pub radius: f32,
 }
 
 fn title(model: &str) -> Option<&'static str> {
@@ -62,6 +64,12 @@ impl Hermes {
                     id,
                     title,
                     point: [sum[0] / count, sum[1] / count],
+                    target_height: feature.elevation + feature.height.unwrap_or(0.) * 0.75,
+                    radius: feature
+                        .points
+                        .iter()
+                        .map(|p| (p[0] - sum[0] / count).hypot(p[1] - sum[1] / count))
+                        .fold(0., f32::max),
                 })
             })
             .collect()

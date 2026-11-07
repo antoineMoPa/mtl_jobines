@@ -80,6 +80,7 @@ struct Game {
     eye: Vec3,
     zoom: f32,
     orbit: f32,
+    camera_pitch: f32,
     dragging: bool,
     cursor: Option<[f32; 2]>,
     cursor_hide_at: Option<Instant>,
@@ -190,13 +191,18 @@ impl Game {
         }
         match key {
             KeyCode::ArrowUp | KeyCode::ArrowDown => {
-                self.menu_selection = self.menu_selection.other();
+                self.menu_selection = if key == KeyCode::ArrowUp {
+                    self.menu_selection.previous()
+                } else {
+                    self.menu_selection.other()
+                };
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
                 None
             }
             KeyCode::Enter => Some(self.menu_selection),
+            KeyCode::KeyM => Some(MenuItem::Map),
             KeyCode::KeyQ => Some(MenuItem::Exit),
             _ => None,
         }
@@ -250,6 +256,7 @@ impl Game {
             eye: p - Vec3::new(0.16, 0., -0.08),
             zoom: 1.,
             orbit: 0.,
+            camera_pitch: 0.,
             dragging: false,
             cursor: None,
             cursor_hide_at: None,
@@ -323,14 +330,17 @@ impl Game {
                 else {
                     return;
                 };
-                match self.world.respawn_near(&self.hermes, landmark.point) {
+                match self.world.respawn_at_landmark(&self.hermes, &landmark) {
                     Ok(()) => {
                         self.orbit = 0.;
+                        self.zoom = 1.;
+                        self.camera_pitch = 0.;
                         self.hood = false;
                         let p = self.world.player_position() / METERS_PER_UNIT;
                         let yaw = self.world.player_yaw();
                         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
-                        self.eye = p - forward * (0.15 * self.zoom) + Vec3::Z * (0.075 * self.zoom);
+                        self.eye = p - forward * (0.15 * self.zoom * self.camera_pitch.cos())
+                            + Vec3::Z * ((0.075 + 0.15 * self.camera_pitch.sin()) * self.zoom);
                         self.hermes.update_navigation(p.to_array());
                         self.scene_dirty = true;
                         self.set_overlay(Overlay::Driving);
@@ -353,6 +363,7 @@ impl Game {
         }
         let elapsed = (now - self.last).as_secs_f32().min(0.1);
         self.last = now;
+        let previous_position = self.world.player_position();
         self.simulate(elapsed);
         let paused = self.simulation_paused();
         let refresh_scene = self.refresh_scene();
@@ -368,13 +379,25 @@ impl Game {
             renderer.update_route(&self.hermes.route_uvs());
             self.route_revision = self.hermes.route_revision();
         }
+        if !paused
+            && !self.dragging
+            && self
+                .world
+                .player_position()
+                .distance_squared(previous_position)
+                > 0.000001
+        {
+            self.orbit *= (-elapsed * 2.5).exp();
+            self.camera_pitch *= (-elapsed * 2.5).exp();
+        }
         let heading = self.world.player_yaw() + self.orbit;
         let forward = Vec3::new(heading.cos(), heading.sin(), 0.);
         let look = p + Vec3::new(0., 0., 0.014) + forward * 0.045;
         let target_eye = if self.hood && self.world.is_driving() {
             p + forward * 0.009 + Vec3::Z * 0.011
         } else {
-            p - forward * (0.15 * self.zoom) + Vec3::Z * (0.075 * self.zoom)
+            p - forward * (0.15 * self.zoom * self.camera_pitch.cos())
+                + Vec3::Z * ((0.075 + 0.15 * self.camera_pitch.sin()) * self.zoom)
         };
         if !paused {
             self.eye = self.eye.lerp(target_eye, 1. - (-elapsed * 6.).exp());
@@ -739,6 +762,7 @@ impl ApplicationHandler<GameEvent> for Game {
                     }
                     if self.overlay.paused() {
                         match self.menu_key(key, event.state, event.repeat) {
+                            Some(MenuItem::Map) => self.set_overlay(Overlay::Map),
                             Some(MenuItem::Exit) => self.exit_game(event_loop),
                             Some(MenuItem::Resume) => self.set_overlay(Overlay::Driving),
                             None => {}
@@ -752,10 +776,12 @@ impl ApplicationHandler<GameEvent> for Game {
                                 KeyCode::KeyR => {
                                     self.world.reset_player(&self.hermes);
                                     self.orbit = 0.;
+                                    self.camera_pitch = 0.;
                                 }
                                 KeyCode::KeyF => {
                                     if self.world.toggle_vehicle(&self.hermes) {
                                         self.orbit = 0.;
+                                        self.camera_pitch = 0.;
                                         self.hood = false;
                                     }
                                 }
@@ -834,6 +860,11 @@ impl ApplicationHandler<GameEvent> for Game {
                             self.set_overlay(Overlay::Map)
                         }
                         Overlay::Start | Overlay::Menu
+                            if hud::contains(hud::map_rect(w, h), point) =>
+                        {
+                            self.set_overlay(Overlay::Map)
+                        }
+                        Overlay::Start | Overlay::Menu
                             if hud::contains(hud::exit_rect(w, h), point) =>
                         {
                             self.exit_game(event_loop)
@@ -864,7 +895,11 @@ impl ApplicationHandler<GameEvent> for Game {
                 self.cursor_activity(Instant::now());
                 if self.dragging {
                     if let Some(x) = self.cursor {
-                        self.orbit -= (position.x as f32 - x[0]) * 0.008;
+                        self.orbit = (self.orbit - (position.x as f32 - x[0]) * 0.008)
+                            .clamp(-std::f32::consts::PI, std::f32::consts::PI);
+                        self.camera_pitch = (self.camera_pitch
+                            + (position.y as f32 - x[1]) * 0.005)
+                            .clamp(-0.3, 1.);
                     }
                 }
                 self.cursor = Some([position.x as f32, position.y as f32]);
@@ -875,6 +910,8 @@ impl ApplicationHandler<GameEvent> for Game {
                         let point = self.cursor.unwrap();
                         let selection = if hud::contains(hud::resume_rect(w, h), point) {
                             Some(MenuItem::Resume)
+                        } else if hud::contains(hud::map_rect(w, h), point) {
+                            Some(MenuItem::Map)
                         } else if hud::contains(hud::exit_rect(w, h), point) {
                             Some(MenuItem::Exit)
                         } else {
@@ -934,6 +971,15 @@ pub fn run() -> Result<(), String> {
             std::fs::metadata(&output).map_err(|e| e.to_string())?.len() as f64 / 1048576.
         );
         return Ok(());
+    }
+    if let Some(reports) = option("--replay-reports") {
+        let output = option("--replay-output").ok_or("--replay-output requires a directory")?;
+        let landmark = args
+            .iter()
+            .position(|a| a == "--replay-landmark")
+            .and_then(|i| args.get(i + 1))
+            .map(String::as_str);
+        return super::report_replay::run(&mut hermes, &reports, &output, landmark);
     }
     if let Some(path) = option("--export-minimap") {
         std::fs::write(&path, hermes.minimap_svg()).map_err(|e| e.to_string())?;

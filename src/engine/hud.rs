@@ -23,12 +23,21 @@ impl Overlay {
 pub enum MenuItem {
     #[default]
     Resume,
+    Map,
     Exit,
 }
 impl MenuItem {
-    pub fn other(self) -> Self {
+    pub fn previous(self) -> Self {
         match self {
             Self::Resume => Self::Exit,
+            Self::Map => Self::Resume,
+            Self::Exit => Self::Map,
+        }
+    }
+    pub fn other(self) -> Self {
+        match self {
+            Self::Resume => Self::Map,
+            Self::Map => Self::Exit,
             Self::Exit => Self::Resume,
         }
     }
@@ -56,8 +65,11 @@ pub fn map_uv(width: f32, height: f32, point: [f32; 2]) -> Option<[f32; 2]> {
 pub fn resume_rect(width: f32, height: f32) -> [f32; 4] {
     [width * 0.5 - 110., height * 0.5, 220., 56.]
 }
-pub fn exit_rect(width: f32, height: f32) -> [f32; 4] {
+pub fn map_rect(width: f32, height: f32) -> [f32; 4] {
     [width * 0.5 - 110., height * 0.5 + 68., 220., 48.]
+}
+pub fn exit_rect(width: f32, height: f32) -> [f32; 4] {
+    [width * 0.5 - 110., height * 0.5 + 128., 220., 48.]
 }
 pub fn contains(rect: [f32; 4], point: [f32; 2]) -> bool {
     point[0] >= rect[0]
@@ -362,7 +374,8 @@ impl Hud {
                 if overlay == Overlay::Start { 1. } else { 0. },
                 match menu_selection {
                     MenuItem::Resume => 0.,
-                    MenuItem::Exit => 1.,
+                    MenuItem::Map => 1.,
+                    MenuItem::Exit => 2.,
                 },
                 0.,
             ],

@@ -10,6 +10,8 @@ mod lighting;
 mod palette;
 mod prop_scenery;
 mod render;
+#[cfg(not(target_arch = "wasm32"))]
+mod report_replay;
 mod scenery;
 #[cfg(not(target_arch = "wasm32"))]
 mod screen_capture;

@@ -9,6 +9,8 @@ mod player;
 mod props;
 pub use props::PropBatch;
 mod spawn;
+#[cfg(test)]
+mod street_tests;
 mod suspension;
 mod traffic;
 pub use spawn::SpawnPoint;
@@ -401,13 +403,21 @@ impl DynamicWorld {
             }
         }
     }
-    pub(crate) fn vehicle_instances(&self) -> impl Iterator<Item = (usize, Vec<glam::Mat4>)> + '_ {
+    pub(crate) fn vehicle_instances(
+        &self,
+    ) -> impl Iterator<Item = (usize, Vec<glam::Mat4>, f32)> + '_ {
         self.vehicles
             .iter()
-            .filter(|v| v.position.distance(self.player_position()) <= 450.)
-            .filter_map(|v| {
-                v.definition
-                    .map(|id| (id, catalog::definitions()[id].part_transforms(v)))
+            .enumerate()
+            .filter(|(_, v)| v.position.distance(self.player_position()) <= 450.)
+            .filter_map(|(index, v)| {
+                v.definition.map(|id| {
+                    (
+                        id,
+                        catalog::definitions()[id].part_transforms(v),
+                        self.traffic.opacity(index),
+                    )
+                })
             })
     }
     fn write_non_vehicle_actors(&self, mesh: &mut Mesh) {

@@ -29,9 +29,12 @@ impl VehicleScenery {
         for part in self.models.iter_mut().flatten() {
             part.transforms.clear();
         }
-        for (model, transforms) in world.vehicle_instances() {
+        for (model, transforms, opacity) in world.vehicle_instances() {
             for (part, transform) in self.models[model].iter_mut().zip(transforms) {
-                part.transforms.push(transform.to_cols_array_2d());
+                let mut columns = transform.to_cols_array_2d();
+                // Affine W is spare: vehicle shaders use XYZ and carry W as coverage.
+                columns[3][3] = opacity;
+                part.transforms.push(columns);
             }
         }
         for part in self.models.iter_mut().flatten() {
