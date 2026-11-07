@@ -120,6 +120,42 @@ pub struct Palette {
     commands: Vec<Command>,
 }
 impl Palette {
+    /// Refresh map destinations without replacing dialogs, input or egui state.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn update_landmarks(&mut self, landmarks: &[Landmark]) {
+        self.commands = commands(landmarks);
+    }
+
+    #[cfg(all(test, not(target_arch = "wasm32")))]
+    pub(super) fn headless(renderer: &Renderer) -> Self {
+        use winit::raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle};
+        struct NoDisplay;
+        impl HasDisplayHandle for NoDisplay {
+            fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+                Err(HandleError::Unavailable)
+            }
+        }
+        let ctx = egui::Context::default();
+        Self {
+            input: Input::new(
+                ctx.clone(),
+                egui::ViewportId::ROOT,
+                &NoDisplay,
+                None,
+                None,
+                None,
+            ),
+            ctx,
+            menu: CommandPalette::default(),
+            painter: Painter::new(&renderer.device, renderer.config.format.add_srgb_suffix()),
+            modifiers: Default::default(),
+            sky_open: false,
+            sound_open: false,
+            bug_report: Default::default(),
+            commands: commands(&[]),
+        }
+    }
+
     pub fn new(window: &Window, renderer: &Renderer, landmarks: &[Landmark]) -> Self {
         let ctx = egui::Context::default();
         let input = Input::new(
@@ -144,7 +180,7 @@ impl Palette {
         }
     }
     /// Feed all events so modifier state and focus stay current while closed.
-    pub fn event(&mut self, window: &Window, event: &WindowEvent) {
+    pub fn event(&mut self, window: &Window, event: &WindowEvent) -> bool {
         if let WindowEvent::ModifiersChanged(modifiers) = event {
             self.modifiers = modifiers.state();
         }
@@ -152,8 +188,16 @@ impl Palette {
             self.modifiers = Default::default();
         }
         let response = self.input.on_window_event(window, event);
-        if response.repaint && self.is_open() {
+        if response.repaint {
             window.request_redraw();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            response.consumed
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            false
         }
     }
     pub fn dismiss(&mut self) {
@@ -187,7 +231,21 @@ impl Palette {
         sound: &mut crate::audio::Settings,
     ) -> Option<PaletteAction> {
         let mut selected = None;
+        #[cfg(not(target_arch = "wasm32"))]
+        let bug_link_enabled = !self.is_open();
         let output = self.ctx.run_ui(self.input.take_egui_input(window), |ui| {
+            #[cfg(not(target_arch = "wasm32"))]
+            egui::Area::new(egui::Id::new("bug_report_link"))
+                .anchor(egui::Align2::LEFT_TOP, egui::vec2(12., 8.))
+                .show(ui.ctx(), |ui| {
+                    if ui
+                        .add_enabled(bug_link_enabled, egui::Link::new("[bug]"))
+                        .on_hover_text("Report a bug")
+                        .clicked()
+                    {
+                        selected = Some(PaletteAction::BugReport);
+                    }
+                });
             if let Some(id) = self.menu.show(ui.ctx(), &self.commands) {
                 if id == "sound.settings" {
                     self.sound_open = true;

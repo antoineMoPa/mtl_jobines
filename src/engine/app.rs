@@ -687,7 +687,7 @@ impl ApplicationHandler<GameEvent> for Game {
             self.cursor_activity(Instant::now());
         }
         if let (Some(palette), Some(window)) = (&mut self.palette, &self.window) {
-            palette.event(window, &event);
+            let consumed = palette.event(window, &event);
             let open = palette.is_open();
             let shortcut = matches!(&event, WindowEvent::KeyboardInput { event, .. }
                 if event.physical_key == PhysicalKey::Code(KeyCode::KeyP)
@@ -722,6 +722,17 @@ impl ApplicationHandler<GameEvent> for Game {
                     self.window.as_ref().unwrap().request_redraw();
                     return;
                 }
+            }
+            if consumed
+                && matches!(
+                    event,
+                    WindowEvent::MouseInput { .. }
+                        | WindowEvent::MouseWheel { .. }
+                        | WindowEvent::Touch(_)
+                )
+            {
+                window.request_redraw();
+                return;
             }
         }
         match event {

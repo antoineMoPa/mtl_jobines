@@ -166,9 +166,9 @@ impl Game {
                 renderer.update_minimap(pixels);
             }
             renderer.update_route(&[]);
-            if let Some(window) = &self.window {
-                self.palette = Some(Palette::new(window, renderer, &hermes.landmarks()));
-            }
+        }
+        if let Some(palette) = &mut self.palette {
+            palette.update_landmarks(&hermes.landmarks());
         }
         self.audio.silence();
         self.sound_eye = None;

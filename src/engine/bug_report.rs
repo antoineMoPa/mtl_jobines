@@ -113,6 +113,17 @@ pub(super) struct Dialog {
 }
 
 impl Dialog {
+    #[cfg(test)]
+    pub(super) fn draft_snapshot(&self) -> (serde_json::Value, Vec<u8>) {
+        let (report, screenshot) = self.draft.as_ref().unwrap();
+        (serde_json::to_value(report).unwrap(), screenshot.clone())
+    }
+
+    #[cfg(test)]
+    pub(super) fn type_description(&mut self, text: &str) {
+        self.draft.as_mut().unwrap().0.description.push_str(text);
+    }
+
     pub(super) fn begin(&mut self, report: Report, screenshot: Result<Vec<u8>, String>) {
         self.dismiss();
         self.open = true;

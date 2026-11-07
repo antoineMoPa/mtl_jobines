@@ -161,20 +161,42 @@ fn map_replacement_preserves_pause_and_player_then_falls_back_to_authored_spawn(
 }
 
 #[test]
-fn canonical_map_is_empty_flat_and_driveable_without_any_roads() {
+fn canonical_island_has_water_parking_and_a_driveable_interior() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
     let hermes = Hermes::load_with_game_data(&path, None).unwrap();
     let city = hermes.city();
-    assert!(city.roads.is_empty());
-    assert!(city.landscape.is_empty());
-    assert!(city.paths.is_empty());
+    assert_eq!(city.roads.len(), 1);
+    let road = &city.roads[0];
+    assert_eq!(road.definition.direction, opencity::RoadDirection::Forward);
+    assert_eq!(
+        road.definition
+            .elements
+            .iter()
+            .filter(|element| element.kind == opencity::RoadElementKind::CarLane)
+            .count(),
+        2
+    );
+    assert_eq!(city.landscape.len(), 2);
+    assert_eq!(city.paths.len(), 1);
+    for path in &city.paths {
+        assert!(path.points.last().unwrap()[0] < path.points[0][0]);
+    }
     assert!(city.junctions.is_empty());
-    assert!(hermes.landmarks().is_empty());
+    assert_eq!(hermes.landmarks().len(), 1);
+    assert_eq!(hermes.landmarks()[0].id, "site_model_01");
+    let parking = city.surface_at([-1.2, 1.0], 0.15).unwrap();
+    assert_eq!(parking.kind, opencity::runtime::SurfaceKind::Sidewalk);
+    assert!((parking.height - 0.102).abs() < 0.0001);
+    let service = city.surface_at([-0.55398536, 0.8062226], 0.15).unwrap();
+    assert_eq!(service.kind, opencity::runtime::SurfaceKind::Asphalt);
     let terrain = city.elevation.as_ref().unwrap();
-    for x in 0..1024 {
-        for y in 0..1024 {
-            assert_eq!(terrain.point(x, y)[2], 0.);
-        }
+    assert_eq!(terrain.spec.water_level, Some(0.));
+    for point in [[0., 0.], [40., 0.], [-40., 0.], [0., 40.], [0., -40.]] {
+        assert!((terrain.height_at(point).unwrap() - 0.1).abs() < 0.0001);
+    }
+    for point in [[70., 0.], [-70., 0.], [0., 70.], [0., -70.], [50., 50.]] {
+        assert!(terrain.height_at(point).unwrap() < 0.);
+        assert_eq!(terrain.surface_height_at(point), Some(0.));
     }
     let mut world = DynamicWorld::new(&hermes);
     let initial = world.player_position();
@@ -200,6 +222,42 @@ fn canonical_map_is_empty_flat_and_driveable_without_any_roads() {
             .unwrap();
     let hermes = Hermes::from_map_bytes(without_spawn.as_bytes(), &elevation, None).unwrap();
     assert!(DynamicWorld::with_start(&hermes, None).is_ok());
+}
+
+#[test]
+#[ignore = "requires a native GPU adapter"]
+fn map_reload_preserves_bug_report_capture_and_description() {
+    let mut game = Game::new(Hermes::test_map_from_source(ROAD));
+    let renderer = pollster::block_on(Renderer::new(None, 1280, 800)).unwrap();
+    let mut palette = Palette::headless(&renderer);
+    palette.bug_report.begin(
+        super::super::super::bug_report::Report::new(
+            game.hermes.city(),
+            [0.; 3],
+            [1., 2., 3.],
+            [4., 5., 6.],
+        ),
+        Ok(vec![1, 2, 3]),
+    );
+    palette
+        .bug_report
+        .type_description("A road issue.\nStill typing…");
+    let captured = palette.bug_report.draft_snapshot();
+    game.palette = Some(palette);
+    game.renderer = Some(renderer);
+    for source in [format!("{ROAD} street(0,-2,0,2);"), ROAD.into()] {
+        game.apply_reloaded_map(Hermes::test_map_from_source(&source))
+            .unwrap();
+        let dialog = &game.palette.as_ref().unwrap().bug_report;
+        assert!(dialog.is_open());
+        assert_eq!(dialog.draft_snapshot(), captured);
+    }
+    let dialog = &mut game.palette.as_mut().unwrap().bug_report;
+    dialog.type_description(" More detail.");
+    assert_eq!(
+        dialog.draft_snapshot().0["description"],
+        "A road issue.\nStill typing… More detail."
+    );
 }
 
 #[test]
