@@ -1,4 +1,4 @@
-struct Hud { rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, vehicle:vec4<f32>, vehicle_letters:array<vec4<u32>,12> };
+struct Hud { rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, full_map:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, vehicle:vec4<f32>, vehicle_letters:array<vec4<u32>,12> };
 @group(0) @binding(0) var chart:texture_2d<f32>;
 @group(0) @binding(1) var filtering:sampler;
 @group(0) @binding(2) var<uniform> hud:Hud;
@@ -23,6 +23,8 @@ fn inside(p:vec2<f32>, r:vec4<f32>)->bool {
 // Small bitmap lettering keeps menus independent of a platform font service.
 fn glyph(code:u32)->u32 {
     switch code {
+        case 43u: {return 4357252u;}
+        case 47u: {return 1118480u;}
         case 45u: {return 31744u;}
         case 48u: {return 15259182u;}
         case 49u: {return 14815428u;}
@@ -134,7 +136,17 @@ fn lettering(p:vec2<f32>, origin:vec2<f32>, scale:f32, word:u32)->bool {
     if word==8u && index<7u {
         code=array<u32,7>(65u,82u,82u,73u,86u,69u,68u)[index];
     }
+    if word==9u && index<24u {
+        code=array<u32,24>(83u,67u,82u,79u,76u,76u,32u,43u,47u,45u,32u,90u,79u,79u,77u,32u,32u,48u,32u,82u,69u,83u,69u,84u)[index];
+    }
     return (glyph(code) & (1u << (u32(q.y)*5u+col)))!=0u;
+}
+// Full-map display uses a clockwise quarter turn of the north-up atlas.
+fn atlas_to_map_offset(offset:vec2<f32>)->vec2<f32> {
+    return vec2<f32>(-offset.y,offset.x);
+}
+fn map_to_atlas_offset(offset:vec2<f32>)->vec2<f32> {
+    return vec2<f32>(offset.y,-offset.x);
 }
 fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32)->vec3<f32> {
     var color=textureSampleLevel(chart,filtering,uv,0.0).rgb;
@@ -195,15 +207,16 @@ fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32
             || lettering(p,vec2<f32>(screen.x-320.,39.),2.,6u)) {return vec4<f32>(0.7,0.83,0.85,1.);}
         if hud.destination.z==2. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,7u) {return vec4<f32>(1.,0.3,0.2,1.);}
         if hud.destination.z==3. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,8u) {return vec4<f32>(0.1,1.,0.4,1.);}
+        if screen.x>700. && lettering(p,vec2<f32>(screen.x-340.,screen.y-33.),2.,9u) {return vec4<f32>(0.7,0.83,0.85,1.);}
         let close=p-vec2<f32>(screen.x-44.,44.);
         if max(abs(close.x),abs(close.y))<9. && abs(abs(close.x)-abs(close.y))<2. {return vec4<f32>(0.93,0.96,0.95,1.);}
         let size=screen-vec2<f32>(80.,120.);
         let local=p-vec2<f32>(40.,80.);
         if any(local<vec2<f32>(0.)) || any(local>size) {return vec4<f32>(0.035,0.055,0.07,1.);}
-        let span=min(size.x,size.y);
-        let uv=vec2<f32>(0.5)+(local-size*0.5)/span;
-        let forward=vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w));
-        return vec4<f32>(map_color(uv,(uv-hud.map.zw)*span,forward,span),1.);
+        let span=min(size.x,size.y)*hud.full_map.z;
+        let uv=hud.full_map.xy+map_to_atlas_offset((local-size*0.5)/span);
+        let forward=atlas_to_map_offset(vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w)));
+        return vec4<f32>(map_color(uv,atlas_to_map_offset(uv-hud.map.zw)*span,forward,span),1.);
     }
     let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));
     let uv=(p-vec2<f32>(16.,screen.y-size-16.))/size;
@@ -227,7 +240,7 @@ fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32
 fn route_screen(uv:vec2<f32>)->vec2<f32> {
     if hud.mode.x==2. {
         let size=hud.screen.xy-vec2<f32>(80.,120.);
-        return vec2<f32>(40.,80.)+size*0.5+(uv-0.5)*min(size.x,size.y);
+        return vec2<f32>(40.,80.)+size*0.5+atlas_to_map_offset(uv-hud.full_map.xy)*min(size.x,size.y)*hud.full_map.z;
     }
     let screen=hud.screen.xy;
     let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));

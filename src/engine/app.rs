@@ -86,6 +86,7 @@ struct Game {
     cursor_hide_at: Option<Instant>,
     cursor_hidden: bool,
     overlay: Overlay,
+    full_map: hud::FullMapView,
     menu_selection: MenuItem,
     hood: bool,
     first_frame: bool,
@@ -267,6 +268,7 @@ impl Game {
                 Overlay::Start
             },
             menu_selection: MenuItem::Resume,
+            full_map: Default::default(),
             hood: false,
             first_frame: true,
             first_frame_attempts: 0,
@@ -449,6 +451,7 @@ impl Game {
         }
         let navigation = self.hermes.minimap_view(center, self.world.player_yaw());
         renderer.overlay = self.overlay;
+        renderer.full_map = self.full_map;
         renderer.menu_selection = self.menu_selection;
         renderer.fps = self.frame_rate.value;
         renderer.vehicle_name = self.world.vehicle_name_notice().map(str::to_owned);
@@ -761,6 +764,24 @@ impl ApplicationHandler<GameEvent> for Game {
                         return;
                     }
                     if self.overlay.paused() {
+                        if self.overlay == Overlay::Map && event.state == ElementState::Pressed {
+                            let steps = match key {
+                                KeyCode::Equal | KeyCode::NumpadAdd => Some(1.),
+                                KeyCode::Minus | KeyCode::NumpadSubtract => Some(-1.),
+                                KeyCode::Digit0 | KeyCode::Numpad0 => {
+                                    self.full_map = Default::default();
+                                    Some(0.)
+                                }
+                                _ => None,
+                            };
+                            if let (Some(steps), Some(window)) = (steps, &self.window) {
+                                let size = window.inner_size();
+                                let (w, h) = (size.width as f32, size.height as f32);
+                                self.full_map.zoom_at(w, h, [w * 0.5, h * 0.5 + 20.], steps);
+                                window.request_redraw();
+                                return;
+                            }
+                        }
                         match self.menu_key(key, event.state, event.repeat) {
                             Some(MenuItem::Map) => self.set_overlay(Overlay::Map),
                             Some(MenuItem::Exit) => self.exit_game(event_loop),
@@ -826,12 +847,23 @@ impl ApplicationHandler<GameEvent> for Game {
                     }
                 }
             }
-            WindowEvent::MouseWheel { delta, .. } if !self.overlay.paused() => {
+            WindowEvent::MouseWheel { delta, .. }
+                if self.overlay == Overlay::Map || !self.overlay.paused() =>
+            {
                 let y = match delta {
                     MouseScrollDelta::LineDelta(_, y) => y,
                     MouseScrollDelta::PixelDelta(p) => p.y as f32 / 50.,
                 };
-                self.zoom = (self.zoom * (-y * 0.1).exp()).clamp(0.45, 3.0);
+                if self.overlay == Overlay::Map {
+                    if let (Some(point), Some(window)) = (self.cursor, &self.window) {
+                        let size = window.inner_size();
+                        self.full_map
+                            .zoom_at(size.width as f32, size.height as f32, point, y);
+                        window.request_redraw();
+                    }
+                } else {
+                    self.zoom = (self.zoom * (-y * 0.1).exp()).clamp(0.45, 3.0);
+                }
             }
             WindowEvent::MouseInput {
                 state,
@@ -881,7 +913,7 @@ impl ApplicationHandler<GameEvent> for Game {
                             self.set_overlay(Overlay::Driving)
                         }
                         Overlay::Map => {
-                            if let Some(uv) = hud::map_uv(w, h, point) {
+                            if let Some(uv) = self.full_map.map_uv(w, h, point) {
                                 let p = self.world.player_position() / METERS_PER_UNIT;
                                 self.hermes.select_destination(uv, p.to_array());
                                 window.request_redraw();

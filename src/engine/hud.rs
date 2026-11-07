@@ -49,18 +49,47 @@ pub fn minimap_rect(width: f32, height: f32) -> [f32; 4] {
         .max(1.);
     [16., height - side - 16., side, side]
 }
-/// Matches the north-up square atlas projection in hud.wgsl.
-pub fn map_uv(width: f32, height: f32, point: [f32; 2]) -> Option<[f32; 2]> {
-    let size = [width - 80., height - 120.];
-    let span = size[0].min(size[1]);
-    if span <= 0. || !contains([40., 80., size[0], size[1]], point) {
-        return None;
+#[derive(Clone, Copy, Debug)]
+pub struct FullMapView {
+    center: [f32; 2],
+    zoom: f32,
+}
+impl Default for FullMapView {
+    fn default() -> Self {
+        Self {
+            center: [0.5; 2],
+            zoom: 1.,
+        }
     }
-    let uv = [
-        0.5 + (point[0] - 40. - size[0] * 0.5) / span,
-        0.5 + (point[1] - 80. - size[1] * 0.5) / span,
-    ];
-    uv.iter().all(|v| (0. ..=1.).contains(v)).then_some(uv)
+}
+impl FullMapView {
+    /// Cursor-anchored zoom; keyboard zoom uses the center of the viewport.
+    pub fn zoom_at(&mut self, width: f32, height: f32, point: [f32; 2], steps: f32) {
+        let Some(anchor) = self.map_uv(width, height, point) else {
+            return;
+        };
+        let previous = self.zoom;
+        self.zoom = (self.zoom * (steps * 0.2).exp()).clamp(1., 16.);
+        let half_span = 0.5 / self.zoom;
+        for (center, anchor) in self.center.iter_mut().zip(anchor) {
+            *center = (anchor - (anchor - *center) * previous / self.zoom)
+                .clamp(half_span, 1. - half_span);
+        }
+    }
+
+    /// Inverse of the rotated, zoomed shader projection.
+    pub fn map_uv(self, width: f32, height: f32, point: [f32; 2]) -> Option<[f32; 2]> {
+        let size = [width - 80., height - 120.];
+        let span = size[0].min(size[1]);
+        if span <= 0. || !contains([40., 80., size[0], size[1]], point) {
+            return None;
+        }
+        let uv = [
+            self.center[0] + (point[1] - 80. - size[1] * 0.5) / (span * self.zoom),
+            self.center[1] - (point[0] - 40. - size[0] * 0.5) / (span * self.zoom),
+        ];
+        uv.iter().all(|v| (0. ..=1.).contains(v)).then_some(uv)
+    }
 }
 pub fn resume_rect(width: f32, height: f32) -> [f32; 4] {
     [width * 0.5 - 110., height * 0.5, 220., 56.]
@@ -90,6 +119,7 @@ struct Uniform {
     screen: [f32; 4],
     map: [f32; 4],
     mode: [f32; 4],
+    full_map: [f32; 4],
     destination: [f32; 4],
     performance: [f32; 4],
     vehicle: [f32; 4],
@@ -325,6 +355,7 @@ impl Hud {
         height: u32,
         view: MinimapView,
         overlay: Overlay,
+        full_map: FullMapView,
         menu_selection: MenuItem,
         fps: Option<f32>,
         vehicle_name: Option<&str>,
@@ -343,6 +374,7 @@ impl Hud {
             }
         }
         let data = Uniform {
+            full_map: [full_map.center[0], full_map.center[1], full_map.zoom, 0.],
             rect,
             screen: [width as f32, height as f32, view.uv_span, view.heading],
             map: [
@@ -410,6 +442,34 @@ impl Hud {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn full_map_zoom_keeps_cursor_anchor_and_limits_then_resets_to_overview() {
+        for (w, h) in [(1280., 800.), (800., 1280.), (320., 240.)] {
+            let mut view = super::FullMapView::default();
+            let span = (w - 80.0_f32).min(h - 120.0);
+            let point = [w * 0.5 + span * 0.2, h * 0.5 + 20. - span * 0.15];
+            let anchor = view.map_uv(w, h, point).unwrap();
+            view.zoom_at(w, h, point, 4.);
+            let actual = view.map_uv(w, h, point).unwrap();
+            assert!(view.zoom > 1.);
+            for i in 0..2 {
+                assert!((actual[i] - anchor[i]).abs() < 1e-6);
+            }
+            let center = [w * 0.5, h * 0.5 + 20.];
+            let right = view
+                .map_uv(w, h, [center[0] + span * 0.1, center[1]])
+                .unwrap();
+            assert!((right[1] - (view.center[1] - 0.1 / view.zoom)).abs() < 1e-6);
+            view.zoom_at(w, h, center, 1000.);
+            assert_eq!(view.zoom, 16.);
+            view.zoom_at(w, h, center, -1000.);
+            assert_eq!(view.zoom, 1.);
+            assert_eq!(view.center, [0.5; 2]);
+            view.zoom_at(w, h, [44., 44.], 3.);
+            assert_eq!(view.zoom, 1., "header scrolling must not zoom the map");
+        }
+    }
+
+    #[test]
     fn circular_hit_target_excludes_square_corners_at_multiple_window_sizes() {
         for (w, h) in [(1280., 800.), (1920., 1080.), (320., 240.)] {
             let r = super::minimap_rect(w, h);
@@ -433,17 +493,48 @@ mod tests {
     fn map_clicks_match_shader_projection_and_exclude_header_and_padding() {
         for (w, h) in [(1280., 800.), (800., 1280.), (320., 240.)] {
             let center = [w * 0.5, h * 0.5 + 20.];
-            assert_eq!(super::map_uv(w, h, center), Some([0.5, 0.5]));
+            assert_eq!(
+                super::FullMapView::default().map_uv(w, h, center),
+                Some([0.5, 0.5])
+            );
             let span = (w - 80.0_f32).min(h - 120.0);
             assert_eq!(
-                super::map_uv(w, h, [center[0] + span * 0.25, center[1] - span * 0.25]),
-                Some([0.75, 0.25])
+                super::FullMapView::default().map_uv(
+                    w,
+                    h,
+                    [center[0] + span * 0.25, center[1] - span * 0.25]
+                ),
+                Some([0.25, 0.25])
             );
-            assert!(super::map_uv(w, h, [44., 44.]).is_none());
-            assert!(super::map_uv(w, h, [w - 20., h - 20.]).is_none());
+            // Atlas east points down; atlas north points right after the quarter turn.
+            for (offset, expected) in [
+                ([0., 0.25], [0.75, 0.5]),
+                ([0.25, 0.], [0.5, 0.25]),
+                ([0., -0.25], [0.25, 0.5]),
+                ([-0.25, 0.], [0.5, 0.75]),
+            ] {
+                assert_eq!(
+                    super::FullMapView::default().map_uv(
+                        w,
+                        h,
+                        [center[0] + span * offset[0], center[1] + span * offset[1]]
+                    ),
+                    Some(expected)
+                );
+            }
+            assert!(super::FullMapView::default()
+                .map_uv(w, h, [44., 44.])
+                .is_none());
+            assert!(super::FullMapView::default()
+                .map_uv(w, h, [w - 20., h - 20.])
+                .is_none());
         }
-        assert!(super::map_uv(1280., 800., [41., 400.]).is_none());
-        assert!(super::map_uv(30., 30., [15., 15.]).is_none());
+        assert!(super::FullMapView::default()
+            .map_uv(1280., 800., [41., 400.])
+            .is_none());
+        assert!(super::FullMapView::default()
+            .map_uv(30., 30., [15., 15.])
+            .is_none());
     }
     #[test]
     fn minimap_shader_validates() {

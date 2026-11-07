@@ -9,7 +9,7 @@ use opencity::{
 use std::collections::HashSet;
 
 #[test]
-fn reported_junctions_have_level_aligned_mouths_and_can_be_driven_across() {
+fn reported_and_frontage_junctions_have_level_mouths_and_can_be_driven_across() {
     let mut program = opencity::parse(include_str!("../../data/maps/mtl/map.road")).unwrap();
     let definitions: HashSet<_> = program
         .statements
@@ -33,9 +33,14 @@ fn reported_junctions_have_level_aligned_mouths_and_can_be_driven_across() {
     let projection = map::project(&program);
     let junctions: Vec<_> = map::intersections(&program, &projection)
         .into_iter()
-        .filter(|j| matches!(j.point_ref.as_str(), "sd_p1196" | "sd_p1329" | "sd_p1333"))
+        .filter(|j| {
+            matches!(
+                j.point_ref.as_str(),
+                "sd_p1196" | "sd_p1329" | "sd_p1333" | "site_01_access"
+            )
+        })
         .collect();
-    assert_eq!(junctions.len(), 3);
+    assert_eq!(junctions.len(), 4);
     let roads: HashSet<_> = projection
         .segments
         .iter()
@@ -70,7 +75,8 @@ fn reported_junctions_have_level_aligned_mouths_and_can_be_driven_across() {
         let rotation = map::intersection_rotation(&projection, &junction);
         let (sn, cs) = rotation.to_radians().sin_cos();
         let seams = geometry.junction_seams(&projection, &junction);
-        assert_eq!(seams.len(), 4);
+        let frontage = junction.point_ref == "site_01_access";
+        assert_eq!(seams.len(), if frontage { 3 } else { 4 });
         let height = seams[0].1.height;
         for (_, a, b) in seams {
             assert!((a.height - height).abs() < 0.00001);
@@ -89,6 +95,10 @@ fn reported_junctions_have_level_aligned_mouths_and_can_be_driven_across() {
             );
         }
         for direction in 0..4 {
+            // The frontage T connects to the cross street on its east/west axis.
+            if frontage && direction % 2 == 1 {
+                continue;
+            }
             let yaw = rotation.to_radians() + direction as f32 * std::f32::consts::FRAC_PI_2;
             let forward = Vec2::new(yaw.cos(), yaw.sin());
             let left = Vec2::new(-forward.y, forward.x);

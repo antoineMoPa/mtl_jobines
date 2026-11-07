@@ -2,14 +2,17 @@
 
 ## Current installed street network
 
-The installed map has 2,834 segments and 200 native surface junctions, covering
+The installed map has 2,840 segments and 201 native surface junctions, covering
 57 selected corridors from an inventory of 6,254 exact source street names.
 The final candidate has zero design-rule issues, unresolved roads or naming
 conflicts. A bug-report follow-up adds twelve straight, level approach pieces at three
 junctions, corrects nearby surface grades and terrain, and aligns 128 generated building
-footprints with the street axes. All 53,554 building features and the protected green-space
-reservations are retained. A runtime regression drives all twelve junction directions
-without collisions; all 22 landmark visits pass. Canonical files include these later
+footprints with the street axes. A later landmark district pass adds a connected service
+lane and concrete parking beside the expressway, removes eleven pavement intrusions,
+and aligns 109 nearby lots with the expressway at one to four floors. The map now has
+53,543 building features; protected green-space reservations are retained.
+A runtime regression checks the repaired junctions and the new frontage connection;
+all 22 landmark visits pass. Canonical files include these later
 repairs; frozen research candidates document the earlier milestones.
 The sections below describe the earlier geographic migration and interchange work;
 their historical segment counts and pending street-authoring notes are superseded
@@ -62,10 +65,10 @@ and `completion.json` with the full evidence and limits.
 
 ## Neighborhoods, shops and landmarks
 
-The live map includes 51,898 residential buildings, 1,612 mixed-use buildings,
-and 22 researched landmark models on fitted plinths: 53,554 building features
+The live map includes residential and mixed-use buildings,
+and 22 researched landmark models on fitted plinths: 53,543 building features
 including the 22 foundations. Existing detailed street frontages are joined by
-51,085 packed background and infill buildings. Background occupancy and orientation
+packed background and infill buildings. Background occupancy and orientation
 come from local source-density cells; new infill follows nearby surface streets.
 Lots reserve street strips, rendered junction pavement, existing buildings and
 8,289 anonymous protected green-space polygons. Water and unsupported sites are
@@ -85,10 +88,13 @@ gardens, cemeteries and other protected land come from the anonymous authoring l
 their interiors. The reproducible Rust authoring tool is in `tools/city-density`.
 
 Landmark locations and footprints come from the local PBF and the shared geographic
-calibration. Study 01 is installed at its actual mapped footprint. Model shapes are
-uniformly sized to those footprints in the compressed map; two use smaller scales
+calibration. Study 01 is enlarged uniformly to 12.3 game metres across and placed
+on a 72 by 54.3 metre concrete parking area beside its authored service lane.
+Its surrounding 250 metre district uses one to four floors, aligned with the expressway.
+Other model shapes are uniformly sized to their footprints in the compressed map; two use smaller
+scales
 to clear simplified roads. Studies 20, 22, 23, 26, 28 and 30 remain reserved because
-roads occupy their geographic sites. No model is silently moved to an invented site.
+roads occupy their geographic sites.
 Full source IDs, coordinates and fitting decisions are in research `population.json`.
 
 `data/landmarks` contains compact models baked in Rust from the textured research
@@ -102,7 +108,7 @@ their detailed shops, stairs and balconies. Interior blocks use existing procedu
 window materials; detailed masonry palettes stay on the authored curb facades.
 Flat terrain runs share quads while
 sloped cells retain the original support triangles. The combined scene has
-17,875,167 vertices, below the existing 20-million cache cap.
+17,759,901 vertices, below the existing 20-million cache cap.
 Native City preparation currently takes approximately 40–50 seconds on the working
 machine, including cached-mesh loads. Dense-map startup remains a performance limit.
 

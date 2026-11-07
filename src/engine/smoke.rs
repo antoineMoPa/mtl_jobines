@@ -224,6 +224,30 @@ pub(super) fn run(
         eprintln!("Rendered {}", path.display());
     }
 
+    // Keep a zoomed map snapshot to exercise route/marker projection with the real shader.
+    let span = (width as f32 - 80.).min(height as f32 - 120.);
+    let player_on_map = [
+        width as f32 * 0.5 - (navigation.player_uv[1] - 0.5) * span,
+        height as f32 * 0.5 + 20. + (navigation.player_uv[0] - 0.5) * span,
+    ];
+    renderer
+        .full_map
+        .zoom_at(width as f32, height as f32, player_on_map, 5.);
+    renderer.render(
+        &texture.create_view(&Default::default()),
+        &meshes,
+        eye,
+        look,
+        snapshot_time,
+        navigation,
+    );
+    let zoomed_path = output.with_file_name(format!(
+        "{}-map-zoom.ppm",
+        output.file_stem().unwrap().to_string_lossy()
+    ));
+    renderer.snapshot(&texture, &zoomed_path)?;
+    eprintln!("Rendered {}", zoomed_path.display());
+    renderer.full_map = Default::default();
     renderer.overlay = Overlay::Driving;
     renderer.render(
         &texture.create_view(&Default::default()),

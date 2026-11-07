@@ -118,6 +118,16 @@ pub(super) fn run(
             p + f * 0.045 + Vec3::Z * 0.014,
             &output.join("landmark-spawn.png"),
         )?;
+        let left = Vec3::new(-f.y, f.x, 0.);
+        capture(
+            hermes,
+            &mut renderer,
+            &scenery,
+            &world,
+            p - f * 0.65 + left * 0.75 + Vec3::Z * 0.9,
+            Vec3::new(landmark.point[0], landmark.point[1], p.z),
+            &output.join("landmark-overview.png"),
+        )?;
         eprintln!("Landmark {id} respawn: {p:?}; heading {yaw}");
     }
     Ok(())

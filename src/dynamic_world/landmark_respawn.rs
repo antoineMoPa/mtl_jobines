@@ -179,10 +179,13 @@ impl DynamicWorld {
                     return false;
                 };
                 let ground = support.height * METERS_PER_UNIT;
-                if !matches!(
+                let supported = matches!(
                     support.kind,
                     SurfaceKind::Asphalt | SurfaceKind::Grass | SurfaceKind::Sand
-                ) || (ground - expected).abs() > 0.5
+                ) || (support.kind == SurfaceKind::Sidewalk
+                    && support.road.is_none());
+                if !supported
+                    || (ground - expected).abs() > 0.5
                     || hermes.city().building_collision(
                         xy,
                         0.004,
@@ -248,6 +251,38 @@ mod tests {
     }
 
     #[test]
+    fn authored_concrete_parking_supports_landmark_visits_and_driving() {
+        let hermes = Hermes::test_map_from_source(
+            "road street: sidewalk carlane carlane sidewalk; end
+             street(-1,-1,1,-1); land(-2,-2,2,-2,2,2,-2,2);
+             parking=concrete(-0.8,-0.8,0.8,-0.8,0.8,0.8,-0.8,0.8);
+             elevation(parking,0.02); player_start(-0.6,-1,0);
+             sphere=building(0.12,\"study_01\",0.2,-0.06,0.32,-0.06,0.32,0.06,0.2,0.06);",
+        );
+        let mut world = DynamicWorld::new(&hermes);
+        world
+            .respawn_at_landmark(&hermes, &hermes.landmarks()[0])
+            .unwrap();
+        let initial = world.player_position();
+        assert_eq!(world.player().surface, SurfaceKind::Sidewalk);
+        assert!(world.clear_respawn(&hermes, world.player()));
+        for _ in 0..120 {
+            world.step(
+                &hermes,
+                super::super::Controls {
+                    throttle: 1.,
+                    ..Default::default()
+                },
+                Default::default(),
+                1. / 120.,
+            );
+        }
+        assert!(world.player_position().distance(initial) > 2.);
+        assert_eq!(world.player().collisions, 0);
+        assert_eq!(world.player().surface, SurfaceKind::Sidewalk);
+    }
+
+    #[test]
     fn clearance_handles_adjacent_rotated_and_stacked_vehicles() {
         let hermes = Hermes::test_map();
         let a = Vehicle::spawn(hermes.city());
@@ -296,6 +331,11 @@ mod tests {
             eprintln!("{}: {distance:.1} m", landmark.title);
             assert!(distance <= 500.);
             if landmark.id == "site_model_01" {
+                assert!(
+                    landmark.radius >= 0.08,
+                    "sphere must retain its enlarged footprint"
+                );
+                assert_eq!(world.player().surface, SurfaceKind::Sidewalk);
                 assert!(distance < 40., "sphere visit must stay beside the model");
                 let toward = Vec2::from_array(landmark.point) * METERS_PER_UNIT
                     - world.player().position.truncate();
