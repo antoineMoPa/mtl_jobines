@@ -1,4 +1,4 @@
-//! Immutable map geometry is built once, then drawn in spatial batches.
+//! Immutable map geometry is built per map revision, then drawn in spatial batches.
 //! Driving only selects GPU buffers; it never rebuilds or rasterizes the map.
 use super::render::{GpuMesh, Renderer};
 use crate::hermes::Hermes;

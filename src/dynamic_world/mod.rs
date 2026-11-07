@@ -54,7 +54,22 @@ impl DynamicWorld {
         start: Option<SpawnPoint>,
         vehicle_lineup: bool,
     ) -> Result<Self, String> {
-        let start = start.or(hermes.default_start());
+        let start = start.or(hermes.default_start()).or_else(|| {
+            let city = hermes.city();
+            (!city.roads.iter().any(|road| {
+                road.definition
+                    .elements
+                    .iter()
+                    .any(|element| element.kind == opencity::RoadElementKind::CarLane)
+            }))
+            .then(|| SpawnPoint {
+                point: [
+                    (city.bounds[0] + city.bounds[2]) * 0.5,
+                    (city.bounds[1] + city.bounds[3]) * 0.5,
+                ],
+                heading: Some(0.),
+            })
+        });
         let mut vehicle = match start {
             Some(point) => Vehicle::spawn_at(hermes.city(), point)?,
             None => Vehicle::spawn(hermes.city()),
@@ -111,6 +126,10 @@ impl DynamicWorld {
     }
     pub fn player(&self) -> &Vehicle {
         &self.vehicles[self.player_vehicle.0]
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn retain_player_vehicle(&mut self, previous: &Self) {
+        self.vehicles[self.player_vehicle.0].set_catalog_model(previous.player().definition);
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn preview_vehicle_lamps(&mut self, model: usize, controls: Controls) {

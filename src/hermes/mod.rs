@@ -142,6 +142,17 @@ impl Hermes {
             .transpose()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
+        Self::from_map_bytes(&source, &elevation, packaged)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn from_map_bytes(
+        source: &[u8],
+        elevation: &[u8],
+        packaged: Option<&Path>,
+    ) -> Result<Self, String> {
+        let parsed = opencity::parse(std::str::from_utf8(source).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+        let elevation_spec = opencity::heightmap::ElevationMapSpec::from_program(&parsed)?;
         // All expansion stages retain the authored terrain. Decode it once,
         // sharing the source bytes with the cache fingerprint below.
         let elevation_map = elevation_spec
@@ -154,7 +165,7 @@ impl Hermes {
                     .ok_or_else(|| "Missing elevation asset".into())
             })
         })?;
-        let key = CacheKey::for_map(&source, &elevation);
+        let key = CacheKey::for_map(source, elevation);
         let cache_path = game_data::cache_path(key);
         let mut data = None;
         if let Some(path) = packaged {
@@ -266,6 +277,12 @@ impl Hermes {
     }
     pub(crate) fn default_start(&self) -> Option<crate::dynamic_world::SpawnPoint> {
         self.default_start
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn prepare_for_reload(&mut self) {
+        let geometry = self.take_geometry();
+        self.prepared = Some(geometry);
+        self.minimap.pixels();
     }
     pub fn take_geometry(&mut self) -> (Mesh, Mesh) {
         if let Some(meshes) = self.prepared.take() {

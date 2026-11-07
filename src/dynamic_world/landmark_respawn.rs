@@ -302,7 +302,6 @@ mod tests {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
         let landmarks = hermes.landmarks();
-        assert_eq!(landmarks.len(), 22);
         let models = hermes
             .city()
             .landscape

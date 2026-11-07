@@ -1,8 +1,8 @@
 # MTL Jobines
 
-Native and WebGPU driving prototype using OpenCity's default map. Coordinates: X east, Y north,
-Z up; **1 map unit = 100 meters**. See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership and
-internals.
+Native and WebGPU driving prototype using an editable flat starter map. Coordinates: X east,
+Y north, Z up; **1 map unit = 100 meters**. See [ARCHITECTURE.md](ARCHITECTURE.md) for
+ownership and internals.
 
 ## Build and run
 
@@ -44,11 +44,14 @@ native-only. Moon's **Game UI**/**OpenCity UI** targets build/run the game or co
 | Command palette | Cmd/Ctrl+Shift+P |
 | Time | `[`/`]` adjust daylight; T resumes the automatic cycle |
 | Full map | Click minimap; Escape, close button or backdrop dismisses |
+| Map zoom | Scroll over map; +/- zoom; 0 returns to overview |
 | Navigation | Click destination on full map; right-click clears |
 
 Start/Resume menus, map and palette pause simulation and clear held controls. Exit/Q closes native
-builds; browsers return to Start. The minimap follows heading; the full map stays north-up. Routes
-follow permitted road connections, refresh after 2 m and turn green on arrival within 6 m; red
+builds; browsers return to Start. The minimap follows heading; the full map is rotated 90°
+clockwise.
+Routes follow permitted road connections, refresh after 2 m and turn green on arrival within 6 m;
+red
 means disconnected. Bridges and geometric crossings alone do not connect roads.
 
 In native builds, choose **Bug: Report a bug…** in the command palette to capture the current
@@ -82,7 +85,12 @@ star settings. The automatic day/night cycle lasts 20 minutes and pauses with si
 
 ## Maps and editor launch
 
-Native and browser builds start on the work-in-progress map in `data/maps/mtl/map.road`.
+Native and browser builds start on the flat, empty map in `data/maps/mtl/map.road`.
+The native game watches the active `.road` file and its referenced elevation PNG, including while
+paused. Save to reload terrain, scenery, collisions, navigation and the minimap in place. Invalid
+edits keep the current map and report the error in the terminal and window title; save a correction
+to retry. The player stays at their current position when supported, otherwise the authored spawn
+is used. The browser embeds its map at build time. See [map authoring](data/maps/mtl/README.md).
 Normal play spawns the player vehicle and moving traffic, without the parked catalog lineup.
 Use `--smoke /tmp/vehicle-lineup.ppm --vehicle-lineup` for the explicit lineup QA view.
 
@@ -128,10 +136,11 @@ OpenCity expands named frontage zones into one shared editor/game layout. The ga
 materials, architectural details, fictional signs and shader rooms. Authored cores remain protected;
 legacy `residential_area(...)` maps use the same pipeline. There is no map-name placement heuristic.
 
-Static map geometry and the 4096² minimap atlas are prepared once. Scenery uses 200 m selection
-groups and 50 m draw batches with camera/shadow culling; nearby props upload dynamically.
+Static map geometry and the 4096² minimap atlas are prepared once per map revision. Scenery uses
+200 m selection groups and 50 m draw batches with camera/shadow culling; nearby props upload
+dynamically.
 Vehicle body/wheel geometry uploads once; driving updates instance transforms in both render passes.
-Paused menus/maps/palette reuse frozen buffers and redraw only for input or window events.
+Paused menus/maps/palette reuse frozen buffers and redraw for input, window events or map reloads.
 Full-resolution map geometry stays resident, so large maps increase startup time and GPU memory.
 
 Rendering uses 4× MSAA, 2048² PCF shadows and parallax window interiors. Background, glass and fog

@@ -10,7 +10,10 @@ use std::collections::HashSet;
 
 #[test]
 fn reported_and_frontage_junctions_have_level_mouths_and_can_be_driven_across() {
-    let mut program = opencity::parse(include_str!("../../data/maps/mtl/map.road")).unwrap();
+    let mut program = opencity::parse(include_str!(
+        "../../tests/fixtures/junction_regressions.road"
+    ))
+    .unwrap();
     let definitions: HashSet<_> = program
         .statements
         .iter()

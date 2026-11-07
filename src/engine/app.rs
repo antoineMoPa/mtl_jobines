@@ -28,6 +28,9 @@ use winit::{
 };
 pub(super) const DT: f32 = 1. / 120.;
 const CURSOR_IDLE_DELAY: Duration = Duration::from_secs(2);
+#[cfg(not(target_arch = "wasm32"))]
+mod reload;
+mod startup;
 fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkControls) {
     let held = |key| keys.contains(&key);
     let forward = held(KeyCode::KeyW) || held(KeyCode::ArrowUp);
@@ -53,6 +56,8 @@ enum GameEvent {
     RendererReady(Box<Result<Renderer, String>>),
 }
 struct Game {
+    #[cfg(not(target_arch = "wasm32"))]
+    live_reload: Option<reload::LiveReload>,
     #[cfg(not(target_arch = "wasm32"))]
     profile_shutdown: bool,
     audio: crate::audio::Audio,
@@ -139,13 +144,21 @@ impl Game {
     }
     fn wait_for_event(&mut self, now: Instant) -> ControlFlow {
         let cursor = self.cursor_wait(now);
-        match (cursor, self.surface_retry) {
+        let waiting = match (cursor, self.surface_retry) {
             (ControlFlow::WaitUntil(deadline), Some(retry)) => {
                 ControlFlow::WaitUntil(deadline.min(retry))
             }
             (_, Some(retry)) => ControlFlow::WaitUntil(retry),
             _ => cursor,
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(reload) = &self.live_reload {
+            return ControlFlow::WaitUntil(match waiting {
+                ControlFlow::WaitUntil(deadline) => deadline.min(reload.next_check()),
+                _ => reload.next_check(),
+            });
         }
+        waiting
     }
     fn exit_game(&mut self, event_loop: &ActiveEventLoop) {
         #[cfg(not(target_arch = "wasm32"))]
@@ -230,6 +243,8 @@ impl Game {
         let world = DynamicWorld::with_start(&hermes, start)?;
         let p = world.player_position() / METERS_PER_UNIT;
         Ok(Self {
+            #[cfg(not(target_arch = "wasm32"))]
+            live_reload: None,
             #[cfg(not(target_arch = "wasm32"))]
             profile_shutdown: false,
             audio: crate::audio::Audio::default(),
@@ -578,6 +593,8 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_map_reload(Instant::now());
         if self.simulation_paused() {
             self.audio.silence();
         }
@@ -985,6 +1002,7 @@ pub fn run() -> Result<(), String> {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road")
     });
     let started = Instant::now();
+    let live_reload = reload::LiveReload::new(path.clone());
     eprintln!("Loading map: {}", path.display());
     let mut hermes = Hermes::load_with_game_data(&path, option("--game-data").as_deref())?;
     let city = hermes.city();
@@ -1063,6 +1081,7 @@ pub fn run() -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
     let mut game = Game::new_at(hermes, start)?;
+    game.live_reload = Some(live_reload);
     game.profile_shutdown = args.iter().any(|a| a == "--profile-shutdown");
     let result = event_loop.run_app(&mut game).map_err(|e| e.to_string());
     let started = Instant::now();
@@ -1090,60 +1109,6 @@ pub fn run() -> Result<(), String> {
         eprintln!("Shutdown game resources: {:?}", started.elapsed());
     }
     result
-}
-
-impl Game {
-    fn finish_startup(&mut self, mut renderer: Renderer) {
-        eprintln!("GPU: {}", renderer.adapter_name);
-        let started = Instant::now();
-        eprintln!("Preparing static scenery...");
-        self.scenery = Some(Scenery::new(&renderer, &mut self.hermes));
-        self.world.write_moving_mesh(&mut self.dynamic_vertices);
-        self.dynamic_mesh = Some(renderer.upload_dynamic(&self.dynamic_vertices));
-        self.prop_scenery.update(&renderer, &self.world);
-        let mut vehicles = VehicleScenery::new(&renderer);
-        vehicles.update(&renderer, &self.world);
-        self.vehicle_scenery = Some(vehicles);
-        eprintln!(
-            "Scenery ready in {:?}; preparing map atlas...",
-            started.elapsed()
-        );
-        if let Some(pixels) = self.hermes.update_minimap(self.mesh_center) {
-            renderer.update_minimap(pixels);
-        }
-        eprintln!("Startup caches ready in {:?}", started.elapsed());
-        // A resize may have arrived while browser GPU initialization was pending.
-        let size = self.window.as_ref().unwrap().inner_size();
-        let refresh = self
-            .window
-            .as_ref()
-            .unwrap()
-            .current_monitor()
-            .and_then(|monitor| monitor.refresh_rate_millihertz());
-        eprintln!(
-            "Window: {}x{} physical pixels; display refresh {:?} Hz",
-            size.width,
-            size.height,
-            refresh.map(|rate| rate as f32 / 1000.)
-        );
-        renderer.resize(size.width, size.height);
-        eprintln!("Window configured; initializing command palette...");
-        self.palette = Some(Palette::new(
-            self.window.as_ref().unwrap(),
-            &renderer,
-            &self.hermes.landmarks(),
-        ));
-        self.renderer = Some(renderer);
-        #[cfg(not(target_arch = "wasm32"))]
-        self.audio.prepare();
-        self.last = Instant::now();
-        self.game_time = 0.;
-        // Ensure startup gets another opportunity even if the initial redraw is coalesced
-        // before the native window becomes visible. Successful presentation cancels this.
-        self.retry_surface(Duration::from_millis(100));
-        eprintln!("Startup ready; requesting first frame");
-        self.window.as_ref().unwrap().request_redraw();
-    }
 }
 
 #[cfg(target_arch = "wasm32")]

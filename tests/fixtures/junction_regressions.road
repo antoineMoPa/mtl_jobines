@@ -1,0 +1,416 @@
+sd_p0428 = map_point(19.511512572, 16.274881351);
+
+sd_p0429 = map_point(20.474961667, 15.264597688);
+
+sd_p0430 = map_point(21.191915868, 15.254101212);
+
+sd_p0431 = map_point(21.465105107, 15.132089496);
+
+sd_p0640 = map_point(49.117822424, 7.675448166);
+
+sd_p0943 = map_point(47.535057144, 9.848878505);
+
+sd_p0944 = map_point(46.732030794, 11.328786144);
+
+sd_p1018 = map_point(48.620611734, 11.774661244);
+
+sd_p1035 = map_point(48.365446881, 11.715294159);
+
+sd_p1163 = map_point(48.096160889, 13.061738014);
+
+sd_p1195 = map_point(48.134620928, 9.644910377);
+
+sd_p1196 = map_point(47.812679291, 9.400168419);
+
+sd_p1235 = map_point(47.847276353, 10.215511771);
+
+sd_p1238 = map_point(47.467322927, 9.968290591);
+
+sd_p1328 = map_point(47.608040792, 14.093948193);
+
+sd_p1329 = map_point(48.068374634, 13.033204079);
+
+sd_p1332 = map_point(46.979449735, 13.769552345);
+
+sd_p1333 = map_point(47.719753265, 12.675184250);
+
+sd_p1340 = map_point(49.330076921, 13.768506361);
+
+sd_p1355 = map_point(47.618819455, 10.066863595);
+
+sd_p1356 = map_point(47.280264400, 9.846578754);
+
+sd_p1373 = map_point(21.845569301, 14.686340701);
+
+sd_p1447 = map_point(47.738796234, 9.509703636);
+
+sd_p1633 = map_point(47.207455179, 9.799204575);
+
+sd_p1634 = map_point(47.304370825, 9.862263884);
+
+sd_p1635 = map_point(47.600460128, 10.054917882);
+
+sd_p1636 = map_point(47.649045285, 10.086530388);
+
+sd_p1648 = map_point(47.271260617, 9.840720336);
+
+sd_p1662 = map_point(47.625945528, 10.071500258);
+
+sd_p1682 = map_point(47.288243924, 9.851770725);
+
+sd_p1707 = map_point(47.611242301, 10.061933431);
+
+sd_p2255 = map_point(48.307598528, 8.604371263);
+
+sd_p2256 = map_point(47.747554779, 9.496719360);
+
+sd_p2257 = map_point(47.695850372, 9.573371887);
+
+sd_p2262 = map_point(47.733219147, 9.517973900);
+
+sd_p2511 = map_point(47.204796241, 12.109834395);
+
+arterial_central_s000_ground_p004 = map_point(48.447983689, 9.884686103);
+
+arterial_central_s000_ground_p005 = map_point(48.259706613, 9.740545903);
+
+arterial_central_s000_ground_p006 = map_point(48.071308105, 9.596588719);
+
+arterial_central_s000_ground_p007 = map_point(47.885272980, 9.449133873);
+
+arterial_central_s000_ground_p008 = map_point(47.689060211, 9.316785812);
+
+arterial_central_s000_ground_p009 = map_point(47.503563877, 9.168560187);
+
+arterial_central_s000_ground_p010 = map_point(47.312859528, 9.028079986);
+
+arterial_central_s000_ground_p011 = map_point(47.121123689, 8.889155260);
+
+road interstate_three_lane:
+    verge carlane carlane carlane middle carlane carlane carlane verge;
+    role highway;
+end
+
+road highway_undivided:
+    verge carlane carlane carlane carlane verge;
+    role highway;
+end
+
+road underground_expressway:
+    verge carlane carlane carlane middle carlane carlane carlane verge;
+    role highway;
+end
+
+road urban_arterial:
+    sidewalk carlane carlane carlane carlane sidewalk;
+end
+
+arterial_central_s000_ground_s004 = urban_arterial(arterial_central_s000_ground_p004, 48.385223389, 9.836639404, 48.322475433, 9.788577080, arterial_central_s000_ground_p005);
+
+grade(arterial_central_s000_ground_s004, 0.141299993, 0.167999998);
+
+arterial_central_s000_ground_s005 = urban_arterial(arterial_central_s000_ground_p005, 48.218023969, 9.708649590, 48.194709778, 9.682458878, sd_p1195);
+
+grade(arterial_central_s000_ground_s005, 0.167999998, 0.177182227);
+
+arterial_central_s000_ground_s005__01 = urban_arterial(sd_p1195, 48.104225159, 9.625918388, 48.092417610, 9.612688058, arterial_central_s000_ground_p006);
+
+grade(arterial_central_s000_ground_s005__01, 0.177182227, 0.185299993);
+
+arterial_central_s000_ground_s006 = urban_arterial(arterial_central_s000_ground_p006, 48.057876587, 9.586344719, 48.053554535, 9.562643051, sd_p1196_junction_port_0);
+
+arterial_central_s000_ground_s006_junction_mouth_end = urban_arterial(sd_p1196_junction_port_0, 47.988124847, 9.518508911, 47.936698914, 9.483820915, arterial_central_s000_ground_p007);
+
+grade(arterial_central_s000_ground_s006_junction_mouth_end, 0.208472624, 0.208472624);
+
+grade(arterial_central_s000_ground_s006, 0.185299993, 0.208472624);
+
+arterial_central_s000_ground_s007 = urban_arterial(arterial_central_s000_ground_p007, 47.861076355, 9.432811737, 47.836875916, 9.416490555, sd_p1196);
+
+grade(arterial_central_s000_ground_s007, 0.208472624, 0.208472624);
+
+arterial_central_s000_ground_s007__01 = urban_arterial(sd_p1196, 47.771472931, 9.372374535, 47.730266571, 9.344579697, arterial_central_s000_ground_p008);
+
+grade(arterial_central_s000_ground_s007__01, 0.208472624, 0.208472624);
+
+arterial_central_s000_ground_s008 = urban_arterial(sd_p1196_junction_port_1, 47.554786682, 9.226217270, 47.533607483, 9.190853119, arterial_central_s000_ground_p009);
+
+arterial_central_s000_ground_s008_junction_mouth_start = urban_arterial(arterial_central_s000_ground_p008, 47.654644012, 9.293570518, 47.620223999, 9.270356178, sd_p1196_junction_port_1);
+
+grade(arterial_central_s000_ground_s008_junction_mouth_start, 0.208472624, 0.208472624);
+
+grade(arterial_central_s000_ground_s008, 0.208472624, 0.250900000);
+
+arterial_central_s000_ground_s009 = urban_arterial(arterial_central_s000_ground_p009, 47.440147400, 9.121504784, 47.376590729, 9.074663162, arterial_central_s000_ground_p010);
+
+grade(arterial_central_s000_ground_s009, 0.250900000, 0.268000007);
+
+arterial_central_s000_ground_s010 = urban_arterial(arterial_central_s000_ground_p010, 47.249130249, 8.981496811, 47.185226440, 8.935173988, arterial_central_s000_ground_p011);
+
+grade(arterial_central_s000_ground_s010, 0.268000007, 0.286857128);
+
+road interchange_ramp:
+    verge carlane verge;
+    direction forward;
+    role ramp;
+end
+
+road interchange_mouth:
+    verge carlane verge;
+    direction forward;
+    role merge;
+end
+
+road terminal_three_lane:
+    verge carlane carlane carlane verge;
+    direction forward;
+    role ramp;
+end
+
+road terminal_three_mouth:
+    carlane carlane carlane;
+    direction forward;
+    role merge;
+end
+
+road sd_street:
+    sidewalk carlane carlane sidewalk;
+end
+
+road sd_walk:
+    sidewalk sidewalk sidewalk sidewalk;
+end
+
+sd_c05_00_000__148 = sd_street(sd_p1633, 47.228949457, 9.813190081, 47.250219159, 9.827029463, sd_p1648);
+
+grade(sd_c05_00_000__148, 0.256500006, 0.247839183);
+
+sd_c05_00_000__149 = sd_street(sd_p1648, 47.272609661, 9.841598108, 47.278917233, 9.845702204, sd_p1356);
+
+grade(sd_c05_00_000__149, 0.247839183, 0.247283772);
+
+sd_c05_00_000__150 = sd_street(sd_p1356, 47.284587077, 9.849391355, 47.283940618, 9.848970728, sd_p1682);
+
+grade(sd_c05_00_000__150, 0.247283772, 0.246529564);
+
+sd_c05_00_000__151 = sd_street(sd_p1682, 47.293634803, 9.855278364, 47.299010458, 9.858776098, sd_p1634);
+
+grade(sd_c05_00_000__151, 0.246529564, 0.244323477);
+
+sd_c05_00_000__152 = sd_street(sd_p1634, 47.360381189, 9.898707688, 47.392333984, 9.923232079, sd_p1238);
+
+grade(sd_c05_00_000__152, 0.244323477, 0.225799993);
+
+sd_c05_00_000__153 = sd_street(sd_p1238, 47.528591156, 10.005104065, 47.557426882, 10.026917793, sd_p1635);
+
+grade(sd_c05_00_000__153, 0.225799993, 0.209674060);
+
+sd_c05_00_000__154 = sd_street(sd_p1635, 47.604063743, 10.057262617, 47.607662201, 10.059592247, sd_p1707);
+
+grade(sd_c05_00_000__154, 0.209674060, 0.208197713);
+
+sd_c05_00_000__155 = sd_street(sd_p1707, 47.611583710, 10.062155724, 47.618476584, 10.066640502, sd_p1355);
+
+grade(sd_c05_00_000__155, 0.208197713, 0.208057731);
+
+sd_c05_00_000__156 = sd_street(sd_p1355, 47.623393200, 10.069839556, 47.621403059, 10.068544648, sd_p1662);
+
+grade(sd_c05_00_000__156, 0.208057731, 0.207800001);
+
+sd_c05_00_000__157 = sd_street(sd_p1662, 47.633691093, 10.076540002, 47.641391107, 10.081550107, sd_p1636);
+
+grade(sd_c05_00_000__157, 0.207800001, 0.207800001);
+
+sd_c08_00_000 = sd_street(sd_p0428, 19.684045979, 16.093960861, 20.261294987, 15.394391949, sd_p0429);
+
+grade(sd_c08_00_000, 0.109399997, 0.114338145);
+
+sd_c08_00_002 = sd_street(sd_p0430, 21.290767138, 15.240872217, 21.397757210, 15.205647913, sd_p0431);
+
+grade(sd_c08_00_002, 0.193486750, 0.227874368);
+
+sd_c08_00_003 = sd_street(sd_p0431, 21.516518396, 15.075935105, 21.662836416, 14.904037138, sd_p1373);
+
+grade(sd_c08_00_003, 0.227874368, 0.254140973);
+
+sd_c15_00_000 = sd_walk(sd_p0640, 49.064205782, 7.781256975, 48.479068756, 9.093679428, sd_p1195);
+
+grade(sd_c15_00_000, 0.136700004, 0.177182227);
+
+sd_c15_00_000__01 = sd_walk(sd_p1195, 47.982273102, 9.888716698, 47.991020203, 9.966537476, sd_p1235);
+
+grade(sd_c15_00_000__01, 0.177182227, 0.183827668);
+
+sd_c39_00_003__13 = sd_street(sd_p2255, 48.165088654, 8.833292007, 48.099140167, 8.975474358, sd_p1196_junction_port_2);
+
+sd_c39_00_003__13_junction_mouth_end = sd_street(sd_p1196_junction_port_2, 47.914695740, 9.248920441, 47.863689423, 9.324544907, sd_p1196);
+
+grade(sd_c39_00_003__13_junction_mouth_end, 0.208472624, 0.208472624);
+
+grade(sd_c39_00_003__13, 0.189199999, 0.208472624);
+
+sd_c39_00_003__14 = sd_street(sd_p1196, 47.790969849, 9.432352066, 47.769264221, 9.464535713, sd_p2256);
+
+grade(sd_c39_00_003__14, 0.208472624, 0.208472624);
+
+sd_c39_00_003__15 = sd_street(sd_p2256, 47.744636536, 9.501047134, 47.741714478, 9.505375862, sd_p1447);
+
+grade(sd_c39_00_003__15, 0.208472624, 0.208472624);
+
+sd_c39_00_003__16 = sd_street(sd_p1447, 47.736938477, 9.512460709, 47.735076904, 9.515216827, sd_p2262);
+
+grade(sd_c39_00_003__16, 0.208472624, 0.208472624);
+
+sd_c39_00_003__17 = sd_street(sd_p2262, 47.720764160, 9.536439896, 47.708305359, 9.554905891, sd_p2257);
+
+grade(sd_c39_00_003__17, 0.208472624, 0.208472624);
+
+sd_c39_00_003__18 = sd_street(sd_p1196_junction_port_3, 47.584159851, 9.738960266, 47.550285339, 9.823619843, sd_p0943);
+
+sd_c39_00_003__18_junction_mouth_start = sd_street(sd_p2257, 47.683784485, 9.591260910, 47.671718597, 9.609150887, sd_p1196_junction_port_3);
+
+grade(sd_c39_00_003__18_junction_mouth_start, 0.208472624, 0.208472624);
+
+grade(sd_c39_00_003__18, 0.208472624, 0.214801967);
+
+sd_c39_00_004 = sd_street(sd_p0943, 47.518597510, 9.876179129, 47.499141693, 9.915336609, sd_p1238);
+
+grade(sd_c39_00_004, 0.214801967, 0.225799993);
+
+sd_c39_00_004__01 = sd_street(sd_p1238, 47.132549286, 10.525448799, 46.848800418, 11.144553111, sd_p0944);
+
+grade(sd_c39_00_004__01, 0.225799993, 0.265845209);
+
+sd_c43_00_027 = sd_street(sd_p1018, 48.574867249, 11.866640091, 48.393070221, 12.717033386, sd_p1329_junction_port_0);
+
+sd_c43_00_027_junction_mouth_end = sd_street(sd_p1329_junction_port_0, 48.165431976, 12.938696861, 48.116901398, 12.985950470, sd_p1329);
+
+grade(sd_c43_00_027_junction_mouth_end, 0.143952087, 0.143952087);
+
+grade(sd_c43_00_027, 0.121040151, 0.143952087);
+
+sd_c43_00_027__01 = sd_street(sd_p1329_junction_port_1, 47.743679047, 13.349374771, 47.794624329, 13.693809509, sd_p1328);
+
+sd_c43_00_027__01_junction_mouth_start = sd_street(sd_p1329, 48.019847870, 13.080457687, 47.971317291, 13.127711296, sd_p1329_junction_port_1);
+
+grade(sd_c43_00_027__01_junction_mouth_start, 0.143952087, 0.143952087);
+
+grade(sd_c43_00_027__01, 0.143952087, 0.139227554);
+
+sd_c44_00_001 = sd_street(sd_p1035, 48.336086273, 11.761108398, 48.044448853, 12.359013557, sd_p1333_junction_port_0);
+
+sd_c44_00_001_junction_mouth_end = sd_street(sd_p1333_junction_port_0, 47.816810608, 12.580677032, 47.768280029, 12.627930641, sd_p1333);
+
+grade(sd_c44_00_001_junction_mouth_end, 0.148494318, 0.148494318);
+
+grade(sd_c44_00_001, 0.130997255, 0.148494318);
+
+sd_c44_00_001__01 = sd_street(sd_p1333_junction_port_1, 47.395057678, 12.991354942, 47.247169495, 13.323989868, sd_p1332);
+
+sd_c44_00_001__01_junction_mouth_start = sd_street(sd_p1333, 47.671226501, 12.722437859, 47.622695923, 12.769691467, sd_p1333_junction_port_1);
+
+grade(sd_c44_00_001__01_junction_mouth_start, 0.148494318, 0.148494318);
+
+grade(sd_c44_00_001__01, 0.148494318, 0.158525780);
+
+sd_c55_00_002__02 = sd_street(sd_p2511, 47.300296783, 12.205844879, 47.409893036, 12.356973648, sd_p1333_junction_port_2);
+
+sd_c55_00_002__02_junction_mouth_end = sd_street(sd_p1333_junction_port_2, 47.625244141, 12.578129768, 47.672500610, 12.626656532, sd_p1333);
+
+grade(sd_c55_00_002__02_junction_mouth_end, 0.148494318, 0.148494318);
+
+grade(sd_c55_00_002__02, 0.182353303, 0.148494318);
+
+sd_c55_00_002__03 = sd_street(sd_p1333_junction_port_3, 47.883972168, 12.843830109, 47.904571533, 12.864988327, sd_p1329_junction_port_2);
+
+sd_c55_00_002__03_junction_mouth_end = sd_street(sd_p1329_junction_port_2, 47.973865509, 12.936149597, 48.021121979, 12.984676361, sd_p1329);
+
+grade(sd_c55_00_002__03_junction_mouth_end, 0.143952087, 0.143952087);
+
+sd_c55_00_002__03_junction_mouth_start = sd_street(sd_p1333, 47.767005920, 12.723711967, 47.814262390, 12.772238731, sd_p1333_junction_port_3);
+
+grade(sd_c55_00_002__03_junction_mouth_start, 0.148494318, 0.148494318);
+
+grade(sd_c55_00_002__03, 0.148494318, 0.143952087);
+
+sd_c55_00_002__04 = sd_street(sd_p1329, 48.077636719, 13.042715073, 48.086898804, 13.052227020, sd_p1163);
+
+grade(sd_c55_00_002__04, 0.143952087, 0.143952087);
+
+sd_c55_00_003 = sd_street(sd_p1329_junction_port_3, 48.384548187, 13.357898712, 48.854125977, 13.595273018, sd_p1340);
+
+sd_c55_00_003_junction_mouth_start = sd_street(sd_p1163, 48.134151459, 13.100753784, 48.172145844, 13.139770508, sd_p1329_junction_port_3);
+
+grade(sd_c55_00_003_junction_mouth_start, 0.143952087, 0.143952087);
+
+grade(sd_c55_00_003, 0.143952087, 0.114792965);
+
+intersection4(sd_p1196, sd_street, east, urban_arterial, west, urban_arterial, south, sd_street, north, sd_street);
+
+intersection4(sd_p1329, sd_street, south, sd_street, north, sd_street, west, sd_street, east, sd_street);
+
+intersection4(sd_p1333, sd_street);
+
+sd_p1196_junction_port_0 = map_point(48.039550781, 9.553195953);
+
+sd_p1196_junction_port_1 = map_point(47.585807800, 9.247140884);
+
+sd_p1196_junction_port_2 = map_point(47.965705872, 9.173296928);
+
+sd_p1196_junction_port_3 = map_point(47.659652710, 9.627039909);
+
+sd_p1329_junction_port_0 = map_point(48.213958740, 12.891443253);
+
+sd_p1329_junction_port_1 = map_point(47.922790527, 13.174964905);
+
+sd_p1329_junction_port_2 = map_point(47.926612854, 12.887621880);
+
+sd_p1329_junction_port_3 = map_point(48.210136414, 13.178786278);
+
+sd_p1333_junction_port_0 = map_point(47.865337372, 12.533423424);
+
+sd_p1333_junction_port_1 = map_point(47.574169159, 12.816945076);
+
+sd_p1333_junction_port_2 = map_point(47.577991486, 12.529602051);
+
+sd_p1333_junction_port_3 = map_point(47.861515045, 12.820766449);
+
+road sphere_frontage:
+    sidewalk carlane carlane sidewalk;
+end
+
+site_01_service_north = map_point(21.600326538, 14.344340324);
+
+site_01_access_west = map_point(20.708242416, 15.206892014);
+
+site_01_access_east = map_point(21.083833694, 15.264616013);
+
+site_01_access_south = map_point(20.924900055, 15.047959328);
+
+site_01_access = map_point(20.896038055, 15.235754013);
+
+site_01_access_curve = sphere_frontage(site_01_service_north, 21.862596512, 14.576104164, 20.970470428, 14.751441002, site_01_access_south);
+
+grade(site_01_access_curve, 0.122262977, 0.161827311);
+
+site_01_access_mouth = sphere_frontage(site_01_access_south, 20.915279388, 15.110557556, 20.905658722, 15.173155785, site_01_access);
+
+grade(site_01_access_mouth, 0.161827311, 0.161827311);
+
+sd_c08_00_001 = sd_street(sd_p0429, 20.556671143, 15.214962006, 20.629171371, 15.194739342, site_01_access_west);
+
+grade(sd_c08_00_001, 0.114338145, 0.161827311);
+
+site_01_cross_west = sd_street(site_01_access_west, 20.770841599, 15.216512680, 20.833438873, 15.226133347, site_01_access);
+
+grade(site_01_cross_west, 0.161827311, 0.161827311);
+
+site_01_cross_east = sd_street(site_01_access, 20.958637238, 15.245374680, 21.021234512, 15.254995346, site_01_access_east);
+
+grade(site_01_cross_east, 0.161827311, 0.161827311);
+
+site_01_cross_resume = sd_street(site_01_access_east, 21.162904739, 15.276768684, 21.097156525, 15.266782761, sd_p0430);
+
+grade(site_01_cross_resume, 0.161827311, 0.193486750);
+
+intersection3(site_01_access, sd_street, west, sd_street, east, sd_street, south, sphere_frontage);
