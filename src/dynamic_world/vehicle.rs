@@ -534,6 +534,7 @@ impl Vehicle {
         for index in 0..buildings.map_or(city.landscape.len(), |ids| ids.len()) {
             let building = &city.landscape[buildings.map_or(index, |ids| ids[index])];
             if building.kind != opencity::LandscapeKind::Building
+                || !building.building_style.unwrap_or_default().collidable
                 || building.elevation * METERS_PER_UNIT >= self.position.z + 0.45
                 || (building.elevation + building.height.unwrap_or(0.)) * METERS_PER_UNIT
                     <= self.position.z - 0.35
@@ -681,5 +682,7 @@ impl Vehicle {
 }
 #[cfg(test)]
 mod performance_tests;
+#[cfg(test)]
+mod station_tests;
 #[cfg(test)]
 mod tests;

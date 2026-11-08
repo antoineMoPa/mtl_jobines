@@ -46,14 +46,16 @@ road cross_street:
     sidewalk carlane middle carlane sidewalk;
 end
 
+# The first band adds 3.5 m of paved shoulder toward the highway interior.
+# Shift the ramp deck inward by half that width to keep its wall-side edge fixed.
 road access_ramp:
-    carlane;
+    verge carlane;
     direction forward;
     role ramp;
 end
 
 road access_mouth:
-    carlane;
+    verge carlane;
     direction forward;
     role merge;
 end
@@ -134,37 +136,37 @@ north_exit = lane_point(service_north_approach, 0.000000000, 0.8559750992707365)
 
 north_on_lane = lane_point(highway_north, 3, 0.9440000000000001);
 
-north_on_a = map_point(3.166397214, -0.506387873);
+north_on_a = map_point(3.165878610, -0.488895559);
 
-north_on_b = map_point(5.815233341, -0.427856504);
+north_on_b = map_point(5.814714738, -0.410364190);
 
-north_on_depart = access_mouth(north_entry, 2.834840241, -0.571241914, 2.999803838, -0.511326970, north_on_a);
+north_on_depart = access_mouth(north_entry, 2.834840241, -0.571241914, 2.999285234, -0.493834656, north_on_a);
 
 grade(north_on_depart, 0.102, 0.102);
 
-north_on_slope = access_ramp(north_on_a, 4.049342633, -0.480210769, 4.932287931, -0.454033626, north_on_b);
+north_on_slope = access_ramp(north_on_a, 4.048824030, -0.462718455, 4.931769328, -0.436541312, north_on_b);
 
 grade(north_on_slope, 0.102, 0.001999999999999988);
 
-north_on_merge = access_mouth(north_on_b, 5.981826633, -0.422917427, 6.145604760, -0.323020069, north_on_lane);
+north_on_merge = access_mouth(north_on_b, 5.981308030, -0.405425113, 6.145604760, -0.323020069, north_on_lane);
 
 grade(north_on_merge, 0.001999999999999988, 0.001999999999999988);
 
 north_off_lane = lane_point(highway_north, 3, 0.2);
 
-north_off_a = map_point(-2.481121319, -0.673822679);
+north_off_a = map_point(-2.481639923, -0.656330365);
 
-north_off_b = map_point(0.167714807, -0.595291310);
+north_off_b = map_point(0.167196204, -0.577798996);
 
-north_off_depart = access_mouth(north_off_lane, -2.817123662, -0.588742551, -2.647714843, -0.678761783, north_off_a);
+north_off_depart = access_mouth(north_off_lane, -2.817123662, -0.588742551, -2.648233447, -0.661269469, north_off_a);
 
 grade(north_off_depart, 0.001999999999999988, 0.001999999999999988);
 
-north_off_slope = access_ramp(north_off_a, -1.598175923, -0.647645578, -0.715230574, -0.621468440, north_off_b);
+north_off_slope = access_ramp(north_off_a, -1.598694527, -0.630153264, -0.715749178, -0.603976126, north_off_b);
 
 grade(north_off_slope, 0.001999999999999988, 0.102);
 
-north_off_merge = access_mouth(north_off_b, 0.334308254, -0.590352237, 0.502531630, -0.640389025, north_exit);
+north_off_merge = access_mouth(north_off_b, 0.333789651, -0.572859923, 0.502531630, -0.640389025, north_exit);
 
 grade(north_off_merge, 0.102, 0.102);
 
@@ -174,37 +176,37 @@ south_exit = lane_point(service_south_approach, 0.000000000, 0.8053156622505939)
 
 south_on_lane = lane_point(highway_south, 3, 0.7944338492576049);
 
-south_on_a = map_point(0.222443895, -0.093449034);
+south_on_a = map_point(0.222962498, -0.110941348);
 
-south_on_b = map_point(-2.426392231, -0.171980403);
+south_on_b = map_point(-2.425873627, -0.189472717);
 
-south_on_depart = access_mouth(south_entry, 0.554000852, -0.028595034, 0.389037328, -0.088509955, south_on_a);
+south_on_depart = access_mouth(south_entry, 0.554000852, -0.028595034, 0.389555932, -0.106002269, south_on_a);
 
 grade(south_on_depart, 0.102, 0.102);
 
-south_on_slope = access_ramp(south_on_a, -0.660501485, -0.119626157, -1.543446938, -0.145803273, south_on_b);
+south_on_slope = access_ramp(south_on_a, -0.659982882, -0.137118471, -1.542928334, -0.163295587, south_on_b);
 
 grade(south_on_slope, 0.102, 0.001999999999999988);
 
-south_on_merge = access_mouth(south_on_b, -2.592985719, -0.176919474, -2.756763846, -0.276816817, south_on_lane);
+south_on_merge = access_mouth(south_on_b, -2.592467115, -0.194411788, -2.756763846, -0.276816817, south_on_lane);
 
 grade(south_on_merge, 0.001999999999999988, 0.001999999999999988);
 
 south_off_lane = lane_point(highway_south, 3, 0.05043384925760492);
 
-south_off_a = map_point(5.869962428, 0.073985772);
+south_off_a = map_point(5.870481031, 0.056493458);
 
-south_off_b = map_point(3.221126302, -0.004545597);
+south_off_b = map_point(3.221644906, -0.022037911);
 
-south_off_depart = access_mouth(south_off_lane, 6.205964575, -0.011094349, 6.036555757, 0.078924852, south_off_a);
+south_off_depart = access_mouth(south_off_lane, 6.205964575, -0.011094349, 6.037074361, 0.061432538, south_off_a);
 
 grade(south_off_depart, 0.001999999999999988, 0.001999999999999988);
 
-south_off_slope = access_ramp(south_off_a, 4.987016916, 0.047808650, 4.104071617, 0.021631524, south_off_b);
+south_off_slope = access_ramp(south_off_a, 4.987535519, 0.030316336, 4.104590220, 0.004139210, south_off_b);
 
 grade(south_off_slope, 0.001999999999999988, 0.102);
 
-south_off_merge = access_mouth(south_off_b, 3.054532868, -0.009484676, 2.886309522, 0.040552083, south_exit);
+south_off_merge = access_mouth(south_off_b, 3.055051472, -0.026976990, 2.886309522, 0.040552083, south_exit);
 
 grade(south_off_merge, 0.102, 0.102);
 

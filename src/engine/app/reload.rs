@@ -112,6 +112,12 @@ impl LiveReload {
     pub(super) fn next_check(&self) -> Instant {
         self.next_check
     }
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
+    pub(super) fn busy(&self) -> bool {
+        self.worker.is_some() || self.changed_at.is_some()
+    }
     fn poll(&mut self, now: Instant) -> Option<Result<Hermes, String>> {
         if now < self.next_check {
             return None;
@@ -173,7 +179,20 @@ impl Game {
         else {
             return;
         };
-        let result = result.and_then(|hermes| self.apply_reloaded_map(hermes));
+        let own_save = self
+            .live_reload
+            .as_ref()
+            .and_then(|r| r.observed.source.as_ref().ok())
+            .and_then(|s| std::str::from_utf8(s).ok())
+            .is_some_and(|source| self.road_tool.owns_source(source));
+        let result = result.and_then(|hermes| {
+            if own_save {
+                self.apply_road_extension(hermes);
+                Ok(())
+            } else {
+                self.apply_reloaded_map(hermes)
+            }
+        });
         if let Err(error) = &result {
             eprintln!("Map reload failed; keeping the current map: {error}");
         } else {
@@ -187,6 +206,22 @@ impl Game {
             });
             window.request_redraw();
         }
+    }
+
+    fn apply_road_extension(&mut self, mut hermes: Hermes) {
+        // Generated saves append roads only. Retain the live vehicle, physics,
+        // held controls, camera and recorder while replacing static geography.
+        if let Some(renderer) = &mut self.renderer {
+            self.scenery = Some(Scenery::new(renderer, &mut hermes));
+            if let Some(pixels) = hermes.update_minimap(self.mesh_center) {
+                renderer.update_minimap(pixels);
+            }
+            renderer.update_route(&[]);
+        }
+        self.road_tool.reload(hermes.city(), true);
+        self.hermes = hermes;
+        self.route_revision = 0;
+        self.scene_dirty = true;
     }
 
     fn apply_reloaded_map(&mut self, mut hermes: Hermes) -> Result<(), String> {
@@ -224,6 +259,7 @@ impl Game {
         }
         self.audio.silence();
         self.sound_eye = None;
+        self.road_tool.reload(hermes.city(), false);
         self.hermes = hermes;
         self.world = world;
         self.mesh_center = mesh_center;

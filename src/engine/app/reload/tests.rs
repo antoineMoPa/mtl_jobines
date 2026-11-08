@@ -2,6 +2,34 @@ use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const ROAD: &str = "road street: carlane carlane; end street(-2,0,2,0); player_start(0,0,0);";
+#[test]
+fn generated_road_reload_retains_moving_vehicle_camera_controls_and_selection() {
+    let mut game = Game::new(Hermes::test_map_from_source(ROAD));
+    game.set_overlay(Overlay::Driving);
+    game.keys.insert(KeyCode::KeyW);
+    game.simulate(0.1);
+    game.eye = Vec3::new(-1., 0.5, 0.4);
+    game.orbit = 0.7;
+    let position = game.world.player_position();
+    let velocity = game.world.player().velocity;
+    let eye = game.eye;
+    let id = game.road_tool.ends.handles[0].id;
+    game.road_tool.ends.toggle(id);
+    game.apply_road_extension(Hermes::test_map_from_source(&format!(
+        "{ROAD} street(2,0,3,0);"
+    )));
+    assert_eq!(game.world.player_position(), position);
+    assert_eq!(game.world.player().velocity, velocity);
+    assert_eq!(game.eye, eye);
+    assert_eq!(game.orbit, 0.7);
+    assert!(game.keys.contains(&KeyCode::KeyW));
+    assert!(game.road_tool.ends.selected.contains(&id));
+    assert_eq!(game.hermes.city().roads.len(), 2);
+    // An external replacement invalidates snapshot-index selections.
+    game.apply_reloaded_map(Hermes::test_map_from_source(ROAD))
+        .unwrap();
+    assert!(game.road_tool.ends.selected.is_empty());
+}
 struct TempMap(PathBuf);
 impl TempMap {
     fn new(source: &str) -> Self {
@@ -254,22 +282,53 @@ fn canonical_island_has_water_parking_and_a_driveable_interior() {
     {
         for step in 1..40 {
             let t = step as f32 / 40.;
-            let p = road.segment.point_at(t);
+            let center = road.segment.point_at(t);
+            let tangent = road.segment.tangent_at(t);
+            let (sin, cos) = tangent.y.atan2(tangent.x).sin_cos();
             let z = road.segment.height_at(t);
-            let support = city.surface_at([p.x, p.y], z + 0.005).unwrap();
-            assert_eq!(support.kind, opencity::runtime::SurfaceKind::Asphalt);
-            assert!(
-                (support.height - z).abs() < 0.004,
-                "{:?} at {t}: {support:?}",
-                road.segment.name
-            );
-            assert!(terrain.height_at([p.x, p.y]).unwrap() <= z + 0.0001);
-            assert!(
-                city.road_barrier_contact([p.x, p.y], 0.009, z + 0.001, z + 0.02)
-                    .is_none(),
-                "{:?} at {t}",
-                road.segment.name
-            );
+            // A car must fit across the widened pavement, including the inward
+            // shoulder and service-road mouth, without touching a wall.
+            for offset in [-0.0275, 0., 0.0275] {
+                let p = [center.x - sin * offset, center.y + cos * offset];
+                let support = city.surface_at(p, z + 0.005).unwrap();
+                assert_eq!(support.kind, opencity::runtime::SurfaceKind::Asphalt);
+                assert!(
+                    (support.height - z).abs() < 0.004,
+                    "{:?} at {t}, offset {offset}: {support:?}",
+                    road.segment.name
+                );
+                assert!(terrain.height_at(p).unwrap() <= z + 0.0001);
+                assert!(
+                    city.road_barrier_contact(p, 0.009, z + 0.001, z + 0.02)
+                        .is_none(),
+                    "{:?} at {t}, offset {offset}",
+                    road.segment.name
+                );
+            }
+        }
+    }
+    // Widening the ramps inward must leave all six highway lanes unobstructed.
+    for road in city.roads.iter().filter(|road| {
+        matches!(
+            road.segment.name.as_deref(),
+            Some("highway_north" | "highway_south")
+        )
+    }) {
+        for (lane, element) in road.definition.elements.iter().enumerate() {
+            if element.kind != opencity::RoadElementKind::CarLane {
+                continue;
+            }
+            for step in 1..40 {
+                let t = step as f32 / 40.;
+                let p = opencity::map::element_position(&road.segment, &road.definition, lane, t)
+                    .unwrap();
+                assert!(
+                    city.road_barrier_contact([p.x, p.y], 0.009, 0.003, 0.022)
+                        .is_none(),
+                    "{:?}, lane {lane} at {t}",
+                    road.segment.name
+                );
+            }
         }
     }
     for point in [[10., 0.], [40., 0.], [-40., 0.], [0., 40.], [0., -40.]] {

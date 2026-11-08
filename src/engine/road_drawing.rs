@@ -69,10 +69,7 @@ impl Drawing {
             .unwrap();
             let tangent = road.segment.tangent_at(id.end.t());
             let heading = (tangent.y * id.end.sign()).atan2(tangent.x * id.end.sign());
-            let direction = road
-                .definition
-                .lane_direction(id.lane)
-                .unwrap_or(RoadDirection::Both);
+            let direction = lane_direction(road, id.lane);
             let direction = match (id.end, direction) {
                 (End::Start, RoadDirection::Forward) => RoadDirection::Reverse,
                 (End::Start, RoadDirection::Reverse) => RoadDirection::Forward,
@@ -133,7 +130,7 @@ impl Drawing {
             .sum()
     }
     fn point(&self, lane: &Lane, knot: Knot) -> Vec3 {
-        let movement = rotate(knot.offset.truncate(), lane.heading - self.origin.yaw);
+        let movement = knot.offset.truncate();
         let lateral = rotate(lane.lateral, knot.angle);
         lane.anchor + (movement + lateral).extend(knot.offset.z)
     }
@@ -168,7 +165,16 @@ impl Drawing {
                 if distance < 0.0001 {
                     continue;
                 }
-                let heading = |k: Knot| rotate(Vec2::X, lane.heading + k.angle);
+                let heading = |k: Knot| {
+                    rotate(
+                        Vec2::X,
+                        if k.offset == Vec3::ZERO {
+                            lane.heading
+                        } else {
+                            self.origin.yaw + k.angle
+                        },
+                    )
+                };
                 let c1 = a.truncate() + heading(pair[0]) * distance / 3.;
                 let c2 = b.truncate() - heading(pair[1]) * distance / 3.;
                 let next = segment + 1;
@@ -185,4 +191,35 @@ impl Drawing {
         }
         Ok(out)
     }
+}
+
+fn lane_direction(road: &opencity::runtime::Road, lane: usize) -> RoadDirection {
+    if road.segment.direction != RoadDirection::Both {
+        return road.segment.direction;
+    }
+    let direction = road
+        .definition
+        .lane_direction(lane)
+        .unwrap_or(RoadDirection::Both);
+    // Match the implicit two-way split used by the game's traffic graph.
+    if direction == RoadDirection::Both
+        && road.definition.elements[lane].kind == RoadElementKind::CarLane
+    {
+        let lanes: Vec<_> = road
+            .definition
+            .elements
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.kind == RoadElementKind::CarLane)
+            .map(|(i, _)| i)
+            .collect();
+        if lanes.len() > 1 {
+            return if lanes.iter().position(|&i| i == lane).unwrap() < lanes.len() / 2 {
+                RoadDirection::Reverse
+            } else {
+                RoadDirection::Forward
+            };
+        }
+    }
+    direction
 }

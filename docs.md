@@ -39,6 +39,9 @@ native-only. Moon's **Game UI**/**OpenCity UI** targets build/run the game or co
 | Enter/exit vehicle | F; exit below 3 m/s, enter within 4 m |
 | Walk/run | W/S moves, A/D turns; Shift runs |
 | Camera | Tab chase/hood; wheel zooms; right-drag orbits |
+| Select lane ends | Hold Shift to show 2 m cubes; Shift-click toggles individual ends |
+| Extend roads (native) | Drive after selecting ends; saves smooth lane continuations continuously |
+| Finish extending | Palette → Roads: Stop extending roads; saves and clears selection |
 | Reset | R returns to the initial spawn |
 | Pause/resume | Escape; arrows/Enter select menu actions |
 | Command palette | Cmd/Ctrl+Shift+P |
@@ -53,6 +56,15 @@ clockwise.
 Routes follow permitted road connections, refresh after 2 m and turn green on arrival within 6 m;
 red
 means disconnected. Bridges and geometric crossings alone do not connect roads.
+
+For driving-based road construction, select the lanes at the end you want to extend, then drive
+outward. Selected cubes stay orange after releasing Shift. The native game samples movement and
+vehicle heading into tangent-connected Bézier curves, preserving lane spacing and elevation.
+It saves the active `.road` about once per second while moving, with explicit lane attachments;
+generated map reloads retain the current vehicle, controls and camera. Stop the extension through
+the palette before selecting another set of ends. Reset, entering/exiting a vehicle, jumping or
+closing the window also finish the current extension. External file edits stop recording instead
+of being overwritten. Browser builds support selection; recording requires a writable native map.
 
 In native builds, choose **Bug: Report a bug…** in the command palette to capture the current
 scene, then describe the problem and click **Save report**. Reports go into

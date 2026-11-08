@@ -20,7 +20,8 @@ impl Recording {
         selection: &BTreeSet<LaneEnd>,
         pose: Pose,
     ) -> Result<Self, String> {
-        let original = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let path = std::fs::canonicalize(path).map_err(|e| e.to_string())?;
+        let original = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
         let mut base = original.clone();
         let mut drawing = Drawing::new(city, selection, pose);
         let mut number = 1;
@@ -33,6 +34,24 @@ impl Recording {
         };
         // Give anonymous top-level placements an ID without reformatting authored comments.
         let program = opencity::parse(&base).map_err(|e| e.to_string())?;
+        let projection = opencity::map::project(&program);
+        for lane in &drawing.lanes {
+            let snapshot = &city.roads[lane.id.road].segment;
+            if !projection.segments.iter().any(|s| {
+                s.name == snapshot.name
+                    && (s.name.is_some() || s.source == snapshot.source)
+                    && s.road_name == snapshot.road_name
+                    && s.start == snapshot.start
+                    && s.end == snapshot.end
+                    && s.controls == snapshot.controls
+                    && s.start_z == snapshot.start_z
+                    && s.end_z == snapshot.end_z
+            }) {
+                return Err(
+                    "Map changed before selection; wait for its reload and select again".into(),
+                );
+            }
+        }
         let mut insertions = Vec::new();
         for lane in &mut drawing.lanes {
             if lane.parent.is_some() {
@@ -61,7 +80,7 @@ impl Recording {
         }
         Ok(Self {
             drawing,
-            path: path.to_owned(),
+            path,
             base,
             prefix,
             last_source: original,
@@ -93,7 +112,12 @@ impl Recording {
         if projection.unresolved != 0 {
             return Err("Road extension has unresolved attachments; recording stopped".into());
         }
-        let temporary = self.path.with_extension("road-recording.tmp");
+        let temporary = self.path.with_extension(format!(
+            "road-recording-{}-{}.tmp",
+            std::process::id(),
+            self.prefix
+        ));
+        let mut created = false;
         let result = (|| {
             use std::io::Write;
             let mut file = std::fs::OpenOptions::new()
@@ -101,6 +125,7 @@ impl Recording {
                 .create_new(true)
                 .open(&temporary)
                 .map_err(|e| e.to_string())?;
+            created = true;
             file.write_all(source.as_bytes())
                 .map_err(|e| e.to_string())?;
             file.sync_all().map_err(|e| e.to_string())?;
@@ -117,7 +142,7 @@ impl Recording {
             }
             std::fs::rename(&temporary, &self.path).map_err(|e| e.to_string())
         })();
-        if result.is_err() {
+        if created && result.is_err() {
             let _ = std::fs::remove_file(&temporary);
         }
         result?;

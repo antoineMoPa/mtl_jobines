@@ -80,7 +80,9 @@ impl Buildings {
     pub fn new(city: &City) -> Self {
         let mut cells = HashMap::<_, Vec<_>>::new();
         for (id, feature) in city.landscape.iter().enumerate() {
-            if feature.kind != LandscapeKind::Building {
+            if feature.kind != LandscapeKind::Building
+                || !feature.building_style.unwrap_or_default().collidable
+            {
                 continue;
             }
             let (min, max) = feature.points.iter().fold(

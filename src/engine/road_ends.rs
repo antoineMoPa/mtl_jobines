@@ -21,6 +21,7 @@ impl End {
             Self::Finish => 1.,
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn sign(self) -> f32 {
         match self {
             Self::Start => -1.,

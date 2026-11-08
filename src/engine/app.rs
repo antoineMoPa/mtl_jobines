@@ -31,6 +31,7 @@ const CURSOR_IDLE_DELAY: Duration = Duration::from_secs(2);
 mod location;
 #[cfg(not(target_arch = "wasm32"))]
 mod reload;
+mod roads;
 mod startup;
 fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkControls) {
     let held = |key| keys.contains(&key);
@@ -163,6 +164,7 @@ impl Game {
         waiting
     }
     fn exit_game(&mut self, event_loop: &ActiveEventLoop) {
+        self.road_tool.stop();
         #[cfg(not(target_arch = "wasm32"))]
         event_loop.exit();
         // Browsers cannot close a tab they did not open. Return to the title.
@@ -175,6 +177,10 @@ impl Game {
         }
     }
     fn set_overlay(&mut self, overlay: Overlay) {
+        #[cfg(not(target_arch = "wasm32"))]
+        if overlay.paused() {
+            self.road_tool.save(true);
+        }
         self.audio.silence();
         self.sound_eye = None;
         if self.cursor.is_some() {
@@ -380,13 +386,7 @@ impl Game {
         let previous_position = self.world.player_position();
         self.simulate(elapsed);
         let paused = self.simulation_paused();
-        #[cfg(not(target_arch = "wasm32"))]
-        if !paused && self.world.is_driving() {
-            self.road_tool.record(super::road_drawing::Pose {
-                position: self.world.player_position() / METERS_PER_UNIT,
-                yaw: self.world.player_yaw(),
-            });
-        }
+        self.record_road_movement();
         let refresh_scene = self.refresh_scene();
 
         let p = self.world.player_position() / METERS_PER_UNIT;
@@ -944,19 +944,7 @@ impl ApplicationHandler<GameEvent> for Game {
                             if self.keys.contains(&KeyCode::ShiftLeft)
                                 || self.keys.contains(&KeyCode::ShiftRight) =>
                         {
-                            #[cfg(not(target_arch = "wasm32"))]
-                            self.road_tool.select(
-                                self.hermes.city(),
-                                self.live_reload.as_ref().map(|r| r.path()),
-                                [w, h],
-                                point,
-                                super::road_drawing::Pose {
-                                    position: self.world.player_position() / METERS_PER_UNIT,
-                                    yaw: self.world.player_yaw(),
-                                },
-                            );
-                            #[cfg(target_arch = "wasm32")]
-                            self.road_tool.select([w, h], point);
+                            self.select_road_end([w, h], point);
                         }
                         Overlay::Start | Overlay::Menu
                             if hud::contains(hud::map_rect(w, h), point) =>

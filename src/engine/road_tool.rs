@@ -100,7 +100,7 @@ impl RoadTool {
         }
     }
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn record(&mut self, pose: Pose) {
+    pub fn record(&mut self, pose: Pose, ready: bool) {
         let Some(recording) = &mut self.recording else {
             return;
         };
@@ -111,7 +111,9 @@ impl RoadTool {
                 recording.drawing.length_meters()
             ));
         }
-        self.save(false);
+        if ready {
+            self.save(false);
+        }
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn save(&mut self, force: bool) {
