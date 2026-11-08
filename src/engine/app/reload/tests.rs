@@ -163,10 +163,15 @@ fn map_replacement_preserves_pause_and_player_then_falls_back_to_authored_spawn(
 #[test]
 fn canonical_island_has_water_parking_and_a_driveable_interior() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
+    let program = opencity::parse(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert!(opencity::check_design_rules(&program).is_empty());
     let hermes = Hermes::load_with_game_data(&path, None).unwrap();
     let city = hermes.city();
-    assert_eq!(city.roads.len(), 1);
-    let road = &city.roads[0];
+    let road = city
+        .roads
+        .iter()
+        .find(|r| r.segment.name.as_deref() == Some("service_north_segment"))
+        .unwrap();
     assert_eq!(road.definition.direction, opencity::RoadDirection::Forward);
     assert_eq!(
         road.definition
@@ -176,51 +181,116 @@ fn canonical_island_has_water_parking_and_a_driveable_interior() {
             .count(),
         2
     );
-    assert_eq!(city.landscape.len(), 2);
-    assert_eq!(city.paths.len(), 1);
-    for path in &city.paths {
-        assert!(path.points.last().unwrap()[0] < path.points[0][0]);
+    for path in city.paths.iter().filter(|p| p.component == "service_north") {
+        assert!(path.points.last().unwrap()[0] > path.points[0][0]);
     }
-    assert!(city.junctions.is_empty());
     assert_eq!(hermes.landmarks().len(), 1);
     assert_eq!(hermes.landmarks()[0].id, "site_model_01");
-    let parking = city.surface_at([-1.2, 1.0], 0.15).unwrap();
+    let k = 0.0296475_f32;
+    let c = 1. / k.hypot(1.);
+    let point = |u: f32, v: f32| [c * u - k * c * v, k * c * u + c * v];
+    // Both lots reach the crossing's sidewalk; the service road keeps its
+    // carriageway while adding a walkable outside edge.
+    for (u, v) in [(1.59, -1.3), (1.78, -1.3), (3., -0.905)] {
+        let surface = city.surface_at(point(u, v), 0.15).unwrap();
+        assert_eq!(surface.kind, opencity::runtime::SurfaceKind::Sidewalk);
+    }
+    let station = city
+        .landscape
+        .iter()
+        .find(|f| f.name.as_deref() == Some("fuel_station"))
+        .unwrap();
+    assert!(!station.building_style.as_ref().unwrap().collidable);
+    assert!((station.height.unwrap() - 0.108).abs() < 1e-5);
+    // The forecourt is open; the separate shop shell remains solid.
+    assert!(!city.building_collision(point(2.155, -1.18), 0.009, 0.11, 0.14));
+    assert!(city.building_collision(point(2.155, -1.285), 0.009, 0.11, 0.14));
+    let parking = city.surface_at([1.2, -1.0], 0.15).unwrap();
     assert_eq!(parking.kind, opencity::runtime::SurfaceKind::Sidewalk);
     assert!((parking.height - 0.102).abs() < 0.0001);
-    let service = city.surface_at([-0.55398536, 0.8062226], 0.15).unwrap();
+    let service = city.surface_at([0.55398536, -0.8062226], 0.15).unwrap();
     assert_eq!(service.kind, opencity::runtime::SurfaceKind::Asphalt);
     let terrain = city.elevation.as_ref().unwrap();
     assert_eq!(terrain.spec.water_level, Some(0.));
-    for point in [[0., 0.], [40., 0.], [-40., 0.], [0., 40.], [0., -40.]] {
+    let crossing = [1.7006906, -0.51140493];
+    assert!((city.surface_at(crossing, 0.01).unwrap().height - 0.002).abs() < 0.0001);
+    assert!((city.surface_at(crossing, 0.15).unwrap().height - 0.102).abs() < 0.0001);
+    for road in city
+        .roads
+        .iter()
+        .filter(|r| r.segment.road_name == "access_ramp" || r.segment.road_name == "access_mouth")
+    {
+        for step in 1..40 {
+            let t = step as f32 / 40.;
+            let p = road.segment.point_at(t);
+            let z = road.segment.height_at(t);
+            let support = city.surface_at([p.x, p.y], z + 0.005).unwrap();
+            assert!(
+                (support.height - z).abs() < 0.004,
+                "{:?} at {t}: {support:?}",
+                road.segment.name
+            );
+            assert!(terrain.height_at([p.x, p.y]).unwrap() <= z + 0.0001);
+            assert!(
+                city.road_barrier_contact([p.x, p.y], 0.009, z + 0.001, z + 0.02)
+                    .is_none(),
+                "{:?} at {t}",
+                road.segment.name
+            );
+        }
+    }
+    for point in [[10., 0.], [40., 0.], [-40., 0.], [0., 40.], [0., -40.]] {
         assert!((terrain.height_at(point).unwrap() - 0.1).abs() < 0.0001);
     }
     for point in [[70., 0.], [-70., 0.], [0., 70.], [0., -70.], [50., 50.]] {
         assert!(terrain.height_at(point).unwrap() < 0.);
         assert_eq!(terrain.surface_height_at(point), Some(0.));
     }
-    let mut world = DynamicWorld::new(&hermes);
-    let initial = world.player_position();
+    let spawn = hermes.default_start().unwrap();
+    assert!(
+        (spawn.point[0] - 1.1318498).abs() < 1e-5 && (spawn.point[1] + 0.94828856).abs() < 1e-5
+    );
+    let mut car = crate::dynamic_world::Vehicle::spawn_at(
+        city,
+        SpawnPoint {
+            point: [0.55398536, -0.8062226],
+            heading: Some(0.02964),
+        },
+    )
+    .unwrap();
+    let initial = car.position;
     for _ in 0..600 {
-        world.step(
-            &hermes,
+        car.step(
+            city,
             Controls {
                 throttle: 1.,
                 ..Default::default()
             },
-            WalkControls::default(),
             1. / 120.,
         );
     }
-    assert!(world.player_position().distance(initial) > 2.);
-    assert_eq!(world.player().collisions, 0);
-    assert!(world.player().grounded);
-    let without_spawn = std::fs::read_to_string(path)
-        .unwrap()
-        .replace("player_start(0, 0, 0);", "");
+    assert!(car.position.distance(initial) > 2.);
+    assert_eq!(car.collisions, 0);
+    assert!(car.grounded);
+    let mut without_spawn = opencity::parse(&std::fs::read_to_string(path).unwrap()).unwrap();
+    without_spawn
+        .statements
+        .retain(|s| !matches!(s,opencity::Statement::Call(c) if c.name=="player_start"));
+    let without_spawn = without_spawn.to_road_source();
     let elevation =
         std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/elevation.png"))
             .unwrap();
-    let hermes = Hermes::from_map_bytes(without_spawn.as_bytes(), &elevation, None).unwrap();
+    let hermes = Hermes::from_map_bytes(
+        without_spawn.as_bytes(),
+        &elevation,
+        None,
+        Some(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("data/maps/mtl")
+                .as_path(),
+        ),
+    )
+    .unwrap();
     assert!(DynamicWorld::with_start(&hermes, None).is_ok());
 }
 
@@ -340,4 +410,54 @@ fn capture(game: &mut Game, path: &Path) {
         navigation,
     );
     renderer.snapshot(&texture, path).unwrap();
+}
+
+#[test]
+fn glb_only_saves_reload_relative_models_and_recover_after_bad_files() {
+    let file = TempMap::new(concat!(
+        "player_start(1,1,0); ground=land(-2,-2,2,-2,2,2,-2,2);",
+        "station=building(0.0759,\"model.glb\",{collision:none},",
+        "0,0,0.344,0,0.344,0.244,0,0.244);"
+    ));
+    let asset = file.0.with_file_name("model.glb");
+    let original = std::fs::read(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/models/fuel-station.glb"),
+    )
+    .unwrap();
+    std::fs::write(&asset, &original).unwrap();
+    let mut watcher = LiveReload::new(file.0.clone());
+    let mut clock = watcher.next_check;
+    std::fs::write(&asset, b"invalid GLB").unwrap();
+    assert!(wait_for_reload(&mut watcher, &mut clock).is_err());
+    std::fs::write(&asset, &original).unwrap();
+    let mut hermes = wait_for_reload(&mut watcher, &mut clock).unwrap();
+    let first = hermes.take_geometry().0;
+    let doc = gltf::Gltf::from_slice(&original).unwrap();
+    let accessor = doc
+        .meshes()
+        .next()
+        .unwrap()
+        .primitives()
+        .next()
+        .unwrap()
+        .get(&gltf::Semantic::Positions)
+        .unwrap();
+    let json_length = u32::from_le_bytes(original[12..16].try_into().unwrap()) as usize;
+    let offset = 28 + json_length + accessor.view().unwrap().offset() + accessor.offset();
+    let mut edited = original.clone();
+    let position = f32::from_le_bytes(edited[offset..offset + 4].try_into().unwrap());
+    edited[offset..offset + 4].copy_from_slice(&(position + 0.5).to_le_bytes());
+    std::fs::write(&asset, &edited).unwrap();
+    let mut updated = wait_for_reload(&mut watcher, &mut clock).unwrap();
+    let second = updated.take_geometry().0;
+    assert_eq!(first.vertices.len(), second.vertices.len());
+    assert!(first
+        .vertices
+        .iter()
+        .zip(&second.vertices)
+        .any(|(a, b)| a.position != b.position));
+    std::fs::remove_file(&asset).unwrap();
+    assert!(wait_for_reload(&mut watcher, &mut clock).is_err());
+    std::fs::write(&asset, &original).unwrap();
+    assert!(wait_for_reload(&mut watcher, &mut clock).is_ok());
 }

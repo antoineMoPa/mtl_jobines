@@ -41,11 +41,15 @@ impl TimeCommand {
 pub(super) enum PaletteAction {
     Time(TimeCommand),
     Respawn(String),
+    JumpToLocation,
     #[cfg(not(target_arch = "wasm32"))]
     BugReport,
 }
 impl PaletteAction {
     fn from_id(id: &str) -> Option<Self> {
+        if id == "map.jump" {
+            return Some(Self::JumpToLocation);
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if id == "bug.report" {
             return Some(Self::BugReport);
@@ -82,6 +86,11 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
             "sound.settings",
             "Sound: Volume…",
             "Adjust engines, tires, surroundings and collisions",
+        ),
+        (
+            "map.jump",
+            "Jump to location…",
+            "Click the map to move yourself and your current car there",
         ),
     ]
     .into_iter()
@@ -669,6 +678,44 @@ mod tests {
         )
         .validate(&module)
         .unwrap();
+    }
+
+    #[test]
+    fn jump_search_selects_map_picker_and_dismisses_palette() {
+        let ctx = egui::Context::default();
+        let mut menu = CommandPalette::default();
+        menu.open();
+        let mut chosen = None;
+        for events in [
+            vec![],
+            vec![egui::Event::Text("jump to location".into())],
+            vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+        ] {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280., 800.),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    if let Some(id) = menu.show(ui.ctx(), &commands(&[])) {
+                        chosen = PaletteAction::from_id(&id);
+                    }
+                },
+            );
+            output.textures_delta.clear();
+        }
+        assert_eq!(chosen, Some(PaletteAction::JumpToLocation));
+        assert!(!menu.is_open());
     }
 
     #[cfg(not(target_arch = "wasm32"))]

@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 default-run = "mtl_jobines"
 
+[workspace]
+members = ["opencity"]
+default-members = ["."]
+resolver = "2"
+
 [lib]
 crate-type = ["rlib", "cdylib"]
 
@@ -45,3 +50,7 @@ naga = { version = "30", features = ["wgsl-in"] }
 # Keep debug assertions and symbols while avoiding minute-long native startup.
 [profile.dev]
 opt-level = 1
+
+# Keep geometry optimized while reducing editor compile/link debug-data work.
+[profile.dev.package.opencity]
+debug = 1

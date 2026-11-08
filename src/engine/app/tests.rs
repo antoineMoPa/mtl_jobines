@@ -1,4 +1,89 @@
 use super::*;
+
+#[test]
+fn jump_command_maps_zoomed_click_to_world_and_resumes_with_current_car() {
+    let mut game = Game::new(Hermes::test_map_from_source(
+        "road street: carlane carlane; end street(-2,0,2,0);
+         land(-3,-1,3,-1,3,1,-3,1); player_start(-1,0);",
+    ));
+    assert!(game.world.toggle_vehicle(&game.hermes));
+    game.apply_palette_action(PaletteAction::JumpToLocation);
+    assert_eq!(game.overlay, Overlay::Map);
+    assert!(game.simulation_paused());
+    assert_eq!(game.full_map.selection, hud::MapSelection::Jump);
+    let (w, h) = (1280., 800.);
+    let center = [w * 0.5, h * 0.5 + 20.];
+    game.full_map.zoom_at(w, h, center, 4.);
+    let click = [center[0] - 60., center[1] + 60.];
+    let uv = game.full_map.map_uv(w, h, click).unwrap();
+    let expected = game.hermes.map_world_point(uv);
+    let route_revision = game.hermes.route_revision();
+    game.keys.insert(KeyCode::ArrowUp);
+    game.orbit = 1.;
+    game.camera_pitch = 0.4;
+    game.zoom = 3.;
+    game.hood = true;
+    game.sound_eye = Some(Vec3::splat(100.));
+    game.select_map_point(w, h, click);
+    let position = game.world.player_position();
+    assert!((position.x - expected[0] * METERS_PER_UNIT).abs() < 0.001);
+    assert!((position.y - expected[1] * METERS_PER_UNIT).abs() < 0.001);
+    assert_eq!(game.overlay, Overlay::Driving);
+    assert_eq!(game.full_map.selection, hud::MapSelection::Route);
+    assert!(game.world.is_driving());
+    assert_eq!(game.world.player().velocity, Vec3::ZERO);
+    assert_eq!(game.orbit, 0.);
+    assert_eq!(game.camera_pitch, 0.);
+    assert_eq!(game.zoom, 1.);
+    assert!(!game.hood);
+    assert!(game.keys.is_empty());
+    assert!(game.sound_eye.is_none());
+    assert!(game.scene_dirty);
+    assert!(game.eye.distance(position / METERS_PER_UNIT) < 1.);
+    assert_eq!(game.hermes.route_revision(), route_revision);
+    game.world.reset_player(&game.hermes);
+    assert!(game.world.player_position().distance(position) < 0.001);
+}
+
+#[test]
+fn jump_ignores_padding_retries_blocked_points_and_cancels_without_moving() {
+    let mut game = Game::new(Hermes::test_map_from_source(
+        "road street: carlane carlane; end street(-2,0,2,0);
+         land(-3,-1,3,-1,3,1,-3,1); player_start(-1,0);
+         building(0.2,-0.1,-0.1,0.1,-0.1,0.1,0.1,-0.1,0.1);",
+    ));
+    let before = game.world.player_position();
+    game.apply_palette_action(PaletteAction::JumpToLocation);
+    // Header, letterboxing and outside the panel cannot select a point.
+    for click in [[50., 50.], [45., 420.], [0., 0.]] {
+        game.select_map_point(1280., 800., click);
+        assert_eq!(game.full_map.selection, hud::MapSelection::Jump);
+        assert_eq!(game.world.player_position(), before);
+    }
+    game.select_map_point(1280., 800., [640., 420.]);
+    assert_eq!(game.full_map.selection, hud::MapSelection::JumpBlocked);
+    assert_eq!(game.overlay, Overlay::Map);
+    assert_eq!(game.world.player_position(), before);
+    game.full_map.zoom_at(1280., 800., [640., 420.], 4.);
+    game.full_map.reset_zoom();
+    assert_eq!(game.full_map.selection, hud::MapSelection::JumpBlocked);
+    // A second click on clear land succeeds, even away from a road.
+    game.select_map_point(1280., 800., [640. - 50., 420. + 80.]);
+    assert_eq!(game.overlay, Overlay::Driving);
+    assert!(game.world.player_position().distance(before) > 50.);
+    let visited = game.world.player_position();
+    game.apply_palette_action(PaletteAction::JumpToLocation);
+    game.set_overlay(game.overlay.escape());
+    assert_eq!(game.overlay, Overlay::Driving);
+    assert_eq!(game.world.player_position(), visited);
+    game.set_overlay(Overlay::Map);
+    assert_eq!(game.full_map.selection, hud::MapSelection::Route);
+    game.select_map_point(1280., 800., [640., 420. + 140.]);
+    assert_eq!(game.overlay, Overlay::Map);
+    assert_eq!(game.world.player_position(), visited);
+    assert_ne!(game.hermes.route_revision(), 0);
+}
+
 #[test]
 fn landmark_command_resumes_driving_and_moves_camera_without_stale_input() {
     let mut game = Game::new(Hermes::test_map_from_source(

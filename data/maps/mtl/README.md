@@ -2,9 +2,12 @@
 
 [map.road](map.road) is the scene's source of truth.
 
-Run `cargo run`. Saving the active `.road` or its elevation PNG reloads the native
+Run `cargo run`. Saving the active `.road`, its elevation PNG or a referenced GLB reloads the native
 game automatically. Invalid edits keep the last working map; see the terminal
 for errors. Browser builds embed the map and require rebuilding.
+
+Native building GLBs resolve relative to the `.road` file and stay outside compiled
+assets and map packages. Material/vertex colors are supported; textures are not.
 
 Rebake elevation from the `.road` recipe:
 

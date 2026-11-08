@@ -28,6 +28,7 @@ use winit::{
 };
 pub(super) const DT: f32 = 1. / 120.;
 const CURSOR_IDLE_DELAY: Duration = Duration::from_secs(2);
+mod location;
 #[cfg(not(target_arch = "wasm32"))]
 mod reload;
 mod startup;
@@ -179,6 +180,7 @@ impl Game {
             self.cursor_activity(Instant::now());
         }
         self.overlay = overlay;
+        self.full_map.selection = hud::MapSelection::Route;
         if overlay == Overlay::Driving {
             self.audio.user_gesture();
         }
@@ -324,6 +326,10 @@ impl Game {
     }
     fn apply_palette_action(&mut self, action: PaletteAction) {
         match action {
+            PaletteAction::JumpToLocation => {
+                self.set_overlay(Overlay::Map);
+                self.full_map.selection = hud::MapSelection::Jump;
+            }
             #[cfg(not(target_arch = "wasm32"))]
             PaletteAction::BugReport => {
                 unreachable!("bug report capture is handled before present")
@@ -348,20 +354,7 @@ impl Game {
                     return;
                 };
                 match self.world.respawn_at_landmark(&self.hermes, &landmark) {
-                    Ok(()) => {
-                        self.orbit = 0.;
-                        self.zoom = 1.;
-                        self.camera_pitch = 0.;
-                        self.hood = false;
-                        let p = self.world.player_position() / METERS_PER_UNIT;
-                        let yaw = self.world.player_yaw();
-                        let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
-                        self.eye = p - forward * (0.15 * self.zoom * self.camera_pitch.cos())
-                            + Vec3::Z * ((0.075 + 0.15 * self.camera_pitch.sin()) * self.zoom);
-                        self.hermes.update_navigation(p.to_array());
-                        self.scene_dirty = true;
-                        self.set_overlay(Overlay::Driving);
-                    }
+                    Ok(()) => self.finish_location_change(),
                     Err(error) => eprintln!("Cannot respawn near {}: {error}", landmark.title),
                 }
             }
@@ -797,7 +790,7 @@ impl ApplicationHandler<GameEvent> for Game {
                                 KeyCode::Equal | KeyCode::NumpadAdd => Some(1.),
                                 KeyCode::Minus | KeyCode::NumpadSubtract => Some(-1.),
                                 KeyCode::Digit0 | KeyCode::Numpad0 => {
-                                    self.full_map = Default::default();
+                                    self.full_map.reset_zoom();
                                     Some(0.)
                                 }
                                 _ => None,
@@ -899,7 +892,11 @@ impl ApplicationHandler<GameEvent> for Game {
                 ..
             } => {
                 if self.overlay == Overlay::Map && state == ElementState::Pressed {
-                    self.hermes.clear_destination();
+                    if self.full_map.selection == hud::MapSelection::Route {
+                        self.hermes.clear_destination();
+                    } else {
+                        self.set_overlay(Overlay::Driving);
+                    }
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
@@ -941,11 +938,7 @@ impl ApplicationHandler<GameEvent> for Game {
                             self.set_overlay(Overlay::Driving)
                         }
                         Overlay::Map => {
-                            if let Some(uv) = self.full_map.map_uv(w, h, point) {
-                                let p = self.world.player_position() / METERS_PER_UNIT;
-                                self.hermes.select_destination(uv, p.to_array());
-                                window.request_redraw();
-                            }
+                            self.select_map_point(w, h, point);
                         }
                         _ => {}
                     }

@@ -40,6 +40,9 @@ pub(super) fn build(city: &City) -> Result<Mesh, String> {
         let Some(id) = feature.model.as_deref() else {
             continue;
         };
+        if id.ends_with(".glb") {
+            continue;
+        }
         if id == "plinth" {
             let top = feature.elevation + feature.height.unwrap_or(0.);
             let points = &feature.points;
@@ -130,6 +133,37 @@ pub(super) fn build(city: &City) -> Result<Mesh, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn station_model_fits_its_authored_site_without_blocking_the_forecourt() {
+        let program = opencity::parse(concat!(
+            "station=building(0.0759,\"models/fuel-station.glb\",{collision:none},",
+            "0,0,0.344,0,0.344,0.244,0,0.244); elevation(station,0.0976);"
+        ))
+        .unwrap();
+        let city = City::from_program(&program, None).unwrap();
+        assert!(!city.building_collision([0.17, 0.12], 0.009, 0.1, 0.12));
+        let mesh = super::super::external_models::build(
+            &city,
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("data/maps/mtl")
+                .as_path(),
+        )
+        .unwrap();
+        assert!(!mesh.vertices.is_empty());
+        for vertex in mesh.vertices {
+            let [x, y, z] = vertex.position;
+            assert!((-0.0001..=0.3441).contains(&x));
+            assert!((-0.0001..=0.2441).contains(&y));
+            assert!((0.0975..=0.1736).contains(&z));
+        }
+        let solid = City::from_program(
+            &opencity::parse("building(0.1,0,0,1,0,1,1,0,1);").unwrap(),
+            None,
+        )
+        .unwrap();
+        assert!(solid.building_collision([0.5, 0.5], 0.009, 0., 0.1));
+    }
 
     fn tower(id: &str, height: f32) -> Mesh {
         let source = format!(

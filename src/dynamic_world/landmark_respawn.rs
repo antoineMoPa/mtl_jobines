@@ -1,4 +1,4 @@
-//! Resolve landmark visits onto supported, unobstructed viewing spots.
+//! Resolve map jumps and landmark visits onto supported, unobstructed spots.
 use super::{DynamicWorld, SpawnPoint, Vehicle, METERS_PER_UNIT};
 use crate::hermes::{traffic_paths::SpeedClass, Hermes, Landmark};
 use glam::{Vec2, Vec3};
@@ -27,6 +27,33 @@ fn vehicles_overlap(a: &Vehicle, b: &Vehicle) -> bool {
 }
 
 impl DynamicWorld {
+    pub(crate) fn respawn_at_point(
+        &mut self,
+        hermes: &Hermes,
+        point: [f32; 2],
+    ) -> Result<(), String> {
+        let bounds = hermes.city().bounds;
+        if point.iter().any(|value| !value.is_finite())
+            || point[0] < bounds[0]
+            || point[0] > bounds[2]
+            || point[1] < bounds[1]
+            || point[1] > bounds[3]
+        {
+            return Err("Choose a point inside the map".into());
+        }
+        let spawn = SpawnPoint {
+            point,
+            heading: None,
+        };
+        let mut car = Vehicle::spawn_at(hermes.city(), spawn)?;
+        car.set_catalog_model(self.player().definition);
+        if !self.clear_respawn(hermes, &car) {
+            return Err("Choose clear ground with room for your car".into());
+        }
+        self.finish_respawn(hermes, car, spawn);
+        Ok(())
+    }
+
     pub(crate) fn respawn_at_landmark(
         &mut self,
         hermes: &Hermes,
@@ -215,6 +242,57 @@ impl DynamicWorld {
 mod tests {
     use super::*;
     use glam::Vec3;
+
+    #[test]
+    fn map_jump_preserves_car_and_uses_elevated_ground_and_reset() {
+        let hermes = Hermes::test_map_from_source(
+            "land(-2,-2,2,-2,2,2,-2,2); player_start(-1,0);
+             pad=concrete(0.2,-0.3,0.8,-0.3,0.8,0.3,0.2,0.3); elevation(pad,0.1);",
+        );
+        let mut world = DynamicWorld::new(&hermes);
+        let model = super::super::catalog::definitions()
+            .iter()
+            .position(|d| d.config.category == "compact")
+            .unwrap();
+        world.vehicles[world.player_vehicle.0].set_catalog_model(Some(model));
+        assert!(world.toggle_vehicle(&hermes));
+        world.respawn_at_point(&hermes, [0.5, 0.]).unwrap();
+        let visited = world.player_position();
+        assert!(world.is_driving());
+        assert_eq!(world.player().definition, Some(model));
+        assert_eq!(visited.truncate(), Vec2::new(50., 0.));
+        let support = hermes.city().surface_at([0.5, 0.], f32::INFINITY).unwrap();
+        assert!(support.height > 0.07);
+        assert!(
+            (visited.z - world.player().ride_height() - support.height * METERS_PER_UNIT).abs()
+                < 0.01
+        );
+        assert_eq!(world.player().velocity, Vec3::ZERO);
+        assert!(world.clear_respawn(&hermes, world.player()));
+        world.vehicles[world.player_vehicle.0].position += Vec3::splat(5.);
+        world.reset_player(&hermes);
+        assert!(world.player_position().distance(visited) < 0.001);
+    }
+
+    #[test]
+    fn map_jump_rejects_water_buildings_other_cars_and_invalid_points_atomically() {
+        let hermes = Hermes::test_map_from_source(
+            "land(-2,-2,2,-2,2,2,-2,2); player_start(-1,0);
+             building(0.2,-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2);
+             lake(0.5,0.5,1,0.5,1,1,0.5,1);",
+        );
+        let mut world = DynamicWorld::new(&hermes);
+        world
+            .vehicles
+            .push(Vehicle::spawn_at(hermes.city(), "1,0".parse().unwrap()).unwrap());
+        let before = world.player_position();
+        for point in [[0., 0.], [0.75, 0.75], [1., 0.], [10., 10.], [f32::NAN, 0.]] {
+            assert!(world.respawn_at_point(&hermes, point).is_err(), "{point:?}");
+            assert_eq!(world.player_position(), before);
+            world.reset_player(&hermes);
+            assert!(world.player_position().distance(before) < 0.001);
+        }
+    }
 
     #[test]
     fn respawn_brings_the_current_car_and_restores_driving_and_reset() {

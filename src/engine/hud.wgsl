@@ -139,6 +139,15 @@ fn lettering(p:vec2<f32>, origin:vec2<f32>, scale:f32, word:u32)->bool {
     if word==9u && index<24u {
         code=array<u32,24>(83u,67u,82u,79u,76u,76u,32u,43u,47u,45u,32u,90u,79u,79u,77u,32u,32u,48u,32u,82u,69u,83u,69u,84u)[index];
     }
+    if word==10u && index<13u {
+        code=array<u32,13>(67u,76u,73u,67u,75u,32u,84u,79u,32u,74u,85u,77u,80u)[index];
+    }
+    if word==11u && index<21u {
+        code=array<u32,21>(82u,73u,71u,72u,84u,32u,67u,76u,73u,67u,75u,32u,84u,79u,32u,67u,65u,78u,67u,69u,76u)[index];
+    }
+    if word==12u && index<19u {
+        code=array<u32,19>(67u,72u,79u,79u,83u,69u,32u,67u,76u,69u,65u,82u,32u,71u,82u,79u,85u,78u,68u)[index];
+    }
     return (glyph(code) & (1u << (u32(q.y)*5u+col)))!=0u;
 }
 // Full-map display uses a clockwise quarter turn of the north-up atlas.
@@ -203,10 +212,13 @@ fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32
     if hud.mode.x==2. {
         if !inside(p,vec4<f32>(20.,20.,screen-40.)) {return vec4<f32>(0.01,0.02,0.03,0.8);}
         if lettering(p,vec2<f32>(40.,37.),3.,2u) {return vec4<f32>(0.93,0.96,0.95,1.);}
-        if screen.x>700. && (lettering(p,vec2<f32>(140.,39.),2.,5u)
-            || lettering(p,vec2<f32>(screen.x-320.,39.),2.,6u)) {return vec4<f32>(0.7,0.83,0.85,1.);}
-        if hud.destination.z==2. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,7u) {return vec4<f32>(1.,0.3,0.2,1.);}
-        if hud.destination.z==3. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,8u) {return vec4<f32>(0.1,1.,0.4,1.);}
+        let jumping=hud.full_map.w>0.;
+        if screen.x>700. && (lettering(p,vec2<f32>(140.,39.),2.,select(5u,10u,jumping))
+            || lettering(p,vec2<f32>(screen.x-320.,39.),2.,select(6u,11u,jumping))) {return vec4<f32>(0.7,0.83,0.85,1.);}
+        if hud.full_map.w==2. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,12u) {return vec4<f32>(1.,0.3,0.2,1.);}
+        if hud.full_map.w==1. && screen.x<=700. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,10u) {return vec4<f32>(0.7,0.83,0.85,1.);}
+        if !jumping && hud.destination.z==2. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,7u) {return vec4<f32>(1.,0.3,0.2,1.);}
+        if !jumping && hud.destination.z==3. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,8u) {return vec4<f32>(0.1,1.,0.4,1.);}
         if screen.x>700. && lettering(p,vec2<f32>(screen.x-340.,screen.y-33.),2.,9u) {return vec4<f32>(0.7,0.83,0.85,1.);}
         let close=p-vec2<f32>(screen.x-44.,44.);
         if max(abs(close.x),abs(close.y))<9. && abs(abs(close.x)-abs(close.y))<2. {return vec4<f32>(0.93,0.96,0.95,1.);}

@@ -4,6 +4,7 @@ mod building_style;
 pub(crate) mod commerce_mesh;
 mod commerce_props;
 mod commercial;
+pub(crate) mod external_models;
 mod game_data;
 mod landmark_destinations;
 mod landmarks;
@@ -110,6 +111,8 @@ pub struct Hermes {
     minimap: minimap::Minimap,
     prepared: Option<(Mesh, Mesh)>,
     landmark_mesh: Mesh,
+    external_mesh: Mesh,
+    external_vertex_count: usize,
     router: routing::Router,
     traffic_paths: Arc<traffic_paths::TrafficPaths>,
     navigation: routing::Navigation,
@@ -142,13 +145,14 @@ impl Hermes {
             .transpose()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
-        Self::from_map_bytes(&source, &elevation, packaged)
+        Self::from_map_bytes(&source, &elevation, packaged, path.parent())
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn from_map_bytes(
         source: &[u8],
         elevation: &[u8],
         packaged: Option<&Path>,
+        model_base: Option<&Path>,
     ) -> Result<Self, String> {
         let parsed = opencity::parse(std::str::from_utf8(source).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
@@ -205,6 +209,9 @@ impl Hermes {
             }
         }
         let mut hermes = Self::from_city_data(city, data, &program)?;
+        hermes.external_mesh =
+            external_models::build(&hermes.city, model_base.unwrap_or(Path::new(".")))?;
+        hermes.external_vertex_count = hermes.external_mesh.vertices.len();
         hermes.cache = Some((key, cache_path));
         Ok(hermes)
     }
@@ -271,6 +278,8 @@ impl Hermes {
             minimap,
             prepared,
             landmark_mesh,
+            external_mesh: Mesh::default(),
+            external_vertex_count: 0,
             #[cfg(not(target_arch = "wasm32"))]
             cache: None,
         })
@@ -285,7 +294,8 @@ impl Hermes {
         self.minimap.pixels();
     }
     pub fn take_geometry(&mut self) -> (Mesh, Mesh) {
-        if let Some(meshes) = self.prepared.take() {
+        if let Some(mut meshes) = self.prepared.take() {
+            meshes.0.vertices.append(&mut self.external_mesh.vertices);
             return meshes;
         }
         let mut world = self
@@ -318,6 +328,7 @@ impl Hermes {
                 }
             }
         }
+        world.vertices.append(&mut self.external_mesh.vertices);
         (world, details)
     }
     pub(crate) fn prop_groups(&self) -> Vec<Vec<Mesh>> {
@@ -334,7 +345,10 @@ impl Hermes {
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write_game_data(&mut self, path: &Path) -> Result<(), String> {
-        let (world, details) = self.take_geometry();
+        let (mut world, details) = self.take_geometry();
+        world
+            .vertices
+            .truncate(world.vertices.len() - self.external_vertex_count);
         let key = self
             .cache
             .as_ref()
@@ -359,6 +373,9 @@ impl Hermes {
     pub fn select_destination(&mut self, uv: [f32; 2], position: [f32; 3]) {
         self.navigation
             .select(&self.router, self.minimap.world_point(uv), position.into());
+    }
+    pub(crate) fn map_world_point(&self, uv: [f32; 2]) -> [f32; 2] {
+        self.minimap.world_point(uv)
     }
     pub fn clear_destination(&mut self) {
         self.navigation.clear();

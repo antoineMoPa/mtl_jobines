@@ -247,6 +247,26 @@ pub(super) fn run(
     ));
     renderer.snapshot(&texture, &zoomed_path)?;
     eprintln!("Rendered {}", zoomed_path.display());
+    for (selection, suffix) in [
+        (super::hud::MapSelection::Jump, "map-jump"),
+        (super::hud::MapSelection::JumpBlocked, "map-jump-blocked"),
+    ] {
+        renderer.full_map.selection = selection;
+        renderer.render(
+            &texture.create_view(&Default::default()),
+            &meshes,
+            eye,
+            look,
+            snapshot_time,
+            navigation,
+        );
+        let path = output.with_file_name(format!(
+            "{}-{suffix}.ppm",
+            output.file_stem().unwrap().to_string_lossy()
+        ));
+        renderer.snapshot(&texture, &path)?;
+        eprintln!("Rendered {}", path.display());
+    }
     renderer.full_map = Default::default();
     renderer.overlay = Overlay::Driving;
     renderer.render(

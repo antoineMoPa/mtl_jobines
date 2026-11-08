@@ -11,7 +11,7 @@ serve:
 	node scripts/serve-web.mjs $(PORT)
 
 editor:
-	OPENCITY_LAUNCH_ACTION="$(CURDIR)/opencity-launch.json" cargo run --manifest-path opencity/Cargo.toml --bin editor
+	OPENCITY_LAUNCH_ACTION="$(CURDIR)/opencity-launch.json" cargo editor
 
 .PHONY: assets fmt lint hooks
 

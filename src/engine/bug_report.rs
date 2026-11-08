@@ -203,7 +203,7 @@ impl Dialog {
                 }
             });
         if saved {
-            self.draft = None;
+            self.dismiss();
             ctx.request_repaint();
         }
         if close || !self.open {

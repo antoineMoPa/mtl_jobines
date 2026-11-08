@@ -11,6 +11,27 @@ struct Snapshot {
     source: Result<Vec<u8>, String>,
     elevation: Result<Vec<u8>, String>,
     elevation_path: Result<Option<PathBuf>, String>,
+    model_files: Vec<(PathBuf, Result<u64, String>)>,
+}
+fn model_fingerprint(path: &Path) -> Result<u64, String> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut hash = 0xcbf29ce484222325_u64;
+    let mut total = 0;
+    let mut buffer = [0; 8192];
+    loop {
+        let count = file.read(&mut buffer).map_err(|e| e.to_string())?;
+        if count == 0 {
+            return Ok(hash);
+        }
+        total += count;
+        if total > 64 * 1024 * 1024 {
+            return Err("GLB exceeds 64 MiB".into());
+        }
+        for byte in &buffer[..count] {
+            hash = (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3);
+        }
+    }
 }
 impl Snapshot {
     fn read(path: &Path, previous: Option<&Self>) -> Self {
@@ -34,10 +55,39 @@ impl Snapshot {
             Ok(None) => Ok(Vec::new()),
             Err(error) => Err(error.clone()),
         };
+        let model_paths = if let Some(previous) = previous.filter(|p| p.source == source) {
+            previous
+                .model_files
+                .iter()
+                .map(|(p, _)| p.clone())
+                .collect()
+        } else {
+            source
+                .as_ref()
+                .ok()
+                .and_then(|s| std::str::from_utf8(s).ok())
+                .and_then(|s| opencity::parse(s).ok())
+                .and_then(|p| {
+                    crate::hermes::external_models::paths(
+                        &p,
+                        path.parent().unwrap_or(Path::new(".")),
+                    )
+                    .ok()
+                })
+                .unwrap_or_default()
+        };
+        let model_files = model_paths
+            .into_iter()
+            .map(|p| {
+                let contents = model_fingerprint(&p);
+                (p, contents)
+            })
+            .collect();
         Self {
             source,
             elevation,
             elevation_path,
+            model_files,
         }
     }
 }
@@ -91,6 +141,7 @@ impl LiveReload {
         if self.worker.is_none() && self.changed_at.is_some_and(|at| now - at >= INTERVAL) {
             self.changed_at = None;
             let snapshot = self.observed.clone();
+            let path = self.path.clone();
             let (sender, receiver) = mpsc::channel();
             self.worker = Some(receiver);
             std::thread::spawn(move || {
@@ -99,6 +150,7 @@ impl LiveReload {
                         snapshot.source.as_ref().map_err(Clone::clone)?,
                         snapshot.elevation.as_ref().map_err(Clone::clone)?,
                         None,
+                        path.parent(),
                     )
                 })()
                 .map(|mut hermes| {

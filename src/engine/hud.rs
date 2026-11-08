@@ -49,20 +49,45 @@ pub fn minimap_rect(width: f32, height: f32) -> [f32; 4] {
         .max(1.);
     [16., height - side - 16., side, side]
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MapSelection {
+    #[default]
+    Route,
+    Jump,
+    JumpBlocked,
+}
+impl MapSelection {
+    fn shader_value(self) -> f32 {
+        match self {
+            Self::Route => 0.,
+            Self::Jump => 1.,
+            Self::JumpBlocked => 2.,
+        }
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub struct FullMapView {
     center: [f32; 2],
     zoom: f32,
+    pub selection: MapSelection,
 }
 impl Default for FullMapView {
     fn default() -> Self {
         Self {
             center: [0.5; 2],
             zoom: 1.,
+            selection: MapSelection::Route,
         }
     }
 }
 impl FullMapView {
+    pub fn reset_zoom(&mut self) {
+        *self = Self {
+            selection: self.selection,
+            ..Default::default()
+        };
+    }
+
     /// Cursor-anchored zoom; keyboard zoom uses the center of the viewport.
     pub fn zoom_at(&mut self, width: f32, height: f32, point: [f32; 2], steps: f32) {
         let Some(anchor) = self.map_uv(width, height, point) else {
@@ -374,7 +399,12 @@ impl Hud {
             }
         }
         let data = Uniform {
-            full_map: [full_map.center[0], full_map.center[1], full_map.zoom, 0.],
+            full_map: [
+                full_map.center[0],
+                full_map.center[1],
+                full_map.zoom,
+                full_map.selection.shader_value(),
+            ],
             rect,
             screen: [width as f32, height as f32, view.uv_span, view.heading],
             map: [
