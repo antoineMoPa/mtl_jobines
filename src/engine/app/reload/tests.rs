@@ -191,7 +191,7 @@ fn canonical_island_has_water_parking_and_a_driveable_interior() {
     let point = |u: f32, v: f32| [c * u - k * c * v, k * c * u + c * v];
     // Both lots reach the crossing's sidewalk; the service road keeps its
     // carriageway while adding a walkable outside edge.
-    for (u, v) in [(1.59, -1.3), (1.78, -1.3), (3., -0.905)] {
+    for (u, v) in [(1.59, -1.3), (1.78, -1.3), (3., -0.74)] {
         let surface = city.surface_at(point(u, v), 0.15).unwrap();
         assert_eq!(surface.kind, opencity::runtime::SurfaceKind::Sidewalk);
     }
@@ -208,10 +208,42 @@ fn canonical_island_has_water_parking_and_a_driveable_interior() {
     let parking = city.surface_at([1.2, -1.0], 0.15).unwrap();
     assert_eq!(parking.kind, opencity::runtime::SurfaceKind::Sidewalk);
     assert!((parking.height - 0.102).abs() < 0.0001);
-    let service = city.surface_at([0.55398536, -0.8062226], 0.15).unwrap();
+    let service = city.surface_at(point(0.53, -0.655), 0.15).unwrap();
     assert_eq!(service.kind, opencity::runtime::SurfaceKind::Asphalt);
     let terrain = city.elevation.as_ref().unwrap();
     assert_eq!(terrain.spec.water_level, Some(0.));
+    for name in ["service_north_segment", "service_south_segment"] {
+        let service = city
+            .roads
+            .iter()
+            .find(|road| road.segment.name.as_deref() == Some(name))
+            .unwrap();
+        assert_eq!(
+            service
+                .definition
+                .elements
+                .iter()
+                .map(|e| e.kind)
+                .collect::<Vec<_>>(),
+            [
+                opencity::RoadElementKind::CarLane,
+                opencity::RoadElementKind::CarLane,
+                opencity::RoadElementKind::Sidewalk,
+            ]
+        );
+    }
+    // The trench reaches both carriageway edges, with no upper grass ledge.
+    for (inside, outside) in [(-0.6320, -0.6330), (-0.0680, -0.0670)] {
+        assert!(terrain.height_at(point(2.2, inside)).unwrap().abs() < 1e-4);
+        assert!((terrain.height_at(point(2.2, outside)).unwrap() - 0.1).abs() < 1e-4);
+        let lower = city.surface_at(point(2.2, inside), 0.01).unwrap();
+        assert_eq!(lower.kind, opencity::runtime::SurfaceKind::Asphalt);
+        assert!((lower.height - 0.002).abs() < 1e-4);
+        assert_eq!(
+            city.surface_at(point(2.2, outside), 0.15).unwrap().kind,
+            opencity::runtime::SurfaceKind::Asphalt
+        );
+    }
     let crossing = [1.7006906, -0.51140493];
     assert!((city.surface_at(crossing, 0.01).unwrap().height - 0.002).abs() < 0.0001);
     assert!((city.surface_at(crossing, 0.15).unwrap().height - 0.102).abs() < 0.0001);
@@ -225,6 +257,7 @@ fn canonical_island_has_water_parking_and_a_driveable_interior() {
             let p = road.segment.point_at(t);
             let z = road.segment.height_at(t);
             let support = city.surface_at([p.x, p.y], z + 0.005).unwrap();
+            assert_eq!(support.kind, opencity::runtime::SurfaceKind::Asphalt);
             assert!(
                 (support.height - z).abs() < 0.004,
                 "{:?} at {t}: {support:?}",
@@ -253,7 +286,7 @@ fn canonical_island_has_water_parking_and_a_driveable_interior() {
     let mut car = crate::dynamic_world::Vehicle::spawn_at(
         city,
         SpawnPoint {
-            point: [0.55398536, -0.8062226],
+            point: point(0.53, -0.655),
             heading: Some(0.02964),
         },
     )
@@ -272,6 +305,42 @@ fn canonical_island_has_water_parking_and_a_driveable_interior() {
     assert!(car.position.distance(initial) > 2.);
     assert_eq!(car.collisions, 0);
     assert!(car.grounded);
+    // Drive across the former highway dead end and onto its uphill continuation.
+    let mut car = crate::dynamic_world::Vehicle::spawn_at(
+        city,
+        SpawnPoint {
+            point: point(-5.2, -0.24),
+            heading: Some(k.atan() + std::f32::consts::PI),
+        },
+    )
+    .unwrap();
+    let origin = car.position;
+    for _ in 0..600 {
+        car.step(
+            city,
+            Controls {
+                throttle: 1.,
+                ..Default::default()
+            },
+            1. / 120.,
+        );
+    }
+    assert!(car.position.distance(origin) > 30.);
+    assert!(car.position.z > origin.z + 1.);
+    assert_eq!(car.collisions, 0);
+    assert!(car.grounded);
+    let extension = city
+        .roads
+        .iter()
+        .find(|road| road.segment.name.as_deref() == Some("cross_island_extension"))
+        .unwrap();
+    let end = extension.segment.point_at(1.);
+    assert!((59.8..60.).contains(&end.x.hypot(end.y)));
+    for v in [0.9, 20., 40., 59.8] {
+        let surface = city.surface_at(point(1.7197884, v), 0.15).unwrap();
+        assert_eq!(surface.kind, opencity::runtime::SurfaceKind::Asphalt);
+        assert!((surface.height - 0.102).abs() < 1e-4);
+    }
     let mut without_spawn = opencity::parse(&std::fs::read_to_string(path).unwrap()).unwrap();
     without_spawn
         .statements

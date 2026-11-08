@@ -17,12 +17,12 @@ site_model_01 = building(0.246, "study_01", 1.323, -1.157, 1.077, -1.157, 1.077,
 elevation(site_model_01, 0.102);
 
 road service_north:
-    sidewalk carlane carlane sidewalk;
+    carlane carlane sidewalk;
     direction forward;
 end
 
 road service_south:
-    sidewalk carlane carlane sidewalk;
+    carlane carlane sidewalk;
     direction forward;
 end
 
@@ -58,33 +58,33 @@ road access_mouth:
     role merge;
 end
 
-north_cross = map_point(1.709083193, -0.794484226);
+north_cross = map_point(1.709557345, -0.810477199);
 
-north_start = map_point(-5.472549707, -1.007401688);
+north_start = map_point(-5.472075555, -1.023394661);
 
-north_end = map_point(7.021960323, -0.636970702);
+north_end = map_point(7.022434475, -0.652963675);
 
-service_north_approach = service_north(north_start, -3.0786722, -0.9364292, -0.6847944, -0.8654567, north_cross);
+service_north_approach = service_north(north_start, -3.078198048, -0.952422173, -0.684320248, -0.881449673, north_cross);
 
 grade(service_north_approach, 0.102, 0.102);
 
-service_north_segment = service_north(north_cross, 3.4800422, -0.7419797, 5.2510014, -0.6894752, north_end);
+service_north_segment = service_north(north_cross, 3.480516352, -0.757972673, 5.251475552, -0.705468173, north_end);
 
 grade(service_north_segment, 0.102, 0.102);
 
 intersection4(north_cross, service_north, north, cross_street, south, cross_street);
 
-south_cross = map_point(1.679757916, 0.194647320);
+south_cross = map_point(1.679283764, 0.210640293);
 
-south_start = map_point(6.992635046, 0.352160844);
+south_start = map_point(6.992160894, 0.368153817);
 
-south_end = map_point(-5.501874984, -0.018270142);
+south_end = map_point(-5.502349136, -0.002277169);
 
-service_south_approach = service_south(south_start, 5.2216763, 0.29965633, 3.4507172, 0.24715182, south_cross);
+service_south_approach = service_south(south_start, 5.221202148, 0.315649303, 3.450243048, 0.263144793, south_cross);
 
 grade(service_south_approach, 0.102, 0.102);
 
-service_south_segment = service_south(south_cross, -0.7141198, 0.12367483, -3.1079974, 0.052702338, south_end);
+service_south_segment = service_south(south_cross, -0.714593952, 0.139667803, -3.108471552, 0.068695311, south_end);
 
 grade(service_south_segment, 0.102, 0.102);
 
@@ -114,23 +114,23 @@ cross_outer_west = map_point(1.737390549, -1.749281617);
 
 cross_outer_east = map_point(1.660340904, 0.849576469);
 
-cross_west = cross_street(cross_outer_west, 1.7279547, -1.4310158, 1.718519, -1.11275, north_cross);
+cross_west = cross_street(cross_outer_west, 1.728112814, -1.436346811, 1.718835080, -1.123412005, north_cross);
 
 grade(cross_west, 0.102, 0.102);
 
-cross_overpass = cross_street(north_cross, 1.6993082, -0.46477368, 1.689533, -0.13506317, south_cross);
+cross_overpass = cross_street(north_cross, 1.699466151, -0.470104702, 1.689374958, -0.129732204, south_cross);
 
 grade(cross_overpass, 0.102, 0.102);
 
-cross_east = cross_street(south_cross, 1.6732856, 0.41295704, 1.6668133, 0.6312668, cross_outer_east);
+cross_east = cross_street(south_cross, 1.672969477, 0.423619018, 1.666655191, 0.636597744, cross_outer_east);
 
 grade(cross_east, 0.102, 0.102);
 
-highway_excavation = terrain_cut(0, { slope_x: 0, slope_y: 0 }, -5.4788406052106655, -0.7952118413950018, 7.015669424579654, -0.4247808552867933, 6.9989259440075635, 0.139970998059729, -5.495584085782756, -0.23045998804847945);
+highway_excavation = terrain_cut(0.000000000, { slope_x: 0.000000000, slope_y: 0.000000000 }, -5.473883258, -0.962421451, 7.020626771, -0.591990465, 6.993968597, 0.307180609, -5.500541433, -0.063250378);
 
-north_entry = lane_point(service_north_segment, 1.000000000, 0.18159419382520997);
+north_entry = lane_point(service_north_segment, 0.000000000, 0.18159419382520997);
 
-north_exit = lane_point(service_north_approach, 1.000000000, 0.8559750992707365);
+north_exit = lane_point(service_north_approach, 0.000000000, 0.8559750992707365);
 
 north_on_lane = lane_point(highway_north, 3, 0.9440000000000001);
 
@@ -172,9 +172,9 @@ grade(north_off_merge, 0.102, 0.102);
 
 north_off_cut = terrain_cut(0, { slope_x: 0.037719275561631155, slope_y: 0.0011182822222134598 }, -2.473511686, -0.930492981, 0.175324440, -0.851961612, 0.167714808, -0.595291310, -2.481121319, -0.673822679);
 
-south_entry = lane_point(service_south_segment, 1.000000000, 0.13434098521243934);
+south_entry = lane_point(service_south_segment, 0.000000000, 0.13434098521243934);
 
-south_exit = lane_point(service_south_approach, 1.000000000, 0.8053156622505939);
+south_exit = lane_point(service_south_approach, 0.000000000, 0.8053156622505939);
 
 south_on_lane = lane_point(highway_south, 3, 0.7944338492576049);
 
@@ -243,3 +243,210 @@ elevation(station_island_a, 0.10214999999999999);
 station_island_b = building(0.0036, "plinth", { material: concrete }, 2.076018136, -1.034482627, 2.045131707, -1.035398332, 2.048358902, -1.144250503, 2.079245331, -1.143334798);
 
 elevation(station_island_b, 0.10214999999999999);
+
+road junction_highway:
+    verge carlane carlane carlane middle carlane carlane carlane verge;
+    role highway;
+end
+
+junction_main_p022 = map_point(-8.485894753, -0.601739351);
+
+junction_main_p023 = map_point(-11.875285266, -0.702226307);
+
+junction_route_15_022 = junction_highway(junction_main_p022, -9.603790247, -0.524003534, -10.756533738, -0.759125808, junction_main_p023);
+
+grade(junction_route_15_022, 0.117661998, 0.111587003);
+
+junction_route_40_p032 = map_point(-17.373145310, 4.471292773);
+
+junction_route_40_p033 = map_point(-16.782929047, 2.864071660);
+
+junction_route_40_p034 = map_point(-16.685621102, 0.108806631);
+
+junction_route_40_p035 = map_point(-16.923604275, -0.871217588);
+
+junction_route_40_p036 = map_point(-18.013160320, -4.256632639);
+
+junction_route_40_p037 = map_point(-18.855704350, -7.006444869);
+
+junction_route_40_p038 = map_point(-19.867623100, -10.352753425);
+
+junction_route_40_s032 = junction_highway(junction_route_40_p032, -17.100742385, 4.025518318, -16.876291692, 3.456478271, junction_route_40_p033);
+
+grade(junction_route_40_s032, 0.109412000, 0.109412000);
+
+junction_route_40_s033 = junction_highway(junction_route_40_p033, -16.647117849, 2.002316383, -16.651164657, 1.023728945, junction_route_40_p034);
+
+grade(junction_route_40_s033, 0.109412000, 0.109412000);
+
+junction_route_40_s034 = junction_highway(junction_route_40_p034, -16.698056116, -0.221367626, -16.846418050, -0.543785920, junction_route_40_p035);
+
+grade(junction_route_40_s034, 0.109412000, 0.109412000);
+
+junction_route_40_s035_frame_p001 = map_point(-17.599977124, -3.527041365);
+
+junction_route_40_s035_frame_s000 = junction_highway(junction_route_40_p035, -17.132594191, -1.757768450, -17.254116605, -2.686049571, junction_route_40_s035_frame_p001);
+
+grade(junction_route_40_s035_frame_s000, 0.109412000, 0.109412000);
+
+junction_route_40_s035_frame_s001 = junction_highway(junction_route_40_s035_frame_p001, -17.708127987, -3.790018343, -17.893095001, -4.009492088, junction_route_40_p036);
+
+grade(junction_route_40_s035_frame_s001, 0.109412000, 0.320000000);
+
+junction_route_40_s036 = junction_highway(junction_route_40_p036, -18.442279481, -5.139932319, -18.576830555, -6.089711569, junction_route_40_p037);
+
+grade(junction_route_40_s036, 0.320000000, 0.320000000);
+
+junction_route_40_s037 = junction_highway(junction_route_40_p037, -19.194985125, -8.121752789, -19.516806987, -9.238317895, junction_route_40_p038);
+
+grade(junction_route_40_s037, 0.320000000, 0.420000000);
+
+road junction_ramp:
+    verge carlane verge;
+    direction forward;
+    role ramp;
+end
+
+road junction_mouth:
+    verge carlane verge;
+    direction forward;
+    role merge;
+end
+
+junction_interchange_north_15n_40e_entry = lane_point(junction_route_15_022, 6.000000000, 1.000000000);
+
+junction_interchange_north_15n_40e_merge = lane_point(junction_route_40_s036, 6.000000000, 0.750000000);
+
+junction_interchange_north_15n_40e_p00 = map_point(-12.735285217, 0.011198378);
+
+junction_interchange_north_15n_40e_p01 = map_point(-15.716932288, 0.341239135);
+
+junction_interchange_north_15n_40e_p02 = map_point(-18.348923837, -2.121900397);
+
+junction_interchange_north_15n_40e_p03 = map_point(-19.028838608, -5.603958762);
+
+junction_interchange_north_15n_40e_entry_mouth = junction_three_mouth(junction_interchange_north_15n_40e_entry, -12.220770968, -0.604551269, -12.547975676, -0.154376943, junction_interchange_north_15n_40e_p00);
+
+grade(junction_interchange_north_15n_40e_entry_mouth, 0.111587003, 0.111587003);
+
+junction_interchange_north_15n_40e_s00 = junction_three_lane(junction_interchange_north_15n_40e_p00, -13.609396689, 0.783882173, -14.692302448, 0.795325677, junction_interchange_north_15n_40e_p01);
+
+grade(junction_interchange_north_15n_40e_s00, 0.111587003, 0.447372675);
+
+junction_interchange_north_15n_40e_s01 = junction_three_lane(junction_interchange_north_15n_40e_p01, -16.741562128, -0.112847410, -17.707916047, -1.032464000, junction_interchange_north_15n_40e_p02);
+
+grade(junction_interchange_north_15n_40e_s01, 0.447372666, 0.517019663);
+
+junction_interchange_north_15n_40e_s02 = junction_three_lane(junction_interchange_north_15n_40e_p02, -18.989931626, -3.211336793, -19.305593287, -4.470592996, junction_interchange_north_15n_40e_p03);
+
+grade(junction_interchange_north_15n_40e_s02, 0.517019663, 0.319999993);
+
+junction_interchange_north_15n_40e_merge_mouth = junction_three_mouth(junction_interchange_north_15n_40e_p03, -18.969533960, -5.846822607, -18.690442491, -6.081360967, junction_interchange_north_15n_40e_merge);
+
+grade(junction_interchange_north_15n_40e_merge_mouth, 0.319999993, 0.319999993);
+
+junction_interchange_north_40w_15s_entry = lane_point(junction_route_40_s036, 2.000000000, 0.300000000);
+
+junction_interchange_north_40w_15s_merge = lane_point(junction_route_15_022, 2.000000000, 1.000000000);
+
+junction_interchange_north_40w_15s_p00 = map_point(-17.649071875, -4.654959339);
+
+junction_interchange_north_40w_15s_p01 = map_point(-16.212171460, -3.056901246);
+
+junction_interchange_north_40w_15s_p02 = map_point(-14.933089778, -1.791876525);
+
+junction_interchange_north_40w_15s_p03 = map_point(-13.068924616, -0.973576162);
+
+junction_interchange_north_40w_15s_entry_mouth = junction_three_mouth(junction_interchange_north_40w_15s_entry, -18.188564280, -4.881616429, -17.827700616, -4.829864341, junction_interchange_north_40w_15s_p00);
+
+grade(junction_interchange_north_40w_15s_entry_mouth, 0.319999993, 0.319999993);
+
+junction_interchange_north_40w_15s_s00 = junction_three_lane(junction_interchange_north_40w_15s_p00, -17.061257257, -4.079400078, -16.623562798, -3.540397881, junction_interchange_north_40w_15s_p01);
+
+grade(junction_interchange_north_40w_15s_s00, 0.319999993, 0.392540019);
+
+junction_interchange_north_40w_15s_s01 = junction_three_lane(junction_interchange_north_40w_15s_p01, -15.800780122, -2.573404611, -15.415691907, -2.145413539, junction_interchange_north_40w_15s_p02);
+
+grade(junction_interchange_north_40w_15s_s01, 0.392540008, 0.220000000);
+
+junction_interchange_north_40w_15s_s02 = junction_three_lane(junction_interchange_north_40w_15s_p02, -14.450487649, -1.438339512, -13.870371607, -1.159256559, junction_interchange_north_40w_15s_p03);
+
+grade(junction_interchange_north_40w_15s_s02, 0.220000000, 0.220000000);
+
+junction_interchange_north_40w_15s_merge_mouth = junction_three_mouth(junction_interchange_north_40w_15s_p03, -12.825376217, -0.917150340, -12.228897530, -0.764344853, junction_interchange_north_40w_15s_merge);
+
+grade(junction_interchange_north_40w_15s_merge_mouth, 0.220000000, 0.111587003);
+
+junction_interchange_north_40e_15s_entry = lane_point(junction_route_40_s032, 7.000000000, 0.300000012);
+
+junction_interchange_north_40e_15s_merge = lane_point(junction_interchange_north_40w_15s_s02, 1.000000000, 0.550000000);
+
+junction_interchange_north_40e_15s_p00 = map_point(-17.367898558, 3.274576541);
+
+junction_interchange_north_40e_15s_p01 = map_point(-17.278859478, 1.057120722);
+
+junction_interchange_north_40e_15s_p02 = map_point(-16.689810703, -0.798974449);
+
+junction_interchange_north_40e_15s_p03 = map_point(-14.753792145, -1.103704477);
+
+junction_interchange_north_40e_15s_entry_mouth = junction_mouth(junction_interchange_north_40e_15s_entry, -17.164305995, 3.787363112, -17.354452398, 3.524214680, junction_interchange_north_40e_15s_p00);
+
+grade(junction_interchange_north_40e_15s_entry_mouth, 0.109412000, 0.109412000);
+
+junction_interchange_north_40e_15s_s00 = junction_ramp(junction_interchange_north_40e_15s_p00, -17.403141650, 2.620261869, -17.382668039, 1.808577909, junction_interchange_north_40e_15s_p01);
+
+grade(junction_interchange_north_40e_15s_s00, 0.109412000, 0.251641573);
+
+junction_interchange_north_40e_15s_s01 = junction_ramp(junction_interchange_north_40e_15s_p01, -17.175050918, 0.305663536, -16.987907408, -0.385566876, junction_interchange_north_40e_15s_p02);
+
+grade(junction_interchange_north_40e_15s_s01, 0.251641573, 0.251648924);
+
+junction_interchange_north_40e_15s_s02 = junction_ramp(junction_interchange_north_40e_15s_p02, -16.391713937, -1.212382604, -15.251945044, -1.060766257, junction_interchange_north_40e_15s_p03);
+
+grade(junction_interchange_north_40e_15s_s02, 0.251648933, 0.220000000);
+
+junction_interchange_north_40e_15s_merge_mouth = junction_mouth(junction_interchange_north_40e_15s_p03, -14.504715697, -1.125173588, -14.247819721, -1.323686079, junction_interchange_north_40e_15s_merge);
+
+grade(junction_interchange_north_40e_15s_merge_mouth, 0.220000000, 0.219999999);
+
+road junction_three_lane:
+    verge carlane carlane carlane verge;
+    direction forward;
+    role ramp;
+end
+
+road junction_three_mouth:
+    carlane carlane carlane;
+    direction forward;
+    role merge;
+end
+
+road junction_approach:
+    carlane carlane carlane;
+    direction forward;
+    role highway;
+end
+
+junction_inlet = lane_point(junction_route_15_022, 6, 0);
+
+junction_outlet = lane_point(junction_route_15_022, 2, 0);
+
+junction_climb = junction_approach(highway_south_end, -6.492107354079894, -0.36254944918141674, -7.482754766941071, -0.5913022384047508, junction_inlet);
+
+grade(junction_climb, 0.002, 0.117661998);
+
+junction_descent = junction_approach(junction_outlet, -7.4938536286354065, -0.7509168013930321, -6.481438941679978, -0.722391338039378, highway_north_start);
+
+grade(junction_descent, 0.117661998, 0.002);
+
+junction_divider = highway_median(-5.487212345496711, -0.5128359147217407, -6.486773147879936, -0.5424703936103974, -7.488303793574275, -0.6711095243055536, -8.485894752646388, -0.6017393513877107);
+
+grade(junction_divider, 0.002, 0.117661998);
+
+junction_climb_cut = terrain_cut(0.115661998, { slope_x: -0.03853706650870901, slope_y: -0.0011425276793169503 }, -8.472565665451036, -1.0513248879541033, -5.473873262693335, -0.9624211549433445, -5.500531437102943, -0.06325008117294295, -8.499223839860644, -0.15215381418370189);
+
+cross_island_end = map_point(-0.089575074, 59.873641850);
+
+cross_island_extension = cross_street(cross_outer_east, 1.077035578, 20.524264929, 0.493730252, 40.198953390, cross_island_end);
+
+grade(cross_island_extension, 0.102, 0.102);
