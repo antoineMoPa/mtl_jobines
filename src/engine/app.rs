@@ -75,6 +75,7 @@ struct Game {
     scenery: Option<Scenery>,
     prop_scenery: PropScenery,
     vehicle_scenery: Option<VehicleScenery>,
+    road_tool: super::road_tool::RoadTool,
     dynamic_mesh: Option<GpuMesh>,
     dynamic_vertices: Mesh,
     palette: Option<Palette>,
@@ -244,6 +245,7 @@ impl Game {
     ) -> Result<Self, String> {
         let world = DynamicWorld::with_start(&hermes, start)?;
         let p = world.player_position() / METERS_PER_UNIT;
+        let road_tool = super::road_tool::RoadTool::new(hermes.city());
         Ok(Self {
             #[cfg(not(target_arch = "wasm32"))]
             live_reload: None,
@@ -263,6 +265,7 @@ impl Game {
             scenery: None,
             prop_scenery: PropScenery::default(),
             vehicle_scenery: None,
+            road_tool,
             dynamic_mesh: None,
             dynamic_vertices: Mesh::default(),
             palette: None,
@@ -326,6 +329,7 @@ impl Game {
     }
     fn apply_palette_action(&mut self, action: PaletteAction) {
         match action {
+            PaletteAction::StopRoadExtension => self.road_tool.stop(),
             PaletteAction::JumpToLocation => {
                 self.set_overlay(Overlay::Map);
                 self.full_map.selection = hud::MapSelection::Jump;
@@ -376,6 +380,13 @@ impl Game {
         let previous_position = self.world.player_position();
         self.simulate(elapsed);
         let paused = self.simulation_paused();
+        #[cfg(not(target_arch = "wasm32"))]
+        if !paused && self.world.is_driving() {
+            self.road_tool.record(super::road_drawing::Pose {
+                position: self.world.player_position() / METERS_PER_UNIT,
+                yaw: self.world.player_yaw(),
+            });
+        }
         let refresh_scene = self.refresh_scene();
 
         let p = self.world.player_position() / METERS_PER_UNIT;
@@ -463,7 +474,15 @@ impl Game {
         renderer.menu_selection = self.menu_selection;
         renderer.fps = self.frame_rate.value;
         renderer.vehicle_name = self.world.vehicle_name_notice().map(str::to_owned);
+        let reveal_ends =
+            self.keys.contains(&KeyCode::ShiftLeft) || self.keys.contains(&KeyCode::ShiftRight);
+        self.road_tool.view = Some(renderer.view_projection(self.eye, look));
+        self.road_tool.update_mesh(renderer, reveal_ends);
+        renderer.road_hint = self.road_tool.hint(reveal_ends);
         let mut meshes = self.scenery.as_ref().unwrap().visible(center);
+        if self.overlay == Overlay::Driving {
+            meshes.extend(self.road_tool.mesh.as_ref());
+        }
         meshes.push(car);
         meshes.extend(self.prop_scenery.visible());
         meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());
@@ -729,7 +748,10 @@ impl ApplicationHandler<GameEvent> for Game {
             }
         }
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => {
+                self.road_tool.stop();
+                event_loop.exit();
+            }
             WindowEvent::Resized(size) => {
                 self.minimized = size.width == 0 || size.height == 0;
                 if self.minimized {
@@ -816,11 +838,13 @@ impl ApplicationHandler<GameEvent> for Game {
                         if !event.repeat {
                             match key {
                                 KeyCode::KeyR => {
+                                    self.road_tool.stop();
                                     self.world.reset_player(&self.hermes);
                                     self.orbit = 0.;
                                     self.camera_pitch = 0.;
                                 }
                                 KeyCode::KeyF => {
+                                    self.road_tool.stop();
                                     if self.world.toggle_vehicle(&self.hermes) {
                                         self.orbit = 0.;
                                         self.camera_pitch = 0.;
@@ -915,6 +939,24 @@ impl ApplicationHandler<GameEvent> for Game {
                     match self.overlay {
                         Overlay::Driving if hud::minimap_contains(w, h, point) => {
                             self.set_overlay(Overlay::Map)
+                        }
+                        Overlay::Driving
+                            if self.keys.contains(&KeyCode::ShiftLeft)
+                                || self.keys.contains(&KeyCode::ShiftRight) =>
+                        {
+                            #[cfg(not(target_arch = "wasm32"))]
+                            self.road_tool.select(
+                                self.hermes.city(),
+                                self.live_reload.as_ref().map(|r| r.path()),
+                                [w, h],
+                                point,
+                                super::road_drawing::Pose {
+                                    position: self.world.player_position() / METERS_PER_UNIT,
+                                    yaw: self.world.player_yaw(),
+                                },
+                            );
+                            #[cfg(target_arch = "wasm32")]
+                            self.road_tool.select([w, h], point);
                         }
                         Overlay::Start | Overlay::Menu
                             if hud::contains(hud::map_rect(w, h), point) =>

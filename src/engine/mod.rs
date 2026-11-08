@@ -12,6 +12,9 @@ mod prop_scenery;
 mod render;
 #[cfg(not(target_arch = "wasm32"))]
 mod report_replay;
+mod road_drawing;
+mod road_ends;
+mod road_tool;
 mod scenery;
 #[cfg(not(target_arch = "wasm32"))]
 mod screen_capture;

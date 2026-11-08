@@ -42,11 +42,15 @@ pub(super) enum PaletteAction {
     Time(TimeCommand),
     Respawn(String),
     JumpToLocation,
+    StopRoadExtension,
     #[cfg(not(target_arch = "wasm32"))]
     BugReport,
 }
 impl PaletteAction {
     fn from_id(id: &str) -> Option<Self> {
+        if id == "roads.stop" {
+            return Some(Self::StopRoadExtension);
+        }
         if id == "map.jump" {
             return Some(Self::JumpToLocation);
         }
@@ -91,6 +95,11 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
             "map.jump",
             "Jump to location…",
             "Click the map to move yourself and your current car there",
+        ),
+        (
+            "roads.stop",
+            "Roads: Stop extending roads",
+            "Save the recorded extension and clear lane-end selection",
         ),
     ]
     .into_iter()
@@ -243,6 +252,18 @@ impl Palette {
         #[cfg(not(target_arch = "wasm32"))]
         let bug_link_enabled = !self.is_open();
         let output = self.ctx.run_ui(self.input.take_egui_input(window), |ui| {
+            if renderer.overlay == super::hud::Overlay::Driving {
+                if let Some(hint) = &renderer.road_hint {
+                    egui::Area::new(egui::Id::new("road_tool_hint"))
+                        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -24.))
+                        .interactable(false)
+                        .show(ui.ctx(), |ui| {
+                            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                                ui.label(hint);
+                            });
+                        });
+                }
+            }
             #[cfg(not(target_arch = "wasm32"))]
             egui::Area::new(egui::Id::new("bug_report_link"))
                 .anchor(egui::Align2::LEFT_TOP, egui::vec2(12., 8.))

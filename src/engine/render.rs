@@ -135,6 +135,7 @@ pub struct Renderer {
     commerce: Commerce,
     pub fps: Option<f32>,
     pub vehicle_name: Option<String>,
+    pub road_hint: Option<String>,
     pub gpu_profile: Option<GpuProfile>,
 }
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
@@ -516,6 +517,7 @@ impl Renderer {
             commerce,
             fps: None,
             vehicle_name: None,
+            road_hint: None,
             gpu_profile,
         })
     }
@@ -659,13 +661,16 @@ impl Renderer {
             bounds,
         }
     }
-    fn view_matrices(&self, eye: Vec3, look: Vec3, sun: Vec3) -> (Mat4, Mat4) {
+    pub(super) fn view_projection(&self, eye: Vec3, look: Vec3) -> Mat4 {
         let projection = Mat4::perspective_rh(
             58_f32.to_radians(),
             self.config.width as f32 / self.config.height as f32,
             0.003,
             10.0,
         );
+        projection * Mat4::look_at_rh(eye, look, Vec3::Z)
+    }
+    fn view_matrices(&self, eye: Vec3, look: Vec3, sun: Vec3) -> (Mat4, Mat4) {
         let focus = Vec3::new(look.x, look.y, 0.15);
         let light = Mat4::orthographic_rh(-1.6, 1.6, -1.6, 1.6, 0.01, 10.)
             * Mat4::look_at_rh(
@@ -673,7 +678,7 @@ impl Renderer {
                 focus,
                 if sun.z.abs() > 0.99 { Vec3::Y } else { Vec3::Z },
             );
-        (projection * Mat4::look_at_rh(eye, look, Vec3::Z), light)
+        (self.view_projection(eye, look), light)
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn visibility_stats(
