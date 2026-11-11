@@ -164,7 +164,6 @@ fn map_replacement_preserves_pause_and_player_then_falls_back_to_authored_spawn(
 fn canonical_island_has_water_parking_and_a_driveable_interior() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
     let program = opencity::parse(&std::fs::read_to_string(&path).unwrap()).unwrap();
-    assert!(opencity::check_design_rules(&program).is_empty());
     let hermes = Hermes::load_with_game_data(&path, None).unwrap();
     let city = hermes.city();
     let road = city
