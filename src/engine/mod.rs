@@ -3,6 +3,8 @@ mod app;
 #[cfg(not(target_arch = "wasm32"))]
 mod bug_report;
 mod commerce;
+#[cfg(not(target_arch = "wasm32"))]
+mod expansion;
 mod frame_rate;
 mod gpu_profile;
 mod hud;

@@ -43,10 +43,16 @@ pub(super) enum PaletteAction {
     Respawn(String),
     JumpToLocation,
     #[cfg(not(target_arch = "wasm32"))]
+    ExpandNetwork,
+    #[cfg(not(target_arch = "wasm32"))]
     BugReport,
 }
 impl PaletteAction {
     fn from_id(id: &str) -> Option<Self> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if id == "road.expand" {
+            return Some(Self::ExpandNetwork);
+        }
         if id == "map.jump" {
             return Some(Self::JumpToLocation);
         }
@@ -108,6 +114,13 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
         description: "Save a screenshot, map location and description to bug-reports".into(),
         shortcut: String::new(),
     });
+    #[cfg(not(target_arch = "wasm32"))]
+    commands.push(Command {
+        id: "road.expand".into(),
+        title: "Expand road network…".into(),
+        description: "Pick ghost road extensions or grow a network".into(),
+        shortcut: String::new(),
+    });
     commands.extend(landmarks.iter().map(|landmark| Command {
         id: format!("respawn.{}", landmark.id),
         title: format!("Respawn with car: {}", landmark.title),
@@ -117,6 +130,8 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
     commands
 }
 pub struct Palette {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) expansion: Option<super::expansion::Document>,
     pub menu: CommandPalette,
     ctx: egui::Context,
     input: Input,
@@ -146,6 +161,7 @@ impl Palette {
         }
         let ctx = egui::Context::default();
         Self {
+            expansion: None,
             input: Input::new(
                 ctx.clone(),
                 egui::ViewportId::ROOT,
@@ -176,6 +192,8 @@ impl Palette {
             Some(renderer.device.limits().max_texture_dimension_2d as usize),
         );
         Self {
+            #[cfg(not(target_arch = "wasm32"))]
+            expansion: None,
             menu: CommandPalette::default(),
             ctx,
             input,
@@ -210,6 +228,10 @@ impl Palette {
         }
     }
     pub fn dismiss(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.expansion = None;
+        }
         self.menu.dismiss();
         self.sky_open = false;
         self.sound_open = false;
@@ -220,6 +242,8 @@ impl Palette {
         let open = self.menu.is_open() || self.sky_open || self.sound_open;
         #[cfg(not(target_arch = "wasm32"))]
         let open = open || self.bug_report.is_open();
+        #[cfg(not(target_arch = "wasm32"))]
+        let open = open || self.expansion.as_ref().is_some_and(|d| d.picker.open);
         open
     }
     pub fn shortcut(&self) -> bool {
@@ -238,6 +262,7 @@ impl Palette {
         renderer: &mut Renderer,
         target: &wgpu::TextureView,
         sound: &mut crate::audio::Settings,
+        view_projection: glam::Mat4,
     ) -> Option<PaletteAction> {
         let mut selected = None;
         #[cfg(not(target_arch = "wasm32"))]
@@ -279,6 +304,12 @@ impl Palette {
             sound.show(ui.ctx(), &mut self.sound_open);
             #[cfg(not(target_arch = "wasm32"))]
             self.bug_report.show(ui.ctx());
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(document) = &mut self.expansion {
+                document.show(ui.ctx(), view_projection);
+            }
+            #[cfg(target_arch = "wasm32")]
+            let _ = view_projection;
         });
         self.input
             .handle_platform_output(window, output.platform_output);

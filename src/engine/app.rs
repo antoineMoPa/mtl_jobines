@@ -326,6 +326,19 @@ impl Game {
     }
     fn apply_palette_action(&mut self, action: PaletteAction) {
         match action {
+            #[cfg(not(target_arch = "wasm32"))]
+            PaletteAction::ExpandNetwork => {
+                if let Some(watcher) = &self.live_reload {
+                    match super::expansion::Document::open(watcher.path()) {
+                        Ok(document) => {
+                            if let Some(palette) = &mut self.palette {
+                                palette.expansion = Some(document);
+                            }
+                        }
+                        Err(error) => eprintln!("Could not open expansion picker: {error}"),
+                    }
+                }
+            }
             PaletteAction::JumpToLocation => {
                 self.set_overlay(Overlay::Map);
                 self.full_map.selection = hud::MapSelection::Jump;
@@ -484,6 +497,7 @@ impl Game {
                         renderer,
                         &view,
                         &mut self.sound_settings,
+                        renderer.view_projection(self.eye, look),
                     );
                     #[cfg(not(target_arch = "wasm32"))]
                     if palette_action == Some(PaletteAction::BugReport) {

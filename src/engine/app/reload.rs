@@ -100,6 +100,9 @@ pub(super) struct LiveReload {
     worker: Option<mpsc::Receiver<(Snapshot, Result<Hermes, String>)>>,
 }
 impl LiveReload {
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
     pub(super) fn new(path: PathBuf) -> Self {
         Self {
             observed: Snapshot::read(&path, None),

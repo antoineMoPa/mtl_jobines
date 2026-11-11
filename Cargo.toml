@@ -20,7 +20,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "=1.0.151"
 gltf = { version = "1.4.1", default-features = false, features = ["utils", "names"] }
 resvg = { version = "0.45.1", default-features = false, features = ["raster-images"] }
-opencity = { path = "opencity", default-features = false, features = ["game-runtime"] }
+opencity = { path = "opencity", default-features = false, features = ["game-runtime", "expansion-ui"] }
 wgpu = "30.0.1"
 winit = "0.30"
 glam = "0.29"
@@ -50,6 +50,11 @@ naga = { version = "30", features = ["wgsl-in"] }
 # Keep debug assertions and symbols while avoiding minute-long native startup.
 [profile.dev]
 opt-level = 1
+
+# Dependencies change rarely; omit their debug data to reduce compile/link work.
+# Workspace code keeps its own debug symbols and optimized geometry paths.
+[profile.dev.package."*"]
+debug = 0
 
 # Keep geometry optimized while reducing editor compile/link debug-data work.
 [profile.dev.package.opencity]

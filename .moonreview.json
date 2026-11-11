@@ -7,8 +7,8 @@
     },
     {
       "name": "OpenCity UI",
-      "build": "cargo build --release --manifest-path opencity/Cargo.toml --bin editor",
-      "run": "OPENCITY_LAUNCH_ACTION=\"$PWD/opencity-launch.json\" cargo run --release --manifest-path opencity/Cargo.toml --bin editor -- \"$PWD/data/maps/mtl/map.road\""
+      "build": "cargo build -p opencity --no-default-features --features editor --bin editor",
+      "run": "OPENCITY_LAUNCH_ACTION=\"$PWD/opencity-launch.json\" cargo editor -- \"$PWD/data/maps/mtl/map.road\""
     },
     {
       "name": "Game Web",
