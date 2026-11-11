@@ -365,12 +365,23 @@ fn canonical_island_has_water_parking_and_a_driveable_interior() {
         .find(|road| road.segment.name.as_deref() == Some("cross_island_extension"))
         .unwrap();
     let end = extension.segment.point_at(1.);
-    assert!((59.8..60.).contains(&end.x.hypot(end.y)));
-    for v in [0.9, 20., 40., 59.8] {
+    let crossing = city
+        .roads
+        .iter()
+        .find(|road| road.segment.name.as_deref() == Some("cross_east"))
+        .unwrap()
+        .segment
+        .start;
+    // Stop just beyond the 120 m building block instead of crossing the island.
+    assert!((1.379..1.381).contains(&(end.x - crossing.x).hypot(end.y - crossing.y)));
+    for v in [0.9, 1.1, 1.35] {
         let surface = city.surface_at(point(1.7197884, v), 0.15).unwrap();
         assert_eq!(surface.kind, opencity::runtime::SurfaceKind::Asphalt);
         assert!((surface.height - 0.102).abs() < 1e-4);
     }
+    assert!(city
+        .surface_at(point(1.7197884, 2.), 0.15)
+        .is_none_or(|surface| surface.kind != opencity::runtime::SurfaceKind::Asphalt));
     let mut without_spawn = opencity::parse(&std::fs::read_to_string(path).unwrap()).unwrap();
     without_spawn
         .statements

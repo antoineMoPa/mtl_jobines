@@ -431,12 +431,73 @@ grade(junction_divider, 0.002, 0.117661998);
 
 junction_climb_cut = terrain_cut(0.115661998, { slope_x: -0.038537067, slope_y: -0.001142528 }, -8.477523012, -0.884115278, -5.478830610, -0.795211545, -5.495574090, -0.230459692, -8.494266493, -0.319363425);
 
-cross_island_end = map_point(-0.089575074, 59.873641850);
+cross_island_end = map_point(1.643345531, 1.422824589);
 
-cross_island_extension = cross_street(cross_outer_east, 1.077035578, 20.524264929, 0.493730252, 40.198953390, cross_island_end);
+cross_island_extension = cross_street(cross_outer_east, 1.654675780, 1.040659176, 1.649010655, 1.231741883, cross_island_end);
 
 grade(cross_island_extension, 0.102, 0.102);
 
 junction_base_inlet = lane_point(highway_south, 2, 1);
 
 junction_base_outlet = lane_point(highway_north, 2, 0);
+
+# Report 35: a 120 m square building block outside the south service-road corner.
+# Local axes follow the service road and cross street; leave both sidewalks clear.
+block south_corner_buildings:
+    paving = concrete(0.06, 0.18, 0.18, 0.06, 1.32, 0.06, 1.32, 1.32, 0.06, 1.32);
+    elevation(paving, 0.02);
+
+    courtyard = land(0.38, 0.54, 1.02, 0.54, 1.02, 0.72, 0.38, 0.72);
+    elevation(courtyard, 0.0205);
+
+    corner_heritage = building(0.2505, {
+        material: glass, family: heritage, floor_height: 0.0325,
+        palette: brownstone, glazing: smoke, weathering: 0.65,
+        section: piers, ground: retail, corners: stone,
+        setback: off, roof_units: 3, seed: 351, front_edge: 0
+    }, 0.12, 0.12, 0.44, 0.12, 0.44, 0.45, 0.12, 0.45);
+
+    service_mixed = building(0.3805, {
+        material: glass, family: mixed, floor_height: 0.0325,
+        palette: sandstone, glazing: teal, weathering: 0.22,
+        section: piers, ground: retail, corners: stone,
+        setback: on, roof_units: 4, seed: 352, front_edge: 0
+    }, 0.49, 0.12, 0.87, 0.12, 0.87, 0.45, 0.49, 0.45);
+
+    service_curtain = building(0.608, {
+        material: glass, family: curtain_wall, floor_height: 0.0325,
+        palette: granite, glazing: blue, weathering: 0.08,
+        section: bands, ground: lobby, corners: glass,
+        setback: on, roof_units: 4, seed: 353, front_edge: 0
+    }, 0.92, 0.12, 1.26, 0.12, 1.26, 0.45, 0.92, 0.45);
+
+    cross_civic = building(0.283, {
+        material: glass, family: civic, floor_height: 0.0325,
+        palette: limestone, glazing: silver, weathering: 0.35,
+        section: frame, ground: lobby, corners: stone,
+        setback: off, roof_units: 2, seed: 354, front_edge: 3
+    }, 0.12, 0.80, 0.47, 0.80, 0.47, 1.26, 0.12, 1.26);
+
+    courtyard_concrete = building(0.4455, {
+        material: glass, family: concrete_frame, floor_height: 0.0325,
+        palette: concrete, glazing: teal, weathering: 0.40,
+        section: frame, ground: arcade, corners: stone,
+        setback: on, roof_units: 3, seed: 355, front_edge: 0
+    }, 0.52, 0.80, 0.88, 0.80, 0.88, 1.26, 0.52, 1.26);
+
+    rear_podium = building(0.7055, {
+        material: glass, family: podium, floor_height: 0.0325,
+        palette: chalk, glazing: teal, weathering: 0.12,
+        section: bands, ground: retail, corners: glass,
+        podium_floors: 2, tower_ratio: 0.48,
+        setback: on, roof_units: 4, seed: 356, front_edge: 0
+    }, 0.93, 0.80, 1.26, 0.80, 1.26, 1.26, 0.93, 1.26);
+end
+
+south_corner_block = south_corner_buildings(1.684241111, 0.043430682, 0.102, 1.698268);
+
+junction_1 = map_point(1.3823, -2.6841);
+
+road_1 = cross_street(junction_1, 1.6109, -2.4415, 1.7473, -2.0825, cross_outer_west);
+
+grade(road_1, 0.1020, 0.1020);

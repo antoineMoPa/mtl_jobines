@@ -459,6 +459,8 @@ impl Hud {
             occlusion_query_set: None,
             multiview_mask: None,
         });
+        pass.set_viewport(0., 0., width as f32, height as f32, 0., 1.);
+        pass.set_scissor_rect(0, 0, width, height);
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.group, &[]);
         pass.draw(0..if overlay == Overlay::Driving { 18 } else { 6 }, 0..1);

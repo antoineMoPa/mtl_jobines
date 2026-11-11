@@ -5,7 +5,9 @@ use super::lighting::{Lighting, SkySettings};
 use super::sky::Sky;
 use crate::hermes::MinimapView;
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Mat4, Vec3};
+mod culling;
+use culling::{Bounds, Frustum};
 use opencity::runtime::{Mesh, SurfaceKind, Vertex};
 use std::borrow::Cow;
 #[cfg(not(target_arch = "wasm32"))]
@@ -28,73 +30,14 @@ struct Camera {
 }
 pub struct GpuMesh {
     buffer: wgpu::Buffer,
-    instances: Option<(wgpu::Buffer, u32)>,
+    instances: Option<Instances>,
     count: u32,
     opaque_count: u32,
     bounds: Option<Bounds>,
 }
-#[derive(Clone, Copy)]
-struct Bounds {
-    min: Vec3,
-    max: Vec3,
-}
-impl Bounds {
-    fn of_vertices(vertices: &[Vertex]) -> Self {
-        let mut bounds = Self {
-            min: Vec3::splat(f32::INFINITY),
-            max: Vec3::splat(f32::NEG_INFINITY),
-        };
-        for vertex in vertices {
-            let position = Vec3::from_array(vertex.position);
-            bounds.min = bounds.min.min(position);
-            bounds.max = bounds.max.max(position);
-        }
-        bounds
-    }
-}
-struct Frustum([Vec4; 6]);
-impl Frustum {
-    fn includes(&self, bounds: Option<Bounds>) -> bool {
-        bounds.is_none_or(|bounds| self.intersects(bounds))
-    }
-    fn from_matrix(matrix: Mat4) -> Self {
-        let rows = matrix.transpose();
-        // WebGPU clips x/y to [-w,w], but depth to [0,w]. Plane lengths
-        // do not matter for the signed half-space test.
-        Self([
-            rows.w_axis + rows.x_axis,
-            rows.w_axis - rows.x_axis,
-            rows.w_axis + rows.y_axis,
-            rows.w_axis - rows.y_axis,
-            rows.z_axis,
-            rows.w_axis - rows.z_axis,
-        ])
-    }
-    fn intersects(&self, bounds: Bounds) -> bool {
-        self.0.iter().all(|plane| {
-            // The corner furthest into this plane's positive half-space.
-            // Retain touching/intersecting boxes, including ones enclosing
-            // the eye or crossing the near plane.
-            let corner = Vec3::new(
-                if plane.x >= 0. {
-                    bounds.max.x
-                } else {
-                    bounds.min.x
-                },
-                if plane.y >= 0. {
-                    bounds.max.y
-                } else {
-                    bounds.min.y
-                },
-                if plane.z >= 0. {
-                    bounds.max.z
-                } else {
-                    bounds.min.z
-                },
-            );
-            plane.truncate().dot(corner) + plane.w >= -0.00001
-        })
-    }
+struct Instances {
+    buffer: wgpu::Buffer,
+    bounds: Vec<Bounds>,
 }
 #[derive(Debug)]
 #[cfg(not(target_arch = "wasm32"))]
@@ -112,6 +55,7 @@ pub struct Renderer {
     pub(super) queue: wgpu::Queue,
     pub surface: Option<wgpu::Surface<'static>>,
     pub config: wgpu::SurfaceConfiguration,
+    pub(super) reserved_bottom: u32,
     pipeline: wgpu::RenderPipeline,
     opaque_pipeline: wgpu::RenderPipeline,
     shadow_pipeline: wgpu::RenderPipeline,
@@ -493,6 +437,7 @@ impl Renderer {
             queue,
             surface,
             config,
+            reserved_bottom: 0,
             pipeline,
             opaque_pipeline,
             shadow_pipeline,
@@ -590,12 +535,15 @@ impl Renderer {
     }
     pub fn upload_instanced(&self, vertices: &[Vertex]) -> GpuMesh {
         let mut mesh = self.upload_vertices(vertices);
-        mesh.bounds = None;
-        mesh.instances = Some((self.dynamic_buffer(64), 0));
+        mesh.instances = Some(Instances {
+            buffer: self.dynamic_buffer(64),
+            bounds: Vec::new(),
+        });
         mesh
     }
     pub fn update_instances(&self, mesh: &mut GpuMesh, transforms: &[[[f32; 4]; 4]]) {
-        let (buffer, count) = mesh.instances.as_mut().expect("instanced geometry");
+        let instances = mesh.instances.as_mut().expect("instanced geometry");
+        let buffer = &mut instances.buffer;
         let bytes = bytemuck::cast_slice(transforms);
         if bytes.len() as u64 > buffer.size() {
             *buffer = self.dynamic_buffer(bytes.len() as u64);
@@ -603,7 +551,13 @@ impl Renderer {
         if !bytes.is_empty() {
             self.queue.write_buffer(buffer, 0, bytes);
         }
-        *count = transforms.len() as u32;
+        let local = mesh.bounds.expect("instanced part bounds");
+        instances.bounds.clear();
+        instances.bounds.extend(
+            transforms
+                .iter()
+                .map(|columns| local.transformed(Mat4::from_cols_array_2d(columns))),
+        );
     }
     fn dynamic_buffer(&self, required: u64) -> wgpu::Buffer {
         self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -662,11 +616,17 @@ impl Renderer {
     pub(super) fn view_projection(&self, eye: Vec3, look: Vec3) -> Mat4 {
         let projection = Mat4::perspective_rh(
             58_f32.to_radians(),
-            self.config.width as f32 / self.config.height as f32,
+            self.config.width as f32 / self.scene_height() as f32,
             0.003,
             10.0,
         );
         projection * Mat4::look_at_rh(eye, look, Vec3::Z)
+    }
+    pub(super) fn scene_height(&self) -> u32 {
+        self.config
+            .height
+            .saturating_sub(self.reserved_bottom)
+            .max(1)
     }
     fn view_matrices(&self, eye: Vec3, look: Vec3, sun: Vec3) -> (Mat4, Mat4) {
         let focus = Vec3::new(look.x, look.y, 0.15);
@@ -703,8 +663,23 @@ impl Renderer {
         };
         for mesh in meshes {
             let vertices = u64::from(mesh.count)
-                * u64::from(mesh.instances.as_ref().map_or(1, |(_, count)| *count));
+                * mesh
+                    .instances
+                    .as_ref()
+                    .map_or(1, |instances| instances.bounds.len() as u64);
             stats.candidate_vertices += vertices;
+            if let Some(instances) = &mesh.instances {
+                for (frustum, draws, vertices) in [
+                    (&camera, &mut stats.camera_draws, &mut stats.camera_vertices),
+                    (&shadow, &mut stats.shadow_draws, &mut stats.shadow_vertices),
+                ] {
+                    for range in frustum.instance_ranges(&instances.bounds) {
+                        *draws += 1;
+                        *vertices += u64::from(mesh.count) * u64::from(range.end - range.start);
+                    }
+                }
+                continue;
+            }
             if camera.includes(mesh.bounds) {
                 stats.camera_draws += 1;
                 stats.camera_vertices += vertices;
@@ -747,7 +722,7 @@ impl Renderer {
                 self.sky_settings.star_density,
                 self.sky_settings.star_size,
                 self.sky_settings.star_brightness,
-                58_f32.to_radians() / self.config.height as f32,
+                58_f32.to_radians() / self.scene_height() as f32,
             ],
             star_color: [
                 self.sky_settings.star_color[0],
@@ -800,7 +775,10 @@ impl Renderer {
             }
             pass.set_pipeline(&self.shadow_pipeline);
             for mesh in meshes {
-                if mesh.opaque_count == mesh.count || !shadow_frustum.includes(mesh.bounds) {
+                if mesh.instances.is_some()
+                    || mesh.opaque_count == mesh.count
+                    || !shadow_frustum.includes(mesh.bounds)
+                {
                     continue;
                 }
                 pass.set_vertex_buffer(0, mesh.buffer.slice(..));
@@ -808,13 +786,12 @@ impl Renderer {
             }
             pass.set_pipeline(&self.vehicle_shadow_pipeline);
             for mesh in meshes {
-                if let Some((instances, count)) = &mesh.instances {
-                    if *count == 0 {
-                        continue;
+                if let Some(instances) = &mesh.instances {
+                    for range in shadow_frustum.instance_ranges(&instances.bounds) {
+                        pass.set_vertex_buffer(0, mesh.buffer.slice(..));
+                        pass.set_vertex_buffer(1, instances.buffer.slice(..));
+                        pass.draw(0..mesh.count, range);
                     }
-                    pass.set_vertex_buffer(0, mesh.buffer.slice(..));
-                    pass.set_vertex_buffer(1, instances.slice(..));
-                    pass.draw(0..mesh.count, 0..*count);
                 }
             }
         }
@@ -842,6 +819,15 @@ impl Renderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            pass.set_viewport(
+                0.,
+                0.,
+                self.config.width as f32,
+                self.scene_height() as f32,
+                0.,
+                1.,
+            );
+            pass.set_scissor_rect(0, 0, self.config.width, self.scene_height());
             pass.set_pipeline(&self.opaque_pipeline);
             pass.set_bind_group(0, &self.camera_group, &[]);
             pass.set_bind_group(1, &self.shadow_group, &[]);
@@ -859,7 +845,10 @@ impl Renderer {
             }
             pass.set_pipeline(&self.pipeline);
             for mesh in meshes {
-                if mesh.opaque_count == mesh.count || !camera_frustum.includes(mesh.bounds) {
+                if mesh.instances.is_some()
+                    || mesh.opaque_count == mesh.count
+                    || !camera_frustum.includes(mesh.bounds)
+                {
                     continue;
                 }
                 pass.set_vertex_buffer(0, mesh.buffer.slice(..));
@@ -867,13 +856,12 @@ impl Renderer {
             }
             pass.set_pipeline(&self.vehicle_pipeline);
             for mesh in meshes {
-                if let Some((instances, count)) = &mesh.instances {
-                    if *count == 0 {
-                        continue;
+                if let Some(instances) = &mesh.instances {
+                    for range in camera_frustum.instance_ranges(&instances.bounds) {
+                        pass.set_vertex_buffer(0, mesh.buffer.slice(..));
+                        pass.set_vertex_buffer(1, instances.buffer.slice(..));
+                        pass.draw(0..mesh.count, range);
                     }
-                    pass.set_vertex_buffer(0, mesh.buffer.slice(..));
-                    pass.set_vertex_buffer(1, instances.slice(..));
-                    pass.draw(0..mesh.count, 0..*count);
                 }
             }
             self.sky.draw(&mut pass, &self.camera_group);
@@ -883,7 +871,7 @@ impl Renderer {
             &mut encoder,
             target,
             self.config.width,
-            self.config.height,
+            self.scene_height(),
             navigation,
             self.overlay,
             self.full_map,

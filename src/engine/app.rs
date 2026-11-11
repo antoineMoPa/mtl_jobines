@@ -327,10 +327,13 @@ impl Game {
     fn apply_palette_action(&mut self, action: PaletteAction) {
         match action {
             #[cfg(not(target_arch = "wasm32"))]
-            PaletteAction::ExpandNetwork => {
+            PaletteAction::ExpandNetwork | PaletteAction::GrowNetwork => {
                 if let Some(watcher) = &self.live_reload {
                     match super::expansion::Document::open(watcher.path()) {
-                        Ok(document) => {
+                        Ok(mut document) => {
+                            if action == PaletteAction::GrowNetwork {
+                                document.picker.start_growth();
+                            }
                             if let Some(palette) = &mut self.palette {
                                 palette.expansion = Some(document);
                             }
@@ -392,7 +395,11 @@ impl Game {
         let refresh_scene = self.refresh_scene();
 
         let p = self.world.player_position() / METERS_PER_UNIT;
-        let center = [p.x, p.y];
+        let build_camera = self
+            .palette
+            .as_ref()
+            .and_then(|palette| palette.build_camera());
+        let center = build_camera.map_or([p.x, p.y], |(_, _, center)| center);
         if !paused {
             self.hermes.update_navigation(p.to_array());
         }
@@ -437,6 +444,7 @@ impl Game {
         self.eye = self
             .world
             .camera_eye(&self.hermes, p + Vec3::Z * 0.014, self.eye);
+        let (eye, look) = build_camera.map_or((self.eye, look), |(eye, look, _)| (eye, look));
         let sound_eye = self.eye * METERS_PER_UNIT;
         let sound_velocity = self.sound_eye.map_or(Vec3::ZERO, |previous| {
             if elapsed > 0.0001 {
@@ -465,17 +473,29 @@ impl Game {
                 .as_mut()
                 .unwrap()
                 .update(renderer, &self.world);
+            self.scene_dirty = false;
+        }
+        if refresh_scene || self.mesh_center != center {
             if let Some(pixels) = self.hermes.update_minimap(center) {
                 renderer.update_minimap(pixels);
             }
-            self.scene_dirty = false;
+            self.mesh_center = center;
         }
-        let navigation = self.hermes.minimap_view(center, self.world.player_yaw());
+        let mut navigation = self.hermes.minimap_view(center, self.world.player_yaw());
+        if build_camera.is_some() {
+            navigation.player_uv = self
+                .hermes
+                .minimap_view([p.x, p.y], self.world.player_yaw())
+                .player_uv;
+        }
         renderer.overlay = self.overlay;
         renderer.full_map = self.full_map;
         renderer.menu_selection = self.menu_selection;
         renderer.fps = self.frame_rate.value;
         renderer.vehicle_name = self.world.vehicle_name_notice().map(str::to_owned);
+        renderer.reserved_bottom = self.palette.as_ref().map_or(0, |palette| {
+            palette.reserved_bottom(renderer.config.width, renderer.config.height)
+        });
         let mut meshes = self.scenery.as_ref().unwrap().visible(center);
         meshes.push(car);
         meshes.extend(self.prop_scenery.visible());
@@ -490,20 +510,20 @@ impl Game {
                     format: Some(renderer.config.format.add_srgb_suffix()),
                     ..Default::default()
                 });
-                renderer.render(&view, &meshes, self.eye, look, self.game_time, navigation);
+                renderer.render(&view, &meshes, eye, look, self.game_time, navigation);
                 if let Some(palette) = &mut self.palette {
                     palette_action = palette.draw(
                         self.window.as_ref().unwrap(),
                         renderer,
                         &view,
                         &mut self.sound_settings,
-                        renderer.view_projection(self.eye, look),
+                        renderer.view_projection(eye, look),
                     );
                     #[cfg(not(target_arch = "wasm32"))]
                     if palette_action == Some(PaletteAction::BugReport) {
                         let screenshot = renderer.report_screenshot(
                             &meshes,
-                            self.eye,
+                            eye,
                             look,
                             self.game_time,
                             navigation,
@@ -512,7 +532,7 @@ impl Game {
                             super::bug_report::Report::new(
                                 self.hermes.city(),
                                 p.to_array(),
-                                self.eye.to_array(),
+                                eye.to_array(),
                                 look.to_array(),
                             ),
                             screenshot,

@@ -45,6 +45,8 @@ pub(super) enum PaletteAction {
     #[cfg(not(target_arch = "wasm32"))]
     ExpandNetwork,
     #[cfg(not(target_arch = "wasm32"))]
+    GrowNetwork,
+    #[cfg(not(target_arch = "wasm32"))]
     BugReport,
 }
 impl PaletteAction {
@@ -52,6 +54,10 @@ impl PaletteAction {
         #[cfg(not(target_arch = "wasm32"))]
         if id == "road.expand" {
             return Some(Self::ExpandNetwork);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if id == "road.grow" {
+            return Some(Self::GrowNetwork);
         }
         if id == "map.jump" {
             return Some(Self::JumpToLocation);
@@ -118,7 +124,7 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
     commands.push(Command {
         id: "road.expand".into(),
         title: "Expand road network…".into(),
-        description: "Pick ghost road extensions or grow a network".into(),
+        description: "Extend roads from their open ends".into(),
         shortcut: String::new(),
     });
     commands.extend(landmarks.iter().map(|landmark| Command {
@@ -127,6 +133,13 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
         description: "Bring your current car beside the landmark and face the view".into(),
         shortcut: String::new(),
     }));
+    #[cfg(not(target_arch = "wasm32"))]
+    commands.push(Command {
+        id: "road.grow".into(),
+        title: "Auto-grow road network…".into(),
+        description: "Grow a network using a seed and step count".into(),
+        shortcut: String::new(),
+    });
     commands
 }
 pub struct Palette {
@@ -256,6 +269,27 @@ impl Palette {
         };
         command && self.modifiers.shift_key()
     }
+    pub(super) fn reserved_bottom(&self, width: u32, height: u32) -> u32 {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(document) = &self.expansion {
+            let scale = self.ctx.pixels_per_point();
+            let bounds = egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(width as f32, height as f32) / scale,
+            );
+            let viewport = document.picker.viewport_rect(bounds);
+            return ((bounds.height() - viewport.height()) * scale).round() as u32;
+        }
+        let _ = (width, height);
+        0
+    }
+    pub(super) fn build_camera(&self) -> Option<(glam::Vec3, glam::Vec3, [f32; 2])> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(document) = &self.expansion {
+            return document.camera();
+        }
+        None
+    }
     pub fn draw(
         &mut self,
         window: &Window,
@@ -306,7 +340,11 @@ impl Palette {
             self.bug_report.show(ui.ctx());
             #[cfg(not(target_arch = "wasm32"))]
             if let Some(document) = &mut self.expansion {
-                document.show(ui.ctx(), view_projection);
+                document.show(
+                    ui,
+                    view_projection,
+                    [renderer.config.width, renderer.scene_height()],
+                );
             }
             #[cfg(target_arch = "wasm32")]
             let _ = view_projection;
@@ -788,3 +826,11 @@ mod tests {
         assert!(!menu.is_open());
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "palette/expansion_tests.rs"]
+mod expansion_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "palette/follow_tests.rs"]
+mod follow_tests;
