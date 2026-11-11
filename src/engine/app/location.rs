@@ -27,7 +27,6 @@ impl Game {
     }
 
     pub(super) fn finish_location_change(&mut self) {
-        self.road_tool.stop();
         self.orbit = 0.;
         self.zoom = 1.;
         self.camera_pitch = 0.;

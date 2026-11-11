@@ -2,34 +2,6 @@ use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const ROAD: &str = "road street: carlane carlane; end street(-2,0,2,0); player_start(0,0,0);";
-#[test]
-fn generated_road_reload_retains_moving_vehicle_camera_controls_and_selection() {
-    let mut game = Game::new(Hermes::test_map_from_source(ROAD));
-    game.set_overlay(Overlay::Driving);
-    game.keys.insert(KeyCode::KeyW);
-    game.simulate(0.1);
-    game.eye = Vec3::new(-1., 0.5, 0.4);
-    game.orbit = 0.7;
-    let position = game.world.player_position();
-    let velocity = game.world.player().velocity;
-    let eye = game.eye;
-    let id = game.road_tool.ends.handles[0].id;
-    game.road_tool.ends.toggle(id);
-    game.apply_road_extension(Hermes::test_map_from_source(&format!(
-        "{ROAD} street(2,0,3,0);"
-    )));
-    assert_eq!(game.world.player_position(), position);
-    assert_eq!(game.world.player().velocity, velocity);
-    assert_eq!(game.eye, eye);
-    assert_eq!(game.orbit, 0.7);
-    assert!(game.keys.contains(&KeyCode::KeyW));
-    assert!(game.road_tool.ends.selected.contains(&id));
-    assert_eq!(game.hermes.city().roads.len(), 2);
-    // An external replacement invalidates snapshot-index selections.
-    game.apply_reloaded_map(Hermes::test_map_from_source(ROAD))
-        .unwrap();
-    assert!(game.road_tool.ends.selected.is_empty());
-}
 struct TempMap(PathBuf);
 impl TempMap {
     fn new(source: &str) -> Self {

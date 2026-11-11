@@ -135,7 +135,6 @@ pub struct Renderer {
     commerce: Commerce,
     pub fps: Option<f32>,
     pub vehicle_name: Option<String>,
-    pub road_hint: Option<String>,
     pub gpu_profile: Option<GpuProfile>,
 }
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
@@ -517,7 +516,6 @@ impl Renderer {
             commerce,
             fps: None,
             vehicle_name: None,
-            road_hint: None,
             gpu_profile,
         })
     }
