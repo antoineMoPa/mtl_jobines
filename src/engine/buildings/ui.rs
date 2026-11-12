@@ -117,6 +117,7 @@ impl Document {
                     .inner_margin(egui::Margin::symmetric(8, 6)),
             )
             .show(root, |ui| {
+                *ui.visuals_mut() = egui::Visuals::dark();
                 if !input_enabled {
                     ui.disable();
                 }

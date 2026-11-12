@@ -10,6 +10,7 @@ mod landmark_destinations;
 mod landmarks;
 pub(crate) use landmark_destinations::Landmark;
 mod minimap;
+mod street_bins;
 pub(crate) mod street_props;
 
 mod route_signal;

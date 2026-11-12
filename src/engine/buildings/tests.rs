@@ -342,3 +342,60 @@ fn proposed_lots_do_not_rotate_with_the_players_heading() {
         assert!(front.y.abs() < 1e-6);
     }
 }
+
+#[test]
+fn building_controls_and_style_popup_stay_dark_under_a_light_system_theme() {
+    let mut f = Fixture::new();
+    f.place();
+    let ctx = egui::Context::default();
+    ctx.set_theme(egui::ThemePreference::Light);
+    let matrix = view(&f.document);
+    let mut position = None;
+    for pressed in [None, Some(true), Some(false), None] {
+        let mut events = Vec::new();
+        if let Some(pos) = position {
+            events.push(egui::Event::PointerMoved(pos));
+            if let Some(pressed) = pressed {
+                events.push(egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: Default::default(),
+                });
+            }
+        }
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(matrix.viewport),
+                events,
+                ..Default::default()
+            },
+            |ui| f.document.show(ui, matrix.matrix, [900, 558], &f.city),
+        );
+        let current = label(
+            f.document.items[0]
+                .feature
+                .building_style
+                .unwrap()
+                .architecture
+                .family,
+        );
+        output.textures_delta.clear();
+        for shape in &output.shapes {
+            match &shape.shape {
+                egui::Shape::Text(t) if t.galley.text() == current => {
+                    position = Some(t.visual_bounding_rect().center());
+                }
+                egui::Shape::Rect(r) if r.fill.a() > 240 => {
+                    assert!(
+                        !(r.fill.r() > 180 && r.fill.g() > 180 && r.fill.b() > 180),
+                        "light widget background leaked into construction UI: {:?}",
+                        r.fill
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    assert!(position.is_some());
+}

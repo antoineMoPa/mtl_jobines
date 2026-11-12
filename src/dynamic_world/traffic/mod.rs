@@ -1,4 +1,5 @@
 //! Nearby physical traffic: lane pursuit, signals, following, and collision recovery.
+mod models;
 mod signals;
 #[cfg(test)]
 mod tests;
@@ -31,11 +32,14 @@ pub(super) struct Traffic {
     seed: u64,
     refill: f32,
     signal_props: super::props::Props,
+    signal_models: Vec<models::Standing>,
     failed_junctions: HashSet<usize>,
     crossing: HashMap<usize, usize>,
 }
 impl Traffic {
     pub fn new(graph: &Arc<TrafficPaths>) -> Self {
+        let (signal_models, groups): (Vec<_>, Vec<_>) =
+            graph.signals.iter().map(models::instantiate).unzip();
         Self {
             graph: graph.clone(),
             drivers: Vec::new(),
@@ -44,13 +48,8 @@ impl Traffic {
             time: 0.,
             seed: 7193,
             refill: 0.,
-            signal_props: super::props::Props::from_groups(
-                graph
-                    .signals
-                    .iter()
-                    .map(|signal| vec![signals::signal_mesh(signal, None)])
-                    .collect(),
-            ),
+            signal_props: super::props::Props::from_groups(groups),
+            signal_models,
             failed_junctions: HashSet::new(),
             crossing: HashMap::new(),
         }

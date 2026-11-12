@@ -970,7 +970,7 @@ mod tests {
         let city = hermes.city();
         let features = city.street_features(Region::WholeMap);
         let meshes = hermes.prop_groups();
-        assert_eq!(features.len(), meshes.len());
+        assert!(features.len() <= meshes.len());
         for kind in [StreetFeatureKind::Lamp, StreetFeatureKind::Bench] {
             let index = features.iter().position(|f| f.kind == kind).unwrap();
             let feature = features[index];
@@ -990,5 +990,34 @@ mod tests {
             props.vehicle_move(&mut vehicle, before, &city);
             assert!(props.items.iter().all(|p| p.debris.is_some()), "{kind:?}");
         }
+    }
+
+    #[test]
+    fn generated_bin_is_collidable_and_breaks_into_visible_debris() {
+        let hermes = crate::hermes::Hermes::test_map_from_source(
+            "road r: sidewalk carlane sidewalk; end r(-1,0,1,0);",
+        );
+        let city = hermes.city();
+        let first_bin = city
+            .street_features(opencity::runtime::Region::WholeMap)
+            .len();
+        let groups = hermes.prop_groups();
+        let bin = &groups[first_bin];
+        let (lo, hi) = crate::hermes::external_models::bounds(&bin[0]);
+        let center = (lo + hi) * 50.;
+        let mut props = Props::from_groups(vec![bin.clone()]);
+        assert!(props.blocked(center));
+        let mut vehicle = Vehicle::spawn(city);
+        vehicle.yaw = 0.;
+        vehicle.velocity = Vec3::X * 12.;
+        vehicle.position = center + Vec3::X * 4.;
+        props.vehicle_move(&mut vehicle, center - Vec3::X * 4., city);
+        assert!(props
+            .items
+            .iter()
+            .all(|p| p.collider.is_none() && p.debris.is_some()));
+        let mut debris = Mesh::default();
+        props.append_moving(&mut debris, center);
+        assert!(!debris.vertices.is_empty());
     }
 }

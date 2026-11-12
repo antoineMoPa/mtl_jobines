@@ -1,6 +1,7 @@
 //! A report keeps the captured scene and map location fixed while the user types.
 use opencity::runtime::City;
 use serde::Serialize;
+mod annotation;
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -110,6 +111,7 @@ pub(super) struct Dialog {
     draft: Option<(Report, Vec<u8>)>,
     message: String,
     focus_description: bool,
+    annotation: Option<annotation::Annotation>,
 }
 
 impl Dialog {
@@ -129,6 +131,7 @@ impl Dialog {
         self.open = true;
         match screenshot {
             Ok(screenshot) => {
+                self.annotation = annotation::Annotation::from_png(&screenshot).ok();
                 self.draft = Some((report, screenshot));
                 self.focus_description = true;
             }
@@ -149,6 +152,9 @@ impl Dialog {
             return;
         }
         let mut close = ctx.input(|input| input.key_pressed(egui::Key::Escape));
+        if let Some(annotation) = &mut self.annotation {
+            annotation.show(ctx);
+        }
         let mut saved = false;
         egui::Window::new("Report a bug")
             .open(&mut self.open)
@@ -180,8 +186,13 @@ impl Dialog {
                         {
                             match std::env::current_dir()
                                 .map_err(|error| error.to_string())
-                                .and_then(|root| report.save(&root.join("bug-reports"), screenshot))
-                            {
+                                .and_then(|root| {
+                                    let screenshot = match &self.annotation {
+                                        Some(a) => a.screenshot(screenshot)?,
+                                        None => screenshot.clone(),
+                                    };
+                                    report.save(&root.join("bug-reports"), &screenshot)
+                                }) {
                                 Ok(folder) => {
                                     self.message = format!("Saved to {}", folder.display());
                                     saved = true;

@@ -96,6 +96,8 @@ or Escape discards the draft. Existing reports are preserved and the next number
 highest one.
 The **[bug]** link remains available during building and road authoring. Construction reports
 include the proposed footprints and tool strip; the report dialog blocks authoring input.
+Drag directly on the frozen screenshot to leave red freehand marks. The saved PNG includes the
+marks; clicking or typing in the report form does not draw on the image. Cancel discards the marks.
 
 Replay saved report locations through the native renderer with
 `cargo run --release -- --replay-reports bug-reports --replay-output /tmp/report-replay`.
@@ -177,15 +179,23 @@ legacy `residential_area(...)` maps use the same pipeline. There is no map-name 
 Static map geometry and the 4096² minimap atlas are prepared once per map revision. Scenery uses
 200 m selection groups and 50 m draw batches with camera/shadow culling; nearby props upload
 dynamically.
-Sidewalk benches and lamps use the approved baked GLBs in `data/props/`, decoded once and
-placed at the shared road features. Lamp diffusers retain night emission; stems and overhead
-assemblies have separate collision hulls and break together.
-See [prop assets](data/props/README.md).
+Sidewalk benches, lamps and trash cans use the approved baked GLBs in `data/props/`, decoded
+once. Benches and lamps follow the shared road features; bins fit beside benches only where
+their footprint is supported by sidewalk and clears buildings and nearby props. Lamp diffusers
+retain night emission. Pole stems and overhead assemblies have separate collision hulls and
+break together.
+Traffic lights use cached GLB bodies and red/amber/green/unpowered variants, including the
+pedestrian head. Crossings with three or four distinct incoming approaches receive signals,
+including one-way arms. Lights follow junction timing and turn dark when a signal is hit;
+failed junctions retain the all-way-stop behavior.
 Vehicle body/wheel geometry uploads once; driving updates instance transforms in both render passes.
 Paused menus/maps/palette reuse frozen buffers and redraw for input, window events or map reloads.
 Full-resolution map geometry stays resident, so large maps increase startup time and GPU memory.
 
-Rendering uses 4× MSAA, 2048² PCF shadows and parallax window interiors. Background, glass and fog
+Rendering uses 4× MSAA, 2048² PCF shadows and parallax window interiors.
+Half-resolution screen-space
+ambient occlusion adds local contacts between visible surfaces, with depth-aware upsampling before
+the HUD and toolbars. The GPU world-pass timings include the AO passes. Background, glass and fog
 share an HDR atmosphere cube, refreshed on settings changes or four times per simulated second.
 Native-resolution stars appear in background/reflections; fog uses only atmosphere. Camera movement
 and star edits do not rebuild the atmosphere. Bridge piers/decks are visual; barriers provide

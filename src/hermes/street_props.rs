@@ -4,18 +4,21 @@ use opencity::runtime::{City, Mesh, Region, StreetFeature, StreetFeatureKind};
 use std::sync::OnceLock;
 
 const BENCH: &[u8] = include_bytes!("../../data/props/bench.glb");
+const BIN: &[u8] = include_bytes!("../../data/props/bin.glb");
 const LAMP: &[u8] = include_bytes!("../../data/props/lamp.glb");
 
 #[derive(Clone, Copy)]
 enum Model {
     Bench,
     Lamp,
+    Bin,
 }
 impl Model {
     fn index(self) -> usize {
         match self {
             Self::Bench => 0,
             Self::Lamp => 1,
+            Self::Bin => 2,
         }
     }
     fn from_feature(kind: StreetFeatureKind) -> Option<Self> {
@@ -26,9 +29,9 @@ impl Model {
         }
     }
     fn mesh(self) -> &'static Mesh {
-        static MODELS: OnceLock<[Mesh; 2]> = OnceLock::new();
+        static MODELS: OnceLock<[Mesh; 3]> = OnceLock::new();
         &MODELS.get_or_init(|| {
-            [(Self::Bench, BENCH), (Self::Lamp, LAMP)].map(|(model, bytes)| {
+            [(Self::Bench, BENCH), (Self::Lamp, LAMP), (Self::Bin, BIN)].map(|(model, bytes)| {
                 let mut mesh = external_models::decode_street_prop(bytes)
                     .expect("validated bundled street prop");
                 for v in &mut mesh.vertices {
@@ -47,8 +50,8 @@ impl Model {
     }
 }
 
-fn placed(model: Model, feature: StreetFeature) -> Vec<Mesh> {
-    let (sin, cos) = feature.heading.sin_cos();
+fn placed(model: Model, position: [f32; 3], heading: f32) -> Vec<Mesh> {
+    let (sin, cos) = heading.sin_cos();
     let mut lower = Mesh::default();
     let mut upper = Mesh::default();
     for triangle in model.mesh().vertices.chunks_exact(3) {
@@ -59,9 +62,9 @@ fn placed(model: Model, feature: StreetFeature) -> Vec<Mesh> {
         for mut v in triangle.iter().copied() {
             let [x, y, z] = v.position;
             v.position = [
-                feature.position[0] + cos * x - sin * y,
-                feature.position[1] + sin * x + cos * y,
-                feature.position[2] + z,
+                position[0] + cos * x - sin * y,
+                position[1] + sin * x + cos * y,
+                position[2] + z,
             ];
             let [x, y, z] = v.normal;
             v.normal = [cos * x - sin * y, sin * x + cos * y, z];
@@ -78,16 +81,22 @@ pub(super) fn groups(city: &City) -> Vec<Vec<Mesh>> {
     let features = city.street_features(Region::WholeMap);
     let originals = city.detail_objects(Region::WholeMap);
     assert_eq!(features.len(), originals.len());
-    features
+    let bins = super::street_bins::placements(city, &features);
+    let mut groups: Vec<_> = features
         .into_iter()
         .zip(originals)
         .map(
             |(feature, original)| match Model::from_feature(feature.kind) {
-                Some(model) => placed(model, feature),
+                Some(model) => placed(model, feature.position, feature.heading),
                 None => vec![original],
             },
         )
-        .collect()
+        .collect();
+    groups.extend(
+        bins.into_iter()
+            .map(|bin| placed(Model::Bin, bin.position, bin.heading)),
+    );
+    groups
 }
 
 #[cfg(test)]
@@ -100,6 +109,7 @@ mod tests {
         for (model, bytes, dimensions) in [
             (Model::Bench, BENCH, [0.642107, 1.9, 0.945821]),
             (Model::Lamp, LAMP, [1.77, 0.34, 5.513]),
+            (Model::Bin, BIN, [0.606, 0.606, 0.995]),
         ] {
             let raw = external_models::decode_street_prop(bytes).unwrap();
             let glb = gltf::Gltf::from_slice(bytes).unwrap();
@@ -137,7 +147,7 @@ mod tests {
 
     #[test]
     fn placement_rotates_normals_and_geometry_without_moving_the_pivot() {
-        for model in [Model::Bench, Model::Lamp] {
+        for model in [Model::Bench, Model::Lamp, Model::Bin] {
             let base = StreetFeature {
                 kind: StreetFeatureKind::Bench,
                 position: [2., 3., 0.2],
@@ -147,11 +157,11 @@ mod tests {
                 heading: 1.7,
                 ..base
             };
-            let original: Vec<_> = placed(model, base)
+            let original: Vec<_> = placed(model, base.position, base.heading)
                 .into_iter()
                 .flat_map(|m| m.vertices)
                 .collect();
-            let actual: Vec<_> = placed(model, rotated)
+            let actual: Vec<_> = placed(model, rotated.position, rotated.heading)
                 .into_iter()
                 .flat_map(|m| m.vertices)
                 .collect();
@@ -180,7 +190,10 @@ mod tests {
         .unwrap();
         let features = city.street_features(Region::WholeMap);
         let groups = groups(&city);
-        assert_eq!(features.len(), groups.len());
+        assert!(
+            features.len() < groups.len(),
+            "valid benches should receive bins"
+        );
         for (feature, group) in features.iter().zip(groups) {
             let vertices: usize = group.iter().map(|m| m.vertices.len()).sum();
             match feature.kind {

@@ -191,6 +191,7 @@ impl Palette {
             }
         }
         let ctx = egui::Context::default();
+        ctx.set_theme(egui::ThemePreference::Dark);
         Self {
             report_overlay: None,
             buildings: None,
@@ -216,6 +217,7 @@ impl Palette {
 
     pub fn new(window: &Window, renderer: &Renderer, landmarks: &[Landmark]) -> Self {
         let ctx = egui::Context::default();
+        ctx.set_theme(egui::ThemePreference::Dark);
         let input = Input::new(
             ctx.clone(),
             egui::ViewportId::ROOT,

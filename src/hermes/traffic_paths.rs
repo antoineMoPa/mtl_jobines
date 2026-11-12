@@ -237,7 +237,14 @@ impl TrafficPaths {
                 .iter()
                 .filter(|p| p.role == opencity::network::LaneRole::In)
                 .collect();
-            let signalized = incoming.len() == 4;
+            // A one-way arm removes one incoming approach from a four-arm
+            // crossing. Count distinct approach headings, not lane/port count.
+            use opencity::network::Heading;
+            let signalized = [Heading::North, Heading::East, Heading::South, Heading::West]
+                .iter()
+                .filter(|heading| incoming.iter().any(|port| port.heading == **heading))
+                .count()
+                >= 3;
             for movement in &component.geometry.movements {
                 if movement.movement.class != "vehicle" || movement.points.len() < 2 {
                     continue;

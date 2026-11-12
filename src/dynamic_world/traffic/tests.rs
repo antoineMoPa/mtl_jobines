@@ -131,6 +131,49 @@ fn crossing_links_permitted_turns_and_has_four_signals() {
         }
     }
 }
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+fn current_map_one_way_crossings_have_visible_signals_at_road_height() {
+    let hermes = crate::hermes::Hermes::load_with_game_data(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road"),
+        None,
+    )
+    .unwrap();
+    let graph = hermes.traffic_paths();
+    let traffic = Traffic::new(graph);
+    for name in ["profile:north_cross", "profile:south_cross"] {
+        let junction = hermes
+            .city()
+            .components
+            .iter()
+            .position(|c| c.id == name)
+            .unwrap();
+        let component = &hermes.city().components[junction];
+        let signals: Vec<_> = graph
+            .signals
+            .iter()
+            .filter(|s| s.junction == junction)
+            .collect();
+        assert_eq!(
+            signals.len(),
+            3,
+            "{name}: three incoming one-way approaches"
+        );
+        assert!(signals.iter().any(|s| s.phase == 0));
+        assert!(signals.iter().any(|s| s.phase == 1));
+        for signal in &signals {
+            assert!((signal.position.z / 100. - component.origin.z).abs() < 1e-5);
+        }
+        let mut visible = opencity::runtime::Mesh::default();
+        traffic.append_signals(&mut visible, signals[0].position);
+        assert!(!visible.vertices.is_empty());
+        assert!(visible
+            .vertices
+            .iter()
+            .any(|v| { v.surface[0] == opencity::runtime::SurfaceKind::Light as u32 as f32 }));
+    }
+}
 #[test]
 fn red_light_stops_before_line_then_green_releases_traffic() {
     let (city, graph) = map(CROSS);

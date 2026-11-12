@@ -41,6 +41,7 @@ fn native_building_tool_captures_both_cameras() {
     });
     let target = texture.create_view(&Default::default());
     let ctx = egui::Context::default();
+    ctx.set_theme(egui::ThemePreference::Light);
     let mut painter = Painter::new(&renderer.device, renderer.config.format);
     for (mode, name) in [
         (CameraMode::Build, "building-build.png"),

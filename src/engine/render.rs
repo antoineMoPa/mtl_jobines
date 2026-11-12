@@ -7,6 +7,7 @@ use crate::hermes::MinimapView;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 mod culling;
+mod ssao;
 use culling::{Bounds, Frustum};
 use opencity::runtime::{Mesh, SurfaceKind, Vertex};
 use std::borrow::Cow;
@@ -57,6 +58,8 @@ pub struct Renderer {
     pub config: wgpu::SurfaceConfiguration,
     pub(super) reserved_bottom: u32,
     pub(super) construction_span: Option<f32>,
+    pub(super) ambient_occlusion: bool,
+    ssao: ssao::Ssao,
     pipeline: wgpu::RenderPipeline,
     opaque_pipeline: wgpu::RenderPipeline,
     shadow_pipeline: wgpu::RenderPipeline,
@@ -138,12 +141,7 @@ fn depth(
             sample_count: if sample { 1 } else { 4 },
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | if sample {
-                    wgpu::TextureUsages::TEXTURE_BINDING
-                } else {
-                    wgpu::TextureUsages::empty()
-                },
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         })
         .create_view(&Default::default())
@@ -425,6 +423,7 @@ impl Renderer {
         let vehicle_shadow_pipeline = make_pipeline(true, true, true);
         let depth = depth(&device, width.max(1), height.max(1), "depth", false);
         let color = color_target(&device, width, height, format);
+        let ssao = ssao::Ssao::new(&device, width.max(1), height.max(1), format, &depth);
         let hud = Hud::new(&device, format);
         #[cfg(not(target_arch = "wasm32"))]
         let gpu_profile = timestamp_features
@@ -440,6 +439,8 @@ impl Renderer {
             config,
             reserved_bottom: 0,
             construction_span: None,
+            ambient_occlusion: true,
+            ssao,
             pipeline,
             opaque_pipeline,
             shadow_pipeline,
@@ -491,6 +492,7 @@ impl Renderer {
             height,
             self.config.format.add_srgb_suffix(),
         );
+        self.ssao.resize(&self.device, width, height, &self.depth);
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn sky_update_count(&self) -> u64 {
@@ -815,7 +817,7 @@ impl Renderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &self.color,
                     depth_slice: None,
-                    resolve_target: Some(target),
+                    resolve_target: Some(&self.ssao.scene),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Discard,
@@ -825,11 +827,15 @@ impl Renderer {
                     view: &self.depth,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.),
-                        store: wgpu::StoreOp::Discard,
+                        store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
                 }),
-                timestamp_writes: self.gpu_profile.as_ref().map(|profile| profile.pass(1)),
+                timestamp_writes: self.gpu_profile.as_ref().map(|profile| {
+                    let mut writes = profile.pass(1);
+                    writes.end_of_pass_write_index = None;
+                    writes
+                }),
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
@@ -880,6 +886,21 @@ impl Renderer {
             }
             self.sky.draw(&mut pass, &self.camera_group);
         }
+        self.ssao.draw(
+            &self.queue,
+            &mut encoder,
+            target,
+            view,
+            eye,
+            self.config.width,
+            self.scene_height(),
+            self.ambient_occlusion,
+            self.gpu_profile.as_ref().map(|profile| {
+                let mut writes = profile.pass(1);
+                writes.beginning_of_pass_write_index = None;
+                writes
+            }),
+        );
         self.hud.render(
             &self.queue,
             &mut encoder,

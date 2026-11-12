@@ -2,7 +2,7 @@
 use super::Traffic;
 use crate::hermes::traffic_paths::SignalApproach;
 use glam::Vec3;
-use opencity::runtime::{Mesh, SurfaceKind};
+use opencity::runtime::Mesh;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Aspect {
     Red,
@@ -137,63 +137,10 @@ impl Traffic {
             }
             let active = (!self.failed_junctions.contains(&signal.junction))
                 .then(|| aspect(signal, self.time));
-            mesh.vertices.extend(signal_mesh(signal, active).vertices);
+            self.signal_models[id].append(mesh, active);
         }
         self.signal_props.append_moving(mesh, center);
     }
-}
-pub(super) fn signal_mesh(signal: &SignalApproach, active: Option<Aspect>) -> Mesh {
-    let mut mesh = Mesh::default();
-    let right = Vec3::new(signal.forward.y, -signal.forward.x, 0.);
-    let base = signal.position + right * 2.8;
-    let mut cube = |offset: Vec3, size: Vec3, color: [f32; 3], kind| {
-        let at = base + offset;
-        mesh.cuboid(
-            ((at - size * 0.5) / 100.).to_array(),
-            ((at + size * 0.5) / 100.).to_array(),
-            color,
-            kind,
-        );
-    };
-    cube(
-        Vec3::Z * 1.8,
-        Vec3::new(0.12, 0.12, 3.6),
-        [0.15, 0.17, 0.18],
-        SurfaceKind::Prop,
-    );
-    cube(
-        Vec3::Z * 3.5,
-        Vec3::new(0.46, 0.46, 1.25),
-        [0.08, 0.08, 0.07],
-        SurfaceKind::Prop,
-    );
-    for (lamp, z, color) in [
-        (Aspect::Red, 3.9, [1., 0.04, 0.02]),
-        (Aspect::Amber, 3.5, [1., 0.65, 0.01]),
-        (Aspect::Green, 3.1, [0.02, 1., 0.12]),
-    ] {
-        let color = if active == Some(lamp) {
-            color
-        } else {
-            color.map(|c| c * 0.12)
-        };
-        cube(
-            Vec3::Z * z - signal.forward * 0.25,
-            Vec3::splat(0.28),
-            color,
-            if active == Some(lamp) {
-                SurfaceKind::Light
-            } else {
-                SurfaceKind::Prop
-            },
-        );
-    }
-    for vertex in &mut mesh.vertices {
-        if vertex.surface[0] == SurfaceKind::Light as u32 as f32 {
-            vertex.surface[3] = 1.;
-        }
-    }
-    mesh
 }
 #[cfg(test)]
 mod tests {
