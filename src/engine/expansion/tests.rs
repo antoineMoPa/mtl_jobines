@@ -127,3 +127,148 @@ fn build_camera_frames_curves_and_grades_with_room_for_the_next_preview() {
         }
     }
 }
+
+fn click_label(document: &mut Document, ctx: &egui::Context, label: &str) {
+    let output = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1000., 700.),
+            )),
+            ..Default::default()
+        },
+        |ui| document.show(ui, glam::Mat4::IDENTITY, [1000, 658]),
+    );
+    let position = output
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::Shape::Text(t) if t.galley.text() == label => {
+                Some(t.visual_bounding_rect().center())
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("missing {label} button"));
+    for pressed in [true, false] {
+        frame(
+            document,
+            ctx,
+            vec![
+                egui::Event::PointerMoved(position),
+                egui::Event::PointerButton {
+                    pos: position,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: Default::default(),
+                },
+            ],
+        );
+    }
+}
+
+#[test]
+fn road_view_toggle_restores_street_camera_and_preserves_authored_map() {
+    let directory = std::env::temp_dir().join(format!("road-view-toggle-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("test.road");
+    let source = "road street: sidewalk carlane carlane sidewalk; end street(0,0,1,0);";
+    std::fs::write(&path, source).unwrap();
+    for growth in [false, true] {
+        let mut document = Document::open(&path).unwrap();
+        document.enable_views(glam::Vec3::ZERO, 0.);
+        if growth {
+            document.picker.start_growth();
+        }
+        let ctx = egui::Context::default();
+        frame(&mut document, &ctx, vec![]);
+        let iso = document.camera().unwrap();
+        assert_eq!(document.orthographic_span(), Some(1.2));
+        click_label(&mut document, &ctx, "Street");
+        assert!(document.camera().is_none());
+        assert!(document.orthographic_span().is_none());
+        click_label(&mut document, &ctx, "Iso");
+        assert_eq!(document.camera().unwrap(), iso);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), source);
+        document.picker.open = false;
+        assert!(document.camera().is_none() && document.orthographic_span().is_none());
+    }
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn iso_follows_the_selected_end_and_report_input_cannot_accept_or_close_it() {
+    let directory = std::env::temp_dir().join(format!("road-iso-follow-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("test.road");
+    let source = "road street: sidewalk carlane carlane sidewalk; end street(0,0,1,0);";
+    std::fs::write(&path, source).unwrap();
+    let mut document = Document::open(&path).unwrap();
+    document.enable_views(glam::Vec3::ZERO, 0.);
+    let ctx = egui::Context::default();
+    frame(&mut document, &ctx, vec![]);
+    let pos = egui::pos2(500., 329.);
+    let mut events = vec![egui::Event::PointerMoved(pos)];
+    for pressed in [true, false] {
+        events.push(egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        });
+    }
+    frame(&mut document, &ctx, events);
+    assert!(document.picker.selected().is_some());
+    let before = document.camera().unwrap();
+    let selected = document.picker.selected().unwrap();
+    let ghost = selected.ghosts.last().unwrap();
+    let expected = [
+        (selected.end.point.x + ghost.end.x) / 2.,
+        (selected.end.point.y + ghost.end.y) / 2.,
+    ];
+    assert_eq!(before.2, expected, "Iso did not frame the chosen extension");
+    let mut output = ctx.run_ui(
+        egui::RawInput {
+            events: [egui::Key::Enter, egui::Key::Escape]
+                .map(|key| egui::Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Default::default(),
+                })
+                .into(),
+            ..Default::default()
+        },
+        |ui| document.show_with_input(ui, glam::Mat4::IDENTITY, [1000, 658], false),
+    );
+    output.textures_delta.clear();
+    assert!(document.picker.open);
+    assert_eq!(document.camera().unwrap(), before);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), source);
+    frame(
+        &mut document,
+        &ctx,
+        vec![egui::Event::Key {
+            key: egui::Key::Enter,
+            physical_key: None,
+            pressed: false,
+            repeat: false,
+            modifiers: Default::default(),
+        }],
+    );
+    frame(
+        &mut document,
+        &ctx,
+        vec![egui::Event::Key {
+            key: egui::Key::Enter,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Default::default(),
+        }],
+    );
+    let after = document.camera().unwrap().2;
+    assert!(glam::Vec2::from_array(after).distance(glam::Vec2::from_array(before.2)) > 0.5);
+    assert_eq!(opencity::map::project(&document.program).segments.len(), 2);
+    std::fs::remove_dir_all(directory).unwrap();
+}

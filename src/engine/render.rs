@@ -56,6 +56,7 @@ pub struct Renderer {
     pub surface: Option<wgpu::Surface<'static>>,
     pub config: wgpu::SurfaceConfiguration,
     pub(super) reserved_bottom: u32,
+    pub(super) construction_span: Option<f32>,
     pipeline: wgpu::RenderPipeline,
     opaque_pipeline: wgpu::RenderPipeline,
     shadow_pipeline: wgpu::RenderPipeline,
@@ -438,6 +439,7 @@ impl Renderer {
             surface,
             config,
             reserved_bottom: 0,
+            construction_span: None,
             pipeline,
             opaque_pipeline,
             shadow_pipeline,
@@ -614,12 +616,24 @@ impl Renderer {
         }
     }
     pub(super) fn view_projection(&self, eye: Vec3, look: Vec3) -> Mat4 {
-        let projection = Mat4::perspective_rh(
-            58_f32.to_radians(),
-            self.config.width as f32 / self.scene_height() as f32,
-            0.003,
-            10.0,
-        );
+        let aspect = self.config.width as f32 / self.scene_height() as f32;
+        let projection = if let Some(span) = self.construction_span {
+            Mat4::orthographic_rh(
+                -span * aspect / 2.,
+                span * aspect / 2.,
+                -span / 2.,
+                span / 2.,
+                0.003,
+                100.,
+            )
+        } else {
+            Mat4::perspective_rh(
+                58_f32.to_radians(),
+                self.config.width as f32 / self.scene_height() as f32,
+                0.003,
+                10.0,
+            )
+        };
         projection * Mat4::look_at_rh(eye, look, Vec3::Z)
     }
     pub(super) fn scene_height(&self) -> u32 {
@@ -1057,12 +1071,14 @@ mod tests {
             super::super::commerce::shader(),
             include_str!("vehicle.wgsl")
         );
-        let module = naga::front::wgsl::parse_str(&source).unwrap();
-        naga::valid::Validator::new(
-            naga::valid::ValidationFlags::all(),
-            naga::valid::Capabilities::all(),
-        )
-        .validate(&module)
-        .unwrap();
+        for source in [source.as_str(), opencity::runtime::EDITOR_SHADER] {
+            let module = naga::front::wgsl::parse_str(source).unwrap();
+            naga::valid::Validator::new(
+                naga::valid::ValidationFlags::all(),
+                naga::valid::Capabilities::all(),
+            )
+            .validate(&module)
+            .unwrap();
+        }
     }
 }

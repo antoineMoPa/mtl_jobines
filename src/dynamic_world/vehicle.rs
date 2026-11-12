@@ -1,4 +1,6 @@
 use glam::{Quat, Vec2, Vec3};
+mod rotation;
+mod support;
 #[cfg(test)]
 use opencity::runtime::Mesh;
 use opencity::{
@@ -60,8 +62,8 @@ pub struct Vehicle {
     pub surface: SurfaceKind,
     pub grounded: bool,
     pub collisions: u64,
-    /// Chassis angular velocity in radians per second, driven by tire/contact torque.
-    pub yaw_rate: f32,
+    /// World angular momentum divided by mass, in square metres per second.
+    pub angular_momentum: Vec3,
     /// Sprung-body pitch and roll relative to the wheel support plane.
     pub(super) body_lean: Vec2,
     pub(super) body_lean_rate: Vec2,
@@ -137,7 +139,7 @@ impl Vehicle {
             surface: SurfaceKind::Asphalt,
             grounded: true,
             collisions: 0,
-            yaw_rate: 0.,
+            angular_momentum: Vec3::ZERO,
             body_lean: Vec2::ZERO,
             body_lean_rate: Vec2::ZERO,
         }
@@ -221,6 +223,8 @@ impl Vehicle {
     }
 
     fn step_substep(&mut self, city: &City, input: Controls, dt: f32, buildings: Option<&[usize]>) {
+        let previous_position = self.position;
+        let previous_orientation = self.orientation();
         let suspension = super::suspension::profile(self);
         let previous_velocity = self.velocity.truncate();
         let f = Vec2::new(self.yaw.cos(), self.yaw.sin());
@@ -233,15 +237,14 @@ impl Vehicle {
             / (1. + speed.abs() * STEERING_SPEED_TAPER);
         self.steering += (target_steering - self.steering) * (1. - (-8. * dt).exp());
         let mut gradient = Vec2::ZERO;
-        let mut support = 0.;
         let mut contacts = 0;
         let mut tires = [None; 4];
         let mut worst = SurfaceKind::Asphalt;
-        for (index, (wheel, sample)) in self.wheel_contacts(city).into_iter().enumerate() {
+        let wheels = self.wheel_contacts(city);
+        for (index, (wheel, sample)) in wheels.into_iter().enumerate() {
             if let Some(s) = sample {
                 let h = s.height * METERS_PER_UNIT;
-                if wheel.z - h < 0.6 {
-                    support += h;
+                if wheel.z - h < 0.6 && (self.orientation() * Vec3::Z).z > 0.3 {
                     gradient += Vec2::from_array(s.gradient);
                     let rear = index < 2;
                     let angle = self.yaw + if rear { 0. } else { self.steering };
@@ -273,39 +276,20 @@ impl Vehicle {
         let speed = v.dot(f);
         if contacts > 0 {
             let count = contacts as f32;
-            support /= count;
             gradient /= count;
             self.apply_tire_forces(&tires, input, &mut v, dt);
             // Gravity projected onto the support plane, in world horizontal axes.
             v -= gradient * (9.81 / (1. + gradient.length_squared())) * dt;
-            let target_pitch = gradient.dot(f).atan();
-            let target_roll = gradient.dot(left).atan();
-            self.pitch += (target_pitch - self.pitch) * (dt * 9.).min(1.);
-            self.roll += (target_roll - self.roll) * (dt * 9.).min(1.);
-            let target = support + self.ride_height();
-            self.velocity.z += ((target - self.position.z) * suspension.heave_spring
-                - self.velocity.z * suspension.heave_damping)
-                * dt;
-        } else {
-            self.velocity.z -= 9.81 * dt;
         }
-        // Quadratic air drag acts on the whole velocity, including while airborne.
+        self.apply_wheel_support(&wheels, &tires, suspension, dt);
+        // Horizontal air drag also acts while airborne.
         v /= 1. + AIR_DRAG * v.length() * dt;
         self.velocity.x = v.x;
         self.velocity.y = v.y;
         self.move_with_building_candidates(city, dt, buildings);
         // Resolve at the new footprint, including chassis tilt and impact yaw.
         // Suspension smoothing must never leave a tire below a curb or verge.
-        let mut lift = 0.0_f32;
-        for (wheel, sample) in self.wheel_contacts(city) {
-            if let Some(surface) = sample {
-                lift = lift.max(surface.height * METERS_PER_UNIT - wheel.z);
-            }
-        }
-        if lift > 0. {
-            self.position.z += lift;
-            self.velocity.z = self.velocity.z.max(0.);
-        }
+        self.resolve_ground_contacts(city, previous_position, previous_orientation);
         // Actual acceleration includes braking, tire slip and impacts. Heading
         // changes alone must not lean the body when no contact supplies force.
         let acceleration = (self.velocity.truncate() - previous_velocity) / dt;
@@ -362,7 +346,8 @@ impl Vehicle {
         let mut torque = 0.;
         for (index, tire) in tires.iter().enumerate() {
             let Some(tire) = tire else { continue };
-            let point_velocity = *velocity + Vec2::new(-tire.arm.y, tire.arm.x) * self.yaw_rate;
+            let point_velocity =
+                *velocity + Vec2::new(-tire.arm.y, tire.arm.x) * self.angular_velocity().z;
             let longitudinal_speed = point_velocity.dot(tire.forward);
             // Four simultaneous tire impulses must not over-correct contact speed.
             // This bound includes the rotational response at the contact point.
@@ -394,14 +379,15 @@ impl Vehicle {
             torque += tire.arm.perp_dot(wheel_impulse);
         }
         *velocity += impulse;
-        self.yaw_rate += torque / self.inertia();
+        self.angular_momentum.z += torque;
 
         impulse = Vec2::ZERO;
         torque = 0.;
         for (index, tire) in tires.iter().enumerate() {
             let Some(tire) = tire else { continue };
             let lateral = Vec2::new(-tire.forward.y, tire.forward.x);
-            let point_velocity = *velocity + Vec2::new(-tire.arm.y, tire.arm.x) * self.yaw_rate;
+            let point_velocity =
+                *velocity + Vec2::new(-tire.arm.y, tire.arm.x) * self.angular_velocity().z;
             let slip = point_velocity.dot(lateral);
             let response = 4. * (1. + tire.arm.length_squared() / self.inertia());
             // Linear slip-angle response at speed; viscous slip at parking speed.
@@ -422,7 +408,7 @@ impl Vehicle {
             torque += tire.arm.perp_dot(wheel_impulse);
         }
         *velocity += impulse;
-        self.yaw_rate += torque / self.inertia();
+        self.angular_momentum.z += torque;
     }
 
     fn wheel_contacts(&self, city: &City) -> [(Vec3, Option<SurfaceSample>); 4] {
@@ -447,12 +433,14 @@ impl Vehicle {
         self.move_with_building_candidates(city, dt, None);
     }
     #[cfg(test)]
-    fn building_contact(&self, city: &City, forward: Vec2) -> Option<(Vec2, f32, Vec2)> {
+    fn building_contact(&self, city: &City, forward: Vec2) -> Option<(Vec2, f32, Vec3)> {
         self.building_contact_candidates(city, forward, None)
     }
     fn move_with_building_candidates(&mut self, city: &City, dt: f32, buildings: Option<&[usize]>) {
         // Sweep in increments shorter than the body radius to avoid tunneling.
-        let steps = ((self.velocity.length() + self.yaw_rate.abs() * 1.2) * dt / 0.4)
+        let steps = ((self.velocity.length() + self.angular_velocity().length() * self.length())
+            * dt
+            / 0.4)
             .ceil()
             .max(1.) as usize;
         let step_dt = dt / steps as f32;
@@ -461,7 +449,7 @@ impl Vehicle {
             self.position += self.velocity * step_dt;
             // Angular momentum persists until a tire or contact supplies torque.
             // Rotating the chassis does not rotate its world-space velocity.
-            self.yaw += self.yaw_rate * step_dt;
+            self.advance_orientation(step_dt);
             for _ in 0..8 {
                 // Rotation changes the capsule footprint: always query the
                 // current heading, including while separating a resting car.
@@ -476,7 +464,8 @@ impl Vehicle {
                 self.position.x += separation.x;
                 self.position.y += separation.y;
                 let inward_speed = self.velocity.truncate().dot(normal);
-                self.sound_impact(-inward_speed, crate::audio::Material::Hard, false);
+                let contact_speed = self.velocity_at(arm).truncate().dot(normal);
+                self.sound_impact(-contact_speed, crate::audio::Material::Hard, false);
                 if inward_speed < 0. {
                     let incoming = self.velocity.truncate();
                     // Preserve the reflected ray's angle, while losing only
@@ -495,13 +484,24 @@ impl Vehicle {
                     // Symmetric head-on hits have no lever across the normal;
                     // reverse impacts automatically use the rear contact arm.
                     let normal_impulse = normal * (-(1. + retention) * inward_speed);
-                    let yaw_impulse = arm.perp_dot(normal_impulse) / self.inertia();
                     let lost_energy =
                         (incoming.length_squared() - outgoing.length_squared()).max(0.);
-                    let spin_limit = (self.yaw_rate * self.yaw_rate + lost_energy / self.inertia())
-                        .sqrt()
-                        .min(2.8);
-                    self.yaw_rate = (self.yaw_rate + yaw_impulse).clamp(-spin_limit, spin_limit);
+                    let budget = self.angular_momentum.dot(self.angular_velocity()) + lost_energy;
+                    self.angular_momentum += arm.cross(normal_impulse.extend(0.));
+                    self.angular_momentum.z = self
+                        .angular_momentum
+                        .z
+                        .clamp(-2.8 * self.inertia(), 2.8 * self.inertia());
+                    let spin_energy = self.angular_momentum.dot(self.angular_velocity());
+                    if spin_energy > budget {
+                        self.angular_momentum *= (budget / spin_energy).sqrt();
+                    }
+                } else if contact_speed < 0. {
+                    // A spinning corner can strike a wall while the centre is
+                    // stationary or moving away. Resolve its actual point speed.
+                    let normal = normal.extend(0.);
+                    let impulse = -contact_speed / self.impulse_response(arm, normal);
+                    self.apply_impulse(arm, normal * impulse);
                 }
             }
         }
@@ -515,19 +515,39 @@ impl Vehicle {
         city: &City,
         forward: Vec2,
         buildings: Option<&[usize]>,
-    ) -> Option<(Vec2, f32, Vec2)> {
+    ) -> Option<(Vec2, f32, Vec3)> {
+        let q = self.orientation();
+        let axis = q * Vec3::X;
+        let side = q * Vec3::Y;
+        let up = q * Vec3::Z;
+        let radius = self.width() * 0.5 * side.truncate().length()
+            + self.height() * 0.5 * up.truncate().length()
+            + 0.02;
+        let center_z = self.position.z + up.z * (self.height() * 0.5 - self.ride_height());
+        let vertical_radius = axis.z.abs() * self.length() * 0.5
+            + side.z.abs() * self.width() * 0.5
+            + up.z.abs() * self.height() * 0.5;
+        let bottom = (center_z - vertical_radius) / METERS_PER_UNIT;
+        let top = (center_z + vertical_radius) / METERS_PER_UNIT;
+        // The supplied heading is exact in the planar case; tilt projects the
+        // chassis axis into the horizontal collision footprint.
+        let forward = if self.pitch == 0. && self.roll == 0. {
+            forward
+        } else {
+            axis.truncate()
+        };
         let mut deepest = None;
         for offset in [-self.length() * 0.28, 0., self.length() * 0.28] {
             let center = self.position.truncate() + forward * offset;
             if let Some((normal, depth)) = city.road_barrier_contact(
                 (center / METERS_PER_UNIT).to_array(),
-                (self.width() * 0.5 + 0.02) / METERS_PER_UNIT,
-                (self.position.z - 0.35) / METERS_PER_UNIT,
-                (self.position.z + 0.45) / METERS_PER_UNIT,
+                radius / METERS_PER_UNIT,
+                bottom,
+                top,
             ) {
                 let depth = depth * METERS_PER_UNIT;
                 if deepest.is_none_or(|(_, previous, _)| depth > previous) {
-                    deepest = Some((Vec2::from_array(normal), depth, forward * offset));
+                    deepest = Some((Vec2::from_array(normal), depth, axis * offset));
                 }
             }
         }
@@ -535,9 +555,9 @@ impl Vehicle {
             let building = &city.landscape[buildings.map_or(index, |ids| ids[index])];
             if building.kind != opencity::LandscapeKind::Building
                 || !building.building_style.unwrap_or_default().collidable
-                || building.elevation * METERS_PER_UNIT >= self.position.z + 0.45
+                || building.elevation >= top
                 || (building.elevation + building.height.unwrap_or(0.)) * METERS_PER_UNIT
-                    <= self.position.z - 0.35
+                    <= bottom * METERS_PER_UNIT
             {
                 continue;
             }
@@ -575,9 +595,9 @@ impl Vehicle {
                 }
                 let distance = distance_squared.sqrt();
                 let depth = if inside {
-                    self.width() * 0.5 + 0.02 + distance
+                    radius + distance
                 } else {
-                    self.width() * 0.5 + 0.02 - distance
+                    radius - distance
                 };
                 if depth <= 0. || !depth.is_finite() {
                     continue;
@@ -591,19 +611,14 @@ impl Vehicle {
                 } else {
                     // Determine which side of an exact edge contact is outside.
                     let probe = (center + edge_normal * 0.01) / METERS_PER_UNIT;
-                    if city.building_collision(
-                        probe.to_array(),
-                        0.,
-                        (self.position.z - 0.35) / METERS_PER_UNIT,
-                        (self.position.z + 0.45) / METERS_PER_UNIT,
-                    ) {
+                    if city.building_collision(probe.to_array(), 0., bottom, top) {
                         -edge_normal
                     } else {
                         edge_normal
                     }
                 };
                 if deepest.is_none_or(|(_, previous, _)| depth > previous) {
-                    deepest = Some((normal, depth, forward * offset));
+                    deepest = Some((normal, depth, axis * offset));
                 }
             }
         }
@@ -680,6 +695,8 @@ impl Vehicle {
         m
     }
 }
+#[cfg(test)]
+mod angular_tests;
 #[cfg(test)]
 mod performance_tests;
 #[cfg(test)]

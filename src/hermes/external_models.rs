@@ -22,11 +22,21 @@ pub(crate) fn paths(program: &opencity::Program, base: &Path) -> Result<Vec<Path
 fn game(p: Vec3) -> Vec3 {
     Vec3::new(p.x, -p.z, p.y)
 }
+#[cfg(test)]
 fn walk(
     node: gltf::Node<'_>,
     parent: Mat4,
     binary: &[u8],
     out: &mut Vec<Vertex>,
+) -> Result<(), String> {
+    walk_materials(node, parent, binary, out, false)
+}
+fn walk_materials(
+    node: gltf::Node<'_>,
+    parent: Mat4,
+    binary: &[u8],
+    out: &mut Vec<Vertex>,
+    baked_prop: bool,
 ) -> Result<(), String> {
     let transform = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
     if !transform.is_finite() || transform.determinant().abs() < 1e-12 {
@@ -72,6 +82,17 @@ fn walk(
                 .material()
                 .pbr_metallic_roughness()
                 .base_color_factor();
+            let kind = if baked_prop
+                && primitive
+                    .material()
+                    .emissive_factor()
+                    .iter()
+                    .any(|v| *v > 0.)
+            {
+                SurfaceKind::Light
+            } else {
+                SurfaceKind::Prop
+            };
             for triangle in indices.chunks_exact(3) {
                 let p = triangle
                     .iter()
@@ -115,18 +136,140 @@ fn walk(
                         position: position.to_array(),
                         normal: (normal / length).to_array(),
                         color,
-                        surface: [SurfaceKind::Prop as u32 as f32, 0., 0., 0.],
+                        surface: [kind as u32 as f32, 0., 0., 0.],
                     });
                 }
             }
         }
     }
     for child in node.children() {
-        walk(child, transform, binary, out)?;
+        walk_materials(child, transform, binary, out, baked_prop)?;
     }
     Ok(())
 }
-pub(super) fn build(city: &City, base: &Path) -> Result<Mesh, String> {
+/// The authoring tool validates imports with the same decoder as map loading.
+pub(crate) fn decode(bytes: &[u8]) -> Result<Mesh, String> {
+    decode_model(bytes, false)
+}
+/// Packaged street props already contain the approved bake in COLOR_0.
+/// Keep that shading once, and map their diffuser materials to game lights.
+pub(crate) fn decode_street_prop(bytes: &[u8]) -> Result<Mesh, String> {
+    decode_model(bytes, true)
+}
+fn decode_model(bytes: &[u8], baked_prop: bool) -> Result<Mesh, String> {
+    if bytes.len() > 64 * 1024 * 1024 {
+        return Err("GLB exceeds 64 MiB".into());
+    }
+    let glb = gltf::Gltf::from_slice(bytes).map_err(|e| e.to_string())?;
+    let binary = glb
+        .blob
+        .as_deref()
+        .ok_or("GLB must contain its binary buffer")?;
+    let scene = glb
+        .default_scene()
+        .or_else(|| glb.scenes().next())
+        .ok_or("GLB has no scene")?;
+    let mut vertices = Vec::new();
+    for node in scene.nodes() {
+        walk_materials(node, Mat4::IDENTITY, binary, &mut vertices, baked_prop)?;
+    }
+    if vertices.is_empty() || vertices.len() % 3 != 0 {
+        return Err("GLB needs a nonempty triangle mesh".into());
+    }
+    let mut mesh = Mesh { vertices };
+    let (lo, hi) = bounds(&mesh);
+    if (hi - lo).min_element() <= 1e-8 {
+        return Err("GLB model has degenerate bounds".into());
+    }
+    if baked_prop {
+        return Ok(mesh);
+    }
+    let size = hi - lo;
+    let radius = (size.min_element() * 0.5).max(size.max_element() * 0.02);
+    opencity::runtime::ambient_occlusion::bake(&mut mesh, radius, Some(lo.z));
+    let unit = (size.z / 3.).max(size.max_element() / 32.);
+    for v in &mut mesh.vertices {
+        if v.surface[0] == SurfaceKind::Light as u32 as f32 {
+            continue;
+        }
+        let p = Vec3::from_array(v.position) - lo;
+        let uv = if v.normal[2].abs() > 0.7 {
+            [p.x / unit, p.y / unit]
+        } else {
+            [
+                if v.normal[1].abs() > v.normal[0].abs() {
+                    p.x / unit
+                } else {
+                    p.y / unit
+                },
+                p.z / unit,
+            ]
+        };
+        v.surface[1..].copy_from_slice(&[uv[0], uv[1], -1.]);
+    }
+    Ok(mesh)
+}
+
+pub(crate) fn bounds(mesh: &Mesh) -> (Vec3, Vec3) {
+    mesh.vertices.iter().fold(
+        (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+        |(lo, hi), v| {
+            let p = Vec3::from_array(v.position);
+            (lo.min(p), hi.max(p))
+        },
+    )
+}
+
+pub(crate) fn place(mesh: &Mesh, feature: &opencity::LandscapeFeature) -> Result<Mesh, String> {
+    if feature.points.len() != 4 {
+        return Err("GLB placement needs four footprint corners".into());
+    }
+    let (lo, hi) = bounds(mesh);
+    let size = hi - lo;
+    if size.min_element() <= 1e-8 {
+        return Err("GLB model has degenerate bounds".into());
+    }
+    let a = feature.points[0];
+    let b = feature.points[1];
+    let c = feature.points[2];
+    let width = (b[0] - a[0]).hypot(b[1] - a[1]);
+    let depth = (c[0] - b[0]).hypot(c[1] - b[1]);
+    if width <= 1e-8 || depth <= 1e-8 {
+        return Err("Model footprint has a zero-length edge".into());
+    }
+    let scale = (width / size.x).min(depth / size.y);
+    let vertical = feature.height.unwrap_or(size.z * scale) / size.z;
+    if !vertical.is_finite() || vertical <= 0. {
+        return Err("Invalid model height".into());
+    }
+    let (sin, cos) = (b[1] - a[1]).atan2(b[0] - a[0]).sin_cos();
+    let center = feature
+        .points
+        .iter()
+        .fold([0.; 2], |sum, p| [sum[0] + p[0] / 4., sum[1] + p[1] / 4.]);
+    let mut result = mesh.clone();
+    for vertex in &mut result.vertices {
+        let p = Vec3::from_array(vertex.position);
+        let x = (p.x - (lo.x + hi.x) * 0.5) * scale;
+        let y = (p.y - (lo.y + hi.y) * 0.5) * scale;
+        vertex.position = [
+            center[0] + cos * x - sin * y,
+            center[1] + sin * x + cos * y,
+            feature.elevation + (p.z - lo.z) * vertical,
+        ];
+        let n = vertex.normal;
+        let nz = n[2] * scale / vertical;
+        let length = n[0].hypot(n[1]).hypot(nz);
+        vertex.normal = [
+            (cos * n[0] - sin * n[1]) / length,
+            (sin * n[0] + cos * n[1]) / length,
+            nz / length,
+        ];
+    }
+    Ok(result)
+}
+
+pub(crate) fn build(city: &City, base: &Path) -> Result<Mesh, String> {
     let mut result = Mesh::default();
     for feature in &city.landscape {
         let Some(path) = feature.model.as_deref().filter(|p| p.ends_with(".glb")) else {
@@ -138,77 +281,49 @@ pub(super) fn build(city: &City, base: &Path) -> Result<Mesh, String> {
             return Err(format!("{}: GLB exceeds 64 MiB", path.display()));
         }
         let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let glb = gltf::Gltf::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
-        let binary = glb
-            .blob
-            .as_deref()
-            .ok_or("GLB must contain its binary buffer")?;
-        let mut vertices = Vec::new();
-        let scene = glb
-            .default_scene()
-            .or_else(|| glb.scenes().next())
-            .ok_or("GLB has no scene")?;
-        for node in scene.nodes() {
-            walk(node, Mat4::IDENTITY, binary, &mut vertices)
-                .map_err(|e| format!("{}: {e}", path.display()))?;
-        }
-        if vertices.is_empty() || vertices.len() % 3 != 0 || feature.points.len() != 4 {
-            return Err("GLB placement needs a nonempty model and four footprint corners".into());
-        }
-        let mut lo = Vec3::splat(f32::INFINITY);
-        let mut hi = Vec3::splat(f32::NEG_INFINITY);
-        for v in &vertices {
-            let p = Vec3::from_array(v.position);
-            lo = lo.min(p);
-            hi = hi.max(p);
-        }
-        let size = hi - lo;
-        if size.min_element() <= 1e-8 {
-            return Err("GLB model has degenerate bounds".into());
-        }
-        let a = feature.points[0];
-        let b = feature.points[1];
-        let c = feature.points[2];
-        let width = (b[0] - a[0]).hypot(b[1] - a[1]);
-        let depth = (c[0] - b[0]).hypot(c[1] - b[1]);
-        if width <= 1e-8 || depth <= 1e-8 {
-            return Err(format!(
-                "{}: model footprint has a zero-length edge",
-                path.display()
-            ));
-        }
-        let scale = (width / size.x).min(depth / size.y);
-        let vertical = feature.height.unwrap_or(size.z * scale) / size.z;
-        let (sin, cos) = (b[1] - a[1]).atan2(b[0] - a[0]).sin_cos();
-        let center = feature
-            .points
-            .iter()
-            .fold([0.; 2], |sum, p| [sum[0] + p[0] / 4., sum[1] + p[1] / 4.]);
-        for mut vertex in vertices {
-            let p = Vec3::from_array(vertex.position);
-            let x = (p.x - (lo.x + hi.x) * 0.5) * scale;
-            let y = (p.y - (lo.y + hi.y) * 0.5) * scale;
-            vertex.position = [
-                center[0] + cos * x - sin * y,
-                center[1] + sin * x + cos * y,
-                feature.elevation + (p.z - lo.z) * vertical,
-            ];
-            let n = vertex.normal;
-            let nz = n[2] * scale / vertical;
-            let length = n[0].hypot(n[1]).hypot(nz);
-            vertex.normal = [
-                (cos * n[0] - sin * n[1]) / length,
-                (sin * n[0] + cos * n[1]) / length,
-                nz / length,
-            ];
-            result.vertices.push(vertex);
-        }
+        let raw = decode(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+        result.vertices.extend(place(&raw, feature)?.vertices);
     }
     Ok(result)
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
+    #[test]
+    fn imported_model_bakes_shading_once_and_keeps_geometry_and_original_asset() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data/maps/mtl/models/fuel-station.glb");
+        let bytes = std::fs::read(&path).unwrap();
+        let glb = gltf::Gltf::from_slice(&bytes).unwrap();
+        let mut original = Vec::new();
+        for node in glb.default_scene().unwrap().nodes() {
+            super::walk(
+                node,
+                glam::Mat4::IDENTITY,
+                glb.blob.as_ref().unwrap(),
+                &mut original,
+            )
+            .unwrap();
+        }
+        let mesh = super::decode(&bytes).unwrap();
+        let duplicate = super::decode(&bytes).unwrap();
+        assert_eq!(mesh.vertices.len(), original.len());
+        let mut shaded = 0;
+        for ((baked, raw), duplicate) in mesh.vertices.iter().zip(original).zip(duplicate.vertices)
+        {
+            assert_eq!(baked.position, raw.position);
+            assert_eq!(baked.normal, raw.normal);
+            assert_eq!(baked.color, duplicate.color);
+            assert_eq!(baked.surface[3], -1.);
+            for i in 0..3 {
+                assert!(baked.color[i] >= raw.color[i] * 0.5199);
+                assert!(baked.color[i] <= raw.color[i]);
+            }
+            shaded += usize::from(baked.color != raw.color);
+        }
+        assert!(shaded > 0);
+        assert_eq!(std::fs::read(path).unwrap(), bytes);
+    }
     #[test]
     fn packaged_map_data_excludes_external_glb_vertices() {
         let dir = std::env::temp_dir().join(format!("external-model-cache-{}", std::process::id()));

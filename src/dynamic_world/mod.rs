@@ -547,10 +547,14 @@ mod tests {
         let expected = world.player_position();
         world.vehicles[0].position += Vec3::new(5., 6., 7.);
         world.vehicles[0].velocity = Vec3::X * 12.;
+        world.vehicles[0].angular_momentum = Vec3::new(1., -2., 3.);
+        world.vehicles[0].roll = std::f32::consts::PI;
         world.reset_player(&hermes);
         assert!(world.is_driving());
         assert_eq!(world.player_position(), expected);
         assert_eq!(world.player_yaw(), 0.73);
         assert_eq!(world.player().velocity, Vec3::ZERO);
+        assert_eq!(world.player().angular_momentum, Vec3::ZERO);
+        assert!(world.player().roll.abs() < 0.01);
     }
 }

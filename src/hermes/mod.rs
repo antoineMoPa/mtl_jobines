@@ -10,6 +10,7 @@ mod landmark_destinations;
 mod landmarks;
 pub(crate) use landmark_destinations::Landmark;
 mod minimap;
+pub(crate) mod street_props;
 
 mod route_signal;
 mod routing;
@@ -332,14 +333,13 @@ impl Hermes {
         (world, details)
     }
     pub(crate) fn prop_groups(&self) -> Vec<Vec<Mesh>> {
-        let mut props = self.city.detail_objects(Region::WholeMap);
+        let mut groups = street_props::groups(&self.city);
         let (_, frontage) = self.city.building_detail_parts_matching(
             Region::WholeMap,
             &building_style::residential(),
             detailed_frontage,
         );
-        props.extend(frontage);
-        let mut groups: Vec<_> = props.into_iter().map(|mesh| vec![mesh]).collect();
+        groups.extend(frontage.into_iter().map(|mesh| vec![mesh]));
         groups.extend(commerce_mesh::prop_groups(&self.city));
         groups
     }

@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use web_input::Input;
 use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, window::Window};
+mod panels;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TimeCommand {
@@ -47,10 +48,16 @@ pub(super) enum PaletteAction {
     #[cfg(not(target_arch = "wasm32"))]
     GrowNetwork,
     #[cfg(not(target_arch = "wasm32"))]
+    BuildBuildings,
+    #[cfg(not(target_arch = "wasm32"))]
     BugReport,
 }
 impl PaletteAction {
     fn from_id(id: &str) -> Option<Self> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if id == "building.place" {
+            return Some(Self::BuildBuildings);
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if id == "road.expand" {
             return Some(Self::ExpandNetwork);
@@ -140,9 +147,20 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
         description: "Grow a network using a seed and step count".into(),
         shortcut: String::new(),
     });
+    #[cfg(not(target_arch = "wasm32"))]
+    commands.push(Command {
+        id: "building.place".into(),
+        title: "Add buildings…".into(),
+        description: "Draw footprints and customize buildings or import GLB models".into(),
+        shortcut: String::new(),
+    });
     commands
 }
 pub struct Palette {
+    #[cfg(not(target_arch = "wasm32"))]
+    report_overlay: Option<(Vec<egui::ClippedPrimitive>, f32)>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) buildings: Option<super::buildings::Document>,
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) expansion: Option<super::expansion::Document>,
     pub menu: CommandPalette,
@@ -174,6 +192,8 @@ impl Palette {
         }
         let ctx = egui::Context::default();
         Self {
+            report_overlay: None,
+            buildings: None,
             expansion: None,
             input: Input::new(
                 ctx.clone(),
@@ -205,6 +225,10 @@ impl Palette {
             Some(renderer.device.limits().max_texture_dimension_2d as usize),
         );
         Self {
+            #[cfg(not(target_arch = "wasm32"))]
+            report_overlay: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            buildings: None,
             #[cfg(not(target_arch = "wasm32"))]
             expansion: None,
             menu: CommandPalette::default(),
@@ -244,6 +268,8 @@ impl Palette {
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.expansion = None;
+            self.buildings = None;
+            self.report_overlay = None;
         }
         self.menu.dismiss();
         self.sky_open = false;
@@ -257,6 +283,8 @@ impl Palette {
         let open = open || self.bug_report.is_open();
         #[cfg(not(target_arch = "wasm32"))]
         let open = open || self.expansion.as_ref().is_some_and(|d| d.picker.open);
+        #[cfg(not(target_arch = "wasm32"))]
+        let open = open || self.buildings.as_ref().is_some_and(|d| d.open);
         open
     }
     pub fn shortcut(&self) -> bool {
@@ -270,6 +298,11 @@ impl Palette {
         command && self.modifiers.shift_key()
     }
     pub(super) fn reserved_bottom(&self, width: u32, height: u32) -> u32 {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(document) = &self.buildings {
+            let scale = self.ctx.pixels_per_point();
+            return (document.strip_height(width as f32 / scale) * scale).round() as u32;
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(document) = &self.expansion {
             let scale = self.ctx.pixels_per_point();
@@ -285,10 +318,43 @@ impl Palette {
     }
     pub(super) fn build_camera(&self) -> Option<(glam::Vec3, glam::Vec3, [f32; 2])> {
         #[cfg(not(target_arch = "wasm32"))]
+        if let Some(document) = &self.buildings {
+            return document.camera();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some(document) = &self.expansion {
             return document.camera();
         }
         None
+    }
+    pub(super) fn orthographic_span(&self) -> Option<f32> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let Some(document) = &self.buildings {
+                return document.orthographic_span();
+            }
+            if let Some(document) = &self.expansion {
+                return document.orthographic_span();
+            }
+        }
+        None
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn building_drop(
+        &mut self,
+        event: &WindowEvent,
+        city: &opencity::runtime::City,
+    ) -> bool {
+        if self.bug_report.is_open() {
+            return false;
+        }
+        if let (WindowEvent::DroppedFile(path), Some(document)) = (event, &mut self.buildings) {
+            if document.open {
+                document.dropped_file(city, path);
+                return true;
+            }
+        }
+        false
     }
     pub fn draw(
         &mut self,
@@ -297,61 +363,20 @@ impl Palette {
         target: &wgpu::TextureView,
         sound: &mut crate::audio::Settings,
         view_projection: glam::Mat4,
+        city: &opencity::runtime::City,
     ) -> Option<PaletteAction> {
         let mut selected = None;
-        #[cfg(not(target_arch = "wasm32"))]
-        let bug_link_enabled = !self.is_open();
-        let output = self.ctx.run_ui(self.input.take_egui_input(window), |ui| {
-            #[cfg(not(target_arch = "wasm32"))]
-            egui::Area::new(egui::Id::new("bug_report_link"))
-                .anchor(egui::Align2::LEFT_TOP, egui::vec2(12., 8.))
-                .show(ui.ctx(), |ui| {
-                    if ui
-                        .add_enabled(bug_link_enabled, egui::Link::new("[bug]"))
-                        .on_hover_text("Report a bug")
-                        .clicked()
-                    {
-                        selected = Some(PaletteAction::BugReport);
-                    }
-                });
-            if let Some(id) = self.menu.show(ui.ctx(), &self.commands) {
-                if id == "sound.settings" {
-                    self.sound_open = true;
-                } else if id == "sky.settings" {
-                    self.sky_open = true;
-                    if renderer.daylight.is_some() {
-                        renderer.sky_settings.solar_hour =
-                            Some(renderer.sky_settings.hour(0., renderer.daylight));
-                    }
-                    renderer.daylight = None;
-                } else {
-                    selected = PaletteAction::from_id(&id);
-                }
-            }
-            if self.sky_open && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
-                self.sky_open = false;
-            }
-            super::sky_controls::show(ui.ctx(), &mut self.sky_open, &mut renderer.sky_settings);
-            if self.sound_open && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
-                self.sound_open = false;
-            }
-            sound.show(ui.ctx(), &mut self.sound_open);
-            #[cfg(not(target_arch = "wasm32"))]
-            self.bug_report.show(ui.ctx());
-            #[cfg(not(target_arch = "wasm32"))]
-            if let Some(document) = &mut self.expansion {
-                document.show(
-                    ui,
-                    view_projection,
-                    [renderer.config.width, renderer.scene_height()],
-                );
-            }
-            #[cfg(target_arch = "wasm32")]
-            let _ = view_projection;
+        let ctx = self.ctx.clone();
+        let output = ctx.run_ui(self.input.take_egui_input(window), |ui| {
+            selected = self.show_panels(ui, renderer, sound, view_projection, city);
         });
         self.input
             .handle_platform_output(window, output.platform_output);
         let primitives = self.ctx.tessellate(output.shapes, output.pixels_per_point);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.remember_report_overlay(&selected, &primitives, output.pixels_per_point);
+        }
         self.painter.paint(
             renderer,
             target,
@@ -379,14 +404,14 @@ struct Vertex {
     uv: [f32; 2],
     color: [f32; 4],
 }
-struct Painter {
+pub(super) struct Painter {
     pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     textures: HashMap<egui::TextureId, (wgpu::Texture, wgpu::BindGroup)>,
 }
 impl Painter {
-    fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+    pub(super) fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("palette texture"),
             entries: &[
@@ -458,7 +483,7 @@ impl Painter {
             textures: HashMap::new(),
         }
     }
-    fn paint(
+    pub(super) fn paint(
         &mut self,
         renderer: &Renderer,
         target: &wgpu::TextureView,
@@ -834,3 +859,7 @@ mod expansion_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "palette/follow_tests.rs"]
 mod follow_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "palette/construction_tests.rs"]
+mod construction_tests;

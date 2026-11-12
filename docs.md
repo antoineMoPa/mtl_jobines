@@ -54,6 +54,37 @@ Routes follow permitted road connections, refresh after 2 m and turn green on ar
 red
 means disconnected. Bridges and geometric crossings alone do not connect roads.
 
+On a native authored map, choose **Add buildings…** in the command palette. Drag a footprint in
+**Build** view or click an empty lot's **+** to create a building with nearby architectural
+defaults.
+Click its surfaces to select it; drag to move, drag footprint corners to resize, or use arrows for
+quarter-meter adjustments. The style dropdown appears after selection. Right-drag pans Build view
+and the wheel zooms; Build has no placement radius. **Street** restores the player camera and limits
+placement to 50 m. Simulation pauses while authoring. **Done** deselects, then closes the tool;
+Escape cancels a gesture, deselects, or closes.
+
+Proposed lots follow the adjacent road's outside edge and local direction, with a setback beyond
+the sidewalk. **Expand road network…** and **Grow network…** also provide **Street / Iso** camera
+controls. Iso supports right-drag panning and wheel zoom, and follows the selected road end.
+
+For a custom building, click **.glb** or drop a GLB onto the game after selecting the building.
+Import
+validates and copies the model into the current map's `models/` directory, keeps the original, and
+saves a relative reference in the `.road` file. **Angle** rotates custom models in degrees. Existing
+files are never overwritten; identical model contents reuse the same asset. The current renderer
+supports embedded triangle meshes with material colors, without base-color textures. Each accepted
+edit saves the authored map and uses live reload; external source edits are detected before saving.
+
+Procedural buildings and imported GLBs bake local ambient occlusion into their vertex colors when
+the mesh is built. Recesses, overhangs and ground contacts receive soft shading without adding
+triangles or per-frame ray tracing. Shared building materials add filtered, seeded dirt, rain
+streaks and surface mottling; the authored `weathering` value controls wear on procedural buildings.
+The game-data cache is invalidated automatically when the mesh generator changes.
+Roads and sidewalks also receive filtered pavement stains and edge grime. Raised neighbors supply
+local curb occlusion; flush lane boundaries stay clear. Concrete barriers, retaining walls, bridge
+decks and piers have runoff, aggregate variation and darker bases. Bridge piers bake contact AO;
+the remaining infrastructure shading uses material-space distances without screen-space sampling.
+
 In native builds, choose **Bug: Report a bug…** in the command palette to capture the current
 scene, then describe the problem and click **Save report**. Reports go into
 `bug-reports/<number>/` under the working directory, with `screenshot.png` and `report.json`.
@@ -63,6 +94,8 @@ the same map units), and the nearest authored intersection's reference, coordina
 names. A map without intersections records `null`. The scene stays paused while typing; Cancel
 or Escape discards the draft. Existing reports are preserved and the next number follows the
 highest one.
+The **[bug]** link remains available during building and road authoring. Construction reports
+include the proposed footprints and tool strip; the report dialog blocks authoring input.
 
 Replay saved report locations through the native renderer with
 `cargo run --release -- --replay-reports bug-reports --replay-output /tmp/report-replay`.
@@ -79,6 +112,11 @@ straight/right traffic. The simulation pauses with the game.
 Target speeds are 30 km/h on local roads, 50 on wider ordinary roads and ramps, 70 on merges and
 100 on highways, reduced for bends and junctions. After displacement, drivers try to rejoin a
 reachable nearby lane and stop if recovery fails. Stopped NPC cars can be entered with F.
+
+Cars carry pitch, roll and yaw momentum through jumps and falls. Supported wheels supply
+suspension torque; unsupported ends tip under gravity. Vehicle and prop impacts transfer spin
+at their contact points. Tilted cars can land on the chassis or roof, and overturned cars cannot
+drive or automatically right themselves. Use **R** to reset after a rollover.
 
 The palette's **Sky: Atmosphere and stars…** panel offers presets, solar position, haze, sun and
 star settings. The automatic day/night cycle lasts 20 minutes and pauses with simulation.
@@ -139,6 +177,10 @@ legacy `residential_area(...)` maps use the same pipeline. There is no map-name 
 Static map geometry and the 4096² minimap atlas are prepared once per map revision. Scenery uses
 200 m selection groups and 50 m draw batches with camera/shadow culling; nearby props upload
 dynamically.
+Sidewalk benches and lamps use the approved baked GLBs in `data/props/`, decoded once and
+placed at the shared road features. Lamp diffusers retain night emission; stems and overhead
+assemblies have separate collision hulls and break together.
+See [prop assets](data/props/README.md).
 Vehicle body/wheel geometry uploads once; driving updates instance transforms in both render passes.
 Paused menus/maps/palette reuse frozen buffers and redraw for input, window events or map reloads.
 Full-resolution map geometry stays resident, so large maps increase startup time and GPU memory.

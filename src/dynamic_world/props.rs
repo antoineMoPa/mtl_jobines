@@ -178,9 +178,11 @@ impl Props {
             vehicle.width() * 0.5,
             (vehicle.height() * 0.5).min(1.5)
         ]);
-        let pose = Isometry3::new(
-            vector![before.x, before.y, before.z],
-            vector![0., 0., vehicle.yaw],
+        let q = vehicle.orientation();
+        let center = before + q * Vec3::Z * (vehicle.height() * 0.5 - vehicle.ride_height());
+        let pose = Isometry3::from_parts(
+            Translation::new(center.x, center.y, center.z),
+            Rotation::new_unchecked(rapier3d::na::Quaternion::new(q.w, q.x, q.y, q.z)),
         );
         let motion = vector![delta.x, delta.y, delta.z];
         let mut hit = false;
@@ -199,13 +201,17 @@ impl Props {
         ) {
             let n = contact.normal1;
             let normal = Vec3::new(n.x, n.y, n.z);
-            let inward = vehicle.velocity.dot(normal);
+            let point = contact.witness1;
+            let arm =
+                Vec3::new(point.x, point.y, point.z) - (before + delta * contact.time_of_impact);
+            let inward = vehicle.velocity_at(arm).dot(normal);
             let id = self.colliders[handle].user_data as usize;
             let material = self.sound_materials[self.items[id].group];
             if inward >= -3. {
                 vehicle.position = before + delta * (contact.time_of_impact - 0.001).max(0.);
                 if inward < 0. {
-                    vehicle.velocity -= normal * inward;
+                    let impulse = -inward / vehicle.impulse_response(arm, normal);
+                    vehicle.apply_impulse(arm, normal * impulse);
                 }
                 vehicle.collisions += 1;
                 vehicle.sound_impact(-inward, material, false);
@@ -213,6 +219,7 @@ impl Props {
             }
             // One assembly break event, before its individual parts detach.
             vehicle.sound_impact(-inward, material, true);
+            let velocity = vehicle.velocity_at(arm);
             for part in self.groups[self.items[id].group].clone() {
                 if let Some(handle) = self.items[part].collider.take() {
                     self.colliders.remove(
@@ -221,16 +228,17 @@ impl Props {
                         &mut self.bodies,
                         false,
                     );
-                    self.break_prop(part, vehicle.velocity, city, part == id);
+                    self.break_prop(part, velocity, city, part == id);
                 }
             }
+            // Breakage transfers a modest contact impulse back to the chassis.
+            let impulse = -inward * 0.12 / vehicle.impulse_response(arm, normal);
+            vehicle.apply_impulse(arm, normal * impulse);
             // The query tree may retain removed handles; Rapier ignores those
             // absent from the collider set, and intact colliders never move.
             hit = true;
         }
         if hit {
-            vehicle.velocity.x *= 0.88;
-            vehicle.velocity.y *= 0.88;
             vehicle.collisions += 1;
         }
     }
@@ -919,7 +927,7 @@ mod tests {
             assert_eq!(with_props.position, original.position);
             assert_eq!(with_props.velocity, original.velocity);
             assert_eq!(with_props.yaw, original.yaw);
-            assert_eq!(with_props.yaw_rate, original.yaw_rate);
+            assert_eq!(with_props.angular_momentum, original.angular_momentum);
         }
     }
 
@@ -956,14 +964,12 @@ mod tests {
     #[test]
     fn generated_lamps_and_benches_can_be_hit() {
         use opencity::runtime::{Region, StreetFeatureKind};
-        let city = City::from_program(
-            &opencity::parse("road street: sidewalk carlane sidewalk; end street(-25,3,-20,3);")
-                .unwrap(),
-            None,
-        )
-        .unwrap();
+        let hermes = crate::hermes::Hermes::test_map_from_source(
+            "road street: sidewalk carlane sidewalk; end street(-25,3,-20,3);",
+        );
+        let city = hermes.city();
         let features = city.street_features(Region::WholeMap);
-        let meshes = city.detail_objects(Region::WholeMap);
+        let meshes = hermes.prop_groups();
         assert_eq!(features.len(), meshes.len());
         for kind in [StreetFeatureKind::Lamp, StreetFeatureKind::Bench] {
             let index = features.iter().position(|f| f.kind == kind).unwrap();
@@ -975,9 +981,14 @@ mod tests {
             vehicle.position = center + forward * 5.;
             vehicle.velocity = forward * 12.;
             vehicle.yaw = feature.heading;
-            let mut props = Props::new(vec![meshes[index].clone()]);
+            let mut props = Props::from_groups(vec![meshes[index].clone()]);
+            if kind == StreetFeatureKind::Lamp {
+                let base = Vec3::from_array(feature.position) * METERS_PER_UNIT;
+                assert!(props.blocked(base + Vec3::Z * 0.65));
+                assert!(!props.blocked(base + forward + Vec3::Z * 0.9));
+            }
             props.vehicle_move(&mut vehicle, before, &city);
-            assert!(props.items[0].debris.is_some(), "{kind:?}");
+            assert!(props.items.iter().all(|p| p.debris.is_some()), "{kind:?}");
         }
     }
 }

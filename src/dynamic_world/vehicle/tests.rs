@@ -8,7 +8,8 @@ fn map() -> City {
     .unwrap()
 }
 fn planar_energy(vehicle: &Vehicle) -> f32 {
-    vehicle.velocity.truncate().length_squared() + CHASSIS_YAW_INERTIA * vehicle.yaw_rate.powi(2)
+    vehicle.velocity.truncate().length_squared()
+        + CHASSIS_YAW_INERTIA * vehicle.angular_velocity().z.powi(2)
 }
 
 #[test]
@@ -277,17 +278,20 @@ fn steering_accelerates_yaw_without_snapping_momentum_to_the_body() {
                 },
                 1. / 120.,
             );
-            assert_eq!(vehicle.yaw_rate.signum(), (speed * direction).signum());
+            assert_eq!(
+                vehicle.angular_velocity().z.signum(),
+                (speed * direction).signum()
+            );
             let geometric_rate = speed / WHEELBASE * vehicle.steering.tan();
-            assert!(vehicle.yaw_rate.abs() < geometric_rate.abs());
+            assert!(vehicle.angular_velocity().z.abs() < geometric_rate.abs());
             let travel = vehicle.velocity.truncate() * speed.signum();
             let heading = travel.y.atan2(travel.x);
             assert!((heading - vehicle.yaw).abs() > 1e-5);
             assert!(planar_energy(&vehicle) <= energy);
             // Releasing steering does not discard angular momentum.
-            let rate = vehicle.yaw_rate;
+            let rate = vehicle.angular_velocity().z;
             vehicle.step(&city, Controls::default(), 1. / 120.);
-            assert_eq!(vehicle.yaw_rate.signum(), rate.signum());
+            assert_eq!(vehicle.angular_velocity().z.signum(), rate.signum());
         }
     }
 }
@@ -441,7 +445,10 @@ fn acceleration_and_slide_recovery_share_each_tires_force_budget() {
         let lateral_axis = tire.grip * LATERAL_GRIP_SCALE * dt;
         let usage = (impulse.x / longitudinal_axis).powi(2) + (impulse.y / lateral_axis).powi(2);
         assert!(usage <= 1.0001, "ellipse usage={usage}");
-        assert!((vehicle.yaw_rate * CHASSIS_YAW_INERTIA - tire.arm.perp_dot(impulse)).abs() < 1e-5);
+        assert!(
+            (vehicle.angular_velocity().z * CHASSIS_YAW_INERTIA - tire.arm.perp_dot(impulse)).abs()
+                < 1e-5
+        );
     }
 }
 
@@ -459,14 +466,14 @@ fn tires_damp_spin_but_steering_cannot_rotate_a_stationary_vehicle() {
             1. / 120.,
         );
     }
-    assert_eq!(vehicle.yaw_rate, 0.);
+    assert_eq!(vehicle.angular_velocity().z, 0.);
     assert_eq!(vehicle.velocity.truncate(), Vec2::ZERO);
-    vehicle.yaw_rate = 1.;
+    vehicle.angular_momentum.z = vehicle.inertia();
     let mut velocity = Vec2::ZERO;
     for _ in 0..120 {
         vehicle.apply_tire_forces(&flat_tires(), Controls::default(), &mut velocity, 1. / 120.);
     }
-    assert!(vehicle.yaw_rate.abs() < 0.001);
+    assert!(vehicle.angular_velocity().z.abs() < 0.001);
     assert!(velocity.length() < 0.001);
 }
 
@@ -491,7 +498,7 @@ fn split_grip_braking_turns_toward_the_grippier_side() {
             &mut velocity,
             1. / 120.,
         );
-        assert!(vehicle.yaw_rate * grippy_side > 0.);
+        assert!(vehicle.angular_velocity().z * grippy_side > 0.);
         assert!(velocity.x < 20.);
     }
 }
@@ -518,11 +525,13 @@ fn rear_handbrake_reduces_rear_lateral_authority_and_increases_rotation() {
         &mut brake_velocity,
         1. / 120.,
     );
-    assert!(handbraking.yaw_rate < coasting.yaw_rate - 0.01);
+    assert!(handbraking.angular_velocity().z < coasting.angular_velocity().z - 0.01);
     assert!(brake_velocity.y > coast_velocity.y);
     assert!(brake_velocity.x < coast_velocity.x);
     assert!(
-        brake_velocity.length_squared() + CHASSIS_YAW_INERTIA * handbraking.yaw_rate.powi(2) < 116.
+        brake_velocity.length_squared()
+            + CHASSIS_YAW_INERTIA * handbraking.angular_velocity().z.powi(2)
+            < 116.
     );
 }
 
@@ -535,7 +544,7 @@ fn passive_tires_dissipate_translation_and_spin_for_varied_slip_and_support() {
                 for spin in [-2_f32, 0., 2.] {
                     for (brake, handbrake) in [(false, false), (true, false), (false, true)] {
                         let mut vehicle = Vehicle::spawn(&city);
-                        vehicle.yaw_rate = spin;
+                        vehicle.angular_momentum.z = spin * vehicle.inertia();
                         let mut tires = flat_tires();
                         for (i, tire) in tires.iter_mut().enumerate() {
                             if mask & (1 << i) == 0 {
@@ -559,7 +568,7 @@ fn passive_tires_dissipate_translation_and_spin_for_varied_slip_and_support() {
                             1. / 120.,
                         );
                         let energy = velocity.length_squared()
-                            + CHASSIS_YAW_INERTIA * vehicle.yaw_rate.powi(2);
+                            + CHASSIS_YAW_INERTIA * vehicle.angular_velocity().z.powi(2);
                         assert!(
                             energy <= initial + 0.0001,
                             "mask={mask}, speed={speed}, slip={slip}, spin={spin}, \
@@ -578,7 +587,8 @@ fn airborne_rotation_preserves_angular_momentum_without_tire_authority() {
     let mut vehicle = Vehicle::spawn(&city);
     vehicle.position.z += 20.;
     vehicle.velocity = Vec3::X * 10.;
-    vehicle.yaw_rate = 0.8;
+    vehicle.angular_momentum.z = 0.8 * vehicle.inertia();
+    let momentum = vehicle.angular_momentum;
     let yaw = vehicle.yaw;
     for _ in 0..60 {
         vehicle.step(
@@ -592,7 +602,7 @@ fn airborne_rotation_preserves_angular_momentum_without_tire_authority() {
             1. / 120.,
         );
         assert!(!vehicle.grounded);
-        assert_eq!(vehicle.yaw_rate, 0.8);
+        assert_eq!(vehicle.angular_momentum, momentum);
         assert_eq!(vehicle.velocity.y, 0.);
     }
     assert!((vehicle.yaw - yaw - 0.4).abs() < 1e-5);
@@ -644,11 +654,14 @@ fn only_supported_front_wheels_supply_steering_force() {
                 "turning must still allow acceleration"
             );
             if on_grass {
-                assert!(vehicle.yaw_rate * direction > 0., "grass lost steering");
+                assert!(
+                    vehicle.angular_velocity().z * direction > 0.,
+                    "grass lost steering"
+                );
             } else {
                 // With both steered wheels unsupported, steering cannot turn
                 // the chassis or bend momentum through the rear tires.
-                assert!(vehicle.yaw_rate.abs() < 1e-6);
+                assert!(vehicle.angular_velocity().z.abs() < 1e-6);
                 assert!(vehicle.velocity.y.abs() < 1e-6);
             }
         }
@@ -930,16 +943,16 @@ fn oblique_impacts_turn_chassis_smoothly_in_forward_and_reverse() {
             let yaw_delta = vehicle.yaw - initial_yaw;
             if angle == 0. {
                 assert!(yaw_delta.abs() < 1e-5);
-                assert!(vehicle.yaw_rate.abs() < 1e-4);
+                assert!(vehicle.angular_velocity().z.abs() < 1e-4);
             } else {
                 assert!(
                     yaw_delta * angle > 0.,
                     "angle={angle}, reverse={direction}, yaw={yaw_delta}"
                 );
-                assert!(vehicle.yaw_rate.abs() > 0.1);
+                assert!(vehicle.angular_velocity().z.abs() > 0.1);
             }
             let outgoing = vehicle.velocity;
-            let outgoing_rate = vehicle.yaw_rate;
+            let outgoing_rate = vehicle.angular_velocity().z;
             let rebound_yaw = vehicle.yaw;
             for _ in 0..120 {
                 let previous_yaw = vehicle.yaw;
@@ -953,7 +966,7 @@ fn oblique_impacts_turn_chassis_smoothly_in_forward_and_reverse() {
             assert!(vehicle.velocity.distance(outgoing) < 0.001);
             assert_eq!(vehicle.collisions, 1);
             // Free motion conserves spin; tire forces recover it in step().
-            assert_eq!(vehicle.yaw_rate, outgoing_rate);
+            assert_eq!(vehicle.angular_velocity().z, outgoing_rate);
             assert!((vehicle.yaw - rebound_yaw - outgoing_rate).abs() < 0.0001);
         }
     }
@@ -989,7 +1002,7 @@ fn grazing_impacts_reseparate_rotating_body_without_energy_gain() {
                 assert!(vehicle.building_contact(&city, forward).is_none());
                 assert!(vehicle.position.is_finite() && vehicle.yaw.is_finite());
                 let energy = vehicle.velocity.truncate().length_squared()
-                    + CHASSIS_YAW_INERTIA * vehicle.yaw_rate.powi(2);
+                    + CHASSIS_YAW_INERTIA * vehicle.angular_velocity().z.powi(2);
                 assert!(energy <= initial_planar_energy + 0.001);
                 assert_eq!(vehicle.velocity.z, 0.5);
             }
@@ -999,7 +1012,16 @@ fn grazing_impacts_reseparate_rotating_body_without_energy_gain() {
 
 #[test]
 fn tire_recovery_after_oblique_rebound_keeps_vehicle_clear_of_wall() {
-    let city = building_map();
+    // Leave room for the rebound to recover on tires, away from an open road edge.
+    let city = City::from_program(
+        &opencity::parse(
+            "road street: carlane carlane carlane carlane carlane; end street(-25,3,-20,3); \
+             building(0.2, -22.4,2.8, -22.35,2.8, -22.35,3.2, -22.4,3.2);",
+        )
+        .unwrap(),
+        None,
+    )
+    .unwrap();
     for reverse in [false, true] {
         for angle in [-0.4_f32, 0.4] {
             let mut vehicle = Vehicle::spawn(&city);
@@ -1012,7 +1034,7 @@ fn tire_recovery_after_oblique_rebound_keeps_vehicle_clear_of_wall() {
             assert!(vehicle.velocity.x < 0.);
             let rebound_x = vehicle.position.x;
             let rebound_energy = vehicle.velocity.truncate().length_squared()
-                + CHASSIS_YAW_INERTIA * vehicle.yaw_rate.powi(2);
+                + CHASSIS_YAW_INERTIA * vehicle.angular_velocity().z.powi(2);
             for _ in 0..240 {
                 vehicle.step(&city, Controls::default(), 1. / 120.);
                 assert!(vehicle.velocity.x <= 0.);
@@ -1020,15 +1042,20 @@ fn tire_recovery_after_oblique_rebound_keeps_vehicle_clear_of_wall() {
                 let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
                 assert!(vehicle.building_contact(&city, forward).is_none());
                 let energy = vehicle.velocity.truncate().length_squared()
-                    + CHASSIS_YAW_INERTIA * vehicle.yaw_rate.powi(2);
+                    + CHASSIS_YAW_INERTIA * vehicle.angular_velocity().z.powi(2);
                 assert!(energy <= rebound_energy + 0.001);
             }
             assert!(vehicle.position.x < rebound_x - 2.);
             assert_eq!(vehicle.collisions, 1);
             assert!(
-                vehicle.yaw_rate.abs() < 0.1_f32.to_radians(),
-                "yaw {} after impact, reverse={reverse}, angle={angle}",
-                vehicle.yaw_rate
+                vehicle.angular_velocity().z.abs() < 0.1_f32.to_radians(),
+                "spin {:?} after impact, reverse={reverse}, angle={angle}, position={:?}, \
+                 pitch={}, roll={}, grounded={}",
+                vehicle.angular_velocity(),
+                vehicle.position,
+                vehicle.pitch,
+                vehicle.roll,
+                vehicle.grounded
             );
         }
     }

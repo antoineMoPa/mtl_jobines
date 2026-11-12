@@ -12,6 +12,17 @@ impl Renderer {
         time: f32,
         navigation: MinimapView,
     ) -> Result<Vec<u8>, String> {
+        self.report_screenshot_with_overlay(meshes, eye, look, time, navigation, |_| {})
+    }
+    pub(super) fn report_screenshot_with_overlay(
+        &self,
+        meshes: &[&GpuMesh],
+        eye: Vec3,
+        look: Vec3,
+        time: f32,
+        navigation: MinimapView,
+        overlay: impl FnOnce(&wgpu::TextureView),
+    ) -> Result<Vec<u8>, String> {
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("bug report screenshot"),
             size: wgpu::Extent3d {
@@ -26,14 +37,9 @@ impl Renderer {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
-        self.render(
-            &texture.create_view(&Default::default()),
-            meshes,
-            eye,
-            look,
-            time,
-            navigation,
-        );
+        let view = texture.create_view(&Default::default());
+        self.render(&view, meshes, eye, look, time, navigation);
+        overlay(&view);
         let rgba = self.rgba_pixels(&texture)?;
         encode_png(&rgba, self.config.width, self.config.height)
     }

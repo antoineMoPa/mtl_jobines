@@ -28,6 +28,9 @@ use winit::{
 };
 pub(super) const DT: f32 = 1. / 120.;
 const CURSOR_IDLE_DELAY: Duration = Duration::from_secs(2);
+#[cfg(not(target_arch = "wasm32"))]
+mod construction;
+mod focus;
 mod location;
 #[cfg(not(target_arch = "wasm32"))]
 mod reload;
@@ -327,21 +330,9 @@ impl Game {
     fn apply_palette_action(&mut self, action: PaletteAction) {
         match action {
             #[cfg(not(target_arch = "wasm32"))]
-            PaletteAction::ExpandNetwork | PaletteAction::GrowNetwork => {
-                if let Some(watcher) = &self.live_reload {
-                    match super::expansion::Document::open(watcher.path()) {
-                        Ok(mut document) => {
-                            if action == PaletteAction::GrowNetwork {
-                                document.picker.start_growth();
-                            }
-                            if let Some(palette) = &mut self.palette {
-                                palette.expansion = Some(document);
-                            }
-                        }
-                        Err(error) => eprintln!("Could not open expansion picker: {error}"),
-                    }
-                }
-            }
+            PaletteAction::BuildBuildings
+            | PaletteAction::ExpandNetwork
+            | PaletteAction::GrowNetwork => self.open_construction(action),
             PaletteAction::JumpToLocation => {
                 self.set_overlay(Overlay::Map);
                 self.full_map.selection = hud::MapSelection::Jump;
@@ -496,6 +487,10 @@ impl Game {
         renderer.reserved_bottom = self.palette.as_ref().map_or(0, |palette| {
             palette.reserved_bottom(renderer.config.width, renderer.config.height)
         });
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            renderer.construction_span = self.palette.as_ref().and_then(|p| p.orthographic_span());
+        }
         let mut meshes = self.scenery.as_ref().unwrap().visible(center);
         meshes.push(car);
         meshes.extend(self.prop_scenery.visible());
@@ -518,15 +513,17 @@ impl Game {
                         &view,
                         &mut self.sound_settings,
                         renderer.view_projection(eye, look),
+                        self.hermes.city(),
                     );
                     #[cfg(not(target_arch = "wasm32"))]
                     if palette_action == Some(PaletteAction::BugReport) {
-                        let screenshot = renderer.report_screenshot(
+                        let screenshot = renderer.report_screenshot_with_overlay(
                             &meshes,
                             eye,
                             look,
                             self.game_time,
                             navigation,
+                            |target| palette.paint_report_overlay(renderer, target),
                         );
                         palette.bug_report.begin(
                             super::bug_report::Report::new(
@@ -714,6 +711,11 @@ impl ApplicationHandler<GameEvent> for Game {
             self.cursor_activity(Instant::now());
         }
         if let (Some(palette), Some(window)) = (&mut self.palette, &self.window) {
+            #[cfg(not(target_arch = "wasm32"))]
+            if palette.building_drop(&event, self.hermes.city()) {
+                window.request_redraw();
+                return;
+            }
             let consumed = palette.event(window, &event);
             let open = palette.is_open();
             let shortcut = matches!(&event, WindowEvent::KeyboardInput { event, .. }
@@ -778,14 +780,7 @@ impl ApplicationHandler<GameEvent> for Game {
                 }
             }
             WindowEvent::Focused(false) => {
-                self.audio.silence();
-                if let Some(palette) = &mut self.palette {
-                    palette.dismiss();
-                }
-                if self.overlay != Overlay::Start {
-                    self.set_overlay(Overlay::Menu);
-                }
-                self.show_cursor();
+                self.window_focus_lost();
             }
             WindowEvent::Occluded(occluded) => {
                 self.hidden = occluded;

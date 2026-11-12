@@ -2,6 +2,12 @@
 use opencity::{expansion, expansion_ui::Picker, Program};
 use std::path::{Path, PathBuf};
 
+#[derive(Clone, Copy, PartialEq)]
+enum ViewMode {
+    Street,
+    Iso,
+}
+
 #[derive(Clone, Copy)]
 struct BuildCamera {
     eye: glam::Vec3,
@@ -27,6 +33,11 @@ pub(super) struct Document {
     source: String,
     program: Program,
     camera: Option<BuildCamera>,
+    view_mode: Option<ViewMode>,
+    iso_center: glam::Vec3,
+    iso_span: f32,
+    focused_end: Option<glam::Vec3>,
+    pan: Option<egui::Pos2>,
 }
 impl Document {
     pub fn open(path: &Path) -> Result<Self, String> {
@@ -40,23 +51,77 @@ impl Document {
             source,
             program,
             camera: None,
+            view_mode: None,
+            iso_center: glam::Vec3::ZERO,
+            iso_span: 1.2,
+            focused_end: None,
+            pan: None,
         })
     }
     pub fn camera(&self) -> Option<(glam::Vec3, glam::Vec3, [f32; 2])> {
+        if !self.picker.open || self.view_mode == Some(ViewMode::Street) {
+            return None;
+        }
+        if self.view_mode == Some(ViewMode::Iso) {
+            return Some((
+                self.iso_center + glam::Vec3::new(-0.7, -0.7, 0.85) * self.iso_span,
+                self.iso_center,
+                [self.iso_center.x, self.iso_center.y],
+            ));
+        }
         self.camera
             .filter(|_| self.picker.open)
             .map(|camera| (camera.eye, camera.look, camera.center))
     }
+    pub fn enable_views(&mut self, player: glam::Vec3, heading: f32) {
+        self.view_mode = Some(ViewMode::Iso);
+        self.iso_center = player + glam::Vec3::new(heading.cos(), heading.sin(), 0.) * 0.25;
+    }
+    pub fn orthographic_span(&self) -> Option<f32> {
+        (self.picker.open && self.view_mode == Some(ViewMode::Iso)).then_some(self.iso_span)
+    }
+    #[cfg(test)]
     pub fn show(&mut self, root: &mut egui::Ui, view: glam::Mat4, scene_pixels: [u32; 2]) {
+        self.show_with_input(root, view, scene_pixels, true);
+    }
+    pub fn show_with_input(
+        &mut self,
+        root: &mut egui::Ui,
+        view: glam::Mat4,
+        scene_pixels: [u32; 2],
+        input_enabled: bool,
+    ) {
         let ctx = root.ctx().clone();
         let before = self.program.clone();
-        let changed = self.picker.show(root, &mut self.program, true);
+        let mut view_mode = self.view_mode;
+        let changed = root
+            .add_enabled_ui(input_enabled, |root| {
+                self.picker
+                    .show_with_toolbar(root, &mut self.program, true, |ui| {
+                        if let Some(mode) = &mut view_mode {
+                            ui.selectable_value(mode, ViewMode::Street, "Street");
+                            ui.selectable_value(mode, ViewMode::Iso, "Iso");
+                            ui.separator();
+                        }
+                    })
+            })
+            .inner;
+        if view_mode != self.view_mode {
+            self.view_mode = view_mode;
+            self.pan = None;
+            ctx.request_repaint();
+        }
         let viewport = egui::Rect::from_min_size(
             ctx.content_rect().min,
             egui::vec2(scene_pixels[0] as f32, scene_pixels[1] as f32) / ctx.pixels_per_point(),
         );
+        if input_enabled {
+            self.iso_input(&ctx, view, viewport);
+        } else {
+            self.pan = None;
+        }
         self.picker
-            .world_overlay(&ctx, &self.program, viewport, |p| {
+            .world_overlay_with_input(&ctx, &self.program, viewport, input_enabled, |p| {
                 let v = view * glam::Vec4::new(p[0], p[1], p[2] + 0.003, 1.);
                 if v.w <= 0. {
                     return None;
@@ -70,6 +135,25 @@ impl Document {
                     )
                 })
             });
+        if self.view_mode.is_some() {
+            if let Some(proposal) = self.picker.selected() {
+                let end = glam::Vec3::new(
+                    proposal.end.point.x,
+                    proposal.end.point.y,
+                    proposal.end.height,
+                );
+                if self.focused_end != Some(end) {
+                    self.focused_end = Some(end);
+                    let tip = proposal
+                        .ghosts
+                        .last()
+                        .map_or(end, |s| glam::Vec3::new(s.end.x, s.end.y, s.end_z));
+                    self.iso_center = (end + tip) * 0.5;
+                    self.iso_span = self.iso_span.max(end.distance(tip) * 1.4);
+                    ctx.request_repaint();
+                }
+            }
+        }
         if !changed {
             return;
         }
@@ -115,6 +199,42 @@ impl Document {
             }
         }
         ctx.request_repaint();
+    }
+    fn iso_input(&mut self, ctx: &egui::Context, matrix: glam::Mat4, viewport: egui::Rect) {
+        if self.view_mode != Some(ViewMode::Iso) || !self.picker.open {
+            return;
+        }
+        let Some(pos) = ctx.input(|i| i.pointer.interact_pos()) else {
+            self.pan = None;
+            return;
+        };
+        let ground = |p: egui::Pos2| {
+            let x = (p.x - viewport.left()) / viewport.width() * 2. - 1.;
+            let y = 1. - (p.y - viewport.top()) / viewport.height() * 2.;
+            let inverse = matrix.inverse();
+            let a = inverse * glam::Vec4::new(x, y, 0., 1.);
+            let b = inverse * glam::Vec4::new(x, y, 1., 1.);
+            let a = a.truncate() / a.w;
+            let d = b.truncate() / b.w - a;
+            (d.z.abs() > 1e-8).then(|| (a + d * ((self.iso_center.z - a.z) / d.z)).truncate())
+        };
+        if viewport.contains(pos) {
+            let scroll = ctx.input(|i| i.smooth_scroll_delta.y);
+            if scroll != 0. {
+                self.iso_span = (self.iso_span * (-scroll * 0.002).exp()).clamp(0.2, 20.);
+                ctx.request_repaint();
+            }
+            if ctx.input(|i| i.pointer.secondary_pressed()) {
+                self.pan = Some(pos);
+            }
+        }
+        if let Some(previous) = self.pan {
+            if let (Some(a), Some(b)) = (ground(previous), ground(pos)) {
+                self.iso_center += (a - b).extend(0.);
+            }
+            self.pan = ctx.input(|i| i.pointer.secondary_down()).then_some(pos);
+            ctx.request_repaint();
+        }
     }
 }
 
