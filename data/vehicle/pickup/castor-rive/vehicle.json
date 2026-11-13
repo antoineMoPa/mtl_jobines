@@ -1,35 +1,33 @@
 {
   "category": "pickup",
   "dimensions": {
-    "height": 2.283998597768803,
-    "length": 5.7,
-    "width": 2.2440159783655758
+    "height": 1.9700136184692383,
+    "length": 5.703906059265137,
+    "width": 2.531867742538452
   },
   "model": "model.glb",
   "name": "Castor Rive",
   "physics": {
     "acceleration": 11,
     "friction": 0.9,
-    "heightOffset": 0.7,
+    "heightOffset": 0.45500001311302185,
     "mass": 2200.0,
     "maxSpeed": 44.0,
     "maxSteerAngle": 0.52,
-    "track": 1.7654036393202124,
-    "wheelRadius": 0.4793670140354514,
-    "wheelbase": 3.54958815055721
+    "track": 1.9299999475479126,
+    "wheelRadius": 0.45500001311302185,
+    "wheelbase": 3.380000114440918
   },
   "qa": {
     "claydashExport": "completed",
-    "detailPass": 2,
-    "game": "runtime-validated",
-    "materials": 40,
-    "packager": "runtime-packager",
-    "parts": 116,
+    "detailedVehicle": true,
+    "glassOpacity": 0.7,
+    "packager": "rust-source-cleanup",
+    "parts": 112,
     "pivot": "axle-local",
-    "sourceParts": 204,
     "status": "exported",
-    "study": "01",
-    "triangles": 117144,
+    "textures": 0,
+    "triangles": 28656,
     "wheels": [
       "wheel_front_left",
       "wheel_front_right",

@@ -278,19 +278,41 @@ mod tests {
     fn map_jump_rejects_water_buildings_other_cars_and_invalid_points_atomically() {
         let hermes = Hermes::test_map_from_source(
             "land(-2,-2,2,-2,2,2,-2,2); player_start(-1,0);
-             building(0.2,-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2);
+             wall=building(0.2,{family:legacy},-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2);
+             elevation(wall,-0.02);
              lake(0.5,0.5,1,0.5,1,1,0.5,1);",
         );
         let mut world = DynamicWorld::new(&hermes);
         world
             .vehicles
             .push(Vehicle::spawn_at(hermes.city(), "1,0".parse().unwrap()).unwrap());
-        let before = world.player_position();
-        for point in [[0., 0.], [0.75, 0.75], [1., 0.], [10., 10.], [f32::NAN, 0.]] {
-            assert!(world.respawn_at_point(&hermes, point).is_err(), "{point:?}");
-            assert_eq!(world.player_position(), before);
-            world.reset_player(&hermes);
-            assert!(world.player_position().distance(before) < 0.001);
+        // Ground the solid shell on the terrain. An unelevated shell starts 2 m
+        // above this land surface and legitimately admits shorter vehicles.
+        let ground = hermes
+            .city()
+            .surface_at([0., 0.], f32::INFINITY)
+            .unwrap()
+            .height;
+        assert!(hermes
+            .city()
+            .building_collision([0., 0.], 0.004, ground + 0.001, ground + 0.01));
+        for (model, definition) in super::super::catalog::definitions().iter().enumerate() {
+            if !definition.config.road_vehicle {
+                continue;
+            }
+            world.vehicles[world.player_vehicle.0].set_catalog_model(Some(model));
+            let spawn = world.player_position();
+            for point in [[0., 0.], [0.75, 0.75], [1., 0.], [10., 10.], [f32::NAN, 0.]] {
+                let before = world.player_position();
+                assert!(
+                    world.respawn_at_point(&hermes, point).is_err(),
+                    "{}: {point:?}",
+                    definition.config.name
+                );
+                assert_eq!(world.player_position(), before);
+                world.reset_player(&hermes);
+                assert!(world.player_position().distance(spawn) < 0.001);
+            }
         }
     }
 

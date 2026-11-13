@@ -740,6 +740,97 @@ mod tests {
         assert!((front.pivot.y.abs() * 2. - definition.config.physics.track).abs() < 1e-4);
     }
     #[test]
+    fn detailed_pickup_keeps_open_bed_cabin_glass_and_runtime_lenses() {
+        let source = gltf::Gltf::from_slice(include_bytes!(
+            "../../data/vehicle/pickup/castor-rive/model.glb"
+        ))
+        .unwrap();
+        let definition = definitions()
+            .iter()
+            .find(|d| d.config.research_id == "vehicle-v2-01")
+            .unwrap();
+        assert_eq!(definition.config.name, "Castor Rive");
+        assert_eq!(definition.config.category, "pickup");
+        assert_eq!(source.images().count(), 0);
+        let nodes: std::collections::HashMap<_, _> = source
+            .nodes()
+            .map(|node| (node.name().unwrap(), node))
+            .collect();
+        assert_eq!(nodes.len(), source.nodes().count());
+        for name in [
+            "bed_floor",
+            "bed_front_liner",
+            "tailgate",
+            "cab_rear_panel",
+            "door_front_left",
+            "door_front_right",
+            "door_rear_left",
+            "door_rear_right",
+            "interior_dashboard",
+            "interior_console",
+            "steering_wheel_ring",
+            "head_fl",
+            "head_fr",
+            "taillight_-1",
+            "taillight_1",
+        ] {
+            assert!(nodes.contains_key(name), "missing pickup part: {name}");
+        }
+        assert_eq!(nodes.keys().filter(|n| n.ends_with("_headrest")).count(), 4);
+        for name in [
+            "windshield",
+            "rear_glass",
+            "glass_front_left",
+            "glass_front_right",
+            "glass_rear_left",
+            "glass_rear_right",
+        ] {
+            for primitive in nodes[name].mesh().unwrap().primitives() {
+                assert_eq!(
+                    primitive.material().alpha_mode(),
+                    gltf::material::AlphaMode::Blend
+                );
+                assert_eq!(
+                    primitive
+                        .material()
+                        .pbr_metallic_roughness()
+                        .base_color_factor()[3],
+                    0.7
+                );
+            }
+        }
+        let binary = source.blob.as_deref().unwrap();
+        let positions = |name: &str| {
+            nodes[name]
+                .mesh()
+                .unwrap()
+                .primitives()
+                .flat_map(|p| {
+                    p.reader(|_| Some(binary))
+                        .read_positions()
+                        .unwrap()
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+        };
+        // The cargo floor is below the bed rail and behind the closed cabin.
+        assert!(positions("bed_floor")
+            .iter()
+            .all(|p| p[0] < -0.89 && p[1] < 1.0));
+        assert!(positions("interior_dashboard").iter().all(|p| p[0] > 0.9));
+        // Door trim must stay inside the source body rather than poke through its skin.
+        for name in ["interior_armrest_-0.94", "interior_armrest_0.94"] {
+            assert!(positions(name).iter().all(|p| p[2].abs() < 0.87));
+        }
+        assert_eq!(definition.headlights.len(), 2);
+        assert_eq!(definition.rear_emitters.len(), 2);
+        let expected_lens_vertices: usize = ["taillight_-1", "taillight_1"]
+            .iter()
+            .map(|name| positions(name).len())
+            .sum();
+        assert_eq!(definition.rear_lenses.len(), expected_lens_vertices);
+    }
+    #[test]
     fn every_export_loads_with_four_or_six_axle_local_wheels_and_si_data() {
         assert_eq!(definitions().len(), 19);
         assert_eq!(
