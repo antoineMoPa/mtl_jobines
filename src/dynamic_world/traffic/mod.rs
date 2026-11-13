@@ -141,7 +141,9 @@ impl Traffic {
             .enumerate()
             .filter(|(_, d)| {
                 d.config.road_vehicle
-                    && (d.config.dimensions.length < 6. || d.config.category == "bus")
+                    && (d.config.dimensions.length < 6.
+                        || d.config.category == "bus"
+                        || d.config.research_id == "vehicle-j05")
             })
             .map(|(id, _)| id)
             .collect();
@@ -154,7 +156,7 @@ impl Traffic {
             let model = models[self.random(models.len())];
             let definition = &catalog::definitions()[model];
             let length = definition.config.dimensions.length;
-            // Keep the entire bus away from lane ends and existing vehicles.
+            // Keep long vehicles away from lane ends and existing vehicles.
             if distance < length * 0.5 + 1.5
                 || self.graph.paths[path].length - distance < length * 0.5 + 1.5
                 || (definition.config.category == "bus"
@@ -165,6 +167,17 @@ impl Traffic {
                             vehicles[driver.vehicle]
                                 .definition()
                                 .is_some_and(|d| d.config.category == "bus")
+                        })
+                        .count()
+                        >= 2)
+                || (definition.config.research_id == "vehicle-j05"
+                    && self
+                        .drivers
+                        .iter()
+                        .filter(|driver| {
+                            vehicles[driver.vehicle]
+                                .definition()
+                                .is_some_and(|d| d.config.research_id == "vehicle-j05")
                         })
                         .count()
                         >= 2)

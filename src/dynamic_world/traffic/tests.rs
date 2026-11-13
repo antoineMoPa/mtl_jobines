@@ -61,6 +61,17 @@ fn population_is_nearby_separated_and_reuses_slots_after_travel() {
         (1..=2).contains(&buses),
         "ambient traffic must include a bounded bus population"
     );
+    let trucks = cars
+        .iter()
+        .filter(|v| {
+            v.definition()
+                .is_some_and(|d| d.config.research_id == "vehicle-j05")
+        })
+        .count();
+    assert!(
+        (1..=2).contains(&trucks),
+        "ambient traffic must include a few work trucks"
+    );
     for (i, a) in cars.iter().enumerate() {
         assert!(a.position.length() < SPAWN_RADIUS + 1.);
         assert!(a.position.truncate().length() >= 30.);

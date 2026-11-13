@@ -38,6 +38,7 @@ fn protected(triangle: &[Vertex], policy: Policy) -> bool {
         match policy {
             Policy::Vehicle => {
                 v.surface[1] < 0.999
+                    || (kind < 0. && (-kind).fract() == 0.25)
                     || v.surface[3] == 64.
                     || v.surface[3] == 65.
                     || v.surface[3] == 66.

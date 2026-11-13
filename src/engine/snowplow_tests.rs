@@ -8,7 +8,7 @@ use opencity::runtime::Mesh;
 
 #[test]
 #[ignore = "requires a native GPU adapter"]
-fn native_snowplow_weathered_bin_wheels_and_lamps() {
+fn native_snowplow_source_texture_recessed_wheels_and_lamps() {
     let hermes =
         Hermes::test_map_from_source(include_str!("../../tests/fixtures/local_lights.road"));
     let mut world = DynamicWorld::new(&hermes);
@@ -44,6 +44,7 @@ fn native_snowplow_weathered_bin_wheels_and_lamps() {
     ] {
         world.preview_vehicle_lamps(model, controls);
         renderer.daylight = Some(daylight);
+        renderer.sky_settings.solar_hour = Some(if daylight == 0. { 0. } else { 12. });
         vehicles.update(&renderer, &world);
         let mut moving = Mesh::default();
         world.write_moving_mesh(&mut moving);
@@ -54,7 +55,7 @@ fn native_snowplow_weathered_bin_wheels_and_lamps() {
         let yaw = world.player().yaw;
         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
         let right = Vec3::new(-yaw.sin(), yaw.cos(), 0.);
-        let eye = p + forward * if rear { -0.12 } else { 0.13 } + right * 0.10 + Vec3::Z * 0.085;
+        let eye = p + forward * if rear { -0.085 } else { 0.095 } + right * 0.075 + Vec3::Z * 0.06;
         let png = renderer
             .report_screenshot(
                 &meshes,

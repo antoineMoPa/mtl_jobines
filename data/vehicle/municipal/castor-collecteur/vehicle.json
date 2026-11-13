@@ -1,7 +1,7 @@
 {
   "category": "municipal",
   "dimensions": {
-    "height": 3.771092414855957,
+    "height": 3.769702911376953,
     "length": 8.214500427246094,
     "width": 3.2882180213928223
   },
@@ -20,17 +20,20 @@
   },
   "qa": {
     "claydashExport": "completed",
-    "detailedVehicle": true,
     "glassOpacity": 0.7,
     "interiorPrimitives": 12,
     "packager": "rust-source-cleanup",
-    "parts": 43,
+    "parts": 34,
     "pivot": "axle-local",
     "rearDualTires": true,
+    "sourceExterior": true,
+    "sourceUvs": true,
     "status": "exported",
-    "textures": 0,
-    "triangles": 50562,
-    "wheelStyle": "plain-steel-cylinder",
+    "symmetry": "negative-z-half-reflected",
+    "textureFinish": "original-source-atlas",
+    "textures": 1,
+    "triangles": 60602,
+    "wheelStyle": "recessed-dished-steel",
     "wheels": [
       "wheel_front_left",
       "wheel_front_right",

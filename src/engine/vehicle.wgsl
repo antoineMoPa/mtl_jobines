@@ -13,7 +13,10 @@ struct VehicleTransform {
     o.world = world;
     o.normal = (model * vec4<f32>(v.normal, 0.0)).xyz * 100.0;
     o.color = v.color; o.surface = v.surface; o.surface.y *= instance.translation.w; o.fence_uv = v.surface.yz;
-    if v.surface.x<0.0 {o.fence_uv=v.surface.zw;}
+    if v.surface.x<0.0 {
+        o.fence_uv=v.surface.zw;
+        o.surface.w=select(0.0,64.0,fract(-v.surface.x)==0.25 && instance.x.w>0.0);
+    }
     if v.surface.x>=0.0 && v.surface.z==1.0 && v.surface.w==0.0 {
         let variant=u32(instance.z.w);
         if variant==1u {o.color=vec3<f32>(0.035,0.09,0.19);}
@@ -33,11 +36,12 @@ struct VehicleTransform {
 // Alpha-to-coverage retains depth-correct seats behind glass without sorting
 // every triangle of each moving vehicle. Opaque parts still cover all samples.
 @fragment fn fs_vehicle(v: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+    let uv_dx=dpdx(v.fence_uv); let uv_dy=dpdy(v.fence_uv);
     var material=v;
     if v.surface.x<0.0 {
-        let albedo=textureSample(vehicle_albedo,vehicle_albedo_sampler,v.fence_uv,i32(-v.surface.x)-1);
+        let albedo=textureSampleGrad(vehicle_albedo,vehicle_albedo_sampler,v.fence_uv,i32(floor(-v.surface.x))-1,uv_dx,uv_dy);
         material.color*=albedo.rgb;
-        material.surface=vec4<f32>(7.0,v.surface.y,0.0,0.0);
+        material.surface=vec4<f32>(7.0,v.surface.y,0.0,v.surface.w);
     }
     let surface=prepare_surface(material);
     // Roof beacons retain their authored lens colors without automatic emission.

@@ -28,7 +28,7 @@ original, navy, ivory and burgundy paint variants. No extra GLBs are needed.
 RETIRED EVERYDAY MODELS / NOT IN THE ACTIVE CATALOG
 ==================================================
 These older SUVs/pickups have been removed from traffic and the vehicle catalog.
-Their source assets remain on disk; no generation is needed for current traffic.
+Their detached asset packages have been pruned from data/vehicle.
 - Laurent Traverse
 - Laurent Bosquet
 - Boreal Crete
@@ -37,7 +37,7 @@ Their source assets remain on disk; no generation is needed for current traffic.
 - Castor Chene
 - Castor Granit
 
-Other stored assets not in the active catalog:
+Other retired packages pruned from data/vehicle:
 - Laurent Laurentien  compact
 - Laurent Moineau     hatchback
 - Montcalm Trois      hatchback
@@ -55,3 +55,5 @@ Generation notes
   readable plates or other identifying marks in generated artwork.
 - Preserve useful body, window, light and interior boundaries where possible.
 - Generated wheels will be replaced with our clean game wheels during cleanup.
+- Keep exported GLBs and vehicle settings in data/vehicle; remove Claydash snapshots
+  once the matching GLBs exist.

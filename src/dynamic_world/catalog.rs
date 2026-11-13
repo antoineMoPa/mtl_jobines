@@ -13,6 +13,9 @@ mod collecteur_tests;
 #[cfg(test)]
 #[path = "catalog_snowplow_tests.rs"]
 mod snowplow_tests;
+#[cfg(test)]
+#[path = "catalog_vehicle_qa.rs"]
+mod vehicle_qa;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -166,6 +169,13 @@ fn vehicle_lamp_marker(name: &str) -> f32 {
         "roof_beacon_blue" => 66.,
         name if headlight_lens(name) => 64.,
         _ => 0.,
+    }
+}
+fn headlight_vertex(vertex: &Vertex) -> bool {
+    if vertex.surface[0] < 0. {
+        (-vertex.surface[0]).fract() == 0.25
+    } else {
+        vertex.surface[3] == 64.
     }
 }
 fn game_vector(p: [f32; 3]) -> Vec3 {
@@ -355,7 +365,12 @@ impl Definition {
                                 }
                                 // Negative material IDs select an albedo layer; zw carry UVs.
                                 [
-                                    -(texture_layer as f32 + 1.),
+                                    -(texture_layer as f32 + 1.)
+                                        - if headlight_lens(node.name().unwrap_or("")) {
+                                            0.25
+                                        } else {
+                                            0.
+                                        },
                                     coverage * tint[3],
                                     uv[0],
                                     uv[1],
@@ -450,7 +465,7 @@ impl Definition {
                         .chunks_exact(3)
                         .filter(|t| {
                             t.iter()
-                                .all(|v| v.surface[1] >= 0.999 && v.surface[3] != 64.)
+                                .all(|v| v.surface[1] >= 0.999 && !headlight_vertex(v))
                         })
                         .flatten()
                         .copied(),
@@ -483,7 +498,7 @@ impl Definition {
             for v in articulated[0]
                 .vertices
                 .iter()
-                .filter(|v| v.surface[3] == 64. && (v.position[1] > 0.) == left)
+                .filter(|v| headlight_vertex(v) && (v.position[1] > 0.) == left)
             {
                 let p = Vec3::from_array(v.position);
                 lo = lo.min(p);
@@ -880,11 +895,15 @@ mod tests {
             "wheel_rear_right",
         ] {
             let wheel = nodes[name].mesh().unwrap();
-            assert_eq!(
-                wheel.primitives().count(),
-                2,
-                "wheel must contain only rubber and plain steel"
-            );
+            assert!((2..=3).contains(&wheel.primitives().count()));
+            for primitive in wheel.primitives() {
+                let finish = primitive.material().pbr_metallic_roughness();
+                assert!(
+                    finish.metallic_factor() > 0.5
+                        || finish.base_color_factor()[..3].iter().all(|v| *v < 0.12),
+                    "wheel must contain only rubber shades and plain steel"
+                );
+            }
             let steel = wheel
                 .primitives()
                 .find(|p| p.material().pbr_metallic_roughness().metallic_factor() > 0.5)

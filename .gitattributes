@@ -1,0 +1,2 @@
+# Editable mesh snapshots can contain tens of megabytes on one JSON line.
+*.claydash -diff

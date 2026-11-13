@@ -522,7 +522,7 @@ placed_building_1 = building(0.2775000, { material: red_brick, floor_height: 0.0
 elevation(placed_building_1, 0.1010);
 
 
-placed_building_2 = building(0.1395000, { material: red_brick, floor_height: 0.0315000, use: unspecified, collision: none, family: heritage, palette: sandstone, seed: 334 }, 3.0496931, -0.6896468, 2.5466378, -0.7045612, 2.5667241, -1.3820596, 3.0697794, -1.3671453);
+placed_building_2 = building(0.1395000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: sandstone, seed: 334 }, 3.0496931, -0.6896468, 2.5466378, -0.7045612, 2.5667241, -1.3820596, 3.0697794, -1.3671453);
 
 elevation(placed_building_2, 0.1010);
 

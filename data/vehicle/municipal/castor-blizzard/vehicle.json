@@ -1,7 +1,7 @@
 {
   "category": "municipal",
   "dimensions": {
-    "height": 3.5729081630706787,
+    "height": 3.7375926971435547,
     "length": 8.990392684936523,
     "width": 3.87074875831604
   },
@@ -10,27 +10,29 @@
   "physics": {
     "acceleration": 5.0,
     "friction": 0.9,
-    "heightOffset": 0.6600000262260437,
+    "heightOffset": 0.66,
     "mass": 14000,
     "maxSpeed": 36,
     "maxSteerAngle": 0.52,
-    "track": 2.4600000381469727,
-    "wheelRadius": 0.6600000262260437,
-    "wheelbase": 5.400000095367432
+    "track": 2.46,
+    "wheelRadius": 0.66,
+    "wheelbase": 5.4
   },
   "qa": {
-    "binFinish": "weathered-ochre",
     "claydashExport": "completed",
-    "detailedVehicle": true,
     "glassOpacity": 0.7,
     "interiorPrimitives": 13,
     "packager": "rust-source-cleanup",
-    "parts": 118,
+    "parts": 31,
     "pivot": "axle-local",
+    "sourceExterior": true,
+    "sourceUvs": true,
     "status": "exported",
-    "textures": 0,
-    "triangles": 29282,
-    "wheelStyle": "plain-steel-cylinder",
+    "symmetry": "negative-z-half-reflected",
+    "textureFinish": "original-source-atlas",
+    "textures": 1,
+    "triangles": 47098,
+    "wheelStyle": "recessed-dished-steel",
     "wheels": [
       "wheel_front_left",
       "wheel_front_right",

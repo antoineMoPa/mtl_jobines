@@ -1160,3 +1160,64 @@ fn building_grid_contacts_match_the_full_map_scan_at_cell_boundaries() {
         }
     }
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn report_45_heritage_facade_stops_vehicles_and_follow_camera() {
+    let map = crate::hermes::Hermes::load_with_game_data(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road"),
+        None,
+    )
+    .unwrap();
+    let city = map.city();
+    // The recorded vehicle position was already inside this facade.
+    let reported = Vec2::new(2.9790354, -0.70686495);
+    assert!(city.building_collision(reported.to_array(), 0.003, 0.103, 0.12));
+    let building = city
+        .landscape
+        .iter()
+        .find(|f| f.name.as_deref() == Some("placed_building_2"))
+        .unwrap();
+    let a = Vec2::from_array(building.points[0]);
+    let edge = Vec2::from_array(building.points[1]) - a;
+    let front = a + edge * ((reported - a).dot(edge) / edge.length_squared()).clamp(0., 1.);
+    let depth = Vec2::from_array(building.points[3]) - a;
+    let inward = depth / depth.length();
+    let start = front - inward * 0.1;
+    let ground = city
+        .surface_at(start.to_array(), f32::INFINITY)
+        .unwrap()
+        .height;
+    let grid = crate::dynamic_world::buildings::Buildings::new(city);
+    let truck = super::super::catalog::definitions()
+        .iter()
+        .position(|d| d.config.research_id == "vehicle-j05")
+        .unwrap();
+    for model in [None, Some(truck)] {
+        for indexed in [false, true] {
+            let mut vehicle = Vehicle::spawn(city);
+            vehicle.set_catalog_model(model);
+            vehicle.position =
+                (start * METERS_PER_UNIT).extend(ground * METERS_PER_UNIT + vehicle.ride_height());
+            vehicle.yaw = inward.y.atan2(inward.x);
+            vehicle.velocity = (inward * 25.).extend(0.);
+            let mut candidates = Vec::new();
+            grid.nearby(vehicle.position.truncate(), 40., &mut candidates);
+            vehicle.move_with_building_candidates(city, 1., indexed.then_some(&candidates));
+            assert!(vehicle.collisions > 0, "model={model:?}, indexed={indexed}");
+            let distance = (vehicle.position.truncate() - front * METERS_PER_UNIT).dot(inward);
+            assert!(distance < 0., "crossed facade: {distance}");
+            assert!(vehicle.velocity.truncate().dot(inward) < 0., "no rebound");
+        }
+    }
+    let anchor = start.extend(ground + 0.02);
+    let desired = (front + inward * 0.1).extend(anchor.z);
+    let eye = grid.camera_eye(city, anchor, desired);
+    assert!((eye.truncate() - front).dot(inward) < 0.);
+    assert!(!city.building_collision(
+        eye.truncate().to_array(),
+        0.0059,
+        eye.z - 0.0059,
+        eye.z + 0.0059
+    ));
+}
