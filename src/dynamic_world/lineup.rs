@@ -97,11 +97,14 @@ impl DynamicWorld {
 mod tests {
     use super::*;
     #[test]
-    fn current_map_starts_without_parked_catalog_and_resets_on_supported_ground() {
+    fn current_map_loads_authored_parking_without_catalog_and_resets_on_supported_ground() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
         let mut world = DynamicWorld::new(&hermes);
-        assert_eq!(world.vehicles.len() - world.traffic.count(), 1);
+        assert_eq!(
+            world.vehicles.len() - world.traffic.count(),
+            1 + hermes.parked_vehicles().len()
+        );
         let spawn = world.player().position;
         let authored = hermes
             .default_start()

@@ -1,4 +1,6 @@
 // Vehicle geometry stays in metres on the GPU. One instance matrix per body/wheel part.
+@group(3) @binding(6) var vehicle_albedo: texture_2d_array<f32>;
+@group(3) @binding(7) var vehicle_albedo_sampler: sampler;
 struct VehicleTransform {
     @location(4) x: vec4<f32>, @location(5) y: vec4<f32>,
     @location(6) z: vec4<f32>, @location(7) translation: vec4<f32>,
@@ -11,13 +13,14 @@ struct VehicleTransform {
     o.world = world;
     o.normal = (model * vec4<f32>(v.normal, 0.0)).xyz * 100.0;
     o.color = v.color; o.surface = v.surface; o.surface.y *= instance.translation.w; o.fence_uv = v.surface.yz;
-    if v.surface.z==1.0 && v.surface.w==0.0 {
+    if v.surface.x<0.0 {o.fence_uv=v.surface.zw;}
+    if v.surface.x>=0.0 && v.surface.z==1.0 && v.surface.w==0.0 {
         let variant=u32(instance.z.w);
         if variant==1u {o.color=vec3<f32>(0.035,0.09,0.19);}
         else if variant==2u {o.color=vec3<f32>(0.86,0.85,0.80);}
         else if variant==3u {o.color=vec3<f32>(0.30,0.022,0.045);}
     }
-    if v.surface.w==64.0 {o.surface.w*=instance.x.w;}
+    if v.surface.x>=0.0 && v.surface.w==64.0 {o.surface.w*=instance.x.w;}
     return o;
 }
 @vertex fn vs_vehicle_shadow(v: Input, instance: VehicleTransform) -> ShadowOutput {
@@ -30,18 +33,19 @@ struct VehicleTransform {
 // Alpha-to-coverage retains depth-correct seats behind glass without sorting
 // every triangle of each moving vehicle. Opaque parts still cover all samples.
 @fragment fn fs_vehicle(v: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
-    let surface=prepare_surface(v);
-    if v.surface.w==65.0 || v.surface.w==66.0 {
-        let red_phase=fract(camera.eye_time.w*2.5)<0.5;
-        let on=red_phase==(v.surface.w==65.0);
-        let lit=lamp_color_strength(v,select(0.04,1.8,on));
-        return mix(shade_local_surface(v,front,clamp(v.surface.y,0.0,1.0),surface),lit,select(0.15,1.0,on));
+    var material=v;
+    if v.surface.x<0.0 {
+        let albedo=textureSample(vehicle_albedo,vehicle_albedo_sampler,v.fence_uv,i32(-v.surface.x)-1);
+        material.color*=albedo.rgb;
+        material.surface=vec4<f32>(7.0,v.surface.y,0.0,0.0);
     }
-    if v.surface.w==64.0 {
+    let surface=prepare_surface(material);
+    // Roof beacons retain their authored lens colors without automatic emission.
+    if material.surface.w==64.0 {
         let night=1.0-clamp(camera.daylight_sky.x,0.0,1.0);
-        return mix(shade_local_surface(v,front,clamp(v.surface.y,0.0,1.0),surface),lamp_color(v),night*night);
+        return mix(shade_local_surface(material,front,clamp(material.surface.y,0.0,1.0),surface),lamp_color(material),night*night);
     }
-    return shade_local_surface(v, front, clamp(v.surface.y, 0.0, 1.0), surface);
+    return shade_local_surface(material, front, clamp(material.surface.y, 0.0, 1.0), surface);
 }
 @fragment fn fs_vehicle_shadow(v: ShadowOutput) {
     let pattern = array<f32, 16>(0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,

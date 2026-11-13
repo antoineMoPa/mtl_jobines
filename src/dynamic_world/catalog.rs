@@ -7,6 +7,13 @@ use opencity::runtime::{SurfaceKind, Vertex};
 use serde::Deserialize;
 use std::sync::OnceLock;
 
+#[cfg(test)]
+#[path = "catalog_collecteur_tests.rs"]
+mod collecteur_tests;
+#[cfg(test)]
+#[path = "catalog_snowplow_tests.rs"]
+mod snowplow_tests;
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Physics {
@@ -108,6 +115,7 @@ fn shadow_role(name: &str) -> ShadowRole {
 }
 pub struct Definition {
     pub config: Config,
+    pub(crate) texture_png: Option<Vec<u8>>,
     parts: Vec<Part>,
     rear_lenses: Vec<Vertex>,
     headlights: Vec<Vec3>,
@@ -181,7 +189,7 @@ impl Definition {
     pub(super) fn rear_lenses(&self) -> &[Vertex] {
         &self.rear_lenses
     }
-    fn load(config: &[u8], bytes: &[u8]) -> Result<Self, String> {
+    fn load(config: &[u8], bytes: &[u8], texture_layer: u32) -> Result<Self, String> {
         let config: Config = serde_json::from_slice(config).map_err(|e| e.to_string())?;
         config.sound.validate()?;
         let p = &config.physics;
@@ -212,6 +220,17 @@ impl Definition {
         }
         let glb = gltf::Gltf::from_slice(bytes).map_err(|e| e.to_string())?;
         let binary = glb.blob.as_deref().ok_or("GLB has no embedded buffer")?;
+        let texture_png = glb
+            .textures()
+            .next()
+            .map(|texture| match texture.source().source() {
+                gltf::image::Source::View {
+                    view,
+                    mime_type: "image/png",
+                } => Ok(binary[view.offset()..view.offset() + view.length()].to_vec()),
+                _ => Err("Vehicle albedo requires an embedded PNG".to_string()),
+            })
+            .transpose()?;
         let paint = match config.research_id.as_str() {
             "vehicle-v2-01" | "vehicle-v2-09" | "vehicle-12" => glb
                 .nodes()
@@ -234,6 +253,7 @@ impl Definition {
             binary: &[u8],
             ride: f32,
             paint: Option<[f32; 4]>,
+            texture_layer: u32,
             parts: &mut Vec<Part>,
             rear_lenses: &mut Vec<Vertex>,
         ) -> Result<(), String> {
@@ -260,6 +280,30 @@ impl Definition {
                         .ok_or("Missing normals")?
                         .collect::<Vec<_>>();
                     let indices = reader.read_indices().ok_or("Missing indices")?.into_u32();
+                    let colors = reader
+                        .read_colors(0)
+                        .map(|colors| colors.into_rgba_f32().collect::<Vec<_>>());
+                    let texture = primitive
+                        .material()
+                        .pbr_metallic_roughness()
+                        .base_color_texture();
+                    let uvs = match texture {
+                        Some(info) => {
+                            if info.tex_coord() != 0 || info.texture().index() != 0 {
+                                return Err(
+                                    "Vehicle albedo requires texture 0 and TEXCOORD_0".into()
+                                );
+                            }
+                            Some(
+                                reader
+                                    .read_tex_coords(0)
+                                    .ok_or("Missing texture UVs")?
+                                    .into_f32()
+                                    .collect::<Vec<_>>(),
+                            )
+                        }
+                        None => None,
+                    };
                     let color = primitive
                         .material()
                         .pbr_metallic_roughness()
@@ -279,6 +323,10 @@ impl Definition {
                         let i = index as usize;
                         let position = positions.get(i).ok_or("Index outside positions")?;
                         let normal = normals.get(i).ok_or("Index outside normals")?;
+                        let tint = match &colors {
+                            Some(colors) => *colors.get(i).ok_or("Missing vertex color")?,
+                            None => [1.; 4],
+                        };
                         let world = game_vector(
                             transform
                                 .transform_point3(Vec3::from_array(*position))
@@ -298,18 +346,32 @@ impl Definition {
                                     .to_array(),
                             )
                             .to_array(),
-                            color: [color[0], color[1], color[2]],
+                            color: [color[0] * tint[0], color[1] * tint[1], color[2] * tint[2]],
                             // Vehicle shaders use y as MSAA coverage for GLB glass.
-                            surface: [
-                                SurfaceKind::Prop as u32 as f32,
-                                coverage,
-                                if role == PartRole::Body && paint == Some(color) {
-                                    1.
-                                } else {
-                                    0.
-                                },
-                                vehicle_lamp_marker(node.name().unwrap_or("")),
-                            ],
+                            surface: if let Some(uvs) = &uvs {
+                                let uv = uvs.get(i).ok_or("Index outside texture UVs")?;
+                                if uv.iter().any(|v| !v.is_finite()) {
+                                    return Err("Invalid vehicle texture UVs".into());
+                                }
+                                // Negative material IDs select an albedo layer; zw carry UVs.
+                                [
+                                    -(texture_layer as f32 + 1.),
+                                    coverage * tint[3],
+                                    uv[0],
+                                    uv[1],
+                                ]
+                            } else {
+                                [
+                                    SurfaceKind::Prop as u32 as f32,
+                                    coverage * tint[3],
+                                    if role == PartRole::Body && paint == Some(color) {
+                                        1.
+                                    } else {
+                                        0.
+                                    },
+                                    vehicle_lamp_marker(node.name().unwrap_or("")),
+                                ]
+                            },
                         });
                     }
                 }
@@ -348,7 +410,16 @@ impl Definition {
                 }
             }
             for child in node.children() {
-                walk(child, transform, binary, ride, paint, parts, rear_lenses)?;
+                walk(
+                    child,
+                    transform,
+                    binary,
+                    ride,
+                    paint,
+                    texture_layer,
+                    parts,
+                    rear_lenses,
+                )?;
             }
             Ok(())
         }
@@ -359,6 +430,7 @@ impl Definition {
                 binary,
                 config.physics.height_offset,
                 paint,
+                texture_layer,
                 &mut parts,
                 &mut rear_lenses,
             )?;
@@ -436,6 +508,7 @@ impl Definition {
         }
         Ok(Self {
             config,
+            texture_png,
             parts: articulated,
             rear_lenses,
             headlights,
@@ -530,9 +603,15 @@ macro_rules! asset {
 pub fn definitions() -> &'static [Definition] {
     static CATALOG: OnceLock<Vec<Definition>> = OnceLock::new();
     CATALOG.get_or_init(|| {
+        let mut texture_layer = 0;
         ASSETS
             .iter()
-            .map(|(json, glb)| Definition::load(json, glb).expect("valid bundled Claydash vehicle"))
+            .map(|(json, glb)| {
+                let definition = Definition::load(json, glb, texture_layer)
+                    .expect("valid bundled Claydash vehicle");
+                texture_layer += u32::from(definition.texture_png.is_some());
+                definition
+            })
             .collect()
     })
 }
@@ -652,7 +731,21 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
-        assert_eq!(studies.len(), 4);
+        let study_ids: std::collections::BTreeSet<_> = studies
+            .iter()
+            .map(|d| d.config.research_id.as_str())
+            .collect();
+        assert_eq!(
+            study_ids,
+            std::collections::BTreeSet::from([
+                "vehicle-12",
+                "vehicle-j02",
+                "vehicle-j03",
+                "vehicle-j05",
+                "vehicle-v2-01",
+                "vehicle-v2-09",
+            ])
+        );
         for definition in studies {
             let glass = if definition.config.research_id == "vehicle-v2-09" {
                 assert_eq!(definition.config.name, "Laurent Clair");
@@ -698,6 +791,7 @@ mod tests {
             .find(|d| d.config.research_id == "vehicle-j02")
             .unwrap();
         assert_eq!(definition.config.category, "bus");
+        assert_eq!(definition.config.qa["wheelStyle"], "plain-steel-cylinder");
         assert!(definition.config.road_vehicle);
         assert_eq!(source.images().count(), 0);
         let nodes: std::collections::HashMap<_, _> =
@@ -710,15 +804,15 @@ mod tests {
             "rear_bumper",
             "roof_panel",
             "interior_floor",
-            "interior_aisle",
             "interior_dashboard",
             "interior_rear_platform",
+            "rear_engine_grille",
             "head_fl",
             "head_fr",
             "taillight_-1",
             "taillight_1",
-            "glass_door_front_forward",
-            "glass_door_rear_forward",
+            "glass_door_front_right_forward",
+            "glass_door_rear_right_forward",
         ] {
             assert!(nodes.contains_key(name), "missing bus part: {name}");
         }
@@ -728,7 +822,7 @@ mod tests {
                 name.starts_with("glass_") || matches!(**name, "windshield" | "rear_glass")
             })
             .collect();
-        assert_eq!(glass.len(), 22);
+        assert_eq!(glass.len(), 23);
         for (_, node) in glass {
             for primitive in node.mesh().unwrap().primitives() {
                 assert_eq!(
@@ -744,9 +838,68 @@ mod tests {
                 );
             }
         }
-        assert_eq!(nodes.keys().filter(|n| n.ends_with("_cushion")).count(), 29);
+        let interior_primitives: usize = nodes
+            .iter()
+            .filter(|(name, _)| name.starts_with("interior_"))
+            .map(|(_, node)| node.mesh().unwrap().primitives().count())
+            .sum();
+        assert!((10..=15).contains(&interior_primitives));
+        assert_eq!(
+            definition.config.qa["interiorPrimitives"],
+            interior_primitives
+        );
+        assert_eq!(
+            nodes
+                .keys()
+                .filter(|n| n.starts_with("interior_bench_") && n.ends_with("_cushion"))
+                .count(),
+            4
+        );
+        // Curved source glazing must retain its multiple depths after separation.
+        let blob = source.blob.as_deref().unwrap();
+        for name in ["windshield", "glass_right_0", "glass_left_0"] {
+            let mut lo = glam::Vec3::splat(f32::INFINITY);
+            let mut hi = glam::Vec3::splat(f32::NEG_INFINITY);
+            for primitive in nodes[name].mesh().unwrap().primitives() {
+                for p in primitive.reader(|_| Some(blob)).read_positions().unwrap() {
+                    lo = lo.min(glam::Vec3::from(p));
+                    hi = hi.max(glam::Vec3::from(p));
+                }
+            }
+            assert!(
+                (hi - lo).min_element() > 0.001,
+                "flattened source glazing: {name}"
+            );
+        }
         assert_eq!(definition.headlights.len(), 2);
         assert_eq!(definition.rear_emitters.len(), 2);
+        for name in [
+            "wheel_front_left",
+            "wheel_front_right",
+            "wheel_rear_left",
+            "wheel_rear_right",
+        ] {
+            let wheel = nodes[name].mesh().unwrap();
+            assert_eq!(
+                wheel.primitives().count(),
+                2,
+                "wheel must contain only rubber and plain steel"
+            );
+            let steel = wheel
+                .primitives()
+                .find(|p| p.material().pbr_metallic_roughness().metallic_factor() > 0.5)
+                .unwrap();
+            // A 48-sided closed cylinder has 48 * 4 triangles, without spokes/hubs.
+            assert_eq!(
+                steel
+                    .reader(|_| Some(blob))
+                    .read_indices()
+                    .unwrap()
+                    .into_u32()
+                    .count(),
+                48 * 4 * 3
+            );
+        }
         for part in definition.parts.iter().filter(|p| p.role != PartRole::Body) {
             assert!(part
                 .vertices

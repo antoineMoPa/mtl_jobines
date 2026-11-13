@@ -157,6 +157,23 @@ impl Commerce {
                 count: None,
             },
         ]);
+        entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 6,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                view_dimension: wgpu::TextureViewDimension::D2Array,
+                multisampled: false,
+            },
+            count: None,
+        });
+        entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 7,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+            count: None,
+        });
+        let (vehicle_albedo, vehicle_sampler) = super::vehicle_textures::upload(device, queue);
         let graffiti = super::graffiti::PaintTexture::new(device, queue);
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("game commerce"),
@@ -199,6 +216,14 @@ impl Commerce {
                 wgpu::BindGroupEntry {
                     binding: 5,
                     resource: graffiti.settings.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::TextureView(&vehicle_albedo),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: wgpu::BindingResource::Sampler(&vehicle_sampler),
                 },
             ],
         });

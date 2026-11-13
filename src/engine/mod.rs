@@ -4,6 +4,8 @@ mod app;
 mod bug_report;
 #[cfg(not(target_arch = "wasm32"))]
 mod buildings;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod collecteur_tests;
 mod commerce;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod contact_tests;
@@ -31,8 +33,11 @@ mod sky_probe;
 #[cfg(not(target_arch = "wasm32"))]
 mod smoke;
 #[cfg(all(test, not(target_arch = "wasm32")))]
+mod snowplow_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod surface_tests;
 mod vehicle_scenery;
+mod vehicle_textures;
 #[cfg(not(target_arch = "wasm32"))]
 pub use app::run;
 #[cfg(target_arch = "wasm32")]

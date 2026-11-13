@@ -139,6 +139,14 @@ edits keep the current map and report the error in the terminal and window title
 to retry. The player stays at their current position when supported, otherwise the authored spawn
 is used. The browser embeds its map at build time. See [map authoring](data/maps/mtl/README.md).
 Normal play spawns the player vehicle and moving traffic, without the parked catalog lineup.
+The sphere landmark lot also has twelve parked visitors in a circular arc facing the sphere,
+with the entrance forecourt and street access clear. Parked cars have their engines off,
+collide with vehicles and pedestrians, and can be entered with F. Their placements are authored
+as `parked_vehicle("vehicle-v2-09", x, y, heading_degrees);` in the `.road` map, using an exact
+road vehicle research ID from the catalog. Reloading the map restores these placements; an
+explicit player start that occupies a parking spot takes priority over that parked car.
+Parked visitors render only within 180 m of the player; farther cars submit no body, shadow,
+or lamp geometry. Returning to the lot shows the same cars in their current positions.
 Use `--smoke /tmp/vehicle-lineup.ppm --vehicle-lineup` for the explicit lineup QA view.
 
 ```sh

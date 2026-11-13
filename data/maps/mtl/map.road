@@ -16,6 +16,21 @@ site_model_01 = building(0.246, "study_01", 1.323, -1.157, 1.077, -1.157, 1.077,
 
 elevation(site_model_01, 0.102);
 
+# Parked visitors face the sphere in a circular arc; the forecourt and access stay clear.
+# Model research ID, map X/Y, heading counterclockwise from east in degrees.
+parked_vehicle("vehicle-v2-09", 0.934102, -1.233115, -10);
+parked_vehicle("vehicle-12",    0.955297, -1.165893, -25);
+parked_vehicle("vehicle-v2-09", 0.993168, -1.106447, -40);
+parked_vehicle("vehicle-v2-01", 1.045134, -1.058829, -55);
+parked_vehicle("vehicle-12",    1.107655, -1.026283, -70);
+parked_vehicle("vehicle-v2-09", 1.176468, -1.011027, -85);
+parked_vehicle("vehicle-v2-01", 1.246885, -1.014102, -100);
+parked_vehicle("vehicle-v2-09", 1.314107, -1.035297, -115);
+parked_vehicle("vehicle-12",    1.373553, -1.073168, -130);
+parked_vehicle("vehicle-v2-09", 1.421171, -1.125134, -145);
+parked_vehicle("vehicle-12",    1.453717, -1.187655, -160);
+parked_vehicle("vehicle-v2-09", 1.468973, -1.256468, -175);
+
 road service_north:
     carlane carlane sidewalk;
     direction forward;
@@ -556,3 +571,25 @@ grade(road_6, 0.1420, 0.1420);
 intersection4(junction_3, cross_street);
 
 elevation(junction_3, 0.1420);
+
+placed_building_3 = building(0.2775000, { material: glass, floor_height: 0.0315000, use: unspecified, family: curtain_wall, palette: sandstone, seed: 334 }, 0.8025994, -0.7510453, 0.4372306, -0.7618776, 0.4535920, -1.3137398, 0.8189608, -1.3029075);
+
+elevation(placed_building_3, 0.1010);
+
+
+
+placed_building_4 = building(0.2775000, { material: glass, floor_height: 0.0315000, use: unspecified, family: curtain_wall, palette: chalk, seed: 351 }, 0.3977373, -0.7630484, 0.1229004, -0.7711966, 0.1284282, -0.9576458, 0.4032650, -0.9494976);
+
+elevation(placed_building_4, 0.1010);
+
+
+placed_building_5 = building(0.2460000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: chalk, seed: 368 }, 0.0829189, -0.7723820, -0.1930622, -0.7805642, -0.1819589, -1.1550729, 0.0940222, -1.1468908);
+
+elevation(placed_building_5, 0.1010);
+
+
+
+
+
+
+

@@ -9,6 +9,7 @@ pub(crate) use illumination::LocalLight;
 pub(crate) use illumination::RearLight;
 mod landmark_respawn;
 mod lineup;
+pub(crate) mod parked;
 mod player;
 mod props;
 pub use props::PropBatch;
@@ -39,6 +40,8 @@ pub struct DynamicWorld {
     sound_foliage: f32,
     sound_geography_timer: f32,
     vehicles: Vec<Vehicle>,
+    // Authored parking occupies the slots after the initial player, before traffic.
+    parked_vehicle_count: usize,
     player_vehicle: VehicleId,
     vehicle_notice: f32,
     pedestrian: Option<Pedestrian>,
@@ -91,12 +94,14 @@ impl DynamicWorld {
             buildings: buildings::Buildings::new(hermes.city()),
             building_candidates: Vec::new(),
             vehicles: vec![vehicle],
+            parked_vehicle_count: 0,
             player_vehicle: VehicleId(0),
             vehicle_notice: 4.,
             pedestrian: None,
             vehicle_spawns: Vec::new(),
             props: props::Props::from_groups(hermes.prop_groups()),
         };
+        world.add_parked_vehicles(hermes)?;
         if vehicle_lineup {
             world.add_vehicle_lineup(hermes);
         }
@@ -463,11 +468,20 @@ impl DynamicWorld {
         for batch in self.standing_signal_batches() {
             self.traffic.append_signal_batch(&batch, mesh);
         }
-        for vehicle in &self.vehicles {
-            if vehicle.position.distance(self.player_position()) <= 450. {
+        for (index, vehicle) in self.vehicles.iter().enumerate() {
+            if self.vehicle_in_render_range(index, vehicle) {
                 vehicle.append_mesh(mesh);
             }
         }
+    }
+    fn vehicle_in_render_range(&self, index: usize, vehicle: &Vehicle) -> bool {
+        let distance =
+            if index != self.player_vehicle.0 && (1..=self.parked_vehicle_count).contains(&index) {
+                parked::RENDER_DISTANCE
+            } else {
+                450.
+            };
+        vehicle.position.distance_squared(self.player_position()) <= distance * distance
     }
     pub(crate) fn vehicle_instances(
         &self,
@@ -475,7 +489,7 @@ impl DynamicWorld {
         self.vehicles
             .iter()
             .enumerate()
-            .filter(|(_, v)| v.position.distance(self.player_position()) <= 450.)
+            .filter(|(index, v)| self.vehicle_in_render_range(*index, v))
             .filter_map(|(index, v)| {
                 v.definition.map(|id| {
                     (
@@ -491,8 +505,8 @@ impl DynamicWorld {
     }
     fn write_non_vehicle_actors(&self, mesh: &mut Mesh) {
         mesh.vertices.clear();
-        for vehicle in &self.vehicles {
-            if vehicle.position.distance(self.player_position()) <= 450. {
+        for (index, vehicle) in self.vehicles.iter().enumerate() {
+            if self.vehicle_in_render_range(index, vehicle) {
                 vehicle.append_lights(mesh);
             }
         }

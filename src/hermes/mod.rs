@@ -109,6 +109,7 @@ fn detailed_frontage(feature: &opencity::LandscapeFeature) -> bool {
 }
 pub struct Hermes {
     default_start: Option<crate::dynamic_world::SpawnPoint>,
+    parked_vehicles: Vec<crate::dynamic_world::parked::ParkedVehicle>,
     city: Arc<City>,
     minimap: minimap::Minimap,
     prepared: Option<(Mesh, Mesh)>,
@@ -273,6 +274,7 @@ impl Hermes {
         let landmark_mesh = landmarks::build(&city)?;
         Ok(Self {
             default_start: crate::dynamic_world::SpawnPoint::from_program(program)?,
+            parked_vehicles: crate::dynamic_world::parked::ParkedVehicle::from_program(program)?,
             traffic_paths: Arc::new(traffic_paths::TrafficPaths::new(&city, program)),
             router,
             navigation: routing::Navigation::default(),
@@ -288,6 +290,9 @@ impl Hermes {
     }
     pub(crate) fn default_start(&self) -> Option<crate::dynamic_world::SpawnPoint> {
         self.default_start
+    }
+    pub(crate) fn parked_vehicles(&self) -> &[crate::dynamic_world::parked::ParkedVehicle] {
+        &self.parked_vehicles
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn prepare_for_reload(&mut self) {

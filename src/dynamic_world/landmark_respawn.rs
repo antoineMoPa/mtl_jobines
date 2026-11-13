@@ -4,7 +4,7 @@ use crate::hermes::{traffic_paths::SpeedClass, Hermes, Landmark};
 use glam::{Vec2, Vec3};
 use opencity::runtime::SurfaceKind;
 
-fn vehicles_overlap(a: &Vehicle, b: &Vehicle) -> bool {
+pub(super) fn vehicles_overlap(a: &Vehicle, b: &Vehicle) -> bool {
     let bottom_a = a.position.z - a.ride_height();
     let bottom_b = b.position.z - b.ride_height();
     if bottom_a > bottom_b + b.height() || bottom_b > bottom_a + a.height() {
@@ -181,11 +181,20 @@ impl DynamicWorld {
     }
 
     fn clear_respawn(&self, hermes: &Hermes, vehicle: &Vehicle) -> bool {
+        self.clear_vehicle_position(hermes, vehicle, Some(self.player_vehicle.0))
+    }
+
+    pub(super) fn clear_vehicle_position(
+        &self,
+        hermes: &Hermes,
+        vehicle: &Vehicle,
+        ignored: Option<usize>,
+    ) -> bool {
         if self
             .vehicles
             .iter()
             .enumerate()
-            .any(|(id, other)| id != self.player_vehicle.0 && vehicles_overlap(vehicle, other))
+            .any(|(id, other)| Some(id) != ignored && vehicles_overlap(vehicle, other))
         {
             return false;
         }

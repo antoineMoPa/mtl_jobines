@@ -1,9 +1,9 @@
 {
   "category": "bus",
   "dimensions": {
-    "height": 3.2111730575561523,
-    "length": 12.122499465942383,
-    "width": 3.129999876022339
+    "height": 3.356788158416748,
+    "length": 12.199999809265137,
+    "width": 3.41869854927063
   },
   "model": "model.glb",
   "name": "Saint-Laurent Urbain",
@@ -21,15 +21,19 @@
   "qa": {
     "claydashExport": "completed",
     "detailedVehicle": true,
+    "exteriorSourceMeshPreserved": true,
     "glassOpacity": 0.7,
-    "glassPanes": 22,
+    "glassPanes": 23,
+    "interiorPrimitives": 15,
     "packager": "rust-source-cleanup",
-    "parts": 407,
+    "parts": 68,
+    "passengerBenches": 4,
     "pivot": "axle-local",
-    "seats": 29,
     "status": "exported",
     "textures": 0,
-    "triangles": 44612,
+    "triangles": 22325,
+    "wheelDonor": "utility-wheel.glb",
+    "wheelStyle": "plain-steel-cylinder",
     "wheels": [
       "wheel_front_left",
       "wheel_front_right",

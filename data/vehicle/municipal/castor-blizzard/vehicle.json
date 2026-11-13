@@ -1,59 +1,55 @@
 {
-  "schemaVersion": 1,
-  "name": "Castor Blizzard",
   "category": "municipal",
-  "roadVehicle": true,
-  "model": "model.glb",
   "dimensions": {
-    "length": 8.9807,
-    "width": 3.375,
-    "height": 2.916
+    "height": 3.5729081630706787,
+    "length": 8.990392684936523,
+    "width": 3.87074875831604
   },
+  "model": "model.glb",
+  "name": "Castor Blizzard",
   "physics": {
-    "mass": 14000,
-    "maxSpeed": 36,
     "acceleration": 5.0,
     "friction": 0.9,
+    "heightOffset": 0.6600000262260437,
+    "mass": 14000,
+    "maxSpeed": 36,
     "maxSteerAngle": 0.52,
-    "heightOffset": 0.65,
-    "wheelRadius": 0.48,
-    "wheelbase": 5.1,
-    "track": 2.21
+    "track": 2.4600000381469727,
+    "wheelRadius": 0.6600000262260437,
+    "wheelbase": 5.400000095367432
   },
   "qa": {
+    "binFinish": "weathered-ochre",
+    "claydashExport": "completed",
+    "detailedVehicle": true,
+    "glassOpacity": 0.7,
+    "interiorPrimitives": 13,
+    "packager": "rust-source-cleanup",
+    "parts": 118,
+    "pivot": "axle-local",
     "status": "exported",
-    "triangles": 1924,
-    "parts": 26,
-    "boxes": 15,
-    "cylinders": 6,
-    "wheelSegments": 12,
+    "textures": 0,
+    "triangles": 29282,
+    "wheelStyle": "plain-steel-cylinder",
     "wheels": [
-      "wheel_rear_left",
-      "wheel_rear_right",
+      "wheel_front_left",
+      "wheel_front_right",
       "wheel_middle_left",
       "wheel_middle_right",
-      "wheel_front_left",
-      "wheel_front_right"
-    ],
-    "claydashExport": "completed",
-    "game": "drive-tested",
-    "detailPass": 1,
-    "sheetPanels": 3,
-    "sheetBends": 3,
-    "pivot": "axle-local"
+      "wheel_rear_left",
+      "wheel_rear_right"
+    ]
   },
   "researchId": "vehicle-j03",
+  "roadVehicle": true,
+  "schemaVersion": 1,
   "sound": {
-    "engine": "diesel",
-    "idleRpm": 600,
-    "redlineRpm": 2500,
-    "engineGain": 2,
-    "firingOrder": 3,
-    "exhaustGain": 0.95,
     "bodyGain": 0.55,
-    "roughness": 0.6,
-    "mufflerHz": 450,
-    "machineryGain": 0.35,
+    "engine": "diesel",
+    "engineGain": 2,
+    "exhaustGain": 0.95,
+    "finalDrive": 5,
+    "firingOrder": 3,
     "gearRatios": [
       3.8,
       2.3,
@@ -62,14 +58,18 @@
       0.84,
       0.67
     ],
-    "finalDrive": 5,
     "horn": {
-      "kind": "air",
       "frequenciesHz": [
         175,
         230
       ],
-      "gain": 1
-    }
+      "gain": 1,
+      "kind": "air"
+    },
+    "idleRpm": 600,
+    "machineryGain": 0.35,
+    "mufflerHz": 450,
+    "redlineRpm": 2500,
+    "roughness": 0.6
   }
 }
