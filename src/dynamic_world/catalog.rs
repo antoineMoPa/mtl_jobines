@@ -87,16 +87,81 @@ struct Part {
     role: PartRole,
     pivot: Vec3,
     vertices: Vec<Vertex>,
+    shadow_vertices: Option<Vec<Vertex>>,
+}
+enum ShadowRole {
+    Exterior,
+    Interior,
+}
+fn shadow_role(name: &str) -> ShadowRole {
+    match name {
+        name if name.starts_with("seat")
+            || name.starts_with("Seat")
+            || name.starts_with("interior_")
+            || name.starts_with("dashboard")
+            || name.starts_with("steering_wheel") =>
+        {
+            ShadowRole::Interior
+        }
+        _ => ShadowRole::Exterior,
+    }
 }
 pub struct Definition {
     pub config: Config,
     parts: Vec<Part>,
     rear_lenses: Vec<Vertex>,
+    headlights: Vec<Vec3>,
+    rear_emitters: Vec<Vec3>,
+}
+/// Explicit lens roles keep housings and roof beacons out of the light sources.
+fn headlight_lens(name: &str) -> bool {
+    matches!(
+        name,
+        "frontlamp0"
+            | "frontlamp2"
+            | "headL"
+            | "headR"
+            | "head_fl"
+            | "head_fr"
+            | "headlamp0"
+            | "headlamp1"
+            | "headlamp_-1"
+            | "headlamp_1"
+            | "headlight_-1"
+            | "headlight_1"
+            | "headlight_lenses"
+            | "lamp0"
+            | "lamp1"
+            | "lampL"
+            | "lampR"
+            | "lampm"
+            | "lampp"
+            | "lamp_inner0"
+            | "lamp_inner1"
+            | "lamp_lower0"
+            | "lamp_lower1"
+            | "lamp_upper0"
+            | "lamp_upper1"
+            | "lampupper0"
+            | "lampupper2"
+            | "lampvertical0"
+            | "lampvertical2"
+            | "left_front_lamp"
+            | "right_front_lamp"
+            | "running_lamp_-1"
+            | "running_lamp_1"
+    )
 }
 fn game_vector(p: [f32; 3]) -> Vec3 {
     Vec3::new(p[0], -p[2], p[1])
 }
 impl Definition {
+    pub(super) fn rear_emitters(&self) -> &[Vec3] {
+        &self.rear_emitters
+    }
+    pub(super) fn headlights(&self) -> &[Vec3] {
+        &self.headlights
+    }
     pub(super) fn rear_lenses(&self) -> &[Vertex] {
         &self.rear_lenses
     }
@@ -204,7 +269,16 @@ impl Definition {
                             .to_array(),
                             color: [color[0], color[1], color[2]],
                             // Vehicle shaders use y as MSAA coverage for GLB glass.
-                            surface: [SurfaceKind::Prop as u32 as f32, coverage, 0., 0.],
+                            surface: [
+                                SurfaceKind::Prop as u32 as f32,
+                                coverage,
+                                0.,
+                                if headlight_lens(node.name().unwrap_or("")) {
+                                    64.
+                                } else {
+                                    0.
+                                },
+                            ],
                         });
                     }
                 }
@@ -235,6 +309,10 @@ impl Definition {
                         role,
                         pivot,
                         vertices,
+                        shadow_vertices: match shadow_role(node.name().unwrap_or("")) {
+                            ShadowRole::Interior => Some(Vec::new()),
+                            ShadowRole::Exterior => None,
+                        },
                     });
                 }
             }
@@ -258,9 +336,21 @@ impl Definition {
         }
         // Every fixed panel shares the body's transform; upload it as one rigid part.
         let mut body = Vec::new();
+        let mut shadow_body = Vec::new();
         let mut articulated = Vec::new();
         for part in parts {
             if part.role == PartRole::Body {
+                let caster = part.shadow_vertices.as_deref().unwrap_or(&part.vertices);
+                shadow_body.extend(
+                    caster
+                        .chunks_exact(3)
+                        .filter(|t| {
+                            t.iter()
+                                .all(|v| v.surface[1] >= 0.999 && v.surface[3] != 64.)
+                        })
+                        .flatten()
+                        .copied(),
+                );
                 body.extend(part.vertices);
             } else {
                 articulated.push(part);
@@ -271,20 +361,62 @@ impl Definition {
             Part {
                 role: PartRole::Body,
                 pivot: Vec3::ZERO,
+                shadow_vertices: if shadow_body.len() < body.len() {
+                    Some(shadow_body)
+                } else {
+                    None
+                },
                 vertices: body,
             },
         );
         if rear_lenses.is_empty() {
             return Err(format!("Missing authored rear lenses: {}", config.name));
         }
+        let mut headlights = Vec::new();
+        for left in [false, true] {
+            let mut lo = Vec3::splat(f32::INFINITY);
+            let mut hi = Vec3::splat(f32::NEG_INFINITY);
+            for v in articulated[0]
+                .vertices
+                .iter()
+                .filter(|v| v.surface[3] == 64. && (v.position[1] > 0.) == left)
+            {
+                let p = Vec3::from_array(v.position);
+                lo = lo.min(p);
+                hi = hi.max(p);
+            }
+            if lo.is_finite() {
+                headlights.push((lo + hi) * 0.5);
+            }
+        }
+        let mut rear_emitters = Vec::new();
+        for left in [false, true] {
+            let mut lo = Vec3::splat(f32::INFINITY);
+            let mut hi = Vec3::splat(f32::NEG_INFINITY);
+            for v in rear_lenses.iter().filter(|v| (v.position[1] > 0.) == left) {
+                let p = Vec3::from_array(v.position);
+                lo = lo.min(p);
+                hi = hi.max(p);
+            }
+            if lo.is_finite() {
+                rear_emitters.push((lo + hi) * 0.5);
+            }
+        }
         Ok(Self {
             config,
             parts: articulated,
             rear_lenses,
+            headlights,
+            rear_emitters,
         })
     }
     pub fn part_vertices(&self) -> impl Iterator<Item = &[Vertex]> {
         self.parts.iter().map(|p| p.vertices.as_slice())
+    }
+    pub(crate) fn part_shadow_vertices(&self) -> impl Iterator<Item = &[Vertex]> {
+        self.parts
+            .iter()
+            .map(|part| part.shadow_vertices.as_deref().unwrap_or(&part.vertices))
     }
     pub fn part_transforms(&self, vehicle: &super::Vehicle) -> Vec<Mat4> {
         let body = Mat4::from_scale_rotation_translation(
@@ -398,6 +530,35 @@ const ASSETS: &[(&[u8], &[u8])] = &[
 mod tests {
     use super::*;
     #[test]
+    fn shadow_sources_omit_cabin_details_without_changing_wheel_geometry() {
+        let mut saved = 0;
+        for definition in definitions() {
+            assert_eq!(
+                definition.part_vertices().count(),
+                definition.part_shadow_vertices().count()
+            );
+            for (index, (camera, shadow)) in definition
+                .part_vertices()
+                .zip(definition.part_shadow_vertices())
+                .enumerate()
+            {
+                assert!(shadow.len() <= camera.len());
+                saved += camera.len() - shadow.len();
+                if index > 0 {
+                    assert_eq!(
+                        camera.as_ptr(),
+                        shadow.as_ptr(),
+                        "wheel source was replaced"
+                    );
+                }
+            }
+        }
+        assert!(
+            saved > 0,
+            "no cabin details were omitted from shadow sources"
+        );
+    }
+    #[test]
     fn authored_lenses_are_moved_once_without_adding_or_dropping_source_triangles() {
         for (definition, (_, bytes)) in definitions().iter().zip(ASSETS) {
             let glb = gltf::Gltf::from_slice(bytes).unwrap();
@@ -463,7 +624,7 @@ mod tests {
             .filter(|d| {
                 matches!(
                     d.config.qa["packager"].as_str(),
-                    Some("runtime-packager" | "claydash-game-package")
+                    Some("runtime-packager" | "claydash-game-package" | "rust-source-cleanup")
                 )
             })
             .collect::<Vec<_>>();
@@ -501,6 +662,82 @@ mod tests {
                 assert!(wheel.vertices.iter().any(|v| v.color != first));
             }
         }
+    }
+    #[test]
+    fn detailed_suv_keeps_cut_glass_cabin_and_authored_lights() {
+        let bytes = include_bytes!("../../data/vehicle/suv/boreal-colline/model.glb");
+        let source = gltf::Gltf::from_slice(bytes).unwrap();
+        let definition = definitions()
+            .iter()
+            .find(|d| d.config.research_id == "vehicle-12")
+            .unwrap();
+        assert_eq!(definition.config.name, "Boreal Colline");
+        assert_eq!(source.images().count(), 0);
+        let names: std::collections::HashSet<_> = source.nodes().filter_map(|n| n.name()).collect();
+        assert_eq!(names.len(), source.nodes().count());
+        for name in [
+            "windshield",
+            "rear_glass",
+            "glass_front_left",
+            "glass_front_right",
+            "glass_rear_left",
+            "glass_rear_right",
+            "glass_quarter_left",
+            "glass_quarter_right",
+            "hood",
+            "door_front_left",
+            "door_front_right",
+            "door_rear_left",
+            "door_rear_right",
+            "tailgate",
+            "interior_dashboard",
+            "interior_console",
+            "head_fl",
+            "head_fr",
+            "taillight_-1",
+            "taillight_1",
+        ] {
+            assert!(names.contains(name), "missing detailed SUV part: {name}");
+        }
+        assert_eq!(names.iter().filter(|n| n.ends_with("_headrest")).count(), 6);
+        let glass: Vec<_> = source
+            .nodes()
+            .filter(|n| {
+                n.name().is_some_and(|name| {
+                    matches!(name, "windshield" | "rear_glass") || name.starts_with("glass_")
+                })
+            })
+            .collect();
+        assert_eq!(glass.len(), 8);
+        for node in glass {
+            for primitive in node.mesh().unwrap().primitives() {
+                assert_eq!(
+                    primitive.material().alpha_mode(),
+                    gltf::material::AlphaMode::Blend
+                );
+                assert_eq!(
+                    primitive
+                        .material()
+                        .pbr_metallic_roughness()
+                        .base_color_factor()[3],
+                    0.7
+                );
+            }
+        }
+        assert!(definition.headlights.len() >= 2);
+        assert_eq!(definition.rear_emitters.len(), 2);
+        let front = definition
+            .parts
+            .iter()
+            .find(|p| p.role == PartRole::FrontWheel)
+            .unwrap();
+        let rear = definition
+            .parts
+            .iter()
+            .find(|p| p.role == PartRole::RearWheel)
+            .unwrap();
+        assert!((front.pivot.x - rear.pivot.x - definition.config.physics.wheelbase).abs() < 1e-4);
+        assert!((front.pivot.y.abs() * 2. - definition.config.physics.track).abs() < 1e-4);
     }
     #[test]
     fn every_export_loads_with_four_or_six_axle_local_wheels_and_si_data() {

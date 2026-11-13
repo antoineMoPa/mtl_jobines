@@ -5,6 +5,18 @@ const WIDTH: f32 = 0.14;
 const DEPTH: f32 = 0.18;
 const SETBACK: f32 = 0.02;
 const SPACING: f32 = 0.18;
+#[derive(PartialEq, Eq)]
+struct CandidateKey {
+    city: usize,
+    center: [u32; 3],
+    span: u32,
+    mode: CameraMode,
+    revision: u64,
+}
+pub(super) struct CandidateCache {
+    key: CandidateKey,
+    features: Vec<LandscapeFeature>,
+}
 struct EdgePoint {
     position: Vec3,
     outside: Vec2,
@@ -172,7 +184,19 @@ fn corners(a: &CrossSection, b: &CrossSection) -> Option<[Vec3; 4]> {
     ])
 }
 impl Document {
-    pub(super) fn candidates(&self, city: &City) -> Vec<LandscapeFeature> {
+    pub(super) fn candidates(&mut self, city: &City) -> Vec<LandscapeFeature> {
+        let key = CandidateKey {
+            city: city as *const City as usize,
+            center: self.center.to_array().map(f32::to_bits),
+            span: self.span.to_bits(),
+            mode: self.mode,
+            revision: self.revision,
+        };
+        if let Some(cached) = &self.candidate_cache {
+            if cached.key == key {
+                return cached.features.clone();
+            }
+        }
         let origin = if self.mode == CameraMode::Build {
             self.center.truncate()
         } else {
@@ -210,6 +234,10 @@ impl Document {
                 }
             }
         }
+        self.candidate_cache = Some(CandidateCache {
+            key,
+            features: result.clone(),
+        });
         result
     }
 }

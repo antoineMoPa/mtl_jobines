@@ -5,11 +5,16 @@ use rapier3d::{
     parry::query::{contact, ContactManifold, DefaultQueryDispatcher, PersistentQueryDispatcher},
     prelude::*,
 };
+#[cfg(test)]
 pub(super) fn resolve(vehicles: &mut [Vehicle]) {
+    let _ = resolve_with_contacts(vehicles);
+}
+pub(super) fn resolve_with_contacts(vehicles: &mut [Vehicle]) -> Vec<(usize, usize)> {
+    let mut contacts = Vec::new();
     for i in 0..vehicles.len() {
         let (before, after) = vehicles.split_at_mut(i);
         let a = &mut after[0];
-        for b in before {
+        for (j, b) in before.iter_mut().enumerate() {
             if a.position.distance_squared(b.position) > (a.length() + b.length()).powi(2) {
                 continue;
             }
@@ -53,6 +58,7 @@ pub(super) fn resolve(vehicles: &mut [Vehicle]) {
             {
                 continue;
             }
+            contacts.push((i, j));
             let inv_a = 1. / a.mass();
             let inv_b = 1. / b.mass();
             let sum = inv_a + inv_b;
@@ -97,6 +103,7 @@ pub(super) fn resolve(vehicles: &mut [Vehicle]) {
             }
         }
     }
+    contacts
 }
 #[cfg(test)]
 mod tests {

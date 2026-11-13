@@ -5,12 +5,17 @@ mod bug_report;
 #[cfg(not(target_arch = "wasm32"))]
 mod buildings;
 mod commerce;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod contact_tests;
+mod contact_texture;
 #[cfg(not(target_arch = "wasm32"))]
 mod expansion;
 mod frame_rate;
 mod gpu_profile;
+mod graffiti;
 mod hud;
 mod lighting;
+mod local_lights;
 mod palette;
 mod prop_scenery;
 mod render;

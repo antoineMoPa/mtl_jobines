@@ -9,14 +9,16 @@ use std::ops::Range;
 const TILE_SPAN: f32 = 2.;
 const DRAW_SPAN: f32 = 0.5;
 struct Batch {
+    infrastructure: bool,
     bounds: [f32; 4],
     meshes: Vec<GpuMesh>,
 }
 pub struct Scenery {
     world: Vec<Batch>,
     details: Vec<Batch>,
+    paint: super::graffiti::Nearby,
 }
-fn triangle_key(triangle: &[opencity::runtime::Vertex; 3]) -> (i32, i32, i32, i32) {
+fn triangle_key(triangle: &[opencity::runtime::Vertex; 3]) -> (i32, i32, bool, i32, i32) {
     let center = [
         triangle.iter().map(|v| v.position[0]).sum::<f32>() / 3.,
         triangle.iter().map(|v| v.position[1]).sum::<f32>() / 3.,
@@ -24,23 +26,35 @@ fn triangle_key(triangle: &[opencity::runtime::Vertex; 3]) -> (i32, i32, i32, i3
     (
         (center[0] / TILE_SPAN).floor() as i32,
         (center[1] / TILE_SPAN).floor() as i32,
+        infrastructure(triangle),
         (center[0] / DRAW_SPAN).floor() as i32,
         (center[1] / DRAW_SPAN).floor() as i32,
     )
 }
+fn infrastructure(triangle: &[opencity::runtime::Vertex; 3]) -> bool {
+    use opencity::runtime::SurfaceKind;
+    let s = triangle[0].surface;
+    s[0] == SurfaceKind::Asphalt as u32 as f32
+        || s[0] == SurfaceKind::Marking as u32 as f32
+        || s[0] == SurfaceKind::Sidewalk as u32 as f32 && s[3] != 0.
+        || s[0] == SurfaceKind::Grass as u32 as f32 && s[3] != 0.
+        || s[3] == -2.
+}
 // Sort whole triangles in place. Retain only draw ranges, never a second city-sized mesh.
-fn partition(mesh: &mut Mesh) -> Vec<([f32; 4], Vec<Range<usize>>)> {
+fn partition(mesh: &mut Mesh) -> Vec<([f32; 4], Vec<Range<usize>>, bool)> {
     let (triangles, remainder) = mesh.vertices.as_chunks_mut::<3>();
     assert!(
         remainder.is_empty(),
         "scenery must contain complete triangles"
     );
     triangles.sort_unstable_by_key(triangle_key);
-    let mut groups: Vec<([f32; 4], Vec<Range<usize>>)> = Vec::new();
+    let mut groups: Vec<([f32; 4], Vec<Range<usize>>, bool)> = Vec::new();
     let mut previous = None;
     for (index, triangle) in triangles.iter().enumerate() {
         let key = triangle_key(triangle);
-        if previous.is_none_or(|p: (i32, i32, i32, i32)| (p.0, p.1) != (key.0, key.1)) {
+        if previous
+            .is_none_or(|p: (i32, i32, bool, i32, i32)| (p.0, p.1, p.2) != (key.0, key.1, key.2))
+        {
             groups.push((
                 [
                     f32::INFINITY,
@@ -49,9 +63,10 @@ fn partition(mesh: &mut Mesh) -> Vec<([f32; 4], Vec<Range<usize>>)> {
                     f32::NEG_INFINITY,
                 ],
                 Vec::new(),
+                key.2,
             ));
         }
-        let (bounds, draws) = groups.last_mut().unwrap();
+        let (bounds, draws, _) = groups.last_mut().unwrap();
         if previous != Some(key) {
             draws.push(index * 3..index * 3);
         }
@@ -69,11 +84,18 @@ fn partition(mesh: &mut Mesh) -> Vec<([f32; 4], Vec<Range<usize>>)> {
 fn batches(renderer: &Renderer, mut mesh: Mesh) -> Vec<Batch> {
     partition(&mut mesh)
         .into_iter()
-        .map(|(bounds, ranges)| Batch {
+        .map(|(bounds, ranges, infrastructure)| Batch {
+            infrastructure,
             bounds,
             meshes: ranges
                 .into_iter()
-                .map(|range| renderer.upload_vertices(&mesh.vertices[range]))
+                .map(|range| {
+                    if infrastructure {
+                        renderer.upload_vertices(&mesh.vertices[range])
+                    } else {
+                        renderer.upload_scenery_vertices(&mesh.vertices[range])
+                    }
+                })
                 .collect(),
         })
         .collect()
@@ -81,12 +103,34 @@ fn batches(renderer: &Renderer, mut mesh: Mesh) -> Vec<Batch> {
 impl Scenery {
     pub fn new(renderer: &Renderer, hermes: &mut Hermes) -> Self {
         let (world, details) = hermes.take_geometry();
+        let paint = super::graffiti::Nearby::new(renderer, &world);
         Self {
             world: batches(renderer, world),
             details: batches(renderer, details),
+            paint,
         }
     }
+    pub fn update_graffiti(&mut self, renderer: &Renderer, center: [f32; 2]) {
+        self.paint.update(renderer, center);
+    }
     pub fn visible(&self, center: [f32; 2]) -> Vec<&GpuMesh> {
+        self.visible_in_view(center, None, 1.)
+    }
+    pub fn visible_in_view(
+        &self,
+        center: [f32; 2],
+        span: Option<f32>,
+        aspect: f32,
+    ) -> Vec<&GpuMesh> {
+        self.visible_with_road_preview(center, span, aspect, false)
+    }
+    pub fn visible_with_road_preview(
+        &self,
+        center: [f32; 2],
+        span: Option<f32>,
+        aspect: f32,
+        preview: bool,
+    ) -> Vec<&GpuMesh> {
         let intersects = |b: &Batch, radius: f32| {
             b.bounds[0] <= center[0] + radius
                 && b.bounds[2] >= center[0] - radius
@@ -95,9 +139,16 @@ impl Scenery {
         };
         self.world
             .iter()
-            .filter(|b| intersects(b, 8.))
+            .filter(|b| {
+                (!preview || !b.infrastructure)
+                    && intersects(
+                        b,
+                        span.map_or(8., |span| (span * aspect.max(1.) * 1.5).max(8.)),
+                    )
+            })
             .chain(self.details.iter().filter(|b| intersects(b, 1.5)))
             .flat_map(|b| &b.meshes)
+            .chain(self.paint.visible())
             .collect()
     }
 }
@@ -141,14 +192,14 @@ mod tests {
         assert_eq!(
             groups
                 .iter()
-                .flat_map(|(_, meshes)| meshes)
+                .flat_map(|(_, meshes, _)| meshes)
                 .map(|range| range.len())
                 .sum::<usize>(),
             9
         );
         assert!(groups
             .iter()
-            .flat_map(|(_, meshes)| meshes)
+            .flat_map(|(_, meshes, _)| meshes)
             .all(|range| range.len() == 3));
     }
 }

@@ -1,0 +1,10 @@
+# Keep this street profile and its authored comments.
+road street: sidewalk carlane middle carlane sidewalk; end
+# Select and remove this road.
+primary = street(-1,0,1,0);
+grade(primary,0,0);
+# Keep this separate road and its exact formatting.
+secondary=street(-1,0.5,1,0.5);
+land(-2,-2,2,-2,2,2,-2,2);
+building(0.2,1.2,1.2,1.5,1.2,1.5,1.5,1.2,1.5);
+player_start(-0.5,0);

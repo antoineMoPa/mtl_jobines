@@ -3,17 +3,24 @@
 mod buildings;
 pub(crate) mod catalog;
 mod contacts;
+mod illumination;
+pub(crate) use illumination::LocalLight;
+#[cfg(test)]
+pub(crate) use illumination::RearLight;
 mod landmark_respawn;
 mod lineup;
 mod player;
 mod props;
 pub use props::PropBatch;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod physics_lod_tests;
 mod spawn;
 #[cfg(test)]
 mod street_tests;
 mod suspension;
 mod traffic;
 pub use spawn::SpawnPoint;
+pub(crate) use traffic::SignalBatch;
 #[cfg(test)]
 mod handbrake_tests;
 mod vehicle;
@@ -302,13 +309,25 @@ impl DynamicWorld {
             }
             self.sound_foliage = foliage / 5.;
         }
+        let driving = self.is_driving();
+        let center = self.player_position();
+        let center_velocity = if driving {
+            self.player().velocity
+        } else {
+            Vec3::ZERO
+        };
+        self.traffic.select_physics(
+            &self.vehicles,
+            self.player_vehicle.0,
+            center,
+            center_velocity,
+        );
         let ai = self.traffic.controls(
             hermes.city(),
             &self.vehicles,
             self.pedestrian.as_ref().map(|p| p.position),
             dt,
         );
-        let driving = self.is_driving();
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
             let signal = if driving && i == self.player_vehicle.0 {
                 hermes.route_signal()
@@ -334,6 +353,14 @@ impl DynamicWorld {
             vehicle.sound_controls = controls;
             vehicle.sound_running =
                 (driving && i == self.player_vehicle.0) || ai.iter().any(|(id, _)| *id == i);
+            if i != self.player_vehicle.0
+                && (self.traffic.step_lane(i, vehicle, controls, dt)
+                    || self
+                        .traffic
+                        .sleep_if_settled(i, vehicle, controls, center, dt))
+            {
+                continue;
+            }
             let before = vehicle.position;
             let reach =
                 vehicle.length().hypot(vehicle.width()) * 0.5 + vehicle.velocity.length() * dt + 1.;
@@ -351,7 +378,9 @@ impl DynamicWorld {
             self.props.vehicle_move(vehicle, before, hermes.city());
             self.traffic.vehicle_move(vehicle, before, hermes.city());
         }
-        contacts::resolve(&mut self.vehicles);
+        let contacts = contacts::resolve_with_contacts(&mut self.vehicles);
+        self.traffic
+            .record_contacts(&contacts, self.player_vehicle.0);
         for hit in &mut self.sound_impacts {
             hit.age += dt;
         }
@@ -389,6 +418,14 @@ impl DynamicWorld {
             self.reset_player(hermes);
         }
     }
+    #[cfg(any(not(target_arch = "wasm32"), test))]
+    pub(crate) fn use_full_traffic_physics(&mut self) {
+        self.traffic.use_full_physics();
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn traffic_physics_counts(&self) -> [usize; 3] {
+        self.traffic.physics_counts(self.vehicles.len())
+    }
     #[cfg(test)]
     pub fn mesh(&self) -> Mesh {
         let mut mesh = Mesh::default();
@@ -408,14 +445,24 @@ impl DynamicWorld {
     pub fn write_prop_batch(&self, batch: &PropBatch, output: &mut Mesh) {
         self.props.write_batch(batch, output);
     }
-    /// Vehicles, pedestrian and moving debris; intact props use cached batches.
+    /// Vehicle lamps, pedestrian and moving debris. Standing scenery uses cached batches.
     pub fn write_moving_mesh(&self, mesh: &mut Mesh) {
         self.write_non_vehicle_actors(mesh);
         self.props.append_moving(mesh, self.player_position());
     }
+    pub(crate) fn standing_signal_batches(&self) -> impl Iterator<Item = SignalBatch> + '_ {
+        self.traffic.standing_signal_batches(self.player_position())
+    }
+    pub(crate) fn write_signal_batch(&self, batch: &SignalBatch, output: &mut Mesh) {
+        output.vertices.clear();
+        self.traffic.append_signal_batch(batch, output);
+    }
     #[cfg(test)]
     fn write_actors(&self, mesh: &mut Mesh) {
         self.write_non_vehicle_actors(mesh);
+        for batch in self.standing_signal_batches() {
+            self.traffic.append_signal_batch(&batch, mesh);
+        }
         for vehicle in &self.vehicles {
             if vehicle.position.distance(self.player_position()) <= 450. {
                 vehicle.append_mesh(mesh);
@@ -424,7 +471,7 @@ impl DynamicWorld {
     }
     pub(crate) fn vehicle_instances(
         &self,
-    ) -> impl Iterator<Item = (usize, Vec<glam::Mat4>, f32)> + '_ {
+    ) -> impl Iterator<Item = (usize, Vec<glam::Mat4>, f32, bool, bool)> + '_ {
         self.vehicles
             .iter()
             .enumerate()
@@ -435,6 +482,8 @@ impl DynamicWorld {
                         id,
                         catalog::definitions()[id].part_transforms(v),
                         self.traffic.opacity(index),
+                        v.sound_running,
+                        index == self.player_vehicle.0,
                     )
                 })
             })
@@ -446,7 +495,8 @@ impl DynamicWorld {
                 vehicle.append_lights(mesh);
             }
         }
-        self.traffic.append_signals(mesh, self.player_position());
+        self.traffic
+            .append_signal_debris(mesh, self.player_position());
         if let Some(player) = &self.pedestrian {
             mesh.vertices.extend(player.mesh().vertices);
         }

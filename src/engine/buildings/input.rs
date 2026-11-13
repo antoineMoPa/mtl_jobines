@@ -53,10 +53,15 @@ impl Document {
             }
             return;
         }
-        if ctx.egui_wants_keyboard_input() {
-            return;
-        }
-        if let Some(index) = self.selected {
+        let keyboard_free = !ctx.egui_wants_keyboard_input();
+        if let Some(index) = self.selected.filter(|_| keyboard_free) {
+            if ctx
+                .input(|i| i.key_pressed(egui::Key::Backspace) || i.key_pressed(egui::Key::Delete))
+            {
+                self.error = self.delete(index).err().unwrap_or_default();
+                ctx.request_repaint();
+                return;
+            }
             let delta = ctx.input(|i| {
                 Vec2::new(
                     f32::from(i.key_pressed(egui::Key::ArrowRight))
@@ -77,17 +82,27 @@ impl Document {
             }
             return;
         };
-        let in_view = view.viewport.contains(pos);
+        let in_view = view.viewport.contains(pos)
+            && ctx
+                .layer_id_at(pos)
+                .is_none_or(|layer| layer.order == egui::Order::Background);
         let primary_pressed = ctx.input(|i| i.pointer.primary_pressed());
         let primary_released = ctx.input(|i| i.pointer.primary_released());
         let secondary_pressed = ctx.input(|i| i.pointer.secondary_pressed());
         if in_view && self.mode == CameraMode::Build {
             let scroll = ctx.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0. && self.gesture.is_none() {
-                self.span = (self.span * (-scroll * 0.002).exp()).clamp(0.2, 8.);
+                let next = (self.span * (-scroll * 0.002).exp()).clamp(0.2, 64.);
+                if let Some(anchor) = view.ground(pos, self.center.z) {
+                    self.center = (anchor + (self.center.truncate() - anchor) * (next / self.span))
+                        .extend(self.center.z);
+                }
+                self.span = next;
                 ctx.request_repaint();
             }
-            if secondary_pressed {
+            if secondary_pressed
+                || ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Middle))
+            {
                 self.gesture = Some(Gesture::Pan {
                     press: pos,
                     center: self.center,
@@ -95,6 +110,11 @@ impl Document {
             }
         }
         if primary_pressed && in_view {
+            ctx.memory_mut(|m| {
+                if let Some(id) = m.focused() {
+                    m.surrender_focus(id);
+                }
+            });
             self.error.clear();
             let corner = self.selected.and_then(|index| {
                 let f = &self.items[index].feature;
@@ -169,7 +189,10 @@ impl Document {
                         *center = self.center;
                         ctx.request_repaint();
                     }
-                    if ctx.input(|i| i.pointer.secondary_released()) {
+                    if ctx.input(|i| {
+                        !i.pointer.secondary_down()
+                            && !i.pointer.button_down(egui::PointerButton::Middle)
+                    }) {
                         self.gesture = None;
                     }
                 }

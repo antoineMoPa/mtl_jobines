@@ -47,8 +47,12 @@ fn native_building_tool_captures_both_cameras() {
         (CameraMode::Build, "building-build.png"),
         (CameraMode::Street, "building-street.png"),
         (CameraMode::Build, "building-model.png"),
+        (CameraMode::Build, "building-overview.png"),
     ] {
         doc.mode = mode;
+        if name == "building-overview.png" {
+            doc.span = 12.;
+        }
         if name == "building-model.png" {
             let model =
                 Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/models/fuel-station.glb");

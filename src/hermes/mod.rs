@@ -291,9 +291,12 @@ impl Hermes {
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn prepare_for_reload(&mut self) {
+        // Accepted authoring edits should not wait for a compressed disk-cache write.
+        let cache = self.cache.take();
         let geometry = self.take_geometry();
+        self.cache = cache;
         self.prepared = Some(geometry);
-        self.minimap.pixels();
+        self.minimap.prepare_for_reload();
     }
     pub fn take_geometry(&mut self) -> (Mesh, Mesh) {
         if let Some(mut meshes) = self.prepared.take() {

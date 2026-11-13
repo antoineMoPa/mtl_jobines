@@ -3,6 +3,12 @@ use super::{Vehicle, METERS_PER_UNIT};
 use glam::{Quat, Vec3};
 use opencity::runtime::Mesh;
 
+pub(super) struct RearLampState {
+    pub braking: bool,
+    pub reversing: bool,
+    pub flashing: crate::hermes::RouteSignal,
+}
+
 impl Vehicle {
     pub(super) fn update_route_signal(&mut self, signal: crate::hermes::RouteSignal, dt: f32) {
         self.signal_time = if self.route_signal != signal {
@@ -13,10 +19,7 @@ impl Vehicle {
         self.route_signal = signal;
     }
 
-    pub(super) fn append_lights(&self, output: &mut Mesh) {
-        let Some(definition) = self.definition() else {
-            return;
-        };
+    pub(super) fn rear_lamp_state(&self) -> RearLampState {
         let longitudinal = self
             .velocity
             .dot(Vec3::new(self.yaw.cos(), self.yaw.sin(), 0.));
@@ -26,7 +29,25 @@ impl Vehicle {
             && !controls.brake
             && !controls.handbrake
             && (controls.throttle < -0.01 || longitudinal < -0.2);
-        let state = u8::from(braking) + 2 * u8::from(reversing);
+        RearLampState {
+            braking,
+            reversing,
+            flashing: if self.signal_time < 0.4 {
+                self.route_signal
+            } else {
+                crate::hermes::RouteSignal::Off
+            },
+        }
+    }
+
+    pub(super) fn append_lights(&self, output: &mut Mesh) {
+        let Some(definition) = self.definition() else {
+            return;
+        };
+        let lamps = self.rear_lamp_state();
+        let state = u8::from(lamps.braking)
+            + 2 * u8::from(lamps.reversing)
+            + 64 * u8::from(self.sound_running);
         let lean =
             Quat::from_rotation_y(-self.body_lean.x) * Quat::from_rotation_x(self.body_lean.y);
         let orientation = self.orientation() * lean;
@@ -36,16 +57,12 @@ impl Vehicle {
                 let mut vertex = *vertex;
                 // Continuous bars select their end in the shader; separate lenses
                 // use vehicle-local Y (positive is left).
-                if self.signal_time < 0.4 {
-                    let strip = vertex.surface[3] >= 10.;
-                    vertex.surface[3] += match self.route_signal {
-                        crate::hermes::RouteSignal::Left if strip || vertex.position[1] > 0. => 16.,
-                        crate::hermes::RouteSignal::Right if strip || vertex.position[1] < 0. => {
-                            32.
-                        }
-                        _ => 0.,
-                    };
-                }
+                let strip = vertex.surface[3] >= 10.;
+                vertex.surface[3] += match lamps.flashing {
+                    crate::hermes::RouteSignal::Left if strip || vertex.position[1] > 0. => 16.,
+                    crate::hermes::RouteSignal::Right if strip || vertex.position[1] < 0. => 32.,
+                    _ => 0.,
+                };
                 vertex.surface[3] += state as f32;
                 vertex.position = ((orientation * Vec3::from_array(vertex.position)
                     + self.position)
@@ -153,7 +170,7 @@ mod tests {
                         actual.color, original.color,
                         "authored lens color remains available for the unlit shader"
                     );
-                    assert_eq!(actual.surface[3], original.surface[3] + state);
+                    assert_eq!(actual.surface[3], original.surface[3] + state + 64.);
                 }
             }
         }

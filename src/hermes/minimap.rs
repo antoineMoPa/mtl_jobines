@@ -67,25 +67,55 @@ impl Minimap {
         ]
     }
     pub fn pixels(&mut self) -> &[u8] {
+        self.rasterize(TEXTURE_SIZE);
+        &self.pixels
+    }
+    /// The on-screen minimap is small; edits favor a quick atlas over export detail.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn prepare_for_reload(&mut self) {
+        self.rasterize(TEXTURE_SIZE / 4);
+    }
+    fn rasterize(&mut self, size: u32) {
         if self.pixels.is_empty() {
-            let mut pixmap = tiny_skia::Pixmap::new(TEXTURE_SIZE, TEXTURE_SIZE)
-                .expect("fixed minimap texture size");
+            let mut pixmap =
+                tiny_skia::Pixmap::new(size, size).expect("fixed minimap texture size");
             pixmap.fill(tiny_skia::Color::from_rgba8(23, 62, 85, 255));
             let tree = self.tree.as_ref().expect("uncached map has an SVG tree");
-            let scale = TEXTURE_SIZE as f32 / self.span * (self.bounds[2] - self.bounds[0])
-                / tree.size().width();
+            let scale =
+                size as f32 / self.span * (self.bounds[2] - self.bounds[0]) / tree.size().width();
             let transform = tiny_skia::Transform::from_row(
                 scale,
                 0.,
                 0.,
                 scale,
-                (TEXTURE_SIZE as f32 - tree.size().width() * scale) * 0.5,
-                (TEXTURE_SIZE as f32 - tree.size().height() * scale) * 0.5,
+                (size as f32 - tree.size().width() * scale) * 0.5,
+                (size as f32 - tree.size().height() * scale) * 0.5,
             );
             resvg::render(tree, transform, &mut pixmap.as_mut());
             self.pixels = pixmap.take();
+            if size != TEXTURE_SIZE {
+                let factor = (TEXTURE_SIZE / size) as usize;
+                let stride = TEXTURE_SIZE as usize * 4;
+                let mut atlas = vec![0; stride * TEXTURE_SIZE as usize];
+                for (y, source) in self.pixels.chunks_exact(size as usize * 4).enumerate() {
+                    let row = &mut atlas[y * factor * stride..(y * factor + 1) * stride];
+                    for (pixel, expanded) in
+                        source.chunks_exact(4).zip(row.chunks_exact_mut(4 * factor))
+                    {
+                        for target in expanded.chunks_exact_mut(4) {
+                            target.copy_from_slice(pixel);
+                        }
+                    }
+                    for offset in 1..factor {
+                        atlas.copy_within(
+                            y * factor * stride..(y * factor + 1) * stride,
+                            (y * factor + offset) * stride,
+                        );
+                    }
+                }
+                self.pixels = atlas;
+            }
         }
-        &self.pixels
     }
     pub fn update(&mut self, _point: [f32; 2]) -> Option<&[u8]> {
         if !self.dirty {
@@ -154,6 +184,22 @@ mod tests {
             pixels[i] > 180 && pixels[i + 1] > 180,
             "road should be light in actual raster"
         );
+    }
+    #[test]
+    fn quick_reload_atlas_keeps_world_mapping_and_has_no_deferred_raster_work() {
+        let city = map();
+        let mut map = Minimap::new(&city).unwrap();
+        map.prepare_for_reload();
+        let pixels = map.pixels.as_ptr();
+        let uv = map.map_uv([0., 0.]);
+        let atlas = map.update([0., 0.]).unwrap();
+        assert_eq!(atlas.as_ptr(), pixels);
+        assert_eq!(atlas.len(), (TEXTURE_SIZE * TEXTURE_SIZE * 4) as usize);
+        let i = ((uv[1] * TEXTURE_SIZE as f32) as usize * TEXTURE_SIZE as usize
+            + (uv[0] * TEXTURE_SIZE as f32) as usize)
+            * 4;
+        assert!(atlas[i] > 180 && atlas[i + 1] > 180);
+        assert!(map.update([0., 0.]).is_none());
     }
     #[test]
     fn placed_three_way_junctions_fill_the_gap_between_ports_in_every_orientation() {

@@ -47,25 +47,28 @@ fn commerce_color(v:Output,du:vec2<f32>,dv:vec2<f32>,dx:vec3<f32>,dy:vec3<f32>)-
         lit=room_glass(room,n,view,daylight);
     }
     lit*=camera.sun_exposure.w;lit=lit/(lit+vec3<f32>(1.0));
-    let fog=1.0-exp(-length(eye)*0.025)*(1.0-smoothstep(5.8,7.6,length(eye)));
+    let fog=(1.0-exp(-length(eye)*0.025)*(1.0-smoothstep(5.8,7.6,length(eye))))*(1.0-camera.daylight_sky.y);
     let sky=textureSampleLevel(sky_environment,sky_sampler,-view,0.0).rgb*camera.sun_exposure.w;
     return vec4<f32>(mix(lit,sky/(sky+vec3<f32>(1.0)),fog),coverage);
 }
 // Colored vehicle/signal lamps carry an explicit marker; ordinary street
 // lighting retains its authored warm emission in the shared shader.
 fn lamp_color(v:Output)->vec4<f32> {
+    return lamp_color_strength(v,1.0);
+}
+fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
         let eye=camera.eye_time.xyz-v.world;
         let distance=length(eye);
-        let radiance=v.color*2.0*camera.sun_exposure.w;
+        let radiance=v.color*2.0*strength*camera.sun_exposure.w;
         let lit=radiance/(radiance+vec3<f32>(1.0));
-        let fog=1.0-exp(-distance*0.025)*(1.0-smoothstep(5.8,7.6,distance));
+        let fog=(1.0-exp(-distance*0.025)*(1.0-smoothstep(5.8,7.6,distance)))*(1.0-camera.daylight_sky.y);
         let sky=textureSampleLevel(sky_environment,sky_sampler,-eye/max(distance,0.00001),0.0).rgb*camera.sun_exposure.w;
         return vec4<f32>(mix(lit,sky/(sky+vec3<f32>(1.0)),fog),1.0);
 }
 // No reachable discard, preserving early depth rejection for opaque scenery.
 @fragment fn fs_opaque_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
     let surface=prepare_surface(v);
-    if v.surface.x>8.5 && v.surface.x<9.5 && v.surface.w>=2.0 && v.surface.w<=45.0 {
+    if v.surface.x>8.5 && v.surface.x<9.5 && v.surface.w>=2.0 && v.surface.w<=109.0 {
         let encoded=u32(v.surface.w);
         let base=encoded&15u;
         let strip=base>=10u;
@@ -89,12 +92,18 @@ fn lamp_color(v:Output)->vec4<f32> {
             lens.color=select(vec3<f32>(1.0,0.001,0.0005),vec3<f32>(1.0,1.0,0.98),clear_lens);
             return lamp_color(lens);
         }
-        return shade_surface(lens,front,1.0,surface);
+        if (encoded&64u)!=0u && !clear_lens {
+            let unlit=shade_local_surface(lens,front,1.0,surface);
+            let night=1.0-clamp(camera.daylight_sky.x,0.0,1.0);
+            lens.color=vec3<f32>(1.0,0.001,0.0005);
+            return mix(unlit,lamp_color_strength(lens,0.12),night*night);
+        }
+        return shade_local_surface(lens,front,1.0,surface);
     }
     if v.surface.x>8.5 && v.surface.x<9.5 && v.surface.w==1.0 {
         return lamp_color(v);
     }
-    return shade_surface(v,front,1.0,surface);
+    return shade_local_surface(v,front,1.0,surface);
 }
 @fragment fn fs_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
     let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);let dx=dpdx(v.world);let dy=dpdy(v.world);
@@ -102,7 +111,7 @@ fn lamp_color(v:Output)->vec4<f32> {
     if v.surface.x>39.5 {return commerce_color(v,du,dv,dx,dy);}
     var coverage=1.0;
     if v.surface.x>10.5&&v.surface.x<11.5 {coverage=fence_coverage(v.fence_uv,v.surface.w,footprint);if coverage<0.5 {discard;}}
-    return shade_surface(v,front,coverage,surface);
+    return shade_local_surface(v,front,coverage,surface);
 }
 @fragment fn fs_shadow_game(v:ShadowOutput) {
     let footprint=fwidth(v.fence_uv);

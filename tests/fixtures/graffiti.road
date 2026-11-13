@@ -1,0 +1,4 @@
+road local: sidewalk carlane carlane sidewalk; end
+local(-0.3,-0.08,0.3,-0.08);
+land(-0.4,-0.3,0.4,-0.3,0.4,0.3,-0.4,0.3);
+wall = building(0.04,{material:concrete,family:legacy},-0.08,0,0.08,0,0.08,0.02,-0.08,0.02);

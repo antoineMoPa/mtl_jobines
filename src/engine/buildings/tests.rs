@@ -5,14 +5,14 @@ const SOURCE: &str = "# Leave this authored comment and formatting untouched.\n\
 road local: sidewalk carlane carlane sidewalk; end\n\
 avenue = local(-3,0,3,0);\n\
 ground=land(-4,-4,4,-4,4,4,-4,4);\n";
-struct Fixture {
-    dir: PathBuf,
-    path: PathBuf,
-    document: Document,
-    city: City,
+pub(super) struct Fixture {
+    pub(super) dir: PathBuf,
+    pub(super) path: PathBuf,
+    pub(super) document: Document,
+    pub(super) city: City,
 }
 impl Fixture {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let dir = std::env::temp_dir().join(format!(
             "building-tool-{}-{}",
             std::process::id(),
@@ -30,7 +30,7 @@ impl Fixture {
             city,
         }
     }
-    fn place(&mut self) {
+    pub(super) fn place(&mut self) {
         let feature = self.document.prototype(
             &self.city,
             geometry::rectangle(Vec2::new(0.4, 0.3), Vec2::new(0.56, 0.5)),
@@ -43,7 +43,7 @@ impl Drop for Fixture {
         let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
-fn view(document: &Document) -> View {
+pub(super) fn view(document: &Document) -> View {
     let (eye, look, _) = document.camera().unwrap();
     View {
         matrix: glam::Mat4::orthographic_rh(-0.9, 0.9, -0.6, 0.6, 0.003, 100.)
@@ -211,7 +211,7 @@ fn nearby_defaults_use_the_surrounding_architectural_family() {
     }
 }
 
-fn pointer_frame(
+pub(super) fn pointer_frame(
     document: &mut Document,
     city: &City,
     ctx: &egui::Context,

@@ -23,6 +23,7 @@ pub struct PropBatch {
 }
 
 struct Prop {
+    lamp: Option<Vec3>,
     group: usize,
     mesh: Mesh,
     center: Vec3,
@@ -155,6 +156,18 @@ impl Props {
                 .or_default()
                 .push(id);
             result.items.push(Prop {
+                lamp: {
+                    let mut lo = Vec3::splat(f32::INFINITY);
+                    let mut hi = Vec3::splat(f32::NEG_INFINITY);
+                    for v in &mesh.vertices {
+                        if v.surface[0] == SurfaceKind::Light as u32 as f32 && v.surface[3] == 0. {
+                            let p = Vec3::from_array(v.position);
+                            lo = lo.min(p);
+                            hi = hi.max(p);
+                        }
+                    }
+                    lo.is_finite().then_some((lo + hi) * 0.5)
+                },
                 group,
                 mesh,
                 center,
@@ -404,6 +417,18 @@ impl Props {
             }
         }
     }
+    pub(super) fn append_local_lights(&self, lights: &mut Vec<super::LocalLight>, center: Vec3) {
+        // Emitters are cached once with collision geometry; broken assemblies
+        // lose power immediately, including overhead parts and expired debris.
+        for item in &self.items {
+            if item.collider.is_some() && item.center.truncate().distance(center.truncate()) <= VIEW
+            {
+                if let Some(position) = item.lamp {
+                    lights.push(super::LocalLight::streetlamp(position));
+                }
+            }
+        }
+    }
     pub fn visible_batches(&self, center: Vec3) -> Vec<PropBatch> {
         let range = (VIEW / TILE).ceil() as i32 + 1;
         let tile = (
@@ -499,6 +524,35 @@ impl Props {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn authored_streetlamp_emitter_loses_power_when_its_base_breaks() {
+        use super::*;
+        let hermes = crate::hermes::Hermes::test_map_from_source(
+            "road r: sidewalk carlane sidewalk; end r(-1,0,1,0);",
+        );
+        let features = hermes
+            .city()
+            .street_features(opencity::runtime::Region::WholeMap);
+        let index = features
+            .iter()
+            .position(|f| f.kind == opencity::runtime::StreetFeatureKind::Lamp)
+            .unwrap();
+        let mut props = Props::from_groups(vec![hermes.prop_groups()[index].clone()]);
+        let center = props.items[0].center;
+        let mut lights = Vec::new();
+        props.append_local_lights(&mut lights, center);
+        assert_eq!(lights.len(), 1);
+        assert!(lights[0].position().z > features[index].position[2] + 0.05);
+        let mut vehicle = Vehicle::spawn(hermes.city());
+        vehicle.yaw = 0.;
+        vehicle.velocity = Vec3::X * 12.;
+        vehicle.position = center + Vec3::X * 4.;
+        props.vehicle_move(&mut vehicle, center - Vec3::X * 4., hermes.city());
+        assert!(props.items.iter().all(|p| p.collider.is_none()));
+        lights.clear();
+        props.append_local_lights(&mut lights, center);
+        assert!(lights.is_empty(), "broken overhead lamp must lose power");
+    }
     use super::*;
     use crate::dynamic_world::Controls;
     use opencity::runtime::SurfaceKind;

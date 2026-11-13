@@ -1,6 +1,6 @@
 //! Approved offline-workbench GLBs, placed by the shared sidewalk feature layout.
 use super::external_models;
-use opencity::runtime::{City, Mesh, Region, StreetFeature, StreetFeatureKind};
+use opencity::runtime::{City, Mesh, Region, StreetFeatureKind};
 use std::sync::OnceLock;
 
 const BENCH: &[u8] = include_bytes!("../../data/props/bench.glb");
@@ -102,7 +102,7 @@ pub(super) fn groups(city: &City) -> Vec<Vec<Mesh>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opencity::runtime::SurfaceKind;
+    use opencity::runtime::{StreetFeature, SurfaceKind};
 
     #[test]
     fn bundled_glbs_keep_real_scale_baked_colors_and_lamp_diffusers() {

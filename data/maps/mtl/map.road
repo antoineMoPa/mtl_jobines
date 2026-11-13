@@ -514,3 +514,45 @@ elevation(placed_building_2, 0.1010);
 
 
 
+
+
+
+
+
+
+
+
+
+junction_2 = map_point(0.6965, -3.4119);
+
+road_2 = cross_street(junction_2, 0.9251, -3.1693, 1.1537, -2.9267, junction_1);
+
+grade(road_2, 0.1420, 0.1020);
+
+junction_3 = map_point(0.5914, -3.5234);
+
+road_3 = cross_street(junction_3, 0.6265, -3.4862, 0.6615, -3.4491, junction_2);
+
+grade(road_3, 0.1420, 0.1420);
+
+junction_4 = map_point(0.7218, -3.6463);
+
+road_4 = cross_street(junction_4, 0.6783, -3.6053, 0.6349, -3.5644, junction_3);
+
+grade(road_4, 0.1420, 0.1420);
+
+junction_5 = map_point(0.4610, -3.4005);
+
+road_5 = cross_street(junction_5, 0.5045, -3.4415, 0.5479, -3.4824, junction_3);
+
+grade(road_5, 0.1420, 0.1420);
+
+junction_6 = map_point(0.4685, -3.6538);
+
+road_6 = cross_street(junction_6, 0.5095, -3.6103, 0.5504, -3.5669, junction_3);
+
+grade(road_6, 0.1420, 0.1420);
+
+intersection4(junction_3, cross_street);
+
+elevation(junction_3, 0.1420);

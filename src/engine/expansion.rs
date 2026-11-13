@@ -1,6 +1,8 @@
 //! Native authored-map editing; the existing reload watcher compiles accepted roads.
 use opencity::{expansion, expansion_ui::Picker, Program};
 use std::path::{Path, PathBuf};
+mod editing;
+mod preview;
 
 #[derive(Clone, Copy, PartialEq)]
 enum ViewMode {
@@ -38,11 +40,15 @@ pub(super) struct Document {
     iso_span: f32,
     focused_end: Option<glam::Vec3>,
     pan: Option<egui::Pos2>,
+    projection: opencity::map::Projection,
+    selected_road: Option<opencity::map::SegmentSource>,
+    preview: preview::SurfacePreview,
 }
 impl Document {
     pub fn open(path: &Path) -> Result<Self, String> {
         let source = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
         let program = opencity::parse(&source).map_err(|e| e.to_string())?;
+        let projection = opencity::map::project(&program);
         let mut picker = Picker::default();
         picker.start();
         Ok(Self {
@@ -56,6 +62,9 @@ impl Document {
             iso_span: 1.2,
             focused_end: None,
             pan: None,
+            projection,
+            selected_road: None,
+            preview: Default::default(),
         })
     }
     pub fn camera(&self) -> Option<(glam::Vec3, glam::Vec3, [f32; 2])> {
@@ -91,8 +100,23 @@ impl Document {
         scene_pixels: [u32; 2],
         input_enabled: bool,
     ) {
+        if !self.picker.open {
+            if self.preview.waiting() {
+                root.ctx().request_repaint();
+            }
+            return;
+        }
         let ctx = root.ctx().clone();
         let before = self.program.clone();
+        let viewport = egui::Rect::from_min_size(
+            ctx.content_rect().min,
+            egui::vec2(scene_pixels[0] as f32, scene_pixels[1] as f32) / ctx.pixels_per_point(),
+        );
+        let selection_click = self.road_input(&ctx, view, viewport, input_enabled);
+        self.paint_selected(&ctx, view, viewport);
+        if self.preview.waiting() {
+            ctx.request_repaint();
+        }
         let mut view_mode = self.view_mode;
         let changed = root
             .add_enabled_ui(input_enabled, |root| {
@@ -105,7 +129,8 @@ impl Document {
                         }
                     })
             })
-            .inner;
+            .inner
+            || self.program != before;
         if view_mode != self.view_mode {
             self.view_mode = view_mode;
             self.pan = None;
@@ -120,8 +145,12 @@ impl Document {
         } else {
             self.pan = None;
         }
-        self.picker
-            .world_overlay_with_input(&ctx, &self.program, viewport, input_enabled, |p| {
+        self.picker.world_overlay_with_input(
+            &ctx,
+            &self.program,
+            viewport,
+            input_enabled && !selection_click,
+            |p| {
                 let v = view * glam::Vec4::new(p[0], p[1], p[2] + 0.003, 1.);
                 if v.w <= 0. {
                     return None;
@@ -134,7 +163,8 @@ impl Document {
                         rect.top() + (1. - p.y) * rect.height() / 2.,
                     )
                 })
-            });
+            },
+        );
         if self.view_mode.is_some() {
             if let Some(proposal) = self.picker.selected() {
                 let end = glam::Vec3::new(
@@ -187,18 +217,47 @@ impl Document {
         })();
         match result {
             Ok(()) => {
-                self.picker.message = "Saved extension; map reload will apply it.".into();
+                self.projection = opencity::map::project(&self.program);
+                self.preview.start(self.program.clone());
+                self.picker.message = "Saved · drawing road surface; details follow.".into();
                 if let Some(target) = self.picker.take_follow_target() {
                     self.camera = Some(BuildCamera::at(target));
                 }
             }
             Err(e) => {
                 self.program = before;
+                self.projection = opencity::map::project(&self.program);
                 self.picker.refresh(&self.program);
                 self.picker.message = e;
             }
         }
         ctx.request_repaint();
+    }
+    pub fn surface_preview(
+        &mut self,
+        renderer: &super::render::Renderer,
+    ) -> Option<std::sync::Arc<super::render::GpuMesh>> {
+        self.preview.poll(renderer)
+    }
+    pub fn map_reloaded(&mut self, source: &[u8]) {
+        if source == self.source.as_bytes() {
+            self.preview = Default::default();
+            self.picker.message = "Map updated.".into();
+        } else if std::fs::read(&self.path).ok().as_deref() == Some(source) {
+            // An external edit supersedes our preview. An older worker result
+            // must leave a newer accepted edit alone while that edit compiles.
+            if let Ok(text) = std::str::from_utf8(source) {
+                if let Ok(program) = opencity::parse(text) {
+                    self.source = text.to_owned();
+                    self.program = program;
+                    self.projection = opencity::map::project(&self.program);
+                    self.selected_road = None;
+                    self.preview = Default::default();
+                    self.picker.refresh(&self.program);
+                    self.picker.message = "Map changed externally; street editor refreshed.".into();
+                }
+            }
+        }
     }
     fn iso_input(&mut self, ctx: &egui::Context, matrix: glam::Mat4, viewport: egui::Rect) {
         if self.view_mode != Some(ViewMode::Iso) || !self.picker.open {
@@ -208,23 +267,33 @@ impl Document {
             self.pan = None;
             return;
         };
+        let height = self.iso_center.z;
+        let inverse = matrix.inverse();
         let ground = |p: egui::Pos2| {
             let x = (p.x - viewport.left()) / viewport.width() * 2. - 1.;
             let y = 1. - (p.y - viewport.top()) / viewport.height() * 2.;
-            let inverse = matrix.inverse();
             let a = inverse * glam::Vec4::new(x, y, 0., 1.);
             let b = inverse * glam::Vec4::new(x, y, 1., 1.);
             let a = a.truncate() / a.w;
             let d = b.truncate() / b.w - a;
-            (d.z.abs() > 1e-8).then(|| (a + d * ((self.iso_center.z - a.z) / d.z)).truncate())
+            (d.z.abs() > 1e-8).then(|| (a + d * ((height - a.z) / d.z)).truncate())
         };
         if viewport.contains(pos) {
             let scroll = ctx.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0. {
-                self.iso_span = (self.iso_span * (-scroll * 0.002).exp()).clamp(0.2, 20.);
+                let next = (self.iso_span * (-scroll * 0.002).exp()).clamp(0.2, 64.);
+                if let Some(anchor) = ground(pos) {
+                    self.iso_center = (anchor
+                        + (self.iso_center.truncate() - anchor) * (next / self.iso_span))
+                        .extend(height);
+                }
+                self.iso_span = next;
                 ctx.request_repaint();
             }
-            if ctx.input(|i| i.pointer.secondary_pressed()) {
+            if ctx.input(|i| {
+                i.pointer.secondary_pressed()
+                    || i.pointer.button_pressed(egui::PointerButton::Middle)
+            }) {
                 self.pan = Some(pos);
             }
         }
@@ -232,11 +301,19 @@ impl Document {
             if let (Some(a), Some(b)) = (ground(previous), ground(pos)) {
                 self.iso_center += (a - b).extend(0.);
             }
-            self.pan = ctx.input(|i| i.pointer.secondary_down()).then_some(pos);
+            self.pan = ctx
+                .input(|i| {
+                    i.pointer.secondary_down() || i.pointer.button_down(egui::PointerButton::Middle)
+                })
+                .then_some(pos);
             ctx.request_repaint();
         }
     }
 }
 
+#[cfg(test)]
+mod editing_tests;
+#[cfg(test)]
+mod junction_tests;
 #[cfg(test)]
 mod tests;

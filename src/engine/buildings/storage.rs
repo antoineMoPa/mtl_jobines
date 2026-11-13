@@ -96,6 +96,10 @@ fn copy_asset(base: &Path, bytes: &[u8]) -> Result<(String, bool), String> {
 }
 impl Document {
     pub(super) fn save(&mut self, after: Program) -> Result<(), String> {
+        let source = opencity::expansion::edited_source(&self.source, &self.program, &after)?;
+        self.write_source(after, source)
+    }
+    fn write_source(&mut self, after: Program, source: String) -> Result<(), String> {
         let unchanged = || {
             std::fs::read_to_string(&self.path)
                 .map_err(|e| e.to_string())
@@ -108,7 +112,6 @@ impl Document {
                 })
         };
         unchanged()?;
-        let source = opencity::expansion::edited_source(&self.source, &self.program, &after)?;
         let id = TEMP_ID.fetch_add(1, Ordering::Relaxed);
         let temp = self
             .path
@@ -132,6 +135,36 @@ impl Document {
         result?;
         self.source = source;
         self.program = after;
+        self.revision = self.revision.wrapping_add(1);
+        Ok(())
+    }
+    pub(super) fn delete(&mut self, index: usize) -> Result<(), String> {
+        let item = self.items.get(index).ok_or("No building selected")?;
+        let name = item
+            .feature
+            .name
+            .as_ref()
+            .ok_or("Building has no identity")?;
+        let removed: Vec<_> = self
+            .program
+            .statements
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| {
+                (i == item.statement
+                    || matches!(s,Statement::Call(c) if c.name=="elevation"
+                && c.args.first()==Some(&Argument::Identifier(name.clone()))))
+                .then_some(i)
+            })
+            .collect();
+        let (after, source) = remove_calls(&self.source, &self.program, &removed)?;
+        self.write_source(after, source)?;
+        self.items.remove(index);
+        for item in &mut self.items {
+            item.statement -= removed.iter().filter(|&&old| old < item.statement).count();
+        }
+        self.selected = None;
+        self.cancel_interaction();
         Ok(())
     }
     pub(super) fn import_model(&mut self, city: &City, path: &Path) -> Result<(), String> {
@@ -143,7 +176,7 @@ impl Document {
             return Err("Choose a .glb file".into());
         }
         let bytes = read_model(path)?;
-        let raw = Arc::new(crate::hermes::external_models::decode(&bytes)?);
+        let raw = crate::hermes::external_models::decode_shared(&bytes)?;
         let (lo, hi) = crate::hermes::external_models::bounds(&raw);
         let size = hi - lo;
         let mut feature = self.items[index].feature.clone();
@@ -170,4 +203,63 @@ impl Document {
             self.error = self.import_model(city, path).err().unwrap_or_default();
         }
     }
+}
+
+/// Remove only selected top-level calls, leaving all other source bytes alone.
+fn remove_calls(
+    source: &str,
+    before: &Program,
+    removed: &[usize],
+) -> Result<(Program, String), String> {
+    if opencity::parse(source).map_err(|e| e.to_string())? != *before {
+        return Err("Map source changed".into());
+    }
+    let tokens = opencity::tokenize(source).map_err(|e| e.to_string())?;
+    let mut ranges = Vec::new();
+    for &index in removed {
+        let old = &before.statements[index];
+        let Statement::Call(call) = old else {
+            return Err("Cannot delete a definition".into());
+        };
+        let name = call.assigns.first().unwrap_or(&call.name);
+        let mut found = None;
+        for (i, token) in tokens.iter().enumerate().filter(|(_, t)| t.text == *name) {
+            let Some(end) = tokens[i..]
+                .iter()
+                .find(|t| t.kind == opencity::TokenKind::Semicolon)
+            else {
+                continue;
+            };
+            let range = token.span.offset..end.span.offset + 1;
+            if opencity::parse(&source[..range.start])
+                .ok()
+                .is_some_and(|p| p.statements.len() == index)
+                && opencity::parse(&source[range.clone()])
+                    .ok()
+                    .is_some_and(|p| p.statements == vec![old.clone()])
+            {
+                found = Some(range);
+                break;
+            }
+        }
+        ranges.push(found.ok_or("Could not locate the building source call")?);
+    }
+    ranges.sort_by_key(|r| r.start);
+    let mut output = source.to_owned();
+    for range in ranges.into_iter().rev() {
+        output.replace_range(range, "");
+    }
+    let after = Program {
+        statements: before
+            .statements
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !removed.contains(i))
+            .map(|(_, s)| s.clone())
+            .collect(),
+    };
+    if opencity::parse(&output).map_err(|e| e.to_string())? != after {
+        return Err("Building deletion source validation failed".into());
+    }
+    Ok((after, output))
 }

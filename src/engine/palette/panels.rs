@@ -73,7 +73,7 @@ impl Palette {
                     ui,
                     view_projection,
                     [renderer.config.width, renderer.scene_height()],
-                    input_enabled,
+                    input_enabled && !self.menu.is_open() && !self.sky_open && !self.sound_open,
                 );
             }
             if let Some(document) = &mut self.buildings {

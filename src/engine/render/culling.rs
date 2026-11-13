@@ -1,7 +1,6 @@
 //! Conservative world-space bounds for static meshes and individual vehicle parts.
 use glam::{Mat4, Vec3, Vec4};
 use opencity::runtime::Vertex;
-use std::ops::Range;
 
 #[derive(Clone, Copy)]
 pub(super) struct Bounds {
@@ -77,24 +76,6 @@ impl Frustum {
             plane.truncate().dot(corner) + plane.w >= -0.00001
         })
     }
-    /// Keep instance order and merge adjacent survivors without copying matrices
-    /// or allocating a second upload. Camera and shadow use independent frusta.
-    pub(super) fn instance_ranges<'a>(
-        &'a self,
-        bounds: &'a [Bounds],
-    ) -> impl Iterator<Item = Range<u32>> + 'a {
-        let mut index = 0;
-        std::iter::from_fn(move || {
-            while index < bounds.len() && !self.intersects(bounds[index]) {
-                index += 1;
-            }
-            let start = index;
-            while index < bounds.len() && self.intersects(bounds[index]) {
-                index += 1;
-            }
-            (start < index).then_some(start as u32..index as u32)
-        })
-    }
 }
 
 #[cfg(test)]
@@ -139,30 +120,21 @@ mod tests {
     }
 
     #[test]
-    fn instance_ranges_keep_order_merge_neighbors_and_cull_each_pass_independently() {
+    fn camera_and_shadow_cull_bounds_independently() {
         let camera = Frustum::from_matrix(Mat4::IDENTITY);
         let shadow = Frustum::from_matrix(Mat4::from_translation(-Vec3::X * 2.));
-        let bounds: Vec<_> = [3., 0., 0.5, 2., 0., 3.]
-            .into_iter()
-            .map(|x| Bounds {
-                min: Vec3::new(x, 0., 0.1),
-                max: Vec3::new(x + 0.1, 0.1, 0.2),
-            })
-            .collect();
+        let bounds = [3., 0., 0.5, 2., 0., 3.].map(|x| Bounds {
+            min: Vec3::new(x, 0., 0.1),
+            max: Vec3::new(x + 0.1, 0.1, 0.2),
+        });
         assert_eq!(
-            camera.instance_ranges(&bounds).collect::<Vec<_>>(),
-            [1..3, 4..5]
+            bounds.map(|bounds| camera.intersects(bounds)),
+            [false, true, true, false, true, false]
         );
         // Instance 3 is outside the camera but must cast into the shadow map.
         assert_eq!(
-            shadow.instance_ranges(&bounds).collect::<Vec<_>>(),
-            [0..1, 3..4, 5..6]
-        );
-        assert_eq!(camera.instance_ranges(&[]).count(), 0);
-        assert_eq!(camera.instance_ranges(&bounds[..1]).count(), 0);
-        assert_eq!(
-            camera.instance_ranges(&bounds[1..3]).collect::<Vec<_>>(),
-            [0..2]
+            bounds.map(|bounds| shadow.intersects(bounds)),
+            [true, false, false, true, false, true]
         );
     }
 }

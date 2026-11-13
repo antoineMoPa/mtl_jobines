@@ -33,17 +33,7 @@ fn one_driver(
     .unwrap();
     car.definition = Some(0);
     car.position.z = point.z + car.ride_height();
-    traffic.drivers.push(Driver {
-        vehicle: 0,
-        spawned_at: 0.,
-        path,
-        distance,
-        next: None,
-        stopped: false,
-        stranded: 0.,
-        stop_wait: 0.,
-        stop_arrival: None,
-    });
+    traffic.drivers.push(Driver::new(0, path, distance, 0.));
     (traffic, vec![car])
 }
 fn tick(traffic: &mut Traffic, city: &City, cars: &mut [Vehicle], dt: f32) {
@@ -164,6 +154,33 @@ fn current_map_one_way_crossings_have_visible_signals_at_road_height() {
         assert!(signals.iter().any(|s| s.phase == 1));
         for signal in &signals {
             assert!((signal.position.z / 100. - component.origin.z).abs() < 1e-5);
+            let base = signal
+                .mast_base
+                .expect("every canonical approach has a sidewalk");
+            let (standing, _) = models::instantiate(signal);
+            let mut model = opencity::runtime::Mesh::default();
+            standing.append(&mut model, None);
+            let mut foot_vertices = 0;
+            for vertex in &model.vertices {
+                if (vertex.position[2] - base.z / 100.).abs() > 1e-6 {
+                    continue;
+                }
+                let support = hermes
+                    .city()
+                    .surface_at(
+                        [vertex.position[0], vertex.position[1]],
+                        base.z / 100. + 0.001,
+                    )
+                    .unwrap();
+                assert_eq!(
+                    support.kind,
+                    opencity::runtime::SurfaceKind::Sidewalk,
+                    "{name}: footplate extends off sidewalk"
+                );
+                assert!((support.height - vertex.position[2]).abs() < 0.0008);
+                foot_vertices += 1;
+            }
+            assert!(foot_vertices > 0);
         }
         let mut visible = opencity::runtime::Mesh::default();
         traffic.append_signals(&mut visible, signals[0].position);
@@ -206,8 +223,11 @@ fn hitting_a_signal_detaches_it_and_turns_the_whole_junction_dark() {
     let (city, graph) = map(CROSS);
     let mut traffic = Traffic::new(&graph);
     let signal = &graph.signals[0];
-    let right = Vec3::new(signal.forward.y, -signal.forward.x, 0.);
-    let base = signal.position + right * 2.8;
+    let base = signal.mast_base.unwrap();
+    let selected = traffic
+        .standing_signal_batches(base)
+        .find(|batch| batch.id == 0)
+        .unwrap();
     let mut car = Vehicle::spawn(&city);
     car.set_catalog_model(Some(0));
     car.yaw = signal.forward.y.atan2(signal.forward.x);
@@ -218,6 +238,15 @@ fn hitting_a_signal_detaches_it_and_turns_the_whole_junction_dark() {
     assert!(!traffic.signal_props.group_intact(0));
     assert!(traffic.failed_junctions.contains(&signal.junction));
     assert!(car.collisions > 0);
+    assert!(traffic
+        .standing_signal_batches(base)
+        .all(|batch| batch.id != 0 && batch.active.is_none()));
+    let mut stale = opencity::runtime::Mesh::default();
+    traffic.append_signal_batch(&selected, &mut stale);
+    assert!(
+        stale.vertices.is_empty(),
+        "stale selection restored a broken signal"
+    );
     let mut mesh = opencity::runtime::Mesh::default();
     traffic.append_signals(&mut mesh, base);
     assert!(
@@ -236,6 +265,27 @@ fn hitting_a_signal_detaches_it_and_turns_the_whole_junction_dark() {
         "signals do not respawn after debris expires"
     );
     assert!(traffic.failed_junctions.contains(&signal.junction));
+}
+
+#[test]
+fn crossings_without_supported_signal_bases_use_all_way_stops() {
+    let (_, graph) = map(&CROSS.replace("sidewalk", "verge"));
+    assert!(!graph.signals.is_empty());
+    assert!(graph
+        .signals
+        .iter()
+        .all(|signal| signal.mast_base.is_none()));
+    let traffic = Traffic::new(&graph);
+    assert!(graph
+        .signals
+        .iter()
+        .all(|signal| traffic.failed_junctions.contains(&signal.junction)));
+    let mut mesh = opencity::runtime::Mesh::default();
+    traffic.append_signals(&mut mesh, Vec3::ZERO);
+    assert!(
+        mesh.vertices.is_empty(),
+        "unsupported poles have no render or collision mesh"
+    );
 }
 
 #[test]

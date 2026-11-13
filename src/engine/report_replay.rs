@@ -29,7 +29,7 @@ pub(super) fn run(
     fs::create_dir_all(output).map_err(|e| e.to_string())?;
     let mut renderer = pollster::block_on(Renderer::new(None, 1280, 800))?;
     renderer.sky_settings.solar_hour = Some(12.);
-    let scenery = Scenery::new(&renderer, hermes);
+    let mut scenery = Scenery::new(&renderer, hermes);
     let mut folders: Vec<_> = fs::read_dir(reports)
         .map_err(|e| e.to_string())?
         .filter_map(Result::ok)
@@ -77,7 +77,7 @@ pub(super) fn run(
         capture(
             hermes,
             &mut renderer,
-            &scenery,
+            &mut scenery,
             &world,
             eye,
             look,
@@ -86,7 +86,7 @@ pub(super) fn run(
         capture(
             hermes,
             &mut renderer,
-            &scenery,
+            &mut scenery,
             &world,
             p - f * 0.8 + Vec3::Z * 0.9,
             p,
@@ -112,7 +112,7 @@ pub(super) fn run(
         capture(
             hermes,
             &mut renderer,
-            &scenery,
+            &mut scenery,
             &world,
             p - f * 0.15 + Vec3::Z * 0.075,
             p + f * 0.045 + Vec3::Z * 0.014,
@@ -122,7 +122,7 @@ pub(super) fn run(
         capture(
             hermes,
             &mut renderer,
-            &scenery,
+            &mut scenery,
             &world,
             p - f * 0.65 + left * 0.75 + Vec3::Z * 0.9,
             Vec3::new(landmark.point[0], landmark.point[1], p.z),
@@ -136,7 +136,7 @@ pub(super) fn run(
 fn capture(
     hermes: &mut Hermes,
     renderer: &mut Renderer,
-    scenery: &Scenery,
+    scenery: &mut Scenery,
     world: &DynamicWorld,
     eye: Vec3,
     look: Vec3,
@@ -153,6 +153,7 @@ fn capture(
     if let Some(pixels) = hermes.update_minimap([p.x, p.y]) {
         renderer.update_minimap(pixels);
     }
+    scenery.update_graffiti(renderer, [p.x, p.y]);
     let mut meshes = scenery.visible([p.x, p.y]);
     meshes.push(&car);
     meshes.extend(props.visible());

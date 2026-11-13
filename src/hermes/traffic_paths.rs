@@ -3,6 +3,8 @@ use crate::dynamic_world::METERS_PER_UNIT;
 use glam::Vec3;
 use opencity::{runtime::City, RoadDirection, RoadElementKind, RoadRole};
 use std::collections::HashMap;
+#[path = "signal_placement.rs"]
+mod signal_placement;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SpeedClass {
@@ -86,6 +88,7 @@ impl TrafficPath {
 #[derive(Clone)]
 pub(crate) struct SignalApproach {
     pub position: Vec3,
+    pub mast_base: Option<Vec3>,
     pub forward: Vec3,
     pub junction: usize,
     pub phase: usize,
@@ -283,6 +286,12 @@ impl TrafficPaths {
                             .unwrap_or_else(|| {
                                 graph.signals.push(SignalApproach {
                                     position,
+                                    mast_base: signal_placement::sidewalk_base(
+                                        city,
+                                        position,
+                                        forward,
+                                        &graph.signals,
+                                    ),
                                     forward,
                                     junction,
                                     phase,

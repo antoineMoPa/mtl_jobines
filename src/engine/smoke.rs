@@ -111,7 +111,7 @@ pub(super) fn run(
         renderer.sky_settings.turbidity = haze;
     }
     let started = Instant::now();
-    let scenery = Scenery::new(&renderer, hermes);
+    let mut scenery = Scenery::new(&renderer, hermes);
     eprintln!(
         "{}: static scenery cached in {:?}",
         renderer.adapter_name,
@@ -119,8 +119,16 @@ pub(super) fn run(
     );
     let mut smoke_world =
         DynamicWorld::with_vehicle_lineup(hermes, options.start, options.vehicle_lineup)?;
+    if options.profile && std::env::args().any(|arg| arg == "--profile-full-traffic") {
+        smoke_world.use_full_traffic_physics();
+    }
     renderer.vehicle_name = smoke_world.vehicle_name_notice().map(str::to_owned);
+    let vehicle_started = Instant::now();
     let mut vehicles = super::vehicle_scenery::VehicleScenery::new(&renderer);
+    eprintln!(
+        "Vehicle render variants cached in {:?}",
+        vehicle_started.elapsed()
+    );
     vehicles.update(&renderer, &smoke_world);
     let mut moving = Mesh::default();
     smoke_world.write_moving_mesh(&mut moving);
@@ -168,6 +176,7 @@ pub(super) fn run(
     } else {
         p + f * 0.04 + Vec3::Z * 0.014
     };
+    scenery.update_graffiti(&renderer, [p.x, p.y]);
     let mut meshes = scenery.visible([p.x, p.y]);
     meshes.push(&carmesh);
     meshes.extend(prop_scenery.visible());
@@ -285,12 +294,14 @@ pub(super) fn run(
     renderer.snapshot(&texture, &palette_path)?;
     eprintln!("Rendered {}", palette_path.display());
 
+    drop(meshes);
     if smoke_world.toggle_vehicle(hermes) {
         renderer.vehicle_name = None;
         smoke_world.write_moving_mesh(&mut moving);
         let walking_mesh = renderer.upload_dynamic(&moving);
         let mut walking_props = PropScenery::default();
         walking_props.update(&renderer, &smoke_world);
+        scenery.update_graffiti(&renderer, [p.x, p.y]);
         let mut walking_meshes = scenery.visible([p.x, p.y]);
         walking_meshes.push(&walking_mesh);
         walking_meshes.extend(walking_props.visible());
@@ -361,6 +372,7 @@ pub(super) fn run(
                 at + Vec3::Z * 0.014,
                 at - forward * rear_distance + Vec3::Z * 0.025,
             );
+            scenery.update_graffiti(&renderer, [at.x, at.y]);
             let mut lamp_meshes = scenery.visible([at.x, at.y]);
             lamp_meshes.push(&lamp_mesh);
             lamp_meshes.extend(lamp_props.visible());
@@ -393,6 +405,11 @@ pub(super) fn run(
             Some(if options.night { 0. } else { 1. })
         };
         let sky_updates = renderer.sky_update_count();
+        scenery.update_graffiti(&renderer, [p.x, p.y]);
+        let mut meshes = scenery.visible([p.x, p.y]);
+        meshes.push(&carmesh);
+        meshes.extend(prop_scenery.visible());
+        meshes.extend(vehicles.visible());
         let stats = renderer.visibility_stats(&meshes, eye, look, snapshot_time);
         eprintln!(
             "Visibility at spawn: {} batches / {} vertices; \
@@ -403,6 +420,11 @@ pub(super) fn run(
             stats.camera_vertices,
             stats.shadow_draws,
             stats.shadow_vertices
+        );
+        eprintln!(
+            "Render detail {:?}: camera {} / shadow {} buffer vertices \
+             (including per-instance copies)",
+            renderer.render_lod, stats.camera_vertex_buffers, stats.shadow_vertex_buffers
         );
         smoke_world.reset_player(hermes);
         let origin = smoke_world.player().position;
@@ -430,6 +452,7 @@ pub(super) fn run(
         profile_props.update(&renderer, &smoke_world);
         let mut profile_vertices = Mesh::default();
         let mut frame_rate = FrameRate::default();
+        let mut physics_counts = [0_usize; 3];
         for frame in 0..frames {
             let sky_before_frame = renderer.sky_update_count();
             let frame_started = Instant::now();
@@ -457,6 +480,7 @@ pub(super) fn run(
             renderer.update_dynamic(&mut profile_mesh, &profile_vertices);
             vehicles.update(&renderer, &smoke_world);
             profile_props.update(&renderer, &smoke_world);
+            scenery.update_graffiti(&renderer, center);
             let mut meshes = scenery.visible(center);
             meshes.push(&profile_mesh);
             meshes.extend(profile_props.visible());
@@ -493,7 +517,19 @@ pub(super) fn run(
                 }
             }
             frame_rate.presented(Instant::now());
+            for (count, current) in physics_counts
+                .iter_mut()
+                .zip(smoke_world.traffic_physics_counts())
+            {
+                *count += current;
+            }
         }
+        eprintln!(
+            "Traffic physics average: {:.1} full, {:.1} lane, {:.1} sleeping vehicles/frame",
+            physics_counts[0] as f64 / frames as f64,
+            physics_counts[1] as f64 / frames as f64,
+            physics_counts[2] as f64 / frames as f64,
+        );
         let path = output.with_file_name(format!(
             "{}-profile.ppm",
             output.file_stem().unwrap().to_string_lossy()

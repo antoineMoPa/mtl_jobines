@@ -11,6 +11,7 @@ struct VehicleTransform {
     o.world = world;
     o.normal = (model * vec4<f32>(v.normal, 0.0)).xyz * 100.0;
     o.color = v.color; o.surface = v.surface; o.surface.y *= instance.translation.w; o.fence_uv = v.surface.yz;
+    if v.surface.w==64.0 {o.surface.w*=instance.x.w;}
     return o;
 }
 @vertex fn vs_vehicle_shadow(v: Input, instance: VehicleTransform) -> ShadowOutput {
@@ -23,7 +24,12 @@ struct VehicleTransform {
 // Alpha-to-coverage retains depth-correct seats behind glass without sorting
 // every triangle of each moving vehicle. Opaque parts still cover all samples.
 @fragment fn fs_vehicle(v: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
-    return shade_surface(v, front, clamp(v.surface.y, 0.0, 1.0), prepare_surface(v));
+    let surface=prepare_surface(v);
+    if v.surface.w==64.0 {
+        let night=1.0-clamp(camera.daylight_sky.x,0.0,1.0);
+        return mix(shade_local_surface(v,front,clamp(v.surface.y,0.0,1.0),surface),lamp_color(v),night*night);
+    }
+    return shade_local_surface(v, front, clamp(v.surface.y, 0.0, 1.0), surface);
 }
 @fragment fn fs_vehicle_shadow(v: ShadowOutput) {
     let pattern = array<f32, 16>(0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,

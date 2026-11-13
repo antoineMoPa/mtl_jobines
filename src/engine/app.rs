@@ -491,7 +491,21 @@ impl Game {
         {
             renderer.construction_span = self.palette.as_ref().and_then(|p| p.orthographic_span());
         }
-        let mut meshes = self.scenery.as_ref().unwrap().visible(center);
+        #[cfg(not(target_arch = "wasm32"))]
+        let surface_preview = self.palette.as_mut().and_then(|p| p.road_preview(renderer));
+        #[cfg(target_arch = "wasm32")]
+        let surface_preview: Option<std::sync::Arc<super::render::GpuMesh>> = None;
+        self.scenery
+            .as_mut()
+            .unwrap()
+            .update_graffiti(renderer, center);
+        let mut meshes = self.scenery.as_ref().unwrap().visible_with_road_preview(
+            center,
+            renderer.construction_span,
+            renderer.config.width as f32 / renderer.scene_height() as f32,
+            surface_preview.is_some(),
+        );
+        meshes.extend(surface_preview.iter().map(|mesh| mesh.as_ref()));
         meshes.push(car);
         meshes.extend(self.prop_scenery.visible());
         meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());

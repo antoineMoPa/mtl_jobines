@@ -4,6 +4,7 @@ use crate::hermes::commerce_mesh::BRANDS;
 pub(super) struct Commerce {
     pub layout: wgpu::BindGroupLayout,
     pub group: wgpu::BindGroup,
+    pub graffiti: super::graffiti::PaintTexture,
 }
 const ART: [&[u8]; 10] = [
     include_bytes!("../../assets/commerce/brands/jean-couteau-light.png"),
@@ -29,9 +30,11 @@ fn decode(bytes: &[u8]) -> (Vec<u8>, u32, u32) {
 }
 pub(super) fn shader() -> String {
     format!(
-        "{}\n{}",
+        "{}\n{}\n{}\n{}",
         opencity::runtime::GAME_SHADER,
-        include_str!("commerce.wgsl")
+        include_str!("local_lights.wgsl"),
+        include_str!("commerce.wgsl"),
+        include_str!("graffiti.wgsl")
     )
 }
 impl Commerce {
@@ -126,6 +129,35 @@ impl Commerce {
             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
             count: None,
         });
+        entries.extend([
+            wgpu::BindGroupLayoutEntry {
+                binding: 3,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2Array,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 5,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(32),
+                },
+                count: None,
+            },
+        ]);
+        let graffiti = super::graffiti::PaintTexture::new(device, queue);
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("game commerce"),
             entries: &entries,
@@ -156,9 +188,25 @@ impl Commerce {
                     binding: 2,
                     resource: wgpu::BindingResource::Sampler(&sampler),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&graffiti.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&graffiti.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: graffiti.settings.as_entire_binding(),
+                },
             ],
         });
-        Self { layout, group }
+        Self {
+            layout,
+            group,
+            graffiti,
+        }
     }
 }
 #[cfg(test)]

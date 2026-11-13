@@ -224,6 +224,17 @@ impl Game {
         }
         if let Some(palette) = &mut self.palette {
             palette.update_landmarks(&hermes.landmarks());
+            if let Some(buildings) = &mut palette.buildings {
+                buildings.map_reloaded();
+            }
+            if let (Some(expansion), Some(source)) = (
+                palette.expansion.as_mut(),
+                self.live_reload
+                    .as_ref()
+                    .and_then(|w| w.observed.source.as_ref().ok()),
+            ) {
+                expansion.map_reloaded(source);
+            }
         }
         self.audio.silence();
         self.sound_eye = None;

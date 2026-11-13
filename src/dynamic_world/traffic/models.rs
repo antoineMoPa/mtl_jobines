@@ -72,7 +72,9 @@ fn placed(source: &Mesh, signal: &SignalApproach) -> Mesh {
     let length = signal.forward.x.hypot(signal.forward.y).max(1e-6);
     let forward = Vec3::new(signal.forward.x / length, signal.forward.y / length, 0.);
     let right = Vec3::new(forward.y, -forward.x, 0.);
-    let base = signal.position + right * 2.8;
+    let base = signal
+        .mast_base
+        .expect("placed signals have sidewalk support");
     let mut result = Mesh::default();
     result.vertices.reserve(source.vertices.len());
     for triangle in source.vertices.chunks_exact(3) {
@@ -90,12 +92,21 @@ fn placed(source: &Mesh, signal: &SignalApproach) -> Mesh {
     result
 }
 pub(super) fn instantiate(signal: &SignalApproach) -> (Standing, Vec<Mesh>) {
+    if signal.mast_base.is_none() {
+        return (
+            Standing {
+                body: Mesh::default(),
+                phases: std::array::from_fn(|_| Mesh::default()),
+            },
+            Vec::new(),
+        );
+    }
     let model = templates();
     let body = placed(&model.body, signal);
     let phases = std::array::from_fn(|i| placed(&model.phases[i], signal));
     let mut lower = Mesh::default();
     let mut overhead = Mesh::default();
-    let cutoff = signal.position.z / 100. + 0.035;
+    let cutoff = signal.mast_base.unwrap().z / 100. + 0.035;
     for triangle in body
         .vertices
         .chunks_exact(3)
@@ -159,12 +170,15 @@ mod tests {
         for forward in [Vec3::X, Vec3::Y, -Vec3::X, -Vec3::Y] {
             let signal = SignalApproach {
                 position: Vec3::new(10., 20., 0.15),
+                mast_base: Some(
+                    Vec3::new(10., 20., 0.3) + Vec3::new(forward.y, -forward.x, 0.) * 5.,
+                ),
                 forward,
                 junction: 0,
                 phase: 0,
             };
             let right = Vec3::new(forward.y, -forward.x, 0.);
-            let base = signal.position + right * 2.8;
+            let base = signal.mast_base.unwrap();
             let (standing, groups) = instantiate(&signal);
             assert_eq!(groups.len(), 2);
             assert!(groups[1].vertices.iter().all(|v| v.position[2] > 0.035));

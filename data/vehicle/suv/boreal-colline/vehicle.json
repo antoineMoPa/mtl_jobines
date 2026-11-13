@@ -1,35 +1,33 @@
 {
   "category": "suv",
   "dimensions": {
-    "height": 2.0591542425508296,
-    "length": 4.5055,
-    "width": 2.0415546500350548
+    "height": 1.852816104888916,
+    "length": 4.829444885253906,
+    "width": 2.185654878616333
   },
   "model": "model.glb",
   "name": "Boreal Colline",
   "physics": {
     "acceleration": 10.5,
     "friction": 0.9,
-    "heightOffset": 0.65,
+    "heightOffset": 0.38600000739097595,
     "mass": 1500,
     "maxSpeed": 44,
     "maxSteerAngle": 0.52,
-    "track": 1.6895624400560878,
-    "wheelRadius": 0.387192428437204,
-    "wheelbase": 2.896392840016025
+    "track": 1.7400000095367432,
+    "wheelRadius": 0.38600000739097595,
+    "wheelbase": 2.884999990463257
   },
   "qa": {
     "claydashExport": "completed",
-    "detailPass": 2,
-    "game": "runtime-validated",
-    "materials": 19,
-    "packager": "runtime-packager",
-    "parts": 44,
+    "detailedVehicle": true,
+    "glassOpacity": 0.7,
+    "packager": "rust-source-cleanup",
+    "parts": 147,
     "pivot": "axle-local",
-    "sourceParts": 72,
     "status": "exported",
-    "study": "06",
-    "triangles": 25180,
+    "textures": 0,
+    "triangles": 35982,
     "wheels": [
       "wheel_front_left",
       "wheel_front_right",

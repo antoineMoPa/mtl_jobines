@@ -3,6 +3,7 @@ use super::*;
 impl Game {
     pub(super) fn finish_startup(&mut self, mut renderer: Renderer) {
         eprintln!("GPU: {}", renderer.adapter_name);
+        renderer.configure_graffiti(super::super::graffiti::Settings::default());
         let started = Instant::now();
         eprintln!("Preparing static scenery...");
         self.scenery = Some(Scenery::new(&renderer, &mut self.hermes));

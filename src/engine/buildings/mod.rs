@@ -1,8 +1,12 @@
 //! Native building authoring. All accepted construction remains ordinary `.road` calls.
+#[cfg(test)]
+mod editing_tests;
 mod geometry;
 #[cfg(test)]
 mod gpu_tests;
 mod input;
+#[cfg(test)]
+mod perf_tests;
 mod roads;
 mod storage;
 #[cfg(test)]
@@ -86,6 +90,8 @@ pub(super) struct Document {
     error: String,
     importing: bool,
     seed: u32,
+    revision: u64,
+    candidate_cache: Option<roads::CandidateCache>,
 }
 impl Document {
     pub fn open(path: &Path, player: Vec3, heading: f32) -> Result<Self, String> {
@@ -121,7 +127,7 @@ impl Document {
                     let bytes = storage::read_model(
                         &path.parent().unwrap_or(Path::new(".")).join(relative),
                     )?;
-                    crate::hermes::external_models::decode(&bytes).map(Arc::new)
+                    crate::hermes::external_models::decode_shared(&bytes)
                 })
                 .transpose()?;
             let mut item = Item {
@@ -152,6 +158,8 @@ impl Document {
             error: String::new(),
             importing: false,
             seed: 317,
+            revision: 0,
+            candidate_cache: None,
         })
     }
     pub fn camera(&self) -> Option<(Vec3, Vec3, [f32; 2])> {
@@ -180,6 +188,9 @@ impl Document {
     pub fn cancel_interaction(&mut self) {
         self.gesture = None;
         self.draft = None;
+    }
+    pub fn map_reloaded(&mut self) {
+        self.candidate_cache = None;
     }
     fn selected(&self) -> Option<&Item> {
         self.selected.and_then(|i| self.items.get(i))

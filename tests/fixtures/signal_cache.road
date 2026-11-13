@@ -1,0 +1,13 @@
+road avenue: sidewalk carlane middle carlane sidewalk; end
+center = map_point(0, 0);
+north = map_point(0, 2);
+east = map_point(2, 0);
+south = map_point(0, -2);
+west = map_point(-2, 0);
+avenue(north, 0, 1.4, 0, 0.3, center);
+avenue(center, 0.3, 0, 1.4, 0, east);
+avenue(center, 0, -0.3, 0, -1.4, south);
+avenue(west, -1.4, 0, -0.3, 0, center);
+intersection4(center, avenue);
+land(-3, -3, 3, -3, 3, 3, -3, 3);
+player_start(0.015, -0.7, 90);

@@ -15,7 +15,7 @@ cargo run --release
 Asset generation requires Georgia/Arial and produces ignored PNGs from committed SVGs; run it
 before native builds/tests. Web builds run it automatically. See [commerce
 artwork](assets/commerce/README.md).
-`make fmt` formats Rust; `make lint` checks formatting/source limits; `make hooks` enables pre-
+`make fmt` formats Rust; `make lint` checks formatting; `make hooks` enables pre-
 commit
 checks. Native development builds optimize map preparation while retaining debug assertions.
 
@@ -54,18 +54,22 @@ Routes follow permitted road connections, refresh after 2 m and turn green on ar
 red
 means disconnected. Bridges and geometric crossings alone do not connect roads.
 
-On a native authored map, choose **Add buildings…** in the command palette. Drag a footprint in
+On a native authored map, choose **Add or edit buildings…** in the command palette. Drag a footprint
+in
 **Build** view or click an empty lot's **+** to create a building with nearby architectural
 defaults.
-Click its surfaces to select it; drag to move, drag footprint corners to resize, or use arrows for
-quarter-meter adjustments. The style dropdown appears after selection. Right-drag pans Build view
-and the wheel zooms; Build has no placement radius. **Street** restores the player camera and limits
+Click any previously placed building's surfaces to select it; drag to move, drag footprint corners
+to resize, or use arrows for quarter-meter adjustments. Backspace/Delete removes the selection;
+typing in a field never deletes a building. The style dropdown appears after selection.
+Middle/right-drag pans Build view and the wheel zooms toward the cursor, including a wide map
+overview; Build has no placement radius. **Street** restores the player camera and limits
 placement to 50 m. Simulation pauses while authoring. **Done** deselects, then closes the tool;
 Escape cancels a gesture, deselects, or closes.
 
 Proposed lots follow the adjacent road's outside edge and local direction, with a setback beyond
 the sidewalk. **Expand road network…** and **Grow network…** also provide **Street / Iso** camera
-controls. Iso supports right-drag panning and wheel zoom, and follows the selected road end.
+controls. Iso supports middle/right-drag panning and cursor-centered wheel zoom, and follows the
+selected road end.
 
 For a custom building, click **.glb** or drop a GLB onto the game after selecting the building.
 Import
@@ -76,10 +80,13 @@ supports embedded triangle meshes with material colors, without base-color textu
 edit saves the authored map and uses live reload; external source edits are detected before saving.
 
 Procedural buildings and imported GLBs bake local ambient occlusion into their vertex colors when
-the mesh is built. Recesses, overhangs and ground contacts receive soft shading without adding
+the mesh is built, using four directions for faster authoring. Decoded GLBs are cached by content.
+Recesses, overhangs and ground contacts receive soft shading without adding
 triangles or per-frame ray tracing. Shared building materials add filtered, seeded dirt, rain
 streaks and surface mottling; the authored `weathering` value controls wear on procedural buildings.
 The game-data cache is invalidated automatically when the mesh generator changes.
+Live map edits prepare a 1024-pixel minimap atlas and skip disk-cache compression so buildings
+appear sooner; normal startup and exported packages retain the detailed 4096-pixel atlas.
 Roads and sidewalks also receive filtered pavement stains and edge grime. Raised neighbors supply
 local curb occlusion; flush lane boundaries stay clear. Concrete barriers, retaining walls, bridge
 decks and piers have runoff, aggregate variation and darker bases. Bridge piers bake contact AO;

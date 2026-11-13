@@ -28,6 +28,7 @@ fn main() {
     println!("cargo:rerun-if-changed=opencity/src");
     println!("cargo:rerun-if-changed=assets/default-housing.road");
     println!("cargo:rerun-if-changed=assets/commerce");
+    println!("cargo:rerun-if-changed=assets/graffiti");
     println!("cargo:rerun-if-changed=data/landmarks");
     println!("cargo:rerun-if-changed=Cargo.lock");
     println!("cargo:rerun-if-changed=build.rs");

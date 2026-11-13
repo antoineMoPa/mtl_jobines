@@ -7,8 +7,12 @@ use crate::hermes::MinimapView;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 mod culling;
+mod lod;
 mod ssao;
 use culling::{Bounds, Frustum};
+pub(super) use lod::RenderLod;
+const SHADOW_RESOLUTION: u32 = 2048;
+const SHADOW_SPAN: f32 = 3.2;
 use opencity::runtime::{Mesh, SurfaceKind, Vertex};
 use std::borrow::Cow;
 #[cfg(not(target_arch = "wasm32"))]
@@ -34,11 +38,15 @@ pub struct GpuMesh {
     instances: Option<Instances>,
     count: u32,
     opaque_count: u32,
+    paint_start: u32,
     bounds: Option<Bounds>,
+    lod: Option<Box<lod::Variants>>,
 }
 struct Instances {
     buffer: wgpu::Buffer,
     bounds: Vec<Bounds>,
+    scales: Vec<f32>,
+    force_full: Vec<bool>,
 }
 #[derive(Debug)]
 #[cfg(not(target_arch = "wasm32"))]
@@ -49,6 +57,8 @@ pub struct VisibilityStats {
     pub camera_vertices: u64,
     pub shadow_draws: usize,
     pub shadow_vertices: u64,
+    pub camera_vertex_buffers: u64,
+    pub shadow_vertex_buffers: u64,
 }
 pub struct Renderer {
     instance: wgpu::Instance,
@@ -59,14 +69,19 @@ pub struct Renderer {
     pub(super) reserved_bottom: u32,
     pub(super) construction_span: Option<f32>,
     pub(super) ambient_occlusion: bool,
+    pub(super) render_lod: RenderLod,
+    pub(super) contact_debris: bool,
+    contact_texture: super::contact_texture::ContactTexture,
     ssao: ssao::Ssao,
     pipeline: wgpu::RenderPipeline,
     opaque_pipeline: wgpu::RenderPipeline,
+    graffiti_pipeline: wgpu::RenderPipeline,
     shadow_pipeline: wgpu::RenderPipeline,
     opaque_shadow_pipeline: wgpu::RenderPipeline,
     vehicle_pipeline: wgpu::RenderPipeline,
     vehicle_shadow_pipeline: wgpu::RenderPipeline,
     uniform: wgpu::Buffer,
+    pub(super) local_lights: super::local_lights::LocalLights,
     camera_group: wgpu::BindGroup,
     shadow_group: wgpu::BindGroup,
     depth: wgpu::TextureView,
@@ -87,7 +102,12 @@ pub struct Renderer {
 }
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x3,3=>Float32x4];
-fn material_vertices(source: &[Vertex]) -> (Cow<'_, [Vertex]>, u32) {
+fn material_vertices(source: &[Vertex]) -> (Cow<'_, [Vertex]>, u32, u32) {
+    let paint = |triangle: &[Vertex]| {
+        triangle
+            .iter()
+            .any(|v| v.surface[0] == super::graffiti::MATERIAL)
+    };
     let masked = |triangle: &[Vertex]| {
         triangle.iter().any(|v| {
             v.surface[0] == SurfaceKind::Fence as u32 as f32
@@ -95,17 +115,25 @@ fn material_vertices(source: &[Vertex]) -> (Cow<'_, [Vertex]>, u32) {
         })
     };
     if !source.chunks_exact(3).any(masked) {
-        return (Cow::Borrowed(source), source.len() as u32);
+        return (
+            Cow::Borrowed(source),
+            source.len() as u32,
+            source.len() as u32,
+        );
     }
     let mut vertices = Vec::with_capacity(source.len());
     for triangle in source.chunks_exact(3).filter(|triangle| !masked(triangle)) {
         vertices.extend_from_slice(triangle);
     }
     let opaque_count = vertices.len() as u32;
-    for triangle in source.chunks_exact(3).filter(|triangle| masked(triangle)) {
+    for triangle in source.chunks_exact(3).filter(|t| masked(t) && !paint(t)) {
         vertices.extend_from_slice(triangle);
     }
-    (Cow::Owned(vertices), opaque_count)
+    let paint_start = vertices.len() as u32;
+    for triangle in source.chunks_exact(3).filter(|t| paint(t)) {
+        vertices.extend_from_slice(triangle);
+    }
+    (Cow::Owned(vertices), opaque_count, paint_start)
 }
 fn surface_formats(formats: &[wgpu::TextureFormat]) -> (wgpu::TextureFormat, wgpu::TextureFormat) {
     let surface = formats
@@ -236,37 +264,52 @@ impl Renderer {
         }
         let camera_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("camera layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        });
-        let shadow_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("shadow layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
                     count: None,
                 },
             ],
+        });
+        let contact_texture = super::contact_texture::ContactTexture::new(&device, &queue);
+        let mut shadow_entries = vec![
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Depth,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                count: None,
+            },
+        ];
+        shadow_entries.extend(super::contact_texture::ContactTexture::layout(2));
+        let shadow_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("shadow layout"),
+            entries: &shadow_entries,
         });
         let uniform = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("camera"),
@@ -274,16 +317,29 @@ impl Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let local_lights = super::local_lights::LocalLights::new(&device);
         let camera_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("camera"),
             layout: &camera_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: local_lights.buffer.as_entire_binding(),
+                },
+            ],
         });
         let sky = Sky::new(&device, &camera_layout, format);
-        let shadow = depth(&device, 2048, 2048, "sun shadow", true);
+        let shadow = depth(
+            &device,
+            SHADOW_RESOLUTION,
+            SHADOW_RESOLUTION,
+            "sun shadow",
+            true,
+        );
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("shadow PCF"),
             compare: Some(wgpu::CompareFunction::LessEqual),
@@ -293,19 +349,21 @@ impl Renderer {
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             ..Default::default()
         });
+        let mut shadow_bindings = vec![
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&shadow),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&sampler),
+            },
+        ];
+        shadow_bindings.extend(contact_texture.entries(2));
         let shadow_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("sun shadow"),
             layout: &shadow_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&shadow),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
-                },
-            ],
+            entries: &shadow_bindings,
         });
         let commerce = Commerce::new(&device, &queue);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -335,14 +393,14 @@ impl Renderer {
                 bind_group_layouts: &[Some(&camera_layout)],
                 immediate_size: 0,
             });
-        let targets = [Some(wgpu::ColorTargetState {
-            format,
-            blend: None,
-            write_mask: wgpu::ColorWrites::ALL,
-        })];
         let instance_attributes = wgpu::vertex_attr_array![4=>Float32x4,5=>Float32x4,
             6=>Float32x4,7=>Float32x4];
-        let make_pipeline = |shadow: bool, masked: bool, instanced: bool| {
+        let make_pipeline = |shadow: bool, masked: bool, instanced: bool, paint: bool| {
+            let targets = [Some(wgpu::ColorTargetState {
+                format,
+                blend: paint.then_some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })];
             let buffers = [
                 Some(layout()),
                 Some(wgpu::VertexBufferLayout {
@@ -377,6 +435,8 @@ impl Renderer {
                         } else {
                             "fs_shadow_game"
                         }
+                    } else if paint {
+                        "fs_graffiti"
                     } else if instanced {
                         "fs_vehicle"
                     } else if masked {
@@ -393,7 +453,7 @@ impl Renderer {
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: Some(true),
+                    depth_write_enabled: Some(!paint),
                     depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: Default::default(),
                     bias: if shadow {
@@ -408,19 +468,20 @@ impl Renderer {
                 }),
                 multisample: wgpu::MultisampleState {
                     count: if shadow { 1 } else { 4 },
-                    alpha_to_coverage_enabled: !shadow && masked,
+                    alpha_to_coverage_enabled: !shadow && masked && !paint,
                     ..Default::default()
                 },
                 multiview_mask: None,
                 cache: None,
             })
         };
-        let pipeline = make_pipeline(false, true, false);
-        let opaque_pipeline = make_pipeline(false, false, false);
-        let shadow_pipeline = make_pipeline(true, true, false);
-        let opaque_shadow_pipeline = make_pipeline(true, false, false);
-        let vehicle_pipeline = make_pipeline(false, true, true);
-        let vehicle_shadow_pipeline = make_pipeline(true, true, true);
+        let pipeline = make_pipeline(false, true, false, false);
+        let opaque_pipeline = make_pipeline(false, false, false, false);
+        let graffiti_pipeline = make_pipeline(false, true, false, true);
+        let shadow_pipeline = make_pipeline(true, true, false, false);
+        let opaque_shadow_pipeline = make_pipeline(true, false, false, false);
+        let vehicle_pipeline = make_pipeline(false, true, true, false);
+        let vehicle_shadow_pipeline = make_pipeline(true, true, true, false);
         let depth = depth(&device, width.max(1), height.max(1), "depth", false);
         let color = color_target(&device, width, height, format);
         let ssao = ssao::Ssao::new(&device, width.max(1), height.max(1), format, &depth);
@@ -431,7 +492,18 @@ impl Renderer {
             .then(|| GpuProfile::new(&device));
         #[cfg(target_arch = "wasm32")]
         let gpu_profile = None;
+        #[cfg(not(target_arch = "wasm32"))]
+        let render_lod = if std::env::args().any(|arg| arg == "--profile-full-render") {
+            RenderLod::Full
+        } else if std::env::args().any(|arg| arg == "--profile-shadow-lod") {
+            RenderLod::Shadows
+        } else {
+            RenderLod::Adaptive
+        };
+        #[cfg(target_arch = "wasm32")]
+        let render_lod = RenderLod::Adaptive;
         Ok(Self {
+            local_lights,
             instance,
             device,
             queue,
@@ -440,9 +512,13 @@ impl Renderer {
             reserved_bottom: 0,
             construction_span: None,
             ambient_occlusion: true,
+            render_lod,
+            contact_debris: true,
+            contact_texture,
             ssao,
             pipeline,
             opaque_pipeline,
+            graffiti_pipeline,
             shadow_pipeline,
             opaque_shadow_pipeline,
             vehicle_pipeline,
@@ -521,6 +597,9 @@ impl Renderer {
     pub fn upload(&self, mesh: &Mesh) -> GpuMesh {
         self.upload_vertices(&mesh.vertices)
     }
+    pub(super) fn configure_graffiti(&self, settings: super::graffiti::Settings) {
+        self.commerce.graffiti.configure(&self.queue, settings);
+    }
     pub fn upload_vertices(&self, vertices: &[Vertex]) -> GpuMesh {
         self.upload_with_bounds(vertices, Some(Bounds::of_vertices(vertices)))
     }
@@ -532,7 +611,9 @@ impl Renderer {
             buffer: self.dynamic_buffer(std::mem::size_of_val(mesh.vertices.as_slice()) as u64),
             count: 0,
             opaque_count: 0,
+            paint_start: 0,
             bounds: None,
+            lod: None,
         };
         self.update_dynamic(&mut gpu, mesh);
         gpu
@@ -542,6 +623,8 @@ impl Renderer {
         mesh.instances = Some(Instances {
             buffer: self.dynamic_buffer(64),
             bounds: Vec::new(),
+            scales: Vec::new(),
+            force_full: Vec::new(),
         });
         mesh
     }
@@ -562,6 +645,20 @@ impl Renderer {
                 .iter()
                 .map(|columns| local.transformed(Mat4::from_cols_array_2d(columns))),
         );
+        instances.scales.clear();
+        instances.force_full.clear();
+        for columns in transforms {
+            let matrix = Mat4::from_cols_array_2d(columns);
+            instances.scales.push(
+                matrix
+                    .x_axis
+                    .truncate()
+                    .length()
+                    .max(matrix.y_axis.truncate().length())
+                    .max(matrix.z_axis.truncate().length()),
+            );
+            instances.force_full.push(columns[1][3] > 0.5);
+        }
     }
     fn dynamic_buffer(&self, required: u64) -> wgpu::Buffer {
         self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -574,7 +671,7 @@ impl Renderer {
         })
     }
     pub fn update_dynamic(&self, gpu: &mut GpuMesh, mesh: &Mesh) {
-        let (vertices, opaque_count) = material_vertices(&mesh.vertices);
+        let (vertices, opaque_count, paint_start) = material_vertices(&mesh.vertices);
         let bytes = unsafe {
             std::slice::from_raw_parts(
                 vertices.as_ptr().cast::<u8>(),
@@ -591,10 +688,12 @@ impl Renderer {
         }
         gpu.count = mesh.vertices.len() as u32;
         gpu.opaque_count = opaque_count;
+        gpu.paint_start = paint_start;
         gpu.bounds = None;
+        gpu.lod = None;
     }
     fn upload_with_bounds(&self, source: &[Vertex], bounds: Option<Bounds>) -> GpuMesh {
-        let (vertices, opaque_count) = material_vertices(source);
+        let (vertices, opaque_count, paint_start) = material_vertices(source);
         // Vertex has repr(C), f32-only fields, no padding or uninitialized bytes.
         let bytes = unsafe {
             std::slice::from_raw_parts(
@@ -614,7 +713,9 @@ impl Renderer {
             instances: None,
             count: source.len() as u32,
             opaque_count,
+            paint_start,
             bounds,
+            lod: None,
         }
     }
     pub(super) fn view_projection(&self, eye: Vec3, look: Vec3) -> Mat4 {
@@ -626,7 +727,7 @@ impl Renderer {
                 -span / 2.,
                 span / 2.,
                 0.003,
-                100.,
+                (span * 4.).max(100.),
             )
         } else {
             Mat4::perspective_rh(
@@ -646,66 +747,14 @@ impl Renderer {
     }
     fn view_matrices(&self, eye: Vec3, look: Vec3, sun: Vec3) -> (Mat4, Mat4) {
         let focus = Vec3::new(look.x, look.y, 0.15);
-        let light = Mat4::orthographic_rh(-1.6, 1.6, -1.6, 1.6, 0.01, 10.)
+        let half = SHADOW_SPAN * 0.5;
+        let light = Mat4::orthographic_rh(-half, half, -half, half, 0.01, 10.)
             * Mat4::look_at_rh(
                 focus + sun * 4.,
                 focus,
                 if sun.z.abs() > 0.99 { Vec3::Y } else { Vec3::Z },
             );
         (self.view_projection(eye, look), light)
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn visibility_stats(
-        &self,
-        meshes: &[&GpuMesh],
-        eye: Vec3,
-        look: Vec3,
-        time: f32,
-    ) -> VisibilityStats {
-        let (view, light) = self.view_matrices(
-            eye,
-            look,
-            Lighting::with_settings(time, self.daylight, self.sky_settings).sun,
-        );
-        let camera = Frustum::from_matrix(view);
-        let shadow = Frustum::from_matrix(light);
-        let mut stats = VisibilityStats {
-            candidates: meshes.len(),
-            candidate_vertices: 0,
-            camera_draws: 0,
-            camera_vertices: 0,
-            shadow_draws: 0,
-            shadow_vertices: 0,
-        };
-        for mesh in meshes {
-            let vertices = u64::from(mesh.count)
-                * mesh
-                    .instances
-                    .as_ref()
-                    .map_or(1, |instances| instances.bounds.len() as u64);
-            stats.candidate_vertices += vertices;
-            if let Some(instances) = &mesh.instances {
-                for (frustum, draws, vertices) in [
-                    (&camera, &mut stats.camera_draws, &mut stats.camera_vertices),
-                    (&shadow, &mut stats.shadow_draws, &mut stats.shadow_vertices),
-                ] {
-                    for range in frustum.instance_ranges(&instances.bounds) {
-                        *draws += 1;
-                        *vertices += u64::from(mesh.count) * u64::from(range.end - range.start);
-                    }
-                }
-                continue;
-            }
-            if camera.includes(mesh.bounds) {
-                stats.camera_draws += 1;
-                stats.camera_vertices += vertices;
-            }
-            if shadow.includes(mesh.bounds) {
-                stats.shadow_draws += 1;
-                stats.shadow_vertices += vertices;
-            }
-        }
-        stats
     }
     pub fn render(
         &self,
@@ -716,17 +765,25 @@ impl Renderer {
         time: f32,
         navigation: MinimapView,
     ) {
+        self.contact_texture
+            .set_enabled(&self.queue, self.contact_debris);
         let lighting = Lighting::with_settings(time, self.daylight, self.sky_settings);
         let sun = lighting.sun;
         let (view, light) = self.view_matrices(eye, look, sun);
         let camera_frustum = Frustum::from_matrix(view);
         let shadow_frustum = Frustum::from_matrix(light);
+        let detail_view = self.detail_view(eye, look);
         let data = Camera {
             view_projection: view.to_cols_array_2d(),
             light_view_projection: light.to_cols_array_2d(),
             eye_time: [eye.x, eye.y, eye.z, time],
             sun_exposure: [sun.x, sun.y, sun.z, 1.35],
-            daylight_sky: [lighting.daylight, 0., 0., 0.],
+            daylight_sky: [
+                lighting.daylight,
+                f32::from(self.construction_span.is_some()),
+                0.,
+                0.,
+            ],
             inverse_view_projection: view.inverse().to_cols_array_2d(),
             sun_color: [
                 lighting.sun_color[0],
@@ -749,6 +806,14 @@ impl Renderer {
         };
         self.queue
             .write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
+        self.local_lights.upload(
+            &self.queue,
+            if self.construction_span.is_some() {
+                look
+            } else {
+                eye
+            },
+        );
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -786,27 +851,28 @@ impl Renderer {
                 {
                     continue;
                 }
-                pass.set_vertex_buffer(0, mesh.buffer.slice(..));
-                pass.draw(0..mesh.opaque_count, 0..1);
+                let draw = mesh.static_draw(&detail_view, self.render_lod, true);
+                draw.draw(&mut pass, 0..draw.opaque, 0..1);
             }
             pass.set_pipeline(&self.shadow_pipeline);
             for mesh in meshes {
                 if mesh.instances.is_some()
-                    || mesh.opaque_count == mesh.count
+                    || mesh.opaque_count == mesh.paint_start
                     || !shadow_frustum.includes(mesh.bounds)
                 {
                     continue;
                 }
-                pass.set_vertex_buffer(0, mesh.buffer.slice(..));
-                pass.draw(mesh.opaque_count..mesh.count, 0..1);
+                let draw = mesh.static_draw(&detail_view, self.render_lod, true);
+                draw.draw(&mut pass, draw.opaque..draw.paint, 0..1);
             }
             pass.set_pipeline(&self.vehicle_shadow_pipeline);
             for mesh in meshes {
                 if let Some(instances) = &mesh.instances {
-                    for range in shadow_frustum.instance_ranges(&instances.bounds) {
-                        pass.set_vertex_buffer(0, mesh.buffer.slice(..));
+                    for (draw, range) in
+                        mesh.instance_draws(&shadow_frustum, &detail_view, self.render_lod, true)
+                    {
                         pass.set_vertex_buffer(1, instances.buffer.slice(..));
-                        pass.draw(0..mesh.count, range);
+                        draw.draw(&mut pass, 0..draw.paint, range);
                     }
                 }
             }
@@ -860,29 +926,41 @@ impl Renderer {
                 {
                     continue;
                 }
-                pass.set_vertex_buffer(0, mesh.buffer.slice(..));
-                pass.draw(0..mesh.opaque_count, 0..1);
+                let draw = mesh.static_draw(&detail_view, self.render_lod, false);
+                draw.draw(&mut pass, 0..draw.opaque, 0..1);
             }
             pass.set_pipeline(&self.pipeline);
             for mesh in meshes {
                 if mesh.instances.is_some()
-                    || mesh.opaque_count == mesh.count
+                    || mesh.opaque_count == mesh.paint_start
                     || !camera_frustum.includes(mesh.bounds)
                 {
                     continue;
                 }
-                pass.set_vertex_buffer(0, mesh.buffer.slice(..));
-                pass.draw(mesh.opaque_count..mesh.count, 0..1);
+                let draw = mesh.static_draw(&detail_view, self.render_lod, false);
+                draw.draw(&mut pass, draw.opaque..draw.paint, 0..1);
             }
             pass.set_pipeline(&self.vehicle_pipeline);
             for mesh in meshes {
                 if let Some(instances) = &mesh.instances {
-                    for range in camera_frustum.instance_ranges(&instances.bounds) {
-                        pass.set_vertex_buffer(0, mesh.buffer.slice(..));
+                    for (draw, range) in
+                        mesh.instance_draws(&camera_frustum, &detail_view, self.render_lod, false)
+                    {
                         pass.set_vertex_buffer(1, instances.buffer.slice(..));
-                        pass.draw(0..mesh.count, range);
+                        draw.draw(&mut pass, 0..draw.count, range);
                     }
                 }
+            }
+            pass.set_pipeline(&self.graffiti_pipeline);
+            for mesh in meshes {
+                if mesh.instances.is_some()
+                    || mesh.paint_start == mesh.count
+                    || !camera_frustum.includes(mesh.bounds)
+                {
+                    continue;
+                }
+                let draw = mesh.static_draw(&detail_view, self.render_lod, false);
+                draw.draw(&mut pass, draw.paint..draw.count, 0..1);
             }
             self.sky.draw(&mut pass, &self.camera_group);
         }
@@ -960,7 +1038,8 @@ mod tests {
                 });
             }
         }
-        let (vertices, opaque) = material_vertices(&mesh.vertices);
+        let (vertices, opaque, paint_start) = material_vertices(&mesh.vertices);
+        assert_eq!(paint_start, 9);
         assert_eq!(opaque, 6);
         assert_eq!(vertices.len(), 9);
         assert_eq!(
@@ -974,7 +1053,8 @@ mod tests {
             .iter()
             .all(|v| v.surface[0] == SurfaceKind::Fence as u32 as f32));
         mesh.vertices.truncate(3);
-        let (vertices, opaque) = material_vertices(&mesh.vertices);
+        let (vertices, opaque, paint_start) = material_vertices(&mesh.vertices);
+        assert_eq!(paint_start, 3);
         assert!(matches!(vertices, Cow::Borrowed(_)));
         assert_eq!(opaque, 3);
     }

@@ -1,0 +1,4 @@
+road avenue: sidewalk carlane middle carlane sidewalk; end
+avenue(-2, 0, 2, 0);
+land(-3, -3, 3, -3, 3, 3, -3, 3);
+player_start(-0.5, 0.02, 0);

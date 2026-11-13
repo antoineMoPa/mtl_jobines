@@ -150,8 +150,9 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
     #[cfg(not(target_arch = "wasm32"))]
     commands.push(Command {
         id: "building.place".into(),
-        title: "Add buildings…".into(),
-        description: "Draw footprints and customize buildings or import GLB models".into(),
+        title: "Add or edit buildings…".into(),
+        description: "Draw footprints or select saved buildings to move, customize or delete"
+            .into(),
         shortcut: String::new(),
     });
     commands
@@ -175,6 +176,15 @@ pub struct Palette {
     commands: Vec<Command>,
 }
 impl Palette {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn road_preview(
+        &mut self,
+        renderer: &Renderer,
+    ) -> Option<std::sync::Arc<super::render::GpuMesh>> {
+        self.expansion
+            .as_mut()
+            .and_then(|d| d.surface_preview(renderer))
+    }
     /// Refresh map destinations without replacing dialogs, input or egui state.
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn update_landmarks(&mut self, landmarks: &[Landmark]) {

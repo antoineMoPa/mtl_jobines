@@ -205,6 +205,37 @@ impl Vehicle {
     pub fn step(&mut self, city: &City, input: Controls, dt: f32) {
         self.step_with_buildings(city, input, dt, None);
     }
+    /// A distant lane follower has no tire/suspension or environment contact queries.
+    /// Its current pose remains the starting state when promoted to rigid-body physics.
+    pub(super) fn follow_lane(
+        &mut self,
+        position: Vec3,
+        heading: Vec3,
+        speed: f32,
+        angles: Vec3,
+        input: Controls,
+        dt: f32,
+    ) {
+        let yaw = heading.y.atan2(heading.x) + angles.x;
+        let delta = yaw - self.yaw;
+        let yaw_step = delta.sin().atan2(delta.cos());
+        self.yaw += yaw_step;
+        self.pitch = heading.z.atan2(heading.truncate().length()) + angles.y;
+        self.roll = angles.z;
+        self.position = position;
+        self.velocity = heading * speed;
+        self.angular_momentum = Vec3::Z * (self.inertia() * yaw_step / dt);
+        let steering = input.steering * 0.52 / (1. + speed * STEERING_SPEED_TAPER);
+        self.steering += (steering - self.steering) * (1. - (-8. * dt).exp());
+        self.body_lean *= (-6. * dt).exp();
+        self.body_lean_rate = Vec2::ZERO;
+        self.wheel_angle += speed * dt
+            / self
+                .definition()
+                .map_or(0.32, |d| d.config.physics.wheel_radius);
+        self.surface = SurfaceKind::Asphalt;
+        self.grounded = true;
+    }
     pub(super) fn step_with_buildings(
         &mut self,
         city: &City,

@@ -1,6 +1,8 @@
 //! Nearby physical traffic: lane pursuit, signals, following, and collision recovery.
+mod lod;
 mod models;
 mod signals;
+pub(crate) use signals::SignalBatch;
 #[cfg(test)]
 mod tests;
 use super::{catalog, Controls, SpawnPoint, Vehicle, METERS_PER_UNIT};
@@ -22,6 +24,31 @@ struct Driver {
     stranded: f32,
     stop_wait: f32,
     stop_arrival: Option<f32>,
+    motion: lod::Motion,
+    physical_until: f32,
+    collisions: u64,
+    target_speed: f32,
+    clearance: f32,
+}
+impl Driver {
+    fn new(vehicle: usize, path: usize, distance: f32, spawned_at: f32) -> Self {
+        Self {
+            vehicle,
+            spawned_at,
+            path,
+            distance,
+            next: None,
+            stopped: false,
+            stranded: 0.,
+            stop_wait: 0.,
+            stop_arrival: None,
+            motion: lod::Motion::Physical,
+            physical_until: 0.,
+            collisions: 0,
+            target_speed: 0.,
+            clearance: f32::INFINITY,
+        }
+    }
 }
 pub(super) struct Traffic {
     graph: Arc<TrafficPaths>,
@@ -35,6 +62,8 @@ pub(super) struct Traffic {
     signal_models: Vec<models::Standing>,
     failed_junctions: HashSet<usize>,
     crossing: HashMap<usize, usize>,
+    physics_lod: bool,
+    interacted: HashMap<usize, lod::Protected>,
 }
 impl Traffic {
     pub fn new(graph: &Arc<TrafficPaths>) -> Self {
@@ -50,8 +79,17 @@ impl Traffic {
             refill: 0.,
             signal_props: super::props::Props::from_groups(groups),
             signal_models,
-            failed_junctions: HashSet::new(),
+            // A junction without space for a supported mast uses the existing
+            // all-way-stop behavior instead of planting a pole in a traffic lane.
+            failed_junctions: graph
+                .signals
+                .iter()
+                .filter(|signal| signal.mast_base.is_none())
+                .map(|signal| signal.junction)
+                .collect(),
             crossing: HashMap::new(),
+            physics_lod: true,
+            interacted: HashMap::new(),
         }
     }
     fn random(&mut self, count: usize) -> usize {
@@ -62,9 +100,13 @@ impl Traffic {
         let vacant = &mut self.inactive;
         self.drivers.retain(|d| {
             if vehicles[d.vehicle].position.distance(center) > RETAIN_RADIUS {
-                vacant.push(d.vehicle);
-                vehicles[d.vehicle].velocity = Vec3::ZERO;
-                vehicles[d.vehicle].position.z = -1000.;
+                // Player interaction leaves a persistent physical vehicle behind.
+                // Only ordinary traffic may be hidden and its slot recycled.
+                if !self.interacted.contains_key(&d.vehicle) {
+                    vacant.push(d.vehicle);
+                    vehicles[d.vehicle].velocity = Vec3::ZERO;
+                    vehicles[d.vehicle].position.z = -1000.;
+                }
                 false
             } else {
                 true
@@ -146,17 +188,8 @@ impl Traffic {
                     heading: Some(heading.y.atan2(heading.x)),
                 },
             ));
-            self.drivers.push(Driver {
-                vehicle: index,
-                spawned_at: self.time,
-                path,
-                distance,
-                next: None,
-                stopped: false,
-                stranded: 0.,
-                stop_wait: 0.,
-                stop_arrival: None,
-            });
+            self.drivers
+                .push(Driver::new(index, path, distance, self.time));
         }
     }
     pub fn opacity(&self, index: usize) -> f32 {
@@ -207,7 +240,10 @@ impl Traffic {
             let car = &vehicles[driver.vehicle];
             let ground = car.position - Vec3::Z * car.ride_height();
             let forward = Vec3::new(car.yaw.cos(), car.yaw.sin(), 0.);
-            let (distance, error) = self.graph.paths[driver.path].project(ground);
+            let (distance, error) = match driver.motion {
+                lod::Motion::Lane(_) => (driver.distance, 0.),
+                lod::Motion::Physical => self.graph.paths[driver.path].project(ground),
+            };
             let heading = self.graph.paths[driver.path].sample(distance).1;
             if error > 3. || heading.dot(forward) < 0.1 {
                 // Collision recovery only considers reachable, forward-facing nearby lanes.
@@ -265,7 +301,7 @@ impl Traffic {
             }
             let path = &self.graph.paths[driver.path];
             let remaining = path.length - driver.distance;
-            if remaining < 2.5 {
+            if remaining < 2.5 && matches!(driver.motion, lod::Motion::Physical) {
                 if let Some(next) = driver.next {
                     driver.path = next;
                     driver.distance = 0.;
@@ -383,6 +419,8 @@ impl Traffic {
             if driver.stranded > 8. {
                 driver.stopped = true;
             }
+            driver.target_speed = limit;
+            driver.clearance = clearance;
             result.push((
                 driver.vehicle,
                 Controls {

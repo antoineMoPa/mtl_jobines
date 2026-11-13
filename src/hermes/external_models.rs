@@ -2,6 +2,7 @@
 use glam::{Mat4, Vec3};
 use opencity::runtime::{City, Mesh, SurfaceKind, Vertex};
 use std::path::{Path, PathBuf};
+mod cache;
 
 pub(crate) fn paths(program: &opencity::Program, base: &Path) -> Result<Vec<PathBuf>, String> {
     let projected = opencity::project_landscape_features(program);
@@ -149,7 +150,10 @@ fn walk_materials(
 }
 /// The authoring tool validates imports with the same decoder as map loading.
 pub(crate) fn decode(bytes: &[u8]) -> Result<Mesh, String> {
-    decode_model(bytes, false)
+    decode_shared(bytes).map(|mesh| mesh.as_ref().clone())
+}
+pub(crate) fn decode_shared(bytes: &[u8]) -> Result<std::sync::Arc<Mesh>, String> {
+    cache::decode(bytes)
 }
 /// Packaged street props already contain the approved bake in COLOR_0.
 /// Keep that shading once, and map their diffuser materials to game lights.
@@ -186,7 +190,7 @@ fn decode_model(bytes: &[u8], baked_prop: bool) -> Result<Mesh, String> {
     }
     let size = hi - lo;
     let radius = (size.min_element() * 0.5).max(size.max_element() * 0.02);
-    opencity::runtime::ambient_occlusion::bake(&mut mesh, radius, Some(lo.z));
+    opencity::runtime::ambient_occlusion::bake_fast(&mut mesh, radius, Some(lo.z));
     let unit = (size.z / 3.).max(size.max_element() / 32.);
     for v in &mut mesh.vertices {
         if v.surface[0] == SurfaceKind::Light as u32 as f32 {
