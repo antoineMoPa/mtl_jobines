@@ -1,0 +1,3 @@
+road street: carlane carlane; end
+street(-4,0,4,0);
+land(-5,-1,5,-1,5,1,-5,1);

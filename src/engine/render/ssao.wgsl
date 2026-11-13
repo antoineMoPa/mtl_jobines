@@ -1,5 +1,5 @@
 struct Settings {
-    inverse:mat4x4<f32>, eye_radius:vec4<f32>, viewport:vec4<f32>, tuning:vec4<f32>,
+    inverse:mat4x4<f32>, eye_radius:vec4<f32>, viewport:vec4<f32>, tuning:vec4<f32>, weather:vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> settings:Settings;
 @group(0) @binding(1) var depth:texture_depth_multisampled_2d;
@@ -53,22 +53,38 @@ fn position(p:vec2<i32>)->vec3<f32> {
     }}
     return vec2<f32>(1.0-clamp(blocked/16.0*settings.tuning.y,0.0,0.48),distance);
 }
+fn winter_atmosphere(color:vec4<f32>,distance:f32,has_surface:bool)->vec4<f32> {
+    if settings.weather.y==0.0 {return color;}
+    let daylight=clamp(settings.weather.z,0.0,1.0);
+    let fog_color=mix(vec3<f32>(0.018,0.026,0.045),vec3<f32>(0.52,0.60,0.66),daylight);
+    // Map units are 100 metres. Keep the nearby road readable and soften the horizon.
+    let haze=select(0.82,1.0-exp(-max(distance-0.06,0.0)*0.85),has_surface);
+    let result=mix(color.rgb,fog_color,haze*settings.weather.y);
+    return vec4<f32>(result,color.a);
+}
 @fragment fn composite(@builtin(position) screen:vec4<f32>)->@location(0) vec4<f32> {
     let p=vec2<i32>(screen.xy);
     let color=textureLoad(scene,p,0);
-    if depth_at(p)>=0.999999 || settings.tuning.z<0.5 {return color;}
-    let center=length(settings.eye_radius.xyz-position(p));
-    let size=vec2<i32>(textureDimensions(occlusion));
-    let q=p/2;var total=0.0;var weight=0.0;
-    let tolerance=settings.eye_radius.w*0.22;
-    for(var y=-1;y<=1;y++) {for(var x=-1;x<=1;x++) {
-        let uv=clamp(q+vec2<i32>(x,y),vec2<i32>(0),size-vec2<i32>(1));
-        let sample=textureLoad(occlusion,uv,0).rg;
-        let difference=(sample.y-center)/tolerance;
-        let spatial=1.0/(1.0+f32(x*x+y*y));
-        let w=exp(-difference*difference)*spatial;
-        total+=sample.x*w;weight+=w;
-    }}
-    let factor=select(1.0,total/max(weight,0.000001),weight>0.000001);
-    return vec4<f32>(color.rgb*factor,color.a);
+    // Exact summer bypass, including the AO-disabled path.
+    if settings.tuning.z<0.5 && settings.weather.y==0.0 {return color;}
+    let has_surface=depth_at(p)<0.999999;
+    var distance=10.0;
+    if has_surface {distance=length(settings.eye_radius.xyz-position(p));}
+    var result=color;
+    if has_surface && settings.tuning.z>=0.5 {
+        let size=vec2<i32>(textureDimensions(occlusion));
+        let q=p/2;var total=0.0;var weight=0.0;
+        let tolerance=settings.eye_radius.w*0.22;
+        for(var y=-1;y<=1;y++) {for(var x=-1;x<=1;x++) {
+            let uv=clamp(q+vec2<i32>(x,y),vec2<i32>(0),size-vec2<i32>(1));
+            let sample=textureLoad(occlusion,uv,0).rg;
+            let difference=(sample.y-distance)/tolerance;
+            let spatial=1.0/(1.0+f32(x*x+y*y));
+            let w=exp(-difference*difference)*spatial;
+            total+=sample.x*w;weight+=w;
+        }}
+        let factor=select(1.0,total/max(weight,0.000001),weight>0.000001);
+        result=vec4<f32>(color.rgb*factor,color.a);
+    }
+    return winter_atmosphere(result,distance,has_surface);
 }

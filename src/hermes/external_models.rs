@@ -94,6 +94,14 @@ fn walk_materials(
             } else {
                 SurfaceKind::Prop
             };
+            let name = node.name().unwrap_or("");
+            let snow_excluded = primitive.material().alpha_mode()
+                == gltf::material::AlphaMode::Blend
+                || name.contains("Glazed")
+                || name.contains("glazed")
+                || name.contains("Glass")
+                || name.contains("glass")
+                || name == "Soffit light";
             for triangle in indices.chunks_exact(3) {
                 let p = triangle
                     .iter()
@@ -137,7 +145,12 @@ fn walk_materials(
                         position: position.to_array(),
                         normal: (normal / length).to_array(),
                         color,
-                        surface: [kind as u32 as f32, 0., 0., 0.],
+                        surface: [
+                            kind as u32 as f32,
+                            0.,
+                            0.,
+                            if snow_excluded { -3. } else { 0. },
+                        ],
                     });
                 }
             }
@@ -209,7 +222,8 @@ fn decode_model(bytes: &[u8], baked_prop: bool) -> Result<Mesh, String> {
                 p.z / unit,
             ]
         };
-        v.surface[1..].copy_from_slice(&[uv[0], uv[1], -1.]);
+        let weather = if v.surface[3] == -3. { -3. } else { -1. };
+        v.surface[1..].copy_from_slice(&[uv[0], uv[1], weather]);
     }
     Ok(mesh)
 }
@@ -318,7 +332,10 @@ mod tests {
             assert_eq!(baked.position, raw.position);
             assert_eq!(baked.normal, raw.normal);
             assert_eq!(baked.color, duplicate.color);
-            assert_eq!(baked.surface[3], -1.);
+            assert_eq!(
+                baked.surface[3],
+                if raw.surface[3] == -3. { -3. } else { -1. }
+            );
             for i in 0..3 {
                 assert!(baked.color[i] >= raw.color[i] * 0.5199);
                 assert!(baked.color[i] <= raw.color[i]);
@@ -361,5 +378,26 @@ mod tests {
             packed.world.vertices.len() + reloaded.external_vertex_count
         );
         std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod snow_tests {
+    #[test]
+    fn imported_station_glazing_keeps_snow_exclusion_after_weather_bake() {
+        let mesh = super::decode(include_bytes!(
+            "../../data/maps/mtl/models/fuel-station.glb"
+        ))
+        .unwrap();
+        assert!(
+            mesh.vertices.iter().any(|v| v.surface[3] == -3.),
+            "glazing exclusion lost during weather bake"
+        );
+        assert!(
+            mesh.vertices
+                .iter()
+                .any(|v| v.surface[3] == -1. && v.normal[2] > 0.85),
+            "exposed roof lost material eligibility"
+        );
     }
 }

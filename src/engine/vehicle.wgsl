@@ -13,6 +13,8 @@ struct VehicleTransform {
     o.world = world;
     o.normal = (model * vec4<f32>(v.normal, 0.0)).xyz * 100.0;
     o.color = v.color; o.surface = v.surface; o.surface.y *= instance.translation.w; o.fence_uv = v.surface.yz;
+    let excluded=v.surface.y<0.999 || (v.surface.x>=0.0 && (v.surface.w== -3.0 || v.surface.w>=64.0)) || (v.surface.x<0.0 && fract(-v.surface.x)>0.1);
+    o.snow_control=vec2<f32>(select(1.0,0.0,excluded),1.0);
     if v.surface.x<0.0 {
         o.fence_uv=v.surface.zw;
         o.surface.w=select(0.0,64.0,fract(-v.surface.x)==0.25 && instance.x.w>0.0);

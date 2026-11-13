@@ -3,7 +3,10 @@
 mod buildings;
 pub(crate) mod catalog;
 mod contacts;
+mod crowd;
 mod illumination;
+pub(crate) mod pedestrian_catalog;
+pub(crate) mod pedestrian_gait;
 pub(crate) use illumination::LocalLight;
 #[cfg(test)]
 pub(crate) use illumination::RearLight;
@@ -12,9 +15,11 @@ mod lineup;
 pub(crate) mod parked;
 mod player;
 mod props;
+mod ragdoll;
 pub use props::PropBatch;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod physics_lod_tests;
+pub(crate) mod snow;
 mod spawn;
 #[cfg(test)]
 mod street_tests;
@@ -35,6 +40,9 @@ pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VehicleId(usize);
 pub struct DynamicWorld {
+    season: crate::season::Season,
+    pub(crate) snow: snow::Tracks,
+    snow_timer: f32,
     sound_impacts: [crate::audio::Impact; crate::audio::IMPACT_VOICES],
     sound_serial: u64,
     sound_foliage: f32,
@@ -48,6 +56,7 @@ pub struct DynamicWorld {
     vehicle_spawns: Vec<SpawnPoint>,
     props: props::Props,
     traffic: traffic::Traffic,
+    crowd: crowd::Crowd,
     buildings: buildings::Buildings,
     building_candidates: Vec<usize>,
 }
@@ -85,12 +94,17 @@ impl DynamicWorld {
             None => Vehicle::spawn(hermes.city()),
         };
         vehicle.set_catalog_model(Some(0));
+        let prop_center = vehicle.position;
         let mut world = Self {
+            season: Default::default(),
+            snow: snow::Tracks::default(),
+            snow_timer: 0.,
             sound_impacts: [crate::audio::Impact::default(); crate::audio::IMPACT_VOICES],
             sound_serial: 0,
             sound_foliage: 0.15,
             sound_geography_timer: 0.,
-            traffic: traffic::Traffic::new(hermes.traffic_paths()),
+            traffic: traffic::Traffic::new_near(hermes.traffic_paths(), prop_center),
+            crowd: crowd::Crowd::new(hermes.walking_paths()),
             buildings: buildings::Buildings::new(hermes.city()),
             building_candidates: Vec::new(),
             vehicles: vec![vehicle],
@@ -99,8 +113,9 @@ impl DynamicWorld {
             vehicle_notice: 4.,
             pedestrian: None,
             vehicle_spawns: Vec::new(),
-            props: props::Props::from_groups(hermes.prop_groups()),
+            props: props::Props::from_groups_near(hermes.prop_groups(), prop_center),
         };
+        world.traffic.update_prop_focus(prop_center);
         world.add_parked_vehicles(hermes)?;
         if vehicle_lineup {
             world.add_vehicle_lineup(hermes);
@@ -118,6 +133,12 @@ impl DynamicWorld {
             world.vehicle_spawns[0].point = start.point;
         }
         world.populate_traffic(hermes);
+        world.crowd.populate(
+            hermes.city(),
+            world.player_position(),
+            &world.vehicles,
+            &world.props,
+        );
         Ok(world)
     }
     fn populate_traffic(&mut self, hermes: &Hermes) {
@@ -135,6 +156,20 @@ impl DynamicWorld {
         for d in self.traffic.take_spawns() {
             self.vehicle_spawns[d.0] = d.1;
         }
+    }
+    pub(crate) fn season(&self) -> crate::season::Season {
+        self.season
+    }
+    pub(crate) fn set_season(&mut self, hermes: &Hermes, season: crate::season::Season) {
+        if self.season == season {
+            return;
+        }
+        self.season = season;
+        self.snow.reset();
+        self.snow_timer = 0.;
+        self.traffic
+            .set_season(season, &mut self.vehicles, self.player_vehicle.0);
+        self.populate_traffic(hermes);
     }
     pub fn player(&self) -> &Vehicle {
         &self.vehicles[self.player_vehicle.0]
@@ -321,6 +356,8 @@ impl DynamicWorld {
         } else {
             Vec3::ZERO
         };
+        self.props.update_focus(center);
+        self.traffic.update_prop_focus(center);
         self.traffic.select_physics(
             &self.vehicles,
             self.player_vehicle.0,
@@ -418,7 +455,22 @@ impl DynamicWorld {
             }
         }
         self.props.step(dt);
+        self.crowd.step(
+            hermes.city(),
+            self.player_position(),
+            self.pedestrian.is_some(),
+            &self.vehicles,
+            &self.props,
+            dt,
+        );
         self.traffic.step_debris(dt);
+        if self.season == crate::season::Season::Winter {
+            self.snow_timer += dt;
+            if self.snow_timer >= 0.1 {
+                self.snow_timer = 0.;
+                self.snow.update(hermes.city(), &self.vehicles);
+            }
+        }
         if self.player_position().z < -40. {
             self.reset_player(hermes);
         }
@@ -430,6 +482,23 @@ impl DynamicWorld {
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn traffic_physics_counts(&self) -> [usize; 3] {
         self.traffic.physics_counts(self.vehicles.len())
+    }
+    pub(crate) fn pedestrian_instances(&self) -> impl Iterator<Item = crowd::Instance<'_>> + '_ {
+        self.crowd.instances(self.player_position())
+    }
+    #[cfg(test)]
+    pub(crate) fn prepare_pedestrian_collision(&mut self) -> glam::Vec3 {
+        let (target, yaw) = self.crowd.prepare_collision();
+        let direction = glam::Vec3::new(yaw.cos(), yaw.sin(), 0.);
+        let vehicle = &mut self.vehicles[self.player_vehicle.0];
+        vehicle.position = target - direction * 5. + glam::Vec3::Z * vehicle.ride_height();
+        vehicle.yaw = yaw;
+        vehicle.velocity = direction * 8.;
+        target
+    }
+    #[cfg(test)]
+    pub(crate) fn pedestrian_reactions(&self) -> [usize; 3] {
+        self.crowd.reaction_counts()
     }
     #[cfg(test)]
     pub fn mesh(&self) -> Mesh {

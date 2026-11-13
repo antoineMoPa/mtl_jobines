@@ -5,9 +5,20 @@ pub(super) fn upload(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 ) -> (wgpu::TextureView, wgpu::Sampler) {
-    let images: Vec<_> = catalog::definitions()
-        .iter()
-        .filter_map(|definition| definition.texture_png.as_deref())
+    upload_pngs(
+        device,
+        queue,
+        catalog::definitions()
+            .iter()
+            .filter_map(|definition| definition.texture_png.as_deref()),
+    )
+}
+pub(super) fn upload_pngs<'a>(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    images: impl Iterator<Item = &'a [u8]>,
+) -> (wgpu::TextureView, wgpu::Sampler) {
+    let images: Vec<_> = images
         .map(|bytes| {
             let mut decoder = png::Decoder::new(bytes);
             decoder

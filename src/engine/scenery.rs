@@ -103,6 +103,7 @@ fn batches(renderer: &Renderer, mut mesh: Mesh) -> Vec<Batch> {
 impl Scenery {
     pub fn new(renderer: &Renderer, hermes: &mut Hermes) -> Self {
         let (world, details) = hermes.take_geometry();
+        renderer.snow.set_geometry(&[&world, &details]);
         let paint = super::graffiti::Nearby::new(renderer, &world);
         Self {
             world: batches(renderer, world),

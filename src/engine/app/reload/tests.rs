@@ -487,6 +487,92 @@ fn live_saves_replace_gpu_scenery_and_atlas_then_remove_them_again() {
     eprintln!("Reload GPU evidence: {}", output.display());
 }
 
+#[test]
+#[ignore = "requires a native GPU adapter"]
+fn native_map_reload_removes_floor_snow_and_stale_plow_trails() {
+    use crate::season::Season;
+    let source = include_str!("../../../../tests/fixtures/snow_season.road");
+    let mut game = Game::new(Hermes::test_map_from_source(source));
+    let mut renderer = pollster::block_on(Renderer::new(None, 960, 640)).unwrap();
+    renderer.daylight = Some(1.);
+    renderer.sky_settings.solar_hour = Some(12.);
+    renderer.ambient_occlusion = false;
+    renderer.winter_weather = false;
+    game.renderer = Some(renderer);
+    game.apply_reloaded_map(Hermes::test_map_from_source(source))
+        .unwrap();
+    let p = game.world.player_position() / METERS_PER_UNIT;
+    let frame = |game: &Game, name: &str| {
+        let r = game.renderer.as_ref().unwrap();
+        r.snow.update(&r.queue, [p.x, p.y], &game.world.snow);
+        let meshes = game.scenery.as_ref().unwrap().visible([p.x, p.y]);
+        let png = r
+            .report_screenshot(
+                &meshes,
+                p + Vec3::new(-0.2, -0.3, 0.2),
+                p,
+                0.,
+                game.hermes.minimap_view([p.x, p.y], 0.),
+            )
+            .unwrap();
+        if let Some(dir) = std::env::var_os("WINTER_CAPTURE") {
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(std::path::Path::new(&dir).join(format!("{name}.png")), &png).unwrap();
+        }
+        let mut decoder = png::Decoder::new(png.as_slice()).read_info().unwrap();
+        let mut pixels = vec![0; decoder.output_buffer_size()];
+        decoder.next_frame(&mut pixels).unwrap();
+        pixels
+    };
+    let summer = frame(&game, "reload-summer");
+    game.apply_palette_action(PaletteAction::Season(Season::Winter));
+    let winter = frame(&game, "reload-winter");
+    let brightened = summer
+        .chunks_exact(4)
+        .zip(winter.chunks_exact(4))
+        .filter(|(s, w)| u16::from(w[0]) > u16::from(s[0]) + 30)
+        .count();
+    assert!(
+        brightened > 1000,
+        "test scene did not gain floor snow: {brightened}"
+    );
+    let cell = crate::dynamic_world::snow::CELL_METERS / METERS_PER_UNIT;
+    let center = [(p.x / cell).floor() as i32, (p.y / cell).floor() as i32];
+    for x in -80..80 {
+        for y in -12..12 {
+            game.world
+                .snow
+                .clear_height((center[0] + x, center[1] + y), 0.);
+        }
+    }
+    let cleared = frame(&game, "reload-winter-cleared");
+    assert_ne!(cleared, winter, "test plow trails did not reach the GPU");
+    assert!(game
+        .apply_reloaded_map(Hermes::test_map_from_source("player_start(100,100,0);"))
+        .is_err());
+    assert_eq!(game.world.season(), Season::Winter);
+    assert_eq!(game.renderer.as_ref().unwrap().season, Season::Winter);
+    assert_eq!(frame(&game, "reload-rejected"), cleared);
+    game.apply_reloaded_map(Hermes::test_map_from_source(source))
+        .unwrap();
+    assert_eq!(game.world.season(), Season::Summer);
+    assert_eq!(game.renderer.as_ref().unwrap().season, Season::Summer);
+    assert!(game.world.snow.cells.is_empty());
+    assert!(game.world.snow.changes.is_empty());
+    assert_eq!(
+        frame(&game, "reload-summer-restored"),
+        summer,
+        "floor snow persisted after a successful map reload"
+    );
+    game.apply_palette_action(PaletteAction::Season(Season::Winter));
+    assert_eq!(
+        frame(&game, "reload-winter-fresh"),
+        winter,
+        "old GPU plow trails survived into the next winter session"
+    );
+    assert!(game.world.snow.cells.is_empty());
+}
+
 fn capture(game: &mut Game, path: &Path) {
     let p = game.world.player_position() / METERS_PER_UNIT;
     let navigation = game

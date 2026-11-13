@@ -6,6 +6,7 @@ use opencity::runtime::Mesh;
 use opencity::runtime::{SurfaceKind, Vertex};
 use serde::Deserialize;
 use std::sync::OnceLock;
+pub(crate) const SNOWPLOW_ID: &str = "vehicle-j03";
 
 #[cfg(test)]
 #[path = "catalog_collecteur_tests.rs"]
@@ -115,6 +116,12 @@ fn shadow_role(name: &str) -> ShadowRole {
         }
         _ => ShadowRole::Exterior,
     }
+}
+fn excludes_snow(name: &str, role: PartRole) -> bool {
+    role != PartRole::Body
+        || matches!(shadow_role(name), ShadowRole::Interior)
+        || name.starts_with("steering_")
+        || matches!(name, "plow_control_console" | "steering_column")
 }
 pub struct Definition {
     pub config: Config,
@@ -388,6 +395,16 @@ impl Definition {
                                 ]
                             },
                         });
+                    }
+                }
+                if excludes_snow(node.name().unwrap_or(""), role) {
+                    for vertex in &mut vertices {
+                        if vertex.surface[0] < 0. && !headlight_vertex(vertex) {
+                            // Half-layer marker preserves both texture selection and UVs.
+                            vertex.surface[0] = -((-vertex.surface[0]).floor() + 0.5);
+                        } else if vertex.surface[0] >= 0. && vertex.surface[3] == 0. {
+                            vertex.surface[3] = -3.;
+                        }
                     }
                 }
                 if rear_lens(node.name().unwrap_or("")) {

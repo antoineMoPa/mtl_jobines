@@ -8,6 +8,8 @@ struct Settings {
     eye_radius: [f32; 4],
     viewport: [f32; 4],
     tuning: [f32; 4],
+    // Time, winter strength, daylight, and reserved.
+    weather: [f32; 4],
 }
 pub(super) struct Ssao {
     pub scene: wgpu::TextureView,
@@ -244,6 +246,8 @@ impl Ssao {
         width: u32,
         height: u32,
         enabled: bool,
+        weather: [f32; 4],
+        snowfall: Option<&super::snowfall::Snowfall>,
         timestamp: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         let data = Settings {
@@ -251,6 +255,7 @@ impl Ssao {
             eye_radius: [eye.x, eye.y, eye.z, 0.015],
             viewport: [width as f32, height as f32, 0., 0.],
             tuning: [0.00012, 1.8, f32::from(enabled), 0.],
+            weather,
         };
         queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
         {
@@ -304,6 +309,9 @@ impl Ssao {
         pass.set_pipeline(&self.composite_pipeline);
         pass.set_bind_group(0, &self.composite_group, &[]);
         pass.draw(0..3, 0..1);
+        if let Some(snowfall) = snowfall {
+            snowfall.draw(&mut pass);
+        }
     }
 }
 #[cfg(test)]

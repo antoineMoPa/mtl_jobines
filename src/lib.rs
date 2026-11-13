@@ -2,6 +2,7 @@ mod audio;
 mod dynamic_world;
 mod engine;
 mod hermes;
+mod season;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use engine::run;

@@ -40,6 +40,7 @@ impl TimeCommand {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum PaletteAction {
+    Season(crate::season::Season),
     Time(TimeCommand),
     Respawn(String),
     JumpToLocation,
@@ -54,6 +55,9 @@ pub(super) enum PaletteAction {
 }
 impl PaletteAction {
     fn from_id(id: &str) -> Option<Self> {
+        if let Some(season) = crate::season::Season::from_command(id) {
+            return Some(Self::Season(season));
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if id == "building.place" {
             return Some(Self::BuildBuildings);
@@ -110,6 +114,16 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
             "map.jump",
             "Jump to location…",
             "Click the map to move yourself and your current car there",
+        ),
+        (
+            "season.winter",
+            "Change season to winter",
+            "Cover exposed surfaces in snow and send out snowplow drivers",
+        ),
+        (
+            "season.summer",
+            "Change season to summer",
+            "Restore summer surfaces and finish winter snowplow patrols",
         ),
     ]
     .into_iter()
@@ -875,3 +889,50 @@ mod follow_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "palette/construction_tests.rs"]
 mod construction_tests;
+
+#[cfg(test)]
+mod season_tests {
+    use super::*;
+    #[test]
+    fn exact_season_phrases_select_and_dismiss_the_palette() {
+        for (query, season) in [
+            ("change season to winter", crate::season::Season::Winter),
+            ("change season to summer", crate::season::Season::Summer),
+        ] {
+            let ctx = egui::Context::default();
+            let mut menu = CommandPalette::default();
+            menu.open();
+            let mut selected = None;
+            for events in [
+                vec![],
+                vec![egui::Event::Text(query.into())],
+                vec![egui::Event::Key {
+                    key: egui::Key::Enter,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Default::default(),
+                }],
+            ] {
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(1280., 800.),
+                        )),
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| {
+                        if let Some(id) = menu.show(ui.ctx(), &commands(&[])) {
+                            selected = PaletteAction::from_id(&id);
+                        }
+                    },
+                );
+                output.textures_delta.clear();
+            }
+            assert_eq!(selected, Some(PaletteAction::Season(season)));
+            assert!(!menu.is_open());
+        }
+    }
+}

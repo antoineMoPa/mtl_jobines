@@ -9,10 +9,12 @@ struct Part {
 }
 pub(super) struct VehicleScenery {
     models: Vec<Vec<Part>>,
+    pedestrians: super::pedestrian_scenery::PedestrianScenery,
 }
 impl VehicleScenery {
     pub fn new(renderer: &Renderer) -> Self {
         Self {
+            pedestrians: super::pedestrian_scenery::PedestrianScenery::new(renderer),
             models: catalog::definitions()
                 .iter()
                 .map(|definition| {
@@ -29,6 +31,13 @@ impl VehicleScenery {
         }
     }
     pub fn update(&mut self, renderer: &Renderer, world: &DynamicWorld) {
+        self.pedestrians.update(renderer, world);
+        if world.season() == crate::season::Season::Winter {
+            let center = world.player_position() / crate::dynamic_world::METERS_PER_UNIT;
+            renderer
+                .snow
+                .update(&renderer.queue, [center.x, center.y], &world.snow);
+        }
         renderer.local_lights.set(world.local_lights());
         for part in self.models.iter_mut().flatten() {
             part.transforms.clear();
@@ -55,5 +64,6 @@ impl VehicleScenery {
             .flatten()
             .filter(|p| !p.transforms.is_empty())
             .map(|p| &p.mesh)
+            .chain(self.pedestrians.visible())
     }
 }

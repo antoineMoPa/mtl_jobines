@@ -14,6 +14,11 @@ use std::sync::Arc;
 const TARGET: usize = 36;
 const SPAWN_RADIUS: f32 = 180.;
 const RETAIN_RADIUS: f32 = 240.;
+fn snowplow(vehicle: &Vehicle) -> bool {
+    vehicle
+        .definition()
+        .is_some_and(|d| d.config.research_id == catalog::SNOWPLOW_ID)
+}
 struct Driver {
     vehicle: usize,
     spawned_at: f32,
@@ -51,6 +56,7 @@ impl Driver {
     }
 }
 pub(super) struct Traffic {
+    season: crate::season::Season,
     graph: Arc<TrafficPaths>,
     drivers: Vec<Driver>,
     inactive: Vec<usize>,
@@ -66,10 +72,18 @@ pub(super) struct Traffic {
     interacted: HashMap<usize, lod::Protected>,
 }
 impl Traffic {
+    #[cfg(test)]
     pub fn new(graph: &Arc<TrafficPaths>) -> Self {
+        Self::with_prop_focus(graph, None)
+    }
+    pub fn new_near(graph: &Arc<TrafficPaths>, center: Vec3) -> Self {
+        Self::with_prop_focus(graph, Some(center))
+    }
+    fn with_prop_focus(graph: &Arc<TrafficPaths>, center: Option<Vec3>) -> Self {
         let (signal_models, groups): (Vec<_>, Vec<_>) =
             graph.signals.iter().map(models::instantiate).unzip();
         Self {
+            season: Default::default(),
             graph: graph.clone(),
             drivers: Vec::new(),
             inactive: Vec::new(),
@@ -77,7 +91,10 @@ impl Traffic {
             time: 0.,
             seed: 7193,
             refill: 0.,
-            signal_props: super::props::Props::from_groups(groups),
+            signal_props: match center {
+                Some(center) => super::props::Props::from_groups_near(groups, center),
+                None => super::props::Props::from_groups(groups),
+            },
             signal_models,
             // A junction without space for a supported mast uses the existing
             // all-way-stop behavior instead of planting a pole in a traffic lane.
@@ -95,6 +112,55 @@ impl Traffic {
     fn random(&mut self, count: usize) -> usize {
         self.seed = self.seed.wrapping_mul(6364136223846793005).wrapping_add(1);
         (self.seed >> 32) as usize % count.max(1)
+    }
+    pub fn set_season(
+        &mut self,
+        season: crate::season::Season,
+        vehicles: &mut [Vehicle],
+        player: usize,
+    ) {
+        use crate::season::Season;
+        if self.season == season {
+            return;
+        }
+        self.season = season;
+        let mut retire: Vec<usize> = if season == Season::Summer {
+            self.drivers
+                .iter()
+                .filter(|d| snowplow(&vehicles[d.vehicle]))
+                .map(|d| d.vehicle)
+                .collect()
+        } else {
+            let mut candidates: Vec<_> = self
+                .drivers
+                .iter()
+                .filter(|d| d.vehicle != player && !self.interacted.contains_key(&d.vehicle))
+                .filter(|d| {
+                    vehicles[d.vehicle]
+                        .definition()
+                        .is_some_and(|d| d.config.dimensions.length < 6.)
+                })
+                .map(|d| d.vehicle)
+                .collect();
+            let center = vehicles.get(player).map_or(Vec3::ZERO, |v| v.position);
+            candidates.sort_by(|a, b| {
+                vehicles[*b]
+                    .position
+                    .distance_squared(center)
+                    .total_cmp(&vehicles[*a].position.distance_squared(center))
+            });
+            candidates.into_iter().take(2).collect()
+        };
+        retire.retain(|&id| id != player);
+        self.drivers.retain(|d| !retire.contains(&d.vehicle));
+        for id in retire {
+            if !self.interacted.contains_key(&id) {
+                vehicles[id].velocity = Vec3::ZERO;
+                vehicles[id].position.z = -1000.;
+                self.inactive.push(id);
+            }
+        }
+        self.refill = 0.;
     }
     pub fn populate(&mut self, city: &City, vehicles: &mut Vec<Vehicle>, center: Vec3) {
         let vacant = &mut self.inactive;
@@ -143,7 +209,9 @@ impl Traffic {
                 d.config.road_vehicle
                     && (d.config.dimensions.length < 6.
                         || d.config.category == "bus"
-                        || d.config.research_id == "vehicle-j05")
+                        || d.config.research_id == "vehicle-j05"
+                        || (self.season == crate::season::Season::Winter
+                            && d.config.research_id == catalog::SNOWPLOW_ID))
             })
             .map(|(id, _)| id)
             .collect();
@@ -153,11 +221,27 @@ impl Traffic {
             }
             let (path, distance) = candidates[self.random(candidates.len())];
             let (point, heading) = self.graph.paths[path].sample(distance);
-            let model = models[self.random(models.len())];
+            let plows = self
+                .drivers
+                .iter()
+                .filter(|d| snowplow(&vehicles[d.vehicle]))
+                .count();
+            let model = if self.season == crate::season::Season::Winter && plows < 2 {
+                models
+                    .iter()
+                    .copied()
+                    .find(|&id| {
+                        catalog::definitions()[id].config.research_id == catalog::SNOWPLOW_ID
+                    })
+                    .unwrap_or_else(|| models[self.random(models.len())])
+            } else {
+                models[self.random(models.len())]
+            };
             let definition = &catalog::definitions()[model];
             let length = definition.config.dimensions.length;
             // Keep long vehicles away from lane ends and existing vehicles.
             if distance < length * 0.5 + 1.5
+                || (definition.config.research_id == catalog::SNOWPLOW_ID && plows >= 2)
                 || self.graph.paths[path].length - distance < length * 0.5 + 1.5
                 || (definition.config.category == "bus"
                     && self
@@ -354,6 +438,9 @@ impl Traffic {
             let lookahead = (3.5 + speed * 0.7).clamp(wheelbase.max(3.5), 16.);
             let mut target = path.sample(driver.distance + lookahead).0;
             let mut limit = path.speed.meters_per_second();
+            if snowplow(car) {
+                limit = limit.min(20. / 3.6);
+            }
             let mut clearance = f32::INFINITY;
             if let Some(next) = driver.next {
                 let next_path = &self.graph.paths[next];

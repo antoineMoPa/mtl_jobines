@@ -33,6 +33,17 @@ pub(super) fn is_green(signal: &SignalApproach, time: f32) -> bool {
     aspect(signal, time) == Aspect::Green
 }
 impl Traffic {
+    pub fn update_prop_focus(&mut self, center: Vec3) {
+        self.signal_props.update_focus(center);
+        // Unsupported masts stay failed. A damaged junction regains power only
+        // after every broken assembly has reset outside the player's view.
+        self.failed_junctions.retain(|junction| {
+            self.graph.signals.iter().enumerate().any(|(id, signal)| {
+                signal.junction == *junction
+                    && (signal.mast_base.is_none() || !self.signal_props.group_intact(id))
+            })
+        });
+    }
     pub fn vehicle_move(
         &mut self,
         vehicle: &mut crate::dynamic_world::Vehicle,
@@ -40,11 +51,11 @@ impl Traffic {
         city: &opencity::runtime::City,
     ) {
         self.signal_props.vehicle_move(vehicle, before, city);
-        for (id, signal) in self.graph.signals.iter().enumerate() {
-            if !self.signal_props.group_intact(id) {
-                self.failed_junctions.insert(signal.junction);
-            }
-        }
+        self.failed_junctions.extend(
+            self.signal_props
+                .damaged_groups()
+                .map(|id| self.graph.signals[id].junction),
+        );
     }
     pub fn step_debris(&mut self, dt: f32) {
         self.signal_props.step(dt);
@@ -283,5 +294,37 @@ mod tests {
                 visible
             );
         }
+    }
+
+    #[test]
+    fn failed_junction_recovers_after_departure_but_unsupported_masts_stay_failed() {
+        let mut traffic = traffic();
+        let hermes = crate::hermes::Hermes::test_map_from_source(include_str!(
+            "../../../tests/fixtures/signal_cache.road"
+        ));
+        let base = traffic.graph.signals[0].mast_base.unwrap();
+        let direction = traffic.graph.signals[0].forward;
+        let junction = traffic.graph.signals[0].junction;
+        let mut car = crate::dynamic_world::Vehicle::spawn(hermes.city());
+        car.yaw = direction.y.atan2(direction.x);
+        car.position = base + direction * 5. + Vec3::Z * car.ride_height();
+        car.velocity = direction * 14.;
+        let before = base - direction * 8. + Vec3::Z * car.ride_height();
+        traffic.vehicle_move(&mut car, before, hermes.city());
+        assert!(traffic.failed_junctions.contains(&junction));
+        traffic.update_prop_focus(base);
+        assert!(traffic.failed_junctions.contains(&junction));
+        traffic.update_prop_focus(base + Vec3::X * 2_000.);
+        assert!(traffic.signal_props.group_intact(0));
+        assert!(!traffic.failed_junctions.contains(&junction));
+
+        let source =
+            include_str!("../../../tests/fixtures/signal_cache.road").replace("sidewalk", "verge");
+        let hermes = crate::hermes::Hermes::test_map_from_source(&source);
+        let mut unsupported = Traffic::new(hermes.traffic_paths());
+        assert!(!unsupported.failed_junctions.is_empty());
+        let failed = unsupported.failed_junctions.clone();
+        unsupported.update_prop_focus(Vec3::X * 2_000.);
+        assert_eq!(failed, unsupported.failed_junctions);
     }
 }

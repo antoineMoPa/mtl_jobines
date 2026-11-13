@@ -19,6 +19,7 @@ mod hud;
 mod lighting;
 mod local_lights;
 mod palette;
+mod pedestrian_scenery;
 mod prop_scenery;
 mod render;
 #[cfg(not(target_arch = "wasm32"))]
@@ -32,6 +33,7 @@ mod sky_controls;
 mod sky_probe;
 #[cfg(not(target_arch = "wasm32"))]
 mod smoke;
+mod snow;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod snowplow_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]

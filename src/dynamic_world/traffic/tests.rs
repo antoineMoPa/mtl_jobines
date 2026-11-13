@@ -689,3 +689,70 @@ fn street_furniture_bases_touch_supporting_surface() {
         assert!((p[2] - support.height).abs() < 0.00001);
     }
 }
+
+#[test]
+fn winter_adds_two_plow_drivers_and_summer_retires_them_without_growing_population() {
+    use crate::season::Season;
+    let (city, graph) = map(STRAIGHT);
+    let mut traffic = Traffic::new(&graph);
+    let mut cars = Vec::new();
+    traffic.populate(&city, &mut cars, Vec3::ZERO);
+    assert!(traffic.drivers.iter().all(|d| !snowplow(&cars[d.vehicle])));
+    let slots = cars.len();
+    for _ in 0..3 {
+        traffic.set_season(Season::Winter, &mut cars, usize::MAX);
+        traffic.populate(&city, &mut cars, Vec3::ZERO);
+        assert_eq!(traffic.drivers.len(), TARGET);
+        assert_eq!(
+            traffic
+                .drivers
+                .iter()
+                .filter(|d| snowplow(&cars[d.vehicle]))
+                .count(),
+            2
+        );
+        assert_eq!(cars.len(), slots, "season changes leaked vehicle slots");
+        let plow = traffic
+            .drivers
+            .iter()
+            .find(|d| snowplow(&cars[d.vehicle]))
+            .unwrap()
+            .vehicle;
+        traffic
+            .interacted
+            .insert(plow, lod::Protected::Awake { quiet: 0. });
+        let kept = cars[plow].position;
+        traffic.set_season(Season::Summer, &mut cars, usize::MAX);
+        assert!(traffic.drivers.iter().all(|d| !snowplow(&cars[d.vehicle])));
+        assert_eq!(cars[plow].position, kept, "interacted plow disappeared");
+        // Release this test-only protection before refilling so the preserved slot
+        // cannot force an extra spawn across repeated transitions.
+        traffic.interacted.remove(&plow);
+        traffic.inactive.push(plow);
+        cars[plow].position.z = -1000.;
+        traffic.populate(&city, &mut cars, Vec3::ZERO);
+        assert_eq!(traffic.drivers.len(), TARGET);
+        assert_eq!(cars.len(), slots);
+    }
+}
+#[test]
+fn snowplow_driver_moves_with_truck_geometry_and_a_twenty_kmh_patrol_limit() {
+    let (city, graph) = map(STRAIGHT);
+    let (mut traffic, mut cars) = one_driver(&city, &graph, 0, 180.);
+    let model = catalog::definitions()
+        .iter()
+        .position(|d| d.config.research_id == catalog::SNOWPLOW_ID)
+        .unwrap();
+    cars[0].definition = Some(model);
+    cars[0].position.z = graph.paths[0].sample(180.).0.z + cars[0].ride_height();
+    let before = cars[0].position;
+    for _ in 0..480 {
+        tick(&mut traffic, &city, &mut cars, 1. / 60.);
+    }
+    assert!(
+        cars[0].position.distance(before) > 5.,
+        "snowplow NPC did not drive"
+    );
+    assert!(traffic.drivers[0].target_speed <= 20. / 3.6 + 0.001);
+    assert!(cars[0].position.is_finite());
+}

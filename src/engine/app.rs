@@ -329,6 +329,20 @@ impl Game {
     }
     fn apply_palette_action(&mut self, action: PaletteAction) {
         match action {
+            PaletteAction::Season(season) => {
+                self.world.set_season(&self.hermes, season);
+                if let Some(renderer) = &mut self.renderer {
+                    renderer.season = season;
+                }
+                self.scene_dirty = true;
+                if let Some(window) = &self.window {
+                    window.set_title(match season {
+                        crate::season::Season::Winter => "MTL Jobines · winter",
+                        crate::season::Season::Summer => "MTL Jobines · summer",
+                    });
+                    window.request_redraw();
+                }
+            }
             #[cfg(not(target_arch = "wasm32"))]
             PaletteAction::BuildBuildings
             | PaletteAction::ExpandNetwork

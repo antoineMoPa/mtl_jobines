@@ -8,6 +8,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 mod culling;
 mod lod;
+mod snowfall;
 mod ssao;
 use culling::{Bounds, Frustum};
 pub(super) use lod::RenderLod;
@@ -35,6 +36,7 @@ struct Camera {
 }
 pub struct GpuMesh {
     buffer: wgpu::Buffer,
+    skin: Option<wgpu::Buffer>,
     instances: Option<Instances>,
     count: u32,
     opaque_count: u32,
@@ -61,6 +63,8 @@ pub struct VisibilityStats {
     pub shadow_vertex_buffers: u64,
 }
 pub struct Renderer {
+    pub(crate) season: crate::season::Season,
+    pub(super) snow: super::snow::Snow,
     instance: wgpu::Instance,
     pub device: wgpu::Device,
     pub(super) queue: wgpu::Queue,
@@ -69,10 +73,12 @@ pub struct Renderer {
     pub(super) reserved_bottom: u32,
     pub(super) construction_span: Option<f32>,
     pub(super) ambient_occlusion: bool,
+    pub(super) winter_weather: bool,
     pub(super) render_lod: RenderLod,
     pub(super) contact_debris: bool,
     contact_texture: super::contact_texture::ContactTexture,
     ssao: ssao::Ssao,
+    snowfall: snowfall::Snowfall,
     pipeline: wgpu::RenderPipeline,
     opaque_pipeline: wgpu::RenderPipeline,
     graffiti_pipeline: wgpu::RenderPipeline,
@@ -80,6 +86,9 @@ pub struct Renderer {
     opaque_shadow_pipeline: wgpu::RenderPipeline,
     vehicle_pipeline: wgpu::RenderPipeline,
     vehicle_shadow_pipeline: wgpu::RenderPipeline,
+    pedestrian_pipeline: wgpu::RenderPipeline,
+    pedestrian_shadow_pipeline: wgpu::RenderPipeline,
+    pub(super) pedestrians: super::pedestrian_scenery::Resources,
     uniform: wgpu::Buffer,
     pub(super) local_lights: super::local_lights::LocalLights,
     camera_group: wgpu::BindGroup,
@@ -262,32 +271,35 @@ impl Renderer {
         if let Some(s) = &surface {
             s.configure(&device, &config);
         }
+        let mut camera_entries = vec![
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ];
+        camera_entries.extend(super::pedestrian_scenery::Resources::layout());
         let camera_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("camera layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
+            entries: &camera_entries,
         });
         let contact_texture = super::contact_texture::ContactTexture::new(&device, &queue);
+        let snow = super::snow::Snow::new(&device, &queue);
         let mut shadow_entries = vec![
             wgpu::BindGroupLayoutEntry {
                 binding: 0,
@@ -307,6 +319,7 @@ impl Renderer {
             },
         ];
         shadow_entries.extend(super::contact_texture::ContactTexture::layout(2));
+        shadow_entries.extend(super::snow::Snow::layout());
         let shadow_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("shadow layout"),
             entries: &shadow_entries,
@@ -318,19 +331,22 @@ impl Renderer {
             mapped_at_creation: false,
         });
         let local_lights = super::local_lights::LocalLights::new(&device);
+        let pedestrians = super::pedestrian_scenery::Resources::new(&device, &queue);
+        let mut camera_bindings = vec![
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: local_lights.buffer.as_entire_binding(),
+            },
+        ];
+        camera_bindings.extend(pedestrians.entries());
         let camera_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("camera"),
             layout: &camera_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniform.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: local_lights.buffer.as_entire_binding(),
-                },
-            ],
+            entries: &camera_bindings,
         });
         let sky = Sky::new(&device, &camera_layout, format);
         let shadow = depth(
@@ -360,6 +376,7 @@ impl Renderer {
             },
         ];
         shadow_bindings.extend(contact_texture.entries(2));
+        shadow_bindings.extend(snow.entries());
         let shadow_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("sun shadow"),
             layout: &shadow_layout,
@@ -372,7 +389,11 @@ impl Renderer {
                 format!(
                     "{}\n{}",
                     super::commerce::shader(),
-                    include_str!("vehicle.wgsl")
+                    format!(
+                        "{}\n{}",
+                        include_str!("vehicle.wgsl"),
+                        include_str!("pedestrian.wgsl")
+                    )
                 )
                 .into(),
             ),
@@ -395,96 +416,122 @@ impl Renderer {
             });
         let instance_attributes = wgpu::vertex_attr_array![4=>Float32x4,5=>Float32x4,
             6=>Float32x4,7=>Float32x4];
-        let make_pipeline = |shadow: bool, masked: bool, instanced: bool, paint: bool| {
-            let targets = [Some(wgpu::ColorTargetState {
-                format,
-                blend: paint.then_some(wgpu::BlendState::ALPHA_BLENDING),
-                write_mask: wgpu::ColorWrites::ALL,
-            })];
-            let buffers = [
-                Some(layout()),
-                Some(wgpu::VertexBufferLayout {
-                    array_stride: 64,
-                    step_mode: wgpu::VertexStepMode::Instance,
-                    attributes: &instance_attributes,
-                }),
-            ];
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(if shadow { "sun depth" } else { "world" }),
-                layout: Some(if shadow {
-                    &shadow_pipeline_layout
-                } else {
-                    &pipeline_layout
-                }),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: Some(match (shadow, instanced) {
-                        (true, true) => "vs_vehicle_shadow",
-                        (false, true) => "vs_vehicle",
-                        (true, false) => "vs_shadow",
-                        (false, false) => "vs",
+        let skin_attributes = wgpu::vertex_attr_array![8=>Uint16x4,9=>Float32x4];
+        let make_pipeline =
+            |shadow: bool, masked: bool, instanced: bool, paint: bool, skinned: bool| {
+                let targets = [Some(wgpu::ColorTargetState {
+                    format,
+                    blend: paint.then_some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })];
+                let buffers = [
+                    Some(layout()),
+                    Some(wgpu::VertexBufferLayout {
+                        array_stride: 64,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: &instance_attributes,
                     }),
-                    compilation_options: Default::default(),
-                    buffers: if instanced { &buffers } else { &buffers[..1] },
-                },
-                fragment: (!(shadow && !masked)).then_some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: Some(if shadow {
-                        if instanced {
-                            "fs_vehicle_shadow"
+                    Some(wgpu::VertexBufferLayout {
+                        array_stride: 24,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &skin_attributes,
+                    }),
+                ];
+                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(if shadow { "sun depth" } else { "world" }),
+                    layout: Some(if shadow {
+                        &shadow_pipeline_layout
+                    } else {
+                        &pipeline_layout
+                    }),
+                    vertex: wgpu::VertexState {
+                        module: &shader,
+                        entry_point: Some(if skinned {
+                            if shadow {
+                                "vs_pedestrian_shadow"
+                            } else {
+                                "vs_pedestrian"
+                            }
                         } else {
-                            "fs_shadow_game"
-                        }
-                    } else if paint {
-                        "fs_graffiti"
-                    } else if instanced {
-                        "fs_vehicle"
-                    } else if masked {
-                        "fs_game"
-                    } else {
-                        "fs_opaque_game"
-                    }),
-                    compilation_options: Default::default(),
-                    targets: if shadow { &[] } else { &targets },
-                }),
-                primitive: wgpu::PrimitiveState {
-                    cull_mode: None,
-                    ..Default::default()
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: Some(!paint),
-                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
-                    stencil: Default::default(),
-                    bias: if shadow {
-                        wgpu::DepthBiasState {
-                            constant: 2,
-                            slope_scale: 2.,
-                            clamp: 0.,
-                        }
-                    } else {
-                        Default::default()
+                            match (shadow, instanced) {
+                                (true, true) => "vs_vehicle_shadow",
+                                (false, true) => "vs_vehicle",
+                                (true, false) => "vs_shadow",
+                                (false, false) => "vs",
+                            }
+                        }),
+                        compilation_options: Default::default(),
+                        buffers: if skinned {
+                            &buffers
+                        } else if instanced {
+                            &buffers[..2]
+                        } else {
+                            &buffers[..1]
+                        },
                     },
-                }),
-                multisample: wgpu::MultisampleState {
-                    count: if shadow { 1 } else { 4 },
-                    alpha_to_coverage_enabled: !shadow && masked && !paint,
-                    ..Default::default()
-                },
-                multiview_mask: None,
-                cache: None,
-            })
-        };
-        let pipeline = make_pipeline(false, true, false, false);
-        let opaque_pipeline = make_pipeline(false, false, false, false);
-        let graffiti_pipeline = make_pipeline(false, true, false, true);
-        let shadow_pipeline = make_pipeline(true, true, false, false);
-        let opaque_shadow_pipeline = make_pipeline(true, false, false, false);
-        let vehicle_pipeline = make_pipeline(false, true, true, false);
-        let vehicle_shadow_pipeline = make_pipeline(true, true, true, false);
+                    fragment: (!(shadow && !masked)).then_some(wgpu::FragmentState {
+                        module: &shader,
+                        entry_point: Some(if shadow {
+                            if instanced {
+                                "fs_vehicle_shadow"
+                            } else {
+                                "fs_shadow_game"
+                            }
+                        } else if skinned {
+                            "fs_pedestrian"
+                        } else if paint {
+                            "fs_graffiti"
+                        } else if instanced {
+                            "fs_vehicle"
+                        } else if masked {
+                            "fs_game"
+                        } else {
+                            "fs_opaque_game"
+                        }),
+                        compilation_options: Default::default(),
+                        targets: if shadow { &[] } else { &targets },
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        cull_mode: None,
+                        ..Default::default()
+                    },
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled: Some(!paint),
+                        depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                        stencil: Default::default(),
+                        bias: if shadow {
+                            wgpu::DepthBiasState {
+                                constant: 2,
+                                slope_scale: 2.,
+                                clamp: 0.,
+                            }
+                        } else {
+                            Default::default()
+                        },
+                    }),
+                    multisample: wgpu::MultisampleState {
+                        count: if shadow { 1 } else { 4 },
+                        alpha_to_coverage_enabled: !shadow && masked && !paint,
+                        ..Default::default()
+                    },
+                    multiview_mask: None,
+                    cache: None,
+                })
+            };
+        let pipeline = make_pipeline(false, true, false, false, false);
+        let opaque_pipeline = make_pipeline(false, false, false, false, false);
+        let graffiti_pipeline = make_pipeline(false, true, false, true, false);
+        let shadow_pipeline = make_pipeline(true, true, false, false, false);
+        let opaque_shadow_pipeline = make_pipeline(true, false, false, false, false);
+        let vehicle_pipeline = make_pipeline(false, true, true, false, false);
+        let vehicle_shadow_pipeline = make_pipeline(true, true, true, false, false);
+        let pedestrian_pipeline = make_pipeline(false, true, true, false, true);
+        let pedestrian_shadow_pipeline = make_pipeline(true, true, true, false, true);
         let depth = depth(&device, width.max(1), height.max(1), "depth", false);
         let color = color_target(&device, width, height, format);
         let ssao = ssao::Ssao::new(&device, width.max(1), height.max(1), format, &depth);
+        let snowfall = snowfall::Snowfall::new(&device, format, &depth, &snow);
         let hud = Hud::new(&device, format);
         #[cfg(not(target_arch = "wasm32"))]
         let gpu_profile = timestamp_features
@@ -516,6 +563,7 @@ impl Renderer {
             contact_debris: true,
             contact_texture,
             ssao,
+            snowfall,
             pipeline,
             opaque_pipeline,
             graffiti_pipeline,
@@ -523,6 +571,9 @@ impl Renderer {
             opaque_shadow_pipeline,
             vehicle_pipeline,
             vehicle_shadow_pipeline,
+            pedestrian_pipeline,
+            pedestrian_shadow_pipeline,
+            pedestrians,
             uniform,
             camera_group,
             shadow_group,
@@ -535,6 +586,9 @@ impl Renderer {
             full_map: Default::default(),
             menu_selection: MenuItem::Resume,
             daylight: None,
+            season: Default::default(),
+            winter_weather: true,
+            snow,
             sky_settings: SkySettings::default(),
             sky,
             commerce,
@@ -569,6 +623,7 @@ impl Renderer {
             self.config.format.add_srgb_suffix(),
         );
         self.ssao.resize(&self.device, width, height, &self.depth);
+        self.snowfall.resize(&self.device, &self.depth);
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn sky_update_count(&self) -> u64 {
@@ -607,6 +662,7 @@ impl Renderer {
     // every vertex again each frame; conservatively draw them in both passes.
     pub fn upload_dynamic(&self, mesh: &Mesh) -> GpuMesh {
         let mut gpu = GpuMesh {
+            skin: None,
             instances: None,
             buffer: self.dynamic_buffer(std::mem::size_of_val(mesh.vertices.as_slice()) as u64),
             count: 0,
@@ -626,6 +682,28 @@ impl Renderer {
             scales: Vec::new(),
             force_full: Vec::new(),
         });
+        mesh
+    }
+    pub(super) fn upload_skinned(
+        &self,
+        vertices: &[Vertex],
+        skin: &[crate::dynamic_world::pedestrian_catalog::SkinVertex],
+    ) -> GpuMesh {
+        assert_eq!(vertices.len(), skin.len());
+        let mut mesh = self.upload_instanced(vertices);
+        mesh.skin = Some(
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("shared pedestrian weights"),
+                    contents: bytemuck::cast_slice(skin),
+                    usage: wgpu::BufferUsages::VERTEX,
+                }),
+        );
+        // Skinning moves feet beyond the T-pose depth. Keep conservative local
+        // animation bounds for both camera and sun culling.
+        let bounds = mesh.bounds.as_mut().unwrap();
+        bounds.min = bounds.min.min(Vec3::new(-2.4, -0.6, -2.4));
+        bounds.max = bounds.max.max(Vec3::new(2.4, 2.4, 2.4));
         mesh
     }
     pub fn update_instances(&self, mesh: &mut GpuMesh, transforms: &[[[f32; 4]; 4]]) {
@@ -710,6 +788,7 @@ impl Renderer {
             });
         GpuMesh {
             buffer,
+            skin: None,
             instances: None,
             count: source.len() as u32,
             opaque_count,
@@ -781,7 +860,7 @@ impl Renderer {
             daylight_sky: [
                 lighting.daylight,
                 f32::from(self.construction_span.is_some()),
-                0.,
+                self.season.snow_cover(),
                 0.,
             ],
             inverse_view_projection: view.inverse().to_cols_array_2d(),
@@ -867,11 +946,26 @@ impl Renderer {
             }
             pass.set_pipeline(&self.vehicle_shadow_pipeline);
             for mesh in meshes {
+                if mesh.skin.is_some() {
+                    continue;
+                }
                 if let Some(instances) = &mesh.instances {
                     for (draw, range) in
                         mesh.instance_draws(&shadow_frustum, &detail_view, self.render_lod, true)
                     {
                         pass.set_vertex_buffer(1, instances.buffer.slice(..));
+                        draw.draw(&mut pass, 0..draw.paint, range);
+                    }
+                }
+            }
+            pass.set_pipeline(&self.pedestrian_shadow_pipeline);
+            for mesh in meshes {
+                if let (Some(skin), Some(instances)) = (&mesh.skin, &mesh.instances) {
+                    for (draw, range) in
+                        mesh.instance_draws(&shadow_frustum, &detail_view, self.render_lod, true)
+                    {
+                        pass.set_vertex_buffer(1, instances.buffer.slice(..));
+                        pass.set_vertex_buffer(2, skin.slice(..));
                         draw.draw(&mut pass, 0..draw.paint, range);
                     }
                 }
@@ -942,11 +1036,26 @@ impl Renderer {
             }
             pass.set_pipeline(&self.vehicle_pipeline);
             for mesh in meshes {
+                if mesh.skin.is_some() {
+                    continue;
+                }
                 if let Some(instances) = &mesh.instances {
                     for (draw, range) in
                         mesh.instance_draws(&camera_frustum, &detail_view, self.render_lod, false)
                     {
                         pass.set_vertex_buffer(1, instances.buffer.slice(..));
+                        draw.draw(&mut pass, 0..draw.count, range);
+                    }
+                }
+            }
+            pass.set_pipeline(&self.pedestrian_pipeline);
+            for mesh in meshes {
+                if let (Some(skin), Some(instances)) = (&mesh.skin, &mesh.instances) {
+                    for (draw, range) in
+                        mesh.instance_draws(&camera_frustum, &detail_view, self.render_lod, false)
+                    {
+                        pass.set_vertex_buffer(1, instances.buffer.slice(..));
+                        pass.set_vertex_buffer(2, skin.slice(..));
                         draw.draw(&mut pass, 0..draw.count, range);
                     }
                 }
@@ -964,6 +1073,20 @@ impl Renderer {
             }
             self.sky.draw(&mut pass, &self.camera_group);
         }
+        let winter = self.season == crate::season::Season::Winter
+            && self.winter_weather
+            && self.construction_span.is_none();
+        if winter {
+            self.snowfall.prepare(
+                &self.queue,
+                view,
+                eye,
+                time,
+                self.config.width,
+                self.scene_height(),
+                lighting.daylight,
+            );
+        }
         self.ssao.draw(
             &self.queue,
             &mut encoder,
@@ -973,6 +1096,8 @@ impl Renderer {
             self.config.width,
             self.scene_height(),
             self.ambient_occlusion,
+            [time, f32::from(winter), lighting.daylight, 0.],
+            winter.then_some(&self.snowfall),
             self.gpu_profile.as_ref().map(|profile| {
                 let mut writes = profile.pass(1);
                 writes.beginning_of_pass_write_index = None;
@@ -1170,7 +1295,11 @@ mod tests {
         let source = format!(
             "{}\n{}",
             super::super::commerce::shader(),
-            include_str!("vehicle.wgsl")
+            format!(
+                "{}\n{}",
+                include_str!("vehicle.wgsl"),
+                include_str!("pedestrian.wgsl")
+            )
         );
         for source in [source.as_str(), opencity::runtime::EDITOR_SHADER] {
             let module = naga::front::wgsl::parse_str(source).unwrap();

@@ -17,6 +17,7 @@ mod route_signal;
 mod routing;
 pub use route_signal::RouteSignal;
 pub(crate) mod traffic_paths;
+pub(crate) mod walking_paths;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data))]
 use game_data::CacheKey;
 use game_data::GameData;
@@ -118,6 +119,7 @@ pub struct Hermes {
     external_vertex_count: usize,
     router: routing::Router,
     traffic_paths: Arc<traffic_paths::TrafficPaths>,
+    walking_paths: Arc<walking_paths::WalkingPaths>,
     navigation: routing::Navigation,
     #[cfg(not(target_arch = "wasm32"))]
     cache: Option<(CacheKey, std::path::PathBuf)>,
@@ -276,6 +278,7 @@ impl Hermes {
             default_start: crate::dynamic_world::SpawnPoint::from_program(program)?,
             parked_vehicles: crate::dynamic_world::parked::ParkedVehicle::from_program(program)?,
             traffic_paths: Arc::new(traffic_paths::TrafficPaths::new(&city, program)),
+            walking_paths: Arc::new(walking_paths::WalkingPaths::new(&city)),
             router,
             navigation: routing::Navigation::default(),
             city: Arc::new(city),
@@ -368,6 +371,9 @@ impl Hermes {
     }
     pub(crate) fn traffic_paths(&self) -> &Arc<traffic_paths::TrafficPaths> {
         &self.traffic_paths
+    }
+    pub(crate) fn walking_paths(&self) -> &Arc<walking_paths::WalkingPaths> {
+        &self.walking_paths
     }
     pub fn city(&self) -> &Arc<City> {
         &self.city

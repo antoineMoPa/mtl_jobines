@@ -8,11 +8,14 @@ use rapier3d::{
     parry::query::ShapeCastOptions,
     prelude::*,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 const TILE: f32 = 200.;
 const VIEW: f32 = 150.;
 const DRAW_TILE: f32 = 50.;
+const RESIDENT_RANGE: i32 = 2;
+const RESET_DISTANCE: f32 = 500.;
+const MAX_DEBRIS: usize = 128;
 
 /// Exact intact-prop selection for one 50 m render tile. The ordered IDs are
 /// also its cache signature: movement or destruction changes the selection.
@@ -32,6 +35,7 @@ struct Prop {
     debris: Option<RigidBodyHandle>,
     floor: Option<ColliderHandle>,
     age: f32,
+    broken: bool,
 }
 
 pub struct Props {
@@ -40,6 +44,8 @@ pub struct Props {
     items: Vec<Prop>,
     active: Vec<usize>,
     tiles: HashMap<(i32, i32), Vec<usize>>,
+    resident: Option<(i32, i32)>,
+    damaged: HashSet<usize>,
     colliders: ColliderSet,
     bodies: RigidBodySet,
     query: QueryPipeline,
@@ -55,10 +61,11 @@ pub struct Props {
     ccd: CCDSolver,
 }
 impl Props {
+    pub(super) fn damaged_groups(&self) -> impl Iterator<Item = usize> + '_ {
+        self.damaged.iter().copied()
+    }
     pub(super) fn group_intact(&self, group: usize) -> bool {
-        self.groups[group]
-            .iter()
-            .any(|&id| self.items[id].collider.is_some())
+        self.groups[group].iter().any(|&id| !self.items[id].broken)
     }
     #[cfg(test)]
     pub fn new(meshes: Vec<Mesh>) -> Self {
@@ -67,6 +74,22 @@ impl Props {
     /// Parts collide independently, preserving open space under structures.
     /// An impact detaches all parts of that assembly as separate rigid bodies.
     pub fn from_groups(groups: Vec<Vec<Mesh>>) -> Self {
+        Self::build(groups, None)
+    }
+    /// Keep immutable map meshes, but only build collision hulls near the player.
+    pub fn from_groups_near(groups: Vec<Vec<Mesh>>, center: Vec3) -> Self {
+        Self::build(groups, Some(Self::tile(center)))
+    }
+    fn tile(center: Vec3) -> (i32, i32) {
+        (
+            (center.x / TILE).floor() as i32,
+            (center.y / TILE).floor() as i32,
+        )
+    }
+    fn resident_tile(tile: (i32, i32), focus: (i32, i32)) -> bool {
+        (tile.0 - focus.0).abs() <= RESIDENT_RANGE && (tile.1 - focus.1).abs() <= RESIDENT_RANGE
+    }
+    fn build(groups: Vec<Vec<Mesh>>, resident: Option<(i32, i32)>) -> Self {
         let sound_materials = groups
             .iter()
             .map(|parts| {
@@ -94,6 +117,8 @@ impl Props {
             items: Vec::new(),
             active: Vec::new(),
             tiles: HashMap::new(),
+            resident,
+            damaged: HashSet::new(),
             colliders: ColliderSet::new(),
             bodies: RigidBodySet::new(),
             query: QueryPipeline::new(),
@@ -125,28 +150,8 @@ impl Props {
             }
             let center = (lo + hi) * 0.5;
             let half = ((hi - lo) * 0.5).max(Vec3::splat(0.03));
-            let points: Vec<_> = mesh
-                .vertices
-                .iter()
-                // Tree foliage is decorative; collision follows its trunk.
-                .filter(|v| v.surface[0] != SurfaceKind::Grass as u32 as f32)
-                .map(|v| {
-                    let p = Vec3::from_array(v.position) * METERS_PER_UNIT - center;
-                    point![p.x, p.y, p.z]
-                })
-                .collect();
-            let shape = (points.len() >= 4)
-                .then(|| ColliderBuilder::convex_hull(&points))
-                .flatten()
-                .unwrap_or_else(|| ColliderBuilder::cuboid(half.x, half.y, half.z));
             let id = result.items.len();
             result.groups[group].push(id);
-            let handle = result.colliders.insert(
-                shape
-                    .translation(vector![center.x, center.y, center.z])
-                    .user_data(id as u128)
-                    .build(),
-            );
             result
                 .tiles
                 .entry((
@@ -172,14 +177,129 @@ impl Props {
                 mesh,
                 center,
                 half,
-                collider: Some(handle),
+                collider: None,
                 debris: None,
                 floor: None,
                 age: 0.,
+                broken: false,
             });
+            if resident.is_none_or(|focus| Self::resident_tile(Self::tile(center), focus)) {
+                result.insert_collider(id);
+            }
         }
         result.query.update(&result.colliders);
         result
+    }
+    fn insert_collider(&mut self, id: usize) {
+        let item = &mut self.items[id];
+        let center = item.center;
+        let half = item.half;
+        let points: Vec<_> = item
+            .mesh
+            .vertices
+            .iter()
+            // Tree foliage is decorative; collision follows its trunk.
+            .filter(|v| v.surface[0] != SurfaceKind::Grass as u32 as f32)
+            .map(|v| {
+                let p = Vec3::from_array(v.position) * METERS_PER_UNIT - center;
+                point![p.x, p.y, p.z]
+            })
+            .collect();
+        let shape = (points.len() >= 4)
+            .then(|| ColliderBuilder::convex_hull(&points))
+            .flatten()
+            .unwrap_or_else(|| ColliderBuilder::cuboid(half.x, half.y, half.z));
+        item.collider = Some(
+            self.colliders.insert(
+                shape
+                    .translation(vector![center.x, center.y, center.z])
+                    .user_data(id as u128)
+                    .build(),
+            ),
+        );
+    }
+    /// Reset only when the complete assembly AND its displaced pieces are far
+    /// away. Expiring debris nearby must never pop a collider back into traffic.
+    pub fn update_focus(&mut self, center: Vec3) {
+        let reset: Vec<_> = self
+            .damaged
+            .iter()
+            .copied()
+            .filter(|&group| {
+                self.groups[group].iter().all(|&id| {
+                    let item = &self.items[id];
+                    let far = |p: Vec3| {
+                        p.truncate().distance(center.truncate())
+                            > RESET_DISTANCE + item.half.length()
+                    };
+                    far(item.center)
+                        && item.debris.is_none_or(|handle| {
+                            let p = self.debris_bodies[handle].translation();
+                            far(Vec3::new(p.x, p.y, p.z))
+                        })
+                })
+            })
+            .collect();
+        let mut changed = false;
+        for group in reset {
+            for id in self.groups[group].clone() {
+                self.remove_debris(id);
+                self.items[id].broken = false;
+                if self.items[id].collider.is_none()
+                    && self
+                        .resident
+                        .map(|_| Self::tile(center))
+                        .is_none_or(|focus| {
+                            Self::resident_tile(Self::tile(self.items[id].center), focus)
+                        })
+                {
+                    self.insert_collider(id);
+                    changed = true;
+                }
+            }
+            self.damaged.remove(&group);
+        }
+        self.active.retain(|&id| self.items[id].debris.is_some());
+        if let Some(previous) = self.resident {
+            let focus = Self::tile(center);
+            if previous != focus {
+                // Only visit the previous and incoming neighbourhoods, never
+                // scan the city's complete prop catalogue on a physics tick.
+                let mut ids = Vec::new();
+                for at in [previous, focus] {
+                    for x in at.0 - RESIDENT_RANGE..=at.0 + RESIDENT_RANGE {
+                        for y in at.1 - RESIDENT_RANGE..=at.1 + RESIDENT_RANGE {
+                            if let Some(tile) = self.tiles.get(&(x, y)) {
+                                ids.extend_from_slice(tile);
+                            }
+                        }
+                    }
+                }
+                ids.sort_unstable();
+                ids.dedup();
+                for id in ids {
+                    let item = &mut self.items[id];
+                    if Self::resident_tile(Self::tile(item.center), focus) {
+                        if !item.broken && item.collider.is_none() {
+                            self.insert_collider(id);
+                            changed = true;
+                        }
+                    } else if let Some(handle) = item.collider.take() {
+                        self.colliders.remove(
+                            handle,
+                            &mut self.static_islands,
+                            &mut self.bodies,
+                            false,
+                        );
+                        changed = true;
+                    }
+                }
+                self.resident = Some(focus);
+            }
+        }
+        if changed {
+            self.query.update(&self.colliders);
+        }
     }
     pub fn vehicle_move(&mut self, vehicle: &mut Vehicle, before: Vec3, city: &City) {
         let delta = vehicle.position - before;
@@ -234,13 +354,15 @@ impl Props {
             vehicle.sound_impact(-inward, material, true);
             let velocity = vehicle.velocity_at(arm);
             for part in self.groups[self.items[id].group].clone() {
-                if let Some(handle) = self.items[part].collider.take() {
-                    self.colliders.remove(
-                        handle,
-                        &mut self.static_islands,
-                        &mut self.bodies,
-                        false,
-                    );
+                if !self.items[part].broken {
+                    if let Some(handle) = self.items[part].collider.take() {
+                        self.colliders.remove(
+                            handle,
+                            &mut self.static_islands,
+                            &mut self.bodies,
+                            false,
+                        );
+                    }
                     self.break_prop(part, velocity, city, part == id);
                 }
             }
@@ -256,7 +378,21 @@ impl Props {
         }
     }
     fn break_prop(&mut self, id: usize, velocity: Vec3, city: &City, direct_hit: bool) {
+        if self.active.len() >= MAX_DEBRIS {
+            let oldest = self
+                .active
+                .iter()
+                .enumerate()
+                .max_by(|(_, a), (_, b)| self.items[**a].age.total_cmp(&self.items[**b].age))
+                .map(|(index, _)| index)
+                .unwrap();
+            let retired = self.active.swap_remove(oldest);
+            self.remove_debris(retired);
+        }
         let item = &mut self.items[id];
+        item.broken = true;
+        item.age = 0.;
+        self.damaged.insert(item.group);
         let p = item.center;
         // Unsupported parts collapse with a small transferred impulse. Only
         // the part actually struck receives the full vehicle kick and spin.
@@ -302,6 +438,24 @@ impl Props {
         item.debris = Some(body);
         self.active.push(id);
     }
+    fn remove_debris(&mut self, id: usize) {
+        let item = &mut self.items[id];
+        if let Some(handle) = item.debris.take() {
+            self.debris_bodies.remove(
+                handle,
+                &mut self.islands,
+                &mut self.debris_colliders,
+                &mut self.joints,
+                &mut self.multibody,
+                true,
+            );
+        }
+        if let Some(floor) = item.floor.take() {
+            self.debris_colliders
+                .remove(floor, &mut self.islands, &mut self.debris_bodies, false);
+        }
+        item.age = 0.;
+    }
     pub fn blocked(&self, position: Vec3) -> bool {
         let mut blocked = false;
         let pose = Isometry3::translation(position.x, position.y, position.z);
@@ -341,33 +495,17 @@ impl Props {
             &(),
             &(),
         );
-        self.active.retain(|&id| {
-            let item = &mut self.items[id];
-            if let Some(handle) = item.debris {
-                item.age += dt;
-                if item.age > 10. {
-                    self.debris_bodies.remove(
-                        handle,
-                        &mut self.islands,
-                        &mut self.debris_colliders,
-                        &mut self.joints,
-                        &mut self.multibody,
-                        true,
-                    );
-                    item.debris = None;
-                    if let Some(floor) = item.floor.take() {
-                        self.debris_colliders.remove(
-                            floor,
-                            &mut self.islands,
-                            &mut self.debris_bodies,
-                            false,
-                        );
-                    }
-                    return false;
-                }
+        let mut index = 0;
+        while index < self.active.len() {
+            let id = self.active[index];
+            self.items[id].age += dt;
+            if self.items[id].age > 10. {
+                self.remove_debris(id);
+                self.active.swap_remove(index);
+            } else {
+                index += 1;
             }
-            true
-        });
+        }
     }
     #[cfg(test)]
     pub fn append_visible(&self, output: &mut Mesh, center: Vec3) {
@@ -420,11 +558,21 @@ impl Props {
     pub(super) fn append_local_lights(&self, lights: &mut Vec<super::LocalLight>, center: Vec3) {
         // Emitters are cached once with collision geometry; broken assemblies
         // lose power immediately, including overhead parts and expired debris.
-        for item in &self.items {
-            if item.collider.is_some() && item.center.truncate().distance(center.truncate()) <= VIEW
-            {
-                if let Some(position) = item.lamp {
-                    lights.push(super::LocalLight::streetlamp(position));
+        let tile = Self::tile(center);
+        let range = (VIEW / TILE).ceil() as i32 + 1;
+        for x in tile.0 - range..=tile.0 + range {
+            for y in tile.1 - range..=tile.1 + range {
+                if let Some(ids) = self.tiles.get(&(x, y)) {
+                    for &id in ids {
+                        let item = &self.items[id];
+                        if item.collider.is_some()
+                            && item.center.truncate().distance(center.truncate()) <= VIEW
+                        {
+                            if let Some(position) = item.lamp {
+                                lights.push(super::LocalLight::streetlamp(position));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -522,6 +670,8 @@ impl Props {
     }
 }
 
+#[cfg(test)]
+mod lifecycle_tests;
 #[cfg(test)]
 mod tests {
     #[test]

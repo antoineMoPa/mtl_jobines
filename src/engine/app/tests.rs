@@ -475,3 +475,34 @@ fn profile_start_transition() {
         eprintln!("Start frame {frame} audio: {:?}", started.elapsed());
     }
 }
+
+#[test]
+fn season_palette_actions_update_the_live_world_and_reset_on_map_reload() {
+    use crate::season::Season;
+    let source = include_str!("../../../tests/fixtures/snow_season.road");
+    let mut game = Game::new(Hermes::test_map_from_source(source));
+    let position = game.world.player_position();
+    let route = game.hermes.route_revision();
+    game.scene_dirty = false;
+    game.apply_palette_action(PaletteAction::Season(Season::Winter));
+    assert_eq!(game.world.season(), Season::Winter);
+    assert!(game.scene_dirty);
+    assert_eq!(game.world.player_position(), position);
+    assert_eq!(game.hermes.route_revision(), route);
+    game.world.snow.clear_height((0, 0), 0.);
+    assert!(game
+        .apply_reloaded_map(Hermes::test_map_from_source("player_start(100,100,0);"))
+        .is_err());
+    assert_eq!(game.world.season(), Season::Winter);
+    assert!(!game.world.snow.cells.is_empty());
+    game.apply_reloaded_map(Hermes::test_map_from_source(source))
+        .unwrap();
+    assert_eq!(game.world.season(), Season::Summer);
+    assert!(game.world.snow.cells.is_empty());
+    assert!(game.world.snow.changes.is_empty());
+    game.apply_palette_action(PaletteAction::Season(Season::Winter));
+    assert_eq!(game.world.season(), Season::Winter);
+    game.apply_palette_action(PaletteAction::Season(Season::Summer));
+    assert_eq!(game.world.season(), Season::Summer);
+    assert!(game.world.snow.cells.is_empty());
+}

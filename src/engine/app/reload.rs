@@ -192,7 +192,7 @@ impl Game {
         }
     }
 
-    fn apply_reloaded_map(&mut self, mut hermes: Hermes) -> Result<(), String> {
+    pub(super) fn apply_reloaded_map(&mut self, mut hermes: Hermes) -> Result<(), String> {
         let position = self.world.player_position() / METERS_PER_UNIT;
         let start = SpawnPoint {
             point: [position.x, position.y],
@@ -208,6 +208,8 @@ impl Game {
         let p = world.player_position() / METERS_PER_UNIT;
         let mesh_center = [p.x, p.y];
         if let Some(renderer) = &mut self.renderer {
+            // A successful map reload starts a fresh summer session in both layers.
+            renderer.season = world.season();
             self.scenery = Some(Scenery::new(renderer, &mut hermes));
             self.dynamic_vertices = Mesh::default();
             world.write_moving_mesh(&mut self.dynamic_vertices);
