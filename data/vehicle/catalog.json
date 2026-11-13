@@ -6,57 +6,15 @@
     "roadVehicle": true
   },
   {
-    "name": "Laurent Traverse",
-    "path": "suv/laurent-traverse",
-    "researchId": "vehicle-05",
-    "roadVehicle": true
-  },
-  {
-    "name": "Boreal Crete",
-    "path": "suv/boreal-crete",
-    "researchId": "vehicle-v2-03",
-    "roadVehicle": true
-  },
-  {
-    "name": "Laurent Bosquet",
-    "path": "suv/laurent-bosquet",
-    "researchId": "vehicle-v2-04",
-    "roadVehicle": true
-  },
-  {
-    "name": "Castor Chene",
-    "path": "pickup/castor-chene",
-    "researchId": "vehicle-v2-05",
-    "roadVehicle": true
-  },
-  {
     "name": "Boreal Colline",
     "path": "suv/boreal-colline",
     "researchId": "vehicle-12",
     "roadVehicle": true
   },
   {
-    "name": "Castor Granit",
-    "path": "pickup/castor-granit",
-    "researchId": "vehicle-v2-07",
-    "roadVehicle": true
-  },
-  {
-    "name": "Boreal Rivage",
-    "path": "suv/boreal-rivage",
-    "researchId": "vehicle-v2-08",
-    "roadVehicle": true
-  },
-  {
     "name": "Laurent Clair",
     "path": "compact/laurent-clair",
     "researchId": "vehicle-v2-09",
-    "roadVehicle": true
-  },
-  {
-    "name": "Boreal Sentier",
-    "path": "suv/boreal-sentier",
-    "researchId": "vehicle-04",
     "roadVehicle": true
   },
   {
@@ -75,12 +33,6 @@
     "name": "Castor Blizzard",
     "path": "municipal/castor-blizzard",
     "researchId": "vehicle-j03",
-    "roadVehicle": true
-  },
-  {
-    "name": "Castor Niveleur",
-    "path": "municipal/castor-niveleur",
-    "researchId": "vehicle-j04",
     "roadVehicle": true
   },
   {

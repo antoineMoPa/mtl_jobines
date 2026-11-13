@@ -471,7 +471,7 @@ impl DynamicWorld {
     }
     pub(crate) fn vehicle_instances(
         &self,
-    ) -> impl Iterator<Item = (usize, Vec<glam::Mat4>, f32, bool, bool)> + '_ {
+    ) -> impl Iterator<Item = (usize, Vec<glam::Mat4>, f32, bool, bool, u8)> + '_ {
         self.vehicles
             .iter()
             .enumerate()
@@ -484,6 +484,7 @@ impl DynamicWorld {
                         self.traffic.opacity(index),
                         v.sound_running,
                         index == self.player_vehicle.0,
+                        catalog::definitions()[id].paint_variant(index),
                     )
                 })
             })

@@ -1,6 +1,8 @@
 //! Immutable catalog geometry and small per-part instance buffers shared by both render passes.
 use super::render::{GpuMesh, Renderer};
 use crate::dynamic_world::{catalog, DynamicWorld};
+#[cfg(test)]
+mod tests;
 struct Part {
     mesh: GpuMesh,
     transforms: Vec<[[f32; 4]; 4]>,
@@ -31,7 +33,7 @@ impl VehicleScenery {
         for part in self.models.iter_mut().flatten() {
             part.transforms.clear();
         }
-        for (model, transforms, opacity, headlights, player) in world.vehicle_instances() {
+        for (model, transforms, opacity, headlights, player, paint) in world.vehicle_instances() {
             for (part, transform) in self.models[model].iter_mut().zip(transforms) {
                 let mut columns = transform.to_cols_array_2d();
                 // Affine W is spare: vehicle shaders use XYZ and carry W as coverage.
@@ -39,6 +41,7 @@ impl VehicleScenery {
                 columns[0][3] = if headlights { 1. } else { 0. };
                 // XYZ alone participates in geometry; Y.w pins player render detail.
                 columns[1][3] = if player { 1. } else { 0. };
+                columns[2][3] = f32::from(paint);
                 part.transforms.push(columns);
             }
         }

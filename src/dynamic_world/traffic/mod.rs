@@ -139,7 +139,10 @@ impl Traffic {
         let models: Vec<_> = catalog::definitions()
             .iter()
             .enumerate()
-            .filter(|(_, d)| d.config.road_vehicle && d.config.dimensions.length < 6.)
+            .filter(|(_, d)| {
+                d.config.road_vehicle
+                    && (d.config.dimensions.length < 6. || d.config.category == "bus")
+            })
             .map(|(id, _)| id)
             .collect();
         for _ in 0..TARGET * 30 {
@@ -148,9 +151,29 @@ impl Traffic {
             }
             let (path, distance) = candidates[self.random(candidates.len())];
             let (point, heading) = self.graph.paths[path].sample(distance);
+            let model = models[self.random(models.len())];
+            let definition = &catalog::definitions()[model];
+            let length = definition.config.dimensions.length;
+            // Keep the entire bus away from lane ends and existing vehicles.
+            if distance < length * 0.5 + 1.5
+                || self.graph.paths[path].length - distance < length * 0.5 + 1.5
+                || (definition.config.category == "bus"
+                    && self
+                        .drivers
+                        .iter()
+                        .filter(|driver| {
+                            vehicles[driver.vehicle]
+                                .definition()
+                                .is_some_and(|d| d.config.category == "bus")
+                        })
+                        .count()
+                        >= 2)
+            {
+                continue;
+            }
             if vehicles
                 .iter()
-                .any(|v| v.position.distance(point) < v.length() * 0.5 + 7.)
+                .any(|v| v.position.distance(point) < (v.length() + length) * 0.5 + 5.)
             {
                 continue;
             }
@@ -163,7 +186,7 @@ impl Traffic {
             ) else {
                 continue;
             };
-            vehicle.definition = Some(models[self.random(models.len())]);
+            vehicle.definition = Some(model);
             vehicle.position.z = point.z + vehicle.ride_height();
             // Reject stacked decks and unsupported lane geometry.
             if !city
@@ -311,7 +334,11 @@ impl Traffic {
             let path = &self.graph.paths[driver.path];
             let remaining = path.length - driver.distance;
             let speed = car.velocity.truncate().length();
-            let lookahead = (3.5 + speed * 0.7).clamp(3.5, 16.);
+            let wheelbase = car.definition().map_or(2.6, |d| d.config.physics.wheelbase);
+            let max_steer = car
+                .definition()
+                .map_or(0.52, |d| d.config.physics.max_steer_angle);
+            let lookahead = (3.5 + speed * 0.7).clamp(wheelbase.max(3.5), 16.);
             let mut target = path.sample(driver.distance + lookahead).0;
             let mut limit = path.speed.meters_per_second();
             let mut clearance = f32::INFINITY;
@@ -378,8 +405,8 @@ impl Traffic {
                 .perp_dot(aim)
                 .atan2(forward.truncate().dot(aim));
             // Pure pursuit with the same speed-dependent steering range as Vehicle.
-            let steering_angle = (2. * 2.6 * angle.sin() / aim.length().max(1.)).atan();
-            let steering = steering_angle * (1. + speed * 0.025) / 0.52;
+            let steering_angle = (2. * wheelbase * angle.sin() / aim.length().max(1.)).atan();
+            let steering = steering_angle * (1. + speed * 0.025) / max_steer;
             limit = limit
                 .min((2.5 / (2. * angle.sin().abs() / aim.length().max(1.)).max(0.0001)).sqrt());
             for (index, other) in vehicles.iter().enumerate() {

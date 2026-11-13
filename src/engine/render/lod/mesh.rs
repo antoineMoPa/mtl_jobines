@@ -36,7 +36,12 @@ fn protected(triangle: &[Vertex], policy: Policy) -> bool {
             return true;
         }
         match policy {
-            Policy::Vehicle => v.surface[1] < 0.999 || v.surface[3] == 64.,
+            Policy::Vehicle => {
+                v.surface[1] < 0.999
+                    || v.surface[3] == 64.
+                    || v.surface[3] == 65.
+                    || v.surface[3] == 66.
+            }
             Policy::Scenery => {
                 v.surface[3] < 0.
                     || (kind == SurfaceKind::Building as u32 as f32 && v.surface[3] == 2.)

@@ -152,10 +152,26 @@ fn headlight_lens(name: &str) -> bool {
             | "running_lamp_1"
     )
 }
+fn vehicle_lamp_marker(name: &str) -> f32 {
+    match name {
+        "roof_beacon_red" => 65.,
+        "roof_beacon_blue" => 66.,
+        name if headlight_lens(name) => 64.,
+        _ => 0.,
+    }
+}
 fn game_vector(p: [f32; 3]) -> Vec3 {
     Vec3::new(p[0], -p[2], p[1])
 }
 impl Definition {
+    pub(super) fn paint_variant(&self, slot: usize) -> u8 {
+        match (self.config.research_id.as_str(), slot % 4) {
+            ("vehicle-v2-01" | "vehicle-v2-09" | "vehicle-12", 1) => 1,
+            ("vehicle-v2-01" | "vehicle-v2-09" | "vehicle-12", 2) => 2,
+            ("vehicle-v2-01" | "vehicle-v2-09" | "vehicle-12", 3) => 3,
+            _ => 0,
+        }
+    }
     pub(super) fn rear_emitters(&self) -> &[Vec3] {
         &self.rear_emitters
     }
@@ -196,6 +212,20 @@ impl Definition {
         }
         let glb = gltf::Gltf::from_slice(bytes).map_err(|e| e.to_string())?;
         let binary = glb.blob.as_deref().ok_or("GLB has no embedded buffer")?;
+        let paint = match config.research_id.as_str() {
+            "vehicle-v2-01" | "vehicle-v2-09" | "vehicle-12" => glb
+                .nodes()
+                .find(|node| node.name() == Some("body_shell"))
+                .and_then(|node| node.mesh())
+                .and_then(|mesh| mesh.primitives().next())
+                .map(|primitive| {
+                    primitive
+                        .material()
+                        .pbr_metallic_roughness()
+                        .base_color_factor()
+                }),
+            _ => None,
+        };
         let mut parts = Vec::new();
         let mut rear_lenses = Vec::new();
         fn walk(
@@ -203,6 +233,7 @@ impl Definition {
             parent: Mat4,
             binary: &[u8],
             ride: f32,
+            paint: Option<[f32; 4]>,
             parts: &mut Vec<Part>,
             rear_lenses: &mut Vec<Vertex>,
         ) -> Result<(), String> {
@@ -272,12 +303,12 @@ impl Definition {
                             surface: [
                                 SurfaceKind::Prop as u32 as f32,
                                 coverage,
-                                0.,
-                                if headlight_lens(node.name().unwrap_or("")) {
-                                    64.
+                                if role == PartRole::Body && paint == Some(color) {
+                                    1.
                                 } else {
                                     0.
                                 },
+                                vehicle_lamp_marker(node.name().unwrap_or("")),
                             ],
                         });
                     }
@@ -317,7 +348,7 @@ impl Definition {
                 }
             }
             for child in node.children() {
-                walk(child, transform, binary, ride, parts, rear_lenses)?;
+                walk(child, transform, binary, ride, paint, parts, rear_lenses)?;
             }
             Ok(())
         }
@@ -327,6 +358,7 @@ impl Definition {
                 Mat4::IDENTITY,
                 binary,
                 config.physics.height_offset,
+                paint,
                 &mut parts,
                 &mut rear_lenses,
             )?;
@@ -506,19 +538,11 @@ pub fn definitions() -> &'static [Definition] {
 }
 const ASSETS: &[(&[u8], &[u8])] = &[
     asset!("pickup/castor-rive"),
-    asset!("suv/laurent-traverse"),
-    asset!("suv/boreal-crete"),
-    asset!("suv/laurent-bosquet"),
-    asset!("pickup/castor-chene"),
     asset!("suv/boreal-colline"),
-    asset!("pickup/castor-granit"),
-    asset!("suv/boreal-rivage"),
     asset!("compact/laurent-clair"),
-    asset!("suv/boreal-sentier"),
     asset!("taxi/bonjour-electrique"),
     asset!("bus/saint-laurent-urbain"),
     asset!("municipal/castor-blizzard"),
-    asset!("municipal/castor-niveleur"),
     asset!("municipal/castor-collecteur"),
     asset!("emergency/laurent-vigile"),
     asset!("emergency/saint-laurent-secours"),
@@ -628,7 +652,7 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
-        assert_eq!(studies.len(), 10);
+        assert_eq!(studies.len(), 4);
         for definition in studies {
             let glass = if definition.config.research_id == "vehicle-v2-09" {
                 assert_eq!(definition.config.name, "Laurent Clair");
@@ -662,6 +686,88 @@ mod tests {
                 assert!(wheel.vertices.iter().any(|v| v.color != first));
             }
         }
+    }
+    #[test]
+    fn detailed_bus_has_passenger_cabin_glazing_and_runtime_lights() {
+        let source = gltf::Gltf::from_slice(include_bytes!(
+            "../../data/vehicle/bus/saint-laurent-urbain/model.glb"
+        ))
+        .unwrap();
+        let definition = definitions()
+            .iter()
+            .find(|d| d.config.research_id == "vehicle-j02")
+            .unwrap();
+        assert_eq!(definition.config.category, "bus");
+        assert!(definition.config.road_vehicle);
+        assert_eq!(source.images().count(), 0);
+        let nodes: std::collections::HashMap<_, _> =
+            source.nodes().map(|n| (n.name().unwrap(), n)).collect();
+        assert_eq!(nodes.len(), source.nodes().count());
+        for name in [
+            "body_shell",
+            "engine_hatch",
+            "front_bumper",
+            "rear_bumper",
+            "roof_panel",
+            "interior_floor",
+            "interior_aisle",
+            "interior_dashboard",
+            "interior_rear_platform",
+            "head_fl",
+            "head_fr",
+            "taillight_-1",
+            "taillight_1",
+            "glass_door_front_forward",
+            "glass_door_rear_forward",
+        ] {
+            assert!(nodes.contains_key(name), "missing bus part: {name}");
+        }
+        let glass: Vec<_> = nodes
+            .iter()
+            .filter(|(name, _)| {
+                name.starts_with("glass_") || matches!(**name, "windshield" | "rear_glass")
+            })
+            .collect();
+        assert_eq!(glass.len(), 22);
+        for (_, node) in glass {
+            for primitive in node.mesh().unwrap().primitives() {
+                assert_eq!(
+                    primitive.material().alpha_mode(),
+                    gltf::material::AlphaMode::Blend
+                );
+                assert_eq!(
+                    primitive
+                        .material()
+                        .pbr_metallic_roughness()
+                        .base_color_factor()[3],
+                    0.7
+                );
+            }
+        }
+        assert_eq!(nodes.keys().filter(|n| n.ends_with("_cushion")).count(), 29);
+        assert_eq!(definition.headlights.len(), 2);
+        assert_eq!(definition.rear_emitters.len(), 2);
+        for part in definition.parts.iter().filter(|p| p.role != PartRole::Body) {
+            assert!(part
+                .vertices
+                .iter()
+                .any(|v| v.color != part.vertices[0].color));
+        }
+        let front = definition
+            .parts
+            .iter()
+            .find(|p| p.role == PartRole::FrontWheel)
+            .unwrap();
+        let rear = definition
+            .parts
+            .iter()
+            .find(|p| p.role == PartRole::RearWheel)
+            .unwrap();
+        assert!((front.pivot.x - rear.pivot.x - definition.config.physics.wheelbase).abs() < 1e-4);
+        assert!((front.pivot.y.abs() * 2. - definition.config.physics.track).abs() < 1e-4);
+        assert!(definitions()
+            .iter()
+            .all(|d| d.config.research_id != "vehicle-j04"));
     }
     #[test]
     fn detailed_suv_keeps_cut_glass_cabin_and_authored_lights() {
@@ -829,16 +935,154 @@ mod tests {
             .map(|name| positions(name).len())
             .sum();
         assert_eq!(definition.rear_lenses.len(), expected_lens_vertices);
+        let tailgate_edge = positions("tailgate")
+            .iter()
+            .map(|p| p[2].abs())
+            .fold(0., f32::max);
+        for name in ["taillight_-1", "taillight_1"] {
+            assert!(
+                positions(name)
+                    .iter()
+                    .all(|p| p[2].abs() < tailgate_edge && (p[0] + 2.75).abs() < 0.025),
+                "pickup lenses must sit on the tailgate, not outside its corners"
+            );
+        }
+    }
+    #[test]
+    fn service_variants_reuse_compact_cabin_wheels_and_keep_distinct_roof_parts() {
+        let base = gltf::Gltf::from_slice(include_bytes!(
+            "../../data/vehicle/compact/laurent-clair/model.glb"
+        ))
+        .unwrap();
+        for (path, bytes, id, marker) in [
+            (
+                "taxi",
+                include_bytes!("../../data/vehicle/taxi/bonjour-electrique/model.glb").as_slice(),
+                "vehicle-j01",
+                "taxi_roof_sign",
+            ),
+            (
+                "police",
+                include_bytes!("../../data/vehicle/emergency/laurent-vigile/model.glb").as_slice(),
+                "vehicle-j06",
+                "roof_beacon_red",
+            ),
+        ] {
+            let source = gltf::Gltf::from_slice(bytes).unwrap();
+            let names: std::collections::HashSet<_> =
+                source.nodes().filter_map(|n| n.name()).collect();
+            assert_eq!(source.images().count(), 0);
+            assert_eq!(source.nodes().count(), names.len());
+            assert!(names.contains(marker));
+            for node in base.nodes() {
+                assert!(
+                    names.contains(node.name().unwrap()),
+                    "{path}: missing compact component"
+                );
+                let name = node.name().unwrap();
+                if name.starts_with("wheel_")
+                    || name.starts_with("interior_")
+                    || matches!(name, "windshield" | "side_windows" | "rear_window")
+                {
+                    let copied = source.nodes().find(|n| n.name() == Some(name)).unwrap();
+                    let indices = |node: gltf::Node<'_>| {
+                        node.mesh()
+                            .unwrap()
+                            .primitives()
+                            .map(|p| p.indices().unwrap().count())
+                            .sum::<usize>()
+                    };
+                    assert_eq!(
+                        indices(node),
+                        indices(copied),
+                        "{path}: changed shared component {name}"
+                    );
+                }
+            }
+            let def = definitions()
+                .iter()
+                .find(|d| d.config.research_id == id)
+                .unwrap();
+            assert!((def.config.physics.wheel_radius - 0.323).abs() < 1e-5);
+            assert!(def
+                .parts
+                .iter()
+                .flat_map(|p| &p.vertices)
+                .any(|v| (v.surface[1] - 0.65).abs() < 1e-5));
+            if path == "police" {
+                let body = def.parts.iter().flat_map(|p| &p.vertices);
+                assert!(body.clone().any(|v| v.surface[3] == 65.));
+                assert!(body.clone().any(|v| v.surface[3] == 66.));
+                assert!(names.contains("police_blue_side_stripe"));
+                assert_eq!(
+                    def.headlights.len(),
+                    definitions()
+                        .iter()
+                        .find(|d| d.config.research_id == "vehicle-v2-09")
+                        .unwrap()
+                        .headlights
+                        .len()
+                );
+            }
+        }
+        assert_eq!(vehicle_lamp_marker("roof_lightbar_mount"), 0.);
+    }
+    #[test]
+    fn everyday_catalog_keeps_only_detailed_bodies_with_shared_paint_masks() {
+        let mut ids = Vec::new();
+        for definition in definitions() {
+            if matches!(
+                definition.config.category.as_str(),
+                "compact" | "suv" | "pickup"
+            ) {
+                ids.push(definition.config.research_id.as_str());
+                assert_eq!(
+                    (0..4)
+                        .map(|slot| definition.paint_variant(slot))
+                        .collect::<Vec<_>>(),
+                    [0, 1, 2, 3]
+                );
+                let painted: Vec<_> = definition.parts[0]
+                    .vertices
+                    .iter()
+                    .filter(|v| v.surface[2] == 1.)
+                    .collect();
+                assert!(
+                    !painted.is_empty(),
+                    "missing paint mask: {}",
+                    definition.config.name
+                );
+                assert!(painted
+                    .iter()
+                    .all(|v| v.surface[1] == 1. && v.surface[3] == 0.));
+                assert!(
+                    definition
+                        .parts
+                        .iter()
+                        .skip(1)
+                        .flat_map(|p| &p.vertices)
+                        .all(|v| v.surface[2] == 0.),
+                    "wheels must retain authored rubber and rim colors"
+                );
+            } else {
+                assert!(
+                    (0..4).all(|slot| definition.paint_variant(slot) == 0),
+                    "service livery must remain fixed"
+                );
+            }
+        }
+        ids.sort();
+        assert_eq!(ids, ["vehicle-12", "vehicle-v2-01", "vehicle-v2-09"]);
     }
     #[test]
     fn every_export_loads_with_four_or_six_axle_local_wheels_and_si_data() {
-        assert_eq!(definitions().len(), 19);
+        assert_eq!(definitions().len(), 11);
         assert_eq!(
             definitions()
                 .iter()
                 .filter(|d| d.config.road_vehicle)
                 .count(),
-            17
+            9
         );
         let mut page_ids = std::collections::HashSet::new();
         for def in definitions() {

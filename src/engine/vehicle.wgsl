@@ -11,6 +11,12 @@ struct VehicleTransform {
     o.world = world;
     o.normal = (model * vec4<f32>(v.normal, 0.0)).xyz * 100.0;
     o.color = v.color; o.surface = v.surface; o.surface.y *= instance.translation.w; o.fence_uv = v.surface.yz;
+    if v.surface.z==1.0 && v.surface.w==0.0 {
+        let variant=u32(instance.z.w);
+        if variant==1u {o.color=vec3<f32>(0.035,0.09,0.19);}
+        else if variant==2u {o.color=vec3<f32>(0.86,0.85,0.80);}
+        else if variant==3u {o.color=vec3<f32>(0.30,0.022,0.045);}
+    }
     if v.surface.w==64.0 {o.surface.w*=instance.x.w;}
     return o;
 }
@@ -25,6 +31,12 @@ struct VehicleTransform {
 // every triangle of each moving vehicle. Opaque parts still cover all samples.
 @fragment fn fs_vehicle(v: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
     let surface=prepare_surface(v);
+    if v.surface.w==65.0 || v.surface.w==66.0 {
+        let red_phase=fract(camera.eye_time.w*2.5)<0.5;
+        let on=red_phase==(v.surface.w==65.0);
+        let lit=lamp_color_strength(v,select(0.04,1.8,on));
+        return mix(shade_local_surface(v,front,clamp(v.surface.y,0.0,1.0),surface),lit,select(0.15,1.0,on));
+    }
     if v.surface.w==64.0 {
         let night=1.0-clamp(camera.daylight_sky.x,0.0,1.0);
         return mix(shade_local_surface(v,front,clamp(v.surface.y,0.0,1.0),surface),lamp_color(v),night*night);

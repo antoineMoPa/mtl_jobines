@@ -202,9 +202,19 @@ mod tests {
                 assert!(a.position.distance(b.position) > 3.);
             }
         }
-        world.player_vehicle = super::super::VehicleId(9);
+        let selected = world
+            .vehicles
+            .iter()
+            .position(|vehicle| {
+                vehicle
+                    .definition()
+                    .is_some_and(|d| d.config.category == "bus")
+            })
+            .expect("bus is offered in the parked road catalog");
+        let model = world.vehicles[selected].definition;
+        world.player_vehicle = super::super::VehicleId(selected);
         world.reset_player(&hermes);
-        assert_eq!(world.player().definition, Some(9));
+        assert_eq!(world.player().definition, model);
         let player = world.player();
         let surface = hermes
             .city()

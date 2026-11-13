@@ -53,12 +53,25 @@ fn population_is_nearby_separated_and_reuses_slots_after_travel() {
     let mut cars = Vec::new();
     traffic.populate(&city, &mut cars, Vec3::ZERO);
     assert_eq!(traffic.drivers.len(), TARGET);
+    let buses = cars
+        .iter()
+        .filter(|v| v.definition().is_some_and(|d| d.config.category == "bus"))
+        .count();
+    assert!(
+        (1..=2).contains(&buses),
+        "ambient traffic must include a bounded bus population"
+    );
     for (i, a) in cars.iter().enumerate() {
         assert!(a.position.length() < SPAWN_RADIUS + 1.);
         assert!(a.position.truncate().length() >= 30.);
         for b in &cars[..i] {
-            assert!(a.position.distance(b.position) > 9.);
+            assert!(a.position.distance(b.position) >= (a.length() + b.length()) * 0.5 + 5.);
         }
+    }
+    for driver in &traffic.drivers {
+        let half_length = cars[driver.vehicle].length() * 0.5;
+        assert!(driver.distance >= half_length + 1.5);
+        assert!(graph.paths[driver.path].length - driver.distance >= half_length + 1.5);
     }
     let capacity = cars.len();
     traffic.take_spawns();
@@ -72,6 +85,41 @@ fn population_is_nearby_separated_and_reuses_slots_after_travel() {
         assert!(traffic.take_spawns().len() <= TARGET);
     }
     assert_eq!(traffic.drivers.len(), TARGET);
+}
+#[test]
+fn bus_pursuit_uses_its_wheelbase_and_holds_clear_of_a_leader() {
+    let (city, graph) = map(STRAIGHT);
+    let bus = catalog::definitions()
+        .iter()
+        .position(|d| d.config.category == "bus")
+        .unwrap();
+    let (mut traffic, mut cars) = one_driver(&city, &graph, 0, 120.);
+    cars[0].definition = Some(bus);
+    cars[0].position.z = graph.paths[0].sample(120.).0.z + cars[0].ride_height();
+    cars[0].velocity = graph.paths[0].sample(120.).1 * 8.;
+    cars[0].yaw += 0.12;
+    let bus_controls = traffic.controls(&city, &cars, None, 1. / 120.)[0].1;
+    let bus_steer = bus_controls.steering.abs();
+    cars[0].definition = Some(0);
+    let short_steer = traffic.controls(&city, &cars, None, 1. / 120.)[0]
+        .1
+        .steering
+        .abs();
+    assert!(
+        bus_steer > short_steer * 1.1,
+        "bus used passenger-car steering geometry"
+    );
+    cars[0].definition = Some(bus);
+    cars[0].yaw -= 0.12;
+    let forward = graph.paths[0].sample(120.).1;
+    let mut leader = Vehicle::spawn(&city);
+    leader.definition = Some(0);
+    leader.position =
+        cars[0].position + forward * ((cars[0].length() + leader.length()) * 0.5 + 2.);
+    cars.push(leader);
+    let input = traffic.controls(&city, &cars, None, 1. / 120.)[0].1;
+    assert!(input.brake);
+    assert_eq!(input.throttle, 0.);
 }
 #[test]
 fn speed_classes_follow_semantic_roles_and_carriageways_have_opposite_directions() {
@@ -201,22 +249,32 @@ fn red_light_stops_before_line_then_green_releases_traffic() {
         .unwrap();
     let signal = graph.paths[graph.paths[path].next[0]].signal.unwrap();
     let phase = graph.signals[signal].phase;
-    let (mut traffic, mut cars) = one_driver(&city, &graph, path, graph.paths[path].length - 25.);
-    traffic.time = ((phase + 1) % 2) as f32 * 14.;
-    for _ in 0..540 {
-        tick(&mut traffic, &city, &mut cars, 1. / 60.);
+    let bus = catalog::definitions()
+        .iter()
+        .position(|d| d.config.category == "bus")
+        .unwrap();
+    for model in [0, bus] {
+        let (mut traffic, mut cars) =
+            one_driver(&city, &graph, path, graph.paths[path].length - 25.);
+        cars[0].definition = Some(model);
+        cars[0].position.z =
+            graph.paths[path].sample(traffic.drivers[0].distance).0.z + cars[0].ride_height();
+        traffic.time = ((phase + 1) % 2) as f32 * 14.;
+        for _ in 0..540 {
+            tick(&mut traffic, &city, &mut cars, 1. / 60.);
+        }
+        assert_eq!(traffic.drivers[0].path, path, "crossed on red");
+        assert!(cars[0].velocity.length() < 0.6, "failed to stop");
+        let distance = graph.paths[path]
+            .project(cars[0].position - Vec3::Z * cars[0].ride_height())
+            .0;
+        assert!(graph.paths[path].length - distance > cars[0].length() * 0.5);
+        traffic.time = phase as f32 * 14.;
+        for _ in 0..600 {
+            tick(&mut traffic, &city, &mut cars, 1. / 60.);
+        }
+        assert_ne!(traffic.drivers[0].path, path, "failed to leave on green");
     }
-    assert_eq!(traffic.drivers[0].path, path, "crossed on red");
-    assert!(cars[0].velocity.length() < 0.6, "failed to stop");
-    let distance = graph.paths[path]
-        .project(cars[0].position - Vec3::Z * cars[0].ride_height())
-        .0;
-    assert!(graph.paths[path].length - distance > cars[0].length() * 0.5);
-    traffic.time = phase as f32 * 14.;
-    for _ in 0..600 {
-        tick(&mut traffic, &city, &mut cars, 1. / 60.);
-    }
-    assert_ne!(traffic.drivers[0].path, path, "failed to leave on green");
 }
 #[test]
 fn hitting_a_signal_detaches_it_and_turns_the_whole_junction_dark() {

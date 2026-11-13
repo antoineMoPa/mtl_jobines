@@ -18,3 +18,12 @@
 # Cleanup
 
 Run cargo `xtask --staged` once done with a task to detect files to clean.
+
+# Converting vehicle models
+
+Clean it up like we did for other medium poly models:
+- remove wheels, use our clean wheels, make a low poly interior (10-15 primitives max), separate
+  window meshes carefully
+- define vehicle parts and lights use claydash mcp or any tool you'd like work in the moontask
+  folder or a temporary folder.
+- separate general body vertices to their own group  then include the glb + car in game

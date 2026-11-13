@@ -1,57 +1,45 @@
 {
-  "schemaVersion": 1,
-  "name": "Bonjour Electrique",
   "category": "taxi",
-  "roadVehicle": true,
-  "model": "model.glb",
   "dimensions": {
-    "length": 4.6658,
-    "width": 2.172,
-    "height": 1.83
+    "height": 1.4771233797073364,
+    "length": 4.593096733093262,
+    "width": 1.9991014003753662
   },
+  "model": "model.glb",
+  "name": "Bonjour Electrique",
   "physics": {
-    "mass": 2380,
-    "maxSpeed": 39,
     "acceleration": 11.0,
     "friction": 0.9,
+    "heightOffset": 0.323,
+    "mass": 2380,
+    "maxSpeed": 39,
     "maxSteerAngle": 0.52,
-    "heightOffset": 0.65,
-    "wheelRadius": 0.32,
-    "wheelbase": 2.7359999999999998,
-    "track": 1.6500000000000001
+    "track": 1.5,
+    "wheelRadius": 0.323,
+    "wheelbase": 2.696375
   },
   "qa": {
-    "status": "exported",
-    "triangles": 1892,
-    "parts": 30,
-    "boxes": 17,
-    "cylinders": 4,
-    "wheelSegments": 12,
-    "wheels": [
-      "wheel_rear_left",
-      "wheel_rear_right",
-      "wheel_front_left",
-      "wheel_front_right"
-    ],
+    "baseTriangles": 54748,
     "claydashExport": "completed",
-    "game": "drive-tested",
-    "detailPass": 1,
-    "sheetPanels": 7,
-    "sheetBends": 5,
-    "pivot": "axle-local"
+    "glassOpacity": 0.65,
+    "packager": "compact-service-variant",
+    "parts": 31,
+    "pivot": "axle-local",
+    "sourceVehicle": "compact/laurent-clair",
+    "textures": 0,
+    "triangles": 56188,
+    "variant": "taxi"
   },
   "researchId": "vehicle-j01",
+  "roadVehicle": true,
+  "schemaVersion": 1,
   "sound": {
-    "engine": "electric",
-    "idleRpm": 1000,
-    "redlineRpm": 9000,
-    "engineGain": 1.2,
-    "firingOrder": 2,
-    "exhaustGain": 0.5,
     "bodyGain": 0.12,
-    "roughness": 0.04,
-    "mufflerHz": 1000,
-    "machineryGain": 0,
+    "engine": "electric",
+    "engineGain": 1.2,
+    "exhaustGain": 0.5,
+    "finalDrive": 7.5,
+    "firingOrder": 2,
     "gearRatios": [
       1,
       0.9,
@@ -60,14 +48,18 @@
       0.6,
       0.5
     ],
-    "finalDrive": 7.5,
     "horn": {
-      "kind": "dual",
       "frequenciesHz": [
         380,
         470
       ],
-      "gain": 0.65
-    }
+      "gain": 0.65,
+      "kind": "dual"
+    },
+    "idleRpm": 1000,
+    "machineryGain": 0,
+    "mufflerHz": 1000,
+    "redlineRpm": 9000,
+    "roughness": 0.04
   }
 }
