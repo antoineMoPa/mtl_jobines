@@ -211,6 +211,13 @@ pub(super) fn run(
                 ns as f64 / frames as f64 / 1e6
             );
         }
+        for (band, index) in [("0-30 m", 0), ("30-60 m", 1), ("60+ m", 2)] {
+            eprintln!(
+                "  walkers {band}: {:.1} active/frame, {:.3} ms/frame",
+                step_profile.crowd_ns[10 + index] as f64 / frames as f64,
+                step_profile.crowd_ns[7 + index] as f64 / frames as f64 / 1e6
+            );
+        }
         return Ok(());
     }
     let car = spawn_car()?;

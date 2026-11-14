@@ -10,7 +10,10 @@ pub(super) fn upload(
         queue,
         catalog::definitions()
             .iter()
-            .filter_map(|definition| definition.texture_png.as_deref()),
+            .filter_map(|definition| definition.texture_png.as_deref())
+            .chain(std::iter::once(
+                include_bytes!("../../data/vehicle/rear-plate.png").as_slice(),
+            )),
     )
 }
 pub(super) fn upload_pngs<'a>(

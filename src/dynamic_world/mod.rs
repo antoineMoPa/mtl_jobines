@@ -44,7 +44,7 @@ pub struct VehicleId(usize);
 #[derive(Default)]
 pub(crate) struct StepProfile {
     pub stages_ns: [u64; 8],
-    pub crowd_ns: [u64; 7],
+    pub crowd_ns: [u64; 13],
 }
 pub struct DynamicWorld {
     season: crate::season::Season,

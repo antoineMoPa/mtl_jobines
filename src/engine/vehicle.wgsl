@@ -59,7 +59,8 @@ struct VehicleTransform {
     if v.surface.x<0.0 {
         let albedo=textureSampleGrad(vehicle_albedo,vehicle_albedo_sampler,v.fence_uv,i32(floor(-v.surface.x))-1,uv_dx,uv_dy);
         material.color*=albedo.rgb;
-        material.surface=vec4<f32>(7.0,v.surface.y,0.0,v.surface.w);
+        material.surface.y*=albedo.a;
+        material.surface=vec4<f32>(7.0,material.surface.y,0.0,v.surface.w);
     }
     var surface=prepare_surface(material);
     surface.finish=vec3<f32>(0.65,0.0,0.0);

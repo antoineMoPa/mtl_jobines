@@ -197,6 +197,47 @@ fn game_vector(p: [f32; 3]) -> Vec3 {
     Vec3::new(p[0], -p[2], p[1])
 }
 impl Definition {
+    /// Rear face in GLB coordinates (+X nose, +Y up). These positions follow
+    /// the authored tailgate, hatch, or equipment panel of each model.
+    pub(crate) fn plate_mount(&self) -> (f32, f32) {
+        match self.config.research_id.as_str() {
+            "vehicle-v2-01" => (-2.767, 1.04),
+            "vehicle-12" => (-2.340, 1.06),
+            "vehicle-v2-09" | "vehicle-j01" | "vehicle-j06" => (-2.318, 0.72),
+            "vehicle-j02" => (-6.105, 1.12),
+            "vehicle-j03" => (-4.510, 1.65),
+            "vehicle-j05" => (-4.130, 0.72),
+            "vehicle-j07" => (-3.930, 1.05),
+            "vehicle-r01" => (-7.940, 0.75),
+            "vehicle-r02" => (-8.432, 0.75),
+            id => unreachable!("missing rear plate mount: {id}"),
+        }
+    }
+    fn add_rear_plate(&mut self, texture_layer: u32) {
+        let (x, height) = self.plate_mount();
+        let z = height - self.config.physics.height_offset;
+        let (half_width, half_height) = (0.15, 0.075);
+        let corners = [
+            ([x, -half_width, z + half_height], [1., 0.]),
+            ([x, half_width, z + half_height], [0., 0.]),
+            ([x, half_width, z - half_height], [0., 1.]),
+            ([x, -half_width, z - half_height], [1., 1.]),
+        ];
+        let body = &mut self.parts[0];
+        if body.shadow_vertices.is_none() {
+            body.shadow_vertices = Some(body.vertices.clone());
+        }
+        for index in [0, 1, 2, 0, 2, 3] {
+            let (position, uv) = corners[index];
+            body.vertices.push(Vertex {
+                position,
+                normal: [-1., 0., 0.],
+                color: [1.; 3],
+                // The half-layer suffix excludes snow while preserving the PNG layer.
+                surface: [-(texture_layer as f32 + 1.) - 0.5, 1., uv[0], uv[1]],
+            });
+        }
+    }
     pub(super) fn paint_variant(&self, slot: usize) -> u8 {
         match (self.config.research_id.as_str(), slot % 4) {
             ("vehicle-v2-01" | "vehicle-v2-09" | "vehicle-12", 1) => 1,
@@ -649,7 +690,7 @@ pub fn definitions() -> &'static [Definition] {
     static CATALOG: OnceLock<Vec<Definition>> = OnceLock::new();
     CATALOG.get_or_init(|| {
         let mut texture_layer = 0;
-        ASSETS
+        let mut definitions: Vec<_> = ASSETS
             .iter()
             .map(|(json, glb)| {
                 let definition = Definition::load(json, glb, texture_layer)
@@ -657,7 +698,11 @@ pub fn definitions() -> &'static [Definition] {
                 texture_layer += u32::from(definition.texture_png.is_some());
                 definition
             })
-            .collect()
+            .collect();
+        for definition in &mut definitions {
+            definition.add_rear_plate(texture_layer);
+        }
+        definitions
     })
 }
 const ASSETS: &[(&[u8], &[u8])] = &[
@@ -750,7 +795,7 @@ mod tests {
                     .map(|part| part.vertices.len())
                     .sum::<usize>()
                     + definition.rear_lenses.len(),
-                source_vertices,
+                source_vertices + 6, // shared textured rear plate quad
                 "{}",
                 definition.config.name
             );
@@ -1260,7 +1305,7 @@ mod tests {
                 let painted: Vec<_> = definition.parts[0]
                     .vertices
                     .iter()
-                    .filter(|v| v.surface[2].floor() == 1.)
+                    .filter(|v| v.surface[0] >= 0. && v.surface[2].floor() == 1.)
                     .collect();
                 assert!(
                     !painted.is_empty(),

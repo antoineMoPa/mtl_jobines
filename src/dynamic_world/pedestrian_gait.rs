@@ -308,6 +308,31 @@ impl Gait {
         dt: f32,
         sample: impl Fn(Vec3) -> Option<Ground>,
     ) {
+        self.advance_with_subdivisions(def, position, yaw, desired_speed, aim, dt, sample, false);
+    }
+    pub fn advance_coarse(
+        &mut self,
+        def: &Definition,
+        position: Vec3,
+        yaw: f32,
+        desired_speed: f32,
+        aim: Vec3,
+        dt: f32,
+        sample: impl Fn(Vec3) -> Option<Ground>,
+    ) {
+        self.advance_with_subdivisions(def, position, yaw, desired_speed, aim, dt, sample, true);
+    }
+    fn advance_with_subdivisions(
+        &mut self,
+        def: &Definition,
+        position: Vec3,
+        yaw: f32,
+        desired_speed: f32,
+        aim: Vec3,
+        dt: f32,
+        sample: impl Fn(Vec3) -> Option<Ground>,
+        coarse: bool,
+    ) {
         if dt <= 0. {
             return;
         }
@@ -327,7 +352,11 @@ impl Gait {
         self.jump_motion = JumpMotion::default();
         self.air_time = None;
         let turn_rate = angle_delta(self.yaw, yaw) / dt;
-        let subdivisions = (dt / (1. / 120.)).ceil().max(1.) as usize;
+        let subdivisions = if coarse {
+            1
+        } else {
+            (dt / (1. / 120.)).ceil().max(1.) as usize
+        };
         for i in 0..subdivisions {
             let h = dt / subdivisions as f32;
             self.position = from.lerp(to, (i + 1) as f32 / subdivisions as f32);

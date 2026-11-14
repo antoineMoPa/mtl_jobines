@@ -6,6 +6,49 @@ use crate::{
 use glam::Vec3;
 
 #[test]
+#[ignore = "requires a native GPU adapter and PLATE_CAPTURE output directory"]
+fn native_rear_plate_catalog_previews() {
+    let folder = std::path::PathBuf::from(std::env::var_os("PLATE_CAPTURE").unwrap());
+    std::fs::create_dir_all(&folder).unwrap();
+    let hermes =
+        Hermes::test_map_from_source(include_str!("../../../tests/fixtures/local_lights.road"));
+    let mut world = DynamicWorld::new(&hermes);
+    let mut renderer = pollster::block_on(Renderer::new(None, 1200, 800)).unwrap();
+    renderer.daylight = Some(1.);
+    renderer.sky_settings.solar_hour = Some(12.);
+    let mut vehicles = VehicleScenery::new(&renderer);
+    for (index, definition) in catalog::definitions().iter().enumerate() {
+        world.preview_vehicle_lamps(index, Controls::default());
+        vehicles.update(&renderer, &world);
+        let p = world.player_position() / METERS_PER_UNIT;
+        let forward = Vec3::new(world.player().yaw.cos(), world.player().yaw.sin(), 0.);
+        let rear_distance = definition.config.dimensions.length * 0.5;
+        let plate_height = definition.plate_mount().1;
+        let plate = p + Vec3::Z * ((plate_height - definition.config.physics.height_offset) / 100.);
+        let center = p + Vec3::Z
+            * ((definition.config.dimensions.height * 0.5
+                - definition.config.physics.height_offset)
+                / 100.);
+        for (suffix, distance, look) in [
+            ("rear", definition.config.dimensions.width * 1.9, center),
+            ("plate", 1.15, plate),
+        ] {
+            let eye = plate - forward * ((rear_distance + distance) / 100.);
+            let png = renderer
+                .report_screenshot(
+                    &vehicles.visible().collect::<Vec<_>>(),
+                    eye,
+                    look,
+                    0.,
+                    hermes.minimap_view([p.x, p.y], 0.),
+                )
+                .unwrap();
+            std::fs::write(folder.join(format!("{:02}-{suffix}.png", index + 1)), png).unwrap();
+        }
+    }
+}
+
+#[test]
 #[ignore = "requires a native GPU adapter"]
 fn native_bus_source_mesh_and_rear_lamps() {
     let hermes =

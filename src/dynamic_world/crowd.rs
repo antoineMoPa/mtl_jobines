@@ -94,6 +94,8 @@ struct Walker {
     blocked_time: f32,
     age: f32,
     immunity: f32,
+    deferred_dt: f32,
+    preview_cache: Option<(usize, f32, f32, Option<Vec3>)>,
     reaction: Option<Box<Reaction>>,
     returning: Option<ReturnPoint>,
     gait: Gait,
@@ -129,6 +131,7 @@ impl Walker {
         ))));
         self.speed = 0.;
         self.movement = 0.;
+        self.deferred_dt = 0.;
     }
 }
 #[derive(Clone, Copy)]
@@ -151,6 +154,7 @@ pub(crate) struct Crowd {
     walkers: Vec<Walker>,
     seed: u32,
     serial: u32,
+    step_number: u64,
     refill: f32,
     previous_vehicles: Vec<Vec3>,
     kiosk_checked: bool,
@@ -234,6 +238,8 @@ fn collide_queue(
             blocked_time: 0.,
             age: 1.,
             immunity: 0.,
+            deferred_dt: 0.,
+            preview_cache: None,
             reaction: None,
             returning: None,
             gait: Gait::new(definition, actor.position, actor.yaw, *serial, |p| {
@@ -287,6 +293,7 @@ impl Crowd {
             walkers: Vec::with_capacity(CAPACITY),
             seed: 0x70656431,
             serial: 0,
+            step_number: 0,
             refill: 0.,
             previous_vehicles: Vec::new(),
             kiosk_checked: false,
@@ -368,6 +375,8 @@ impl Crowd {
                 blocked_time: 0.,
                 age: 0.,
                 immunity: 0.,
+                deferred_dt: 0.,
+                preview_cache: None,
                 reaction: None,
                 returning: None,
                 gait: Gait::new(
@@ -426,7 +435,7 @@ impl Crowd {
         vehicles: &[Vehicle],
         props: &Props,
         dt: f32,
-        profile: &mut [u64; 7],
+        profile: &mut [u64; 13],
     ) {
         self.step_inner(
             city,
@@ -446,12 +455,13 @@ impl Crowd {
         vehicles: &[Vehicle],
         props: &Props,
         dt: f32,
-        mut profile: Option<&mut [u64; 7]>,
+        mut profile: Option<&mut [u64; 13]>,
     ) {
         let setup_started = profile.as_ref().map(|_| web_time::Instant::now());
         // A public world step can also be used by tools; bound displacement before
         // collision sampling even if a tool sends a long frame.
         let dt = dt.min(0.1);
+        self.step_number = self.step_number.wrapping_add(1);
         if let Some(site) = &self.kiosk_site {
             let distance = center.truncate().distance(site.front);
             if distance > KIOSK_RETAIN_RADIUS && self.kiosk_spawned {
@@ -491,6 +501,17 @@ impl Crowd {
         }
         let walking_started = profile.as_ref().map(|_| web_time::Instant::now());
         for walker in &mut self.walkers {
+            let distance_band = profile.as_ref().map(|_| {
+                let distance = walker.position.distance_squared(center);
+                if distance < 30. * 30. {
+                    0
+                } else if distance < 60. * 60. {
+                    1
+                } else {
+                    2
+                }
+            });
+            let walker_started = profile.as_ref().map(|_| web_time::Instant::now());
             walker.age += dt;
             walker.immunity = (walker.immunity - dt).max(0.);
             if let Some(mut reaction) = walker.reaction.take() {
@@ -565,6 +586,15 @@ impl Crowd {
             if let (Some(profile), Some(started)) = (profile.as_deref_mut(), impact_started) {
                 profile[6] += started.elapsed().as_nanos() as u64;
             }
+            // Keep contact reactions at full rate. Distant walking can use a
+            // longer step and alternate walkers across physics ticks.
+            let coarse =
+                walker.position.distance_squared(center) > 60. * 60. && dt <= 1. / 120. + 0.00001;
+            if coarse && (self.step_number + walker.serial as u64) & 1 == 0 {
+                walker.deferred_dt += dt;
+                continue;
+            }
+            let dt = dt + std::mem::take(&mut walker.deferred_dt);
             walker.idle_time += dt;
             walker.until_pause -= dt;
             if walker.until_pause <= 0. {
@@ -600,16 +630,27 @@ impl Crowd {
             }
             let forward = Vec3::new(walker.yaw.cos(), walker.yaw.sin(), 0.);
             let preview_started = profile.as_ref().map(|_| web_time::Instant::now());
-            let preview = walker.returning.map(|p| p.position).or_else(|| {
-                placement_offset(
-                    city,
-                    &self.graph,
-                    walker.path,
-                    (walker.distance + 0.70).min(self.graph.paths[walker.path].length),
-                    walker.lane,
-                )
-                .map(|p| p.0)
-            });
+            let preview = if let Some(destination) = walker.returning {
+                Some(destination.position)
+            } else {
+                let distance = (walker.distance + 0.70).min(self.graph.paths[walker.path].length);
+                match walker.preview_cache {
+                    Some((path, cached_distance, lane, point))
+                        if path == walker.path
+                            && cached_distance == distance
+                            && lane == walker.lane =>
+                    {
+                        point
+                    }
+                    _ => {
+                        let point =
+                            placement_offset(city, &self.graph, walker.path, distance, walker.lane)
+                                .map(|p| p.0);
+                        walker.preview_cache = Some((walker.path, distance, walker.lane, point));
+                        point
+                    }
+                }
+            };
             if let (Some(profile), Some(started)) = (profile.as_deref_mut(), preview_started) {
                 profile[5] += started.elapsed().as_nanos() as u64;
             }
@@ -687,24 +728,38 @@ impl Crowd {
             let definition = &pedestrian_catalog::definitions()[walker.model];
             let actual_speed = if dt > 0. { moved / dt } else { 0. };
             let gait_started = profile.as_ref().map(|_| web_time::Instant::now());
-            walker.gait.advance(
-                definition,
-                walker.position,
-                walker.yaw,
-                if target > 0. {
-                    walker.preferred_speed
-                } else {
-                    0.
-                },
-                aim,
-                dt,
-                |p| {
-                    footing(city, p, walker.returning.is_none()).filter(|g| {
-                        !props.blocked(g.point + Vec3::Z * 0.8)
-                            && !blocked_by_vehicle(g.point, vehicles)
-                    })
-                },
-            );
+            let desired_speed = if target > 0. {
+                walker.preferred_speed
+            } else {
+                0.
+            };
+            let sample = |p| {
+                footing(city, p, walker.returning.is_none()).filter(|g| {
+                    !props.blocked(g.point + Vec3::Z * 0.8)
+                        && !blocked_by_vehicle(g.point, vehicles)
+                })
+            };
+            if coarse {
+                walker.gait.advance_coarse(
+                    definition,
+                    walker.position,
+                    walker.yaw,
+                    desired_speed,
+                    aim,
+                    dt,
+                    sample,
+                );
+            } else {
+                walker.gait.advance(
+                    definition,
+                    walker.position,
+                    walker.yaw,
+                    desired_speed,
+                    aim,
+                    dt,
+                    sample,
+                );
+            }
             if let (Some(profile), Some(started)) = (profile.as_deref_mut(), gait_started) {
                 profile[2] += started.elapsed().as_nanos() as u64;
             }
@@ -735,6 +790,12 @@ impl Crowd {
                 0.
             };
             walker.movement += (movement - walker.movement).clamp(-dt * 4., dt * 4.);
+            if let (Some(profile), Some(started), Some(distance_band)) =
+                (profile.as_deref_mut(), walker_started, distance_band)
+            {
+                profile[7 + distance_band] += started.elapsed().as_nanos() as u64;
+                profile[10 + distance_band] += 1;
+            }
         }
         if let (Some(profile), Some(started)) = (profile.as_deref_mut(), walking_started) {
             profile[1] += started.elapsed().as_nanos() as u64;
@@ -1128,6 +1189,62 @@ mod tests {
             );
             assert!(support(hermes.city(), crowd.walkers[0].position).is_some());
         }
+    }
+    #[test]
+    fn distant_walkers_share_ticks_and_resume_full_rate_near_player() {
+        let hermes = Hermes::test_map_from_source(
+            "road street: sidewalk carlane carlane sidewalk; end street(-5,0,5,0);",
+        );
+        let props = Props::new(Vec::new());
+        let mut crowd = Crowd::new(hermes.walking_paths());
+        crowd.populate(hermes.city(), Vec3::ZERO, &[], &props);
+        crowd.refill = 10000.;
+        assert!(!crowd.walkers.is_empty());
+        let far = Vec3::new(10000., 0., 0.);
+        crowd.step(hermes.city(), far, false, &[], &props, 1. / 120.);
+        let skipped: Vec<_> = crowd
+            .walkers
+            .iter()
+            .enumerate()
+            .filter_map(|(index, w)| (w.deferred_dt > 0.).then_some(index))
+            .collect();
+        assert!(!skipped.is_empty());
+        crowd.step(hermes.city(), far, false, &[], &props, 1. / 120.);
+        assert!(skipped
+            .iter()
+            .all(|&index| crowd.walkers[index].deferred_dt == 0.));
+        let near = crowd.walkers[0].position;
+        crowd.step(hermes.city(), near, false, &[], &props, 1. / 120.);
+        assert_eq!(crowd.walkers[0].deferred_dt, 0.);
+        assert!(crowd
+            .walkers
+            .iter()
+            .all(|w| support(hermes.city(), w.position).is_some()));
+    }
+    #[test]
+    fn distant_walker_still_reacts_to_vehicle_on_deferred_tick() {
+        let hermes = Hermes::test_map();
+        let props = Props::new(Vec::new());
+        let mut crowd = Crowd::new(hermes.walking_paths());
+        crowd.populate(hermes.city(), Vec3::ZERO, &[], &props);
+        let (target, _) = crowd.prepare_collision();
+        let mut car = Vehicle::spawn(hermes.city());
+        car.yaw = 0.;
+        car.velocity = Vec3::X * 8.;
+        car.position = target - Vec3::X * 5. + Vec3::Z * car.ride_height();
+        crowd.previous_vehicles = vec![car.position];
+        car.position = target + Vec3::X * 5. + Vec3::Z * car.ride_height();
+        let far = target + Vec3::X * 10000.;
+        crowd.step_number = 1 - (crowd.walkers[0].serial as u64 & 1);
+        crowd.step(
+            hermes.city(),
+            far,
+            false,
+            std::slice::from_ref(&car),
+            &props,
+            1. / 120.,
+        );
+        assert!(crowd.walkers[0].reaction.is_some());
     }
     #[test]
     fn pedestrian_corner_and_reversal_steps_are_continuous_and_remain_on_sidewalks() {
