@@ -69,14 +69,19 @@ impl Report {
         let json = serde_json::to_vec_pretty(self).map_err(|error| error.to_string())?;
         fs::create_dir_all(root).map_err(|error| error.to_string())?;
         let mut number = 0_u64;
-        for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
-            let entry = entry.map_err(|error| error.to_string())?;
-            if let Some(value) = entry
-                .file_name()
-                .to_str()
-                .and_then(|name| name.parse::<u64>().ok())
-            {
-                number = number.max(value);
+        for directory in [root.to_path_buf(), root.join("DONE")] {
+            if !directory.exists() {
+                continue;
+            }
+            for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
+                let entry = entry.map_err(|error| error.to_string())?;
+                if let Some(value) = entry
+                    .file_name()
+                    .to_str()
+                    .and_then(|name| name.parse::<u64>().ok())
+                {
+                    number = number.max(value);
+                }
             }
         }
         // create_dir reserves a number atomically, including across running instances.
@@ -286,18 +291,21 @@ mod tests {
         let result = std::panic::catch_unwind(|| {
             fs::create_dir(root.join("2")).unwrap();
             fs::write(root.join("2/report.json"), "existing report").unwrap();
+            fs::create_dir(root.join("DONE")).unwrap();
+            fs::create_dir(root.join("DONE/5")).unwrap();
+            fs::write(root.join("DONE/5/report.json"), "archived report").unwrap();
             fs::create_dir(root.join("unrelated")).unwrap();
             let mut report = Report::new(&city(), [2., 3., 0.4], [1.9, 2.8, 0.5], [2., 3.1, 0.4]);
             report.description = " \n ".into();
             assert!(report.save(&root, b"image").is_err());
-            assert!(!root.join("3").exists());
+            assert!(!root.join("6").exists());
             report.description = "A step at the junction.\nExpected a smooth road. 🛣".into();
             std::thread::scope(|scope| {
                 let first = scope.spawn(|| report.save(&root, b"captured image").unwrap());
                 let second = scope.spawn(|| report.save(&root, b"captured image").unwrap());
                 assert_ne!(first.join().unwrap(), second.join().unwrap());
             });
-            for number in [3, 4] {
+            for number in [6, 7] {
                 let folder = root.join(number.to_string());
                 let saved: serde_json::Value =
                     serde_json::from_slice(&fs::read(folder.join("report.json")).unwrap()).unwrap();
@@ -318,6 +326,10 @@ mod tests {
             assert_eq!(
                 fs::read_to_string(root.join("2/report.json")).unwrap(),
                 "existing report"
+            );
+            assert_eq!(
+                fs::read_to_string(root.join("DONE/5/report.json")).unwrap(),
+                "archived report"
             );
             assert!(report.save(&root.join("2/report.json"), b"image").is_err());
         });

@@ -16,10 +16,11 @@ struct CachedSignal {
 struct InstancedProp {
     mesh: GpuMesh,
     transforms: Vec<[[f32; 4]; 4]>,
+    automatic: bool,
 }
 #[derive(Default)]
 pub struct PropScenery {
-    models: HashMap<(crate::props::Kind, usize), InstancedProp>,
+    models: HashMap<(crate::props::Kind, usize, u8, bool), InstancedProp>,
     batches: HashMap<usize, CachedBatch>,
     visible: Vec<usize>,
     signals: HashMap<usize, CachedSignal>,
@@ -32,17 +33,37 @@ impl PropScenery {
         for model in self.models.values_mut() {
             model.transforms.clear();
         }
-        for (kind, index, transform) in world.authored_prop_instances() {
-            let model = self.models.entry((kind, index)).or_insert_with(|| {
-                let mut vertices = kind.parts()[index].vertices.clone();
-                for v in &mut vertices {
-                    v.position = v.position.map(|p| p * crate::props::UNITS);
-                }
-                InstancedProp {
-                    mesh: renderer.upload_instanced(&vertices),
-                    transforms: Vec::new(),
-                }
-            });
+        for (kind, index, transform, automatic) in world.authored_prop_instances() {
+            let distance = (transform.w_axis.truncate() * crate::props::UNITS
+                - world.player_position())
+            .length_squared();
+            let lod = if kind.is_tree() && distance > 105.0 * 105.0 {
+                2
+            } else if kind.is_tree() && distance > 55.0 * 55.0 {
+                1
+            } else {
+                0
+            };
+            let model = self
+                .models
+                .entry((kind, index, lod, automatic))
+                .or_insert_with(|| {
+                    let mut vertices = match lod {
+                        1 => kind.far_parts(),
+                        2 => kind.image_parts(),
+                        _ => kind.parts(),
+                    }[index]
+                        .vertices
+                        .clone();
+                    for v in &mut vertices {
+                        v.position = v.position.map(|p| p * crate::props::UNITS);
+                    }
+                    InstancedProp {
+                        mesh: renderer.upload_instanced(&vertices),
+                        transforms: Vec::new(),
+                        automatic,
+                    }
+                });
             model.transforms.push(transform.to_cols_array_2d());
         }
         for model in self.models.values_mut() {
@@ -118,7 +139,7 @@ impl PropScenery {
             .chain(
                 self.models
                     .values()
-                    .filter(move |m| authored && !m.transforms.is_empty())
+                    .filter(move |m| (authored || m.automatic) && !m.transforms.is_empty())
                     .map(|m| &m.mesh),
             )
     }

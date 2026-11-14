@@ -14,9 +14,12 @@ const HALF_TRACK: f32 = 0.94;
 const WHEEL_STEP_HEIGHT: f32 = 0.4;
 // Arcade tires recover from slides quickly while preserving each surface's grip
 // ratio and the shared acceleration/braking budget (an elliptical tire envelope).
-const LATERAL_GRIP_SCALE: f32 = 1.85;
+const LATERAL_GRIP_SCALE: f32 = 2.1;
 // Retain the parking-speed steering angle while tempering inputs at road speeds.
 const STEERING_SPEED_TAPER: f32 = 0.025;
+// A full steering input at highway speed should request a turn the tires can hold.
+// Leave spare lateral force for disturbances and for recovery while accelerating.
+const STEERING_LATERAL_ACCELERATION: f32 = 12.;
 // Arcade service brakes shorten stops without changing powered tire grip.
 const SERVICE_BRAKE_GRIP_SCALE: f32 = 1.8;
 // Forward arcade performance; tire grip still limits launches and cornering.
@@ -260,12 +263,15 @@ impl Vehicle {
         let previous_velocity = self.velocity.truncate();
         let f = Vec2::new(self.yaw.cos(), self.yaw.sin());
         let left = Vec2::new(-f.y, f.x);
-        let speed = self.velocity.truncate().dot(f);
-        let target_steering = input.steering.clamp(-1., 1.)
-            * self
-                .definition()
-                .map_or(0.52, |d| d.config.physics.max_steer_angle)
-            / (1. + speed.abs() * STEERING_SPEED_TAPER);
+        let travel_speed = self.velocity.truncate().length();
+        let max_steering = self
+            .definition()
+            .map_or(0.52, |d| d.config.physics.max_steer_angle)
+            / (1. + travel_speed * STEERING_SPEED_TAPER);
+        let grip_steering = (STEERING_LATERAL_ACCELERATION * self.wheelbase()
+            / travel_speed.powi(2).max(1.))
+        .atan();
+        let target_steering = input.steering.clamp(-1., 1.) * max_steering.min(grip_steering);
         self.steering += (target_steering - self.steering) * (1. - (-8. * dt).exp());
         let mut gradient = Vec2::ZERO;
         let mut contacts = 0;
@@ -395,8 +401,12 @@ impl Vehicle {
                 -longitudinal_speed.signum()
                     * (tire.grip * brake_scale * 0.9 * dt).min(stop_impulse)
             } else {
-                // Leave lateral authority on slippery surfaces under power.
-                (motor * 0.25).clamp(-tire.grip * 0.8, tire.grip * 0.8) * dt
+                // Ease drive during a slide so throttle does not consume the
+                // lateral force needed to bring the tires back into line.
+                let lateral = Vec2::new(-tire.forward.y, tire.forward.x);
+                let side_slip = point_velocity.dot(lateral).abs();
+                let slide_drive = 1. - (side_slip / 6.).min(1.) * 0.5;
+                (motor * 0.25 * slide_drive).clamp(-tire.grip * 0.8, tire.grip * 0.8) * dt
             };
             longitudinal_usage[index] = if tire.grip > 0. {
                 (drive / (tire.grip * brake_scale * dt)).clamp(-1., 1.)

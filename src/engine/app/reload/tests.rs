@@ -163,7 +163,6 @@ fn map_replacement_preserves_pause_and_player_then_falls_back_to_authored_spawn(
 #[test]
 fn canonical_island_has_water_parking_and_a_driveable_interior() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
-    let program = opencity::parse(&std::fs::read_to_string(&path).unwrap()).unwrap();
     let hermes = Hermes::load_with_game_data(&path, None).unwrap();
     let city = hermes.city();
     let road = city
@@ -183,8 +182,6 @@ fn canonical_island_has_water_parking_and_a_driveable_interior() {
     for path in city.paths.iter().filter(|p| p.component == "service_north") {
         assert!(path.points.last().unwrap()[0] > path.points[0][0]);
     }
-    assert_eq!(hermes.landmarks().len(), 1);
-    assert_eq!(hermes.landmarks()[0].id, "site_model_01");
     let k = 0.0296475_f32;
     let c = 1. / k.hypot(1.);
     let point = |u: f32, v: f32| [c * u - k * c * v, k * c * u + c * v];

@@ -187,7 +187,7 @@ impl Document {
         if !self.open {
             return 0.;
         }
-        let base = if self.selected.is_some() && width < 650. {
+        let base = if self.selected.is_some() && width < 1050. {
             78.
         } else {
             42.

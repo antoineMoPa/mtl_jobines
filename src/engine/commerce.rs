@@ -174,7 +174,11 @@ impl Commerce {
             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
             count: None,
         });
+        entries.extend(opencity::runtime::tree_textures::TreeTextures::layout(8));
+        entries.extend(opencity::runtime::tree_textures::TreeImpostors::layout(10));
         let (vehicle_albedo, vehicle_sampler) = super::vehicle_textures::upload(device, queue);
+        let trees = opencity::runtime::tree_textures::TreeTextures::new(device, queue);
+        let impostors = opencity::runtime::tree_textures::TreeImpostors::new(device, queue);
         let graffiti = super::graffiti::PaintTexture::new(device, queue);
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("game commerce"),
@@ -226,7 +230,11 @@ impl Commerce {
                     binding: 7,
                     resource: wgpu::BindingResource::Sampler(&vehicle_sampler),
                 },
-            ],
+            ]
+            .into_iter()
+            .chain(trees.entries(8))
+            .chain(impostors.entries(10))
+            .collect::<Vec<_>>(),
         });
         Self {
             layout,

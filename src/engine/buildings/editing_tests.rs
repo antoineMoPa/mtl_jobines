@@ -125,6 +125,28 @@ fn deletion_preserves_comments_other_buildings_and_shared_model_assets() {
     assert!((center(&reopened.items[0].feature) - center(&survivor)).length() < 1e-6);
 }
 #[test]
+fn model_scale_and_elevation_save_and_reopen_with_matching_mesh_bounds() {
+    let mut f = Fixture::new();
+    f.place();
+    let asset = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/models/fuel-station.glb");
+    f.document.import_model(&f.city, &asset).unwrap();
+    let before = f.document.items[0].clone();
+    let mut changed = geometry::scaled(&before.feature, 2.);
+    changed.elevation -= 0.03;
+    f.document.edit(&f.city, 0, changed.clone()).unwrap();
+    let reopened = Document::open(&f.path, Vec3::ZERO, 0.).unwrap();
+    let after = &reopened.items[0];
+    assert!((after.feature.height.unwrap() - before.feature.height.unwrap() * 2.).abs() < 1e-6);
+    assert!((after.feature.elevation - changed.elevation).abs() < 1e-6);
+    assert!((center(&after.feature) - center(&before.feature)).length() < 1e-6);
+    let before_bounds = crate::hermes::external_models::bounds(&before.mesh);
+    let after_bounds = crate::hermes::external_models::bounds(&after.mesh);
+    let before_size = before_bounds.1 - before_bounds.0;
+    let after_size = after_bounds.1 - after_bounds.0;
+    assert!((after_size - before_size * 2.).length() < 1e-5);
+    assert!((after_bounds.0.z - (before_bounds.0.z - 0.03)).abs() < 1e-6);
+}
+#[test]
 fn delete_respects_external_changes_without_mutating_the_document() {
     let mut f = Fixture::new();
     f.place();

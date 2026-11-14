@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 const TILE: f32 = 200.;
 const VIEW: f32 = 150.;
+const TREE_VIEW: f32 = 400.;
 const DRAW_TILE: f32 = 50.;
 const RESIDENT_RANGE: i32 = 2;
 const RESET_DISTANCE: f32 = 500.;
@@ -124,7 +125,7 @@ impl Props {
             .map(|parts| {
                 if let Some((kind, _)) = parts.first().and_then(|p| p.template) {
                     return match kind {
-                        crate::props::Kind::Tree => crate::audio::Material::Timber,
+                        kind if kind.is_tree() => crate::audio::Material::Timber,
                         crate::props::Kind::Lamp => crate::audio::Material::Lamp,
                         _ => crate::audio::Material::Hard,
                     };
@@ -141,7 +142,11 @@ impl Props {
                     crate::audio::Material::Fence
                 } else if has_surface(SurfaceKind::Light) {
                     crate::audio::Material::Lamp
-                } else if has_surface(SurfaceKind::Grass) {
+                } else if has_surface(SurfaceKind::Grass)
+                    || has_surface(SurfaceKind::TreeBark)
+                    || has_surface(SurfaceKind::TreeBarkLinden)
+                    || has_surface(SurfaceKind::TreeBarkLocust)
+                {
                     crate::audio::Material::Timber
                 } else {
                     crate::audio::Material::Hard
@@ -261,13 +266,29 @@ impl Props {
         let shape = if cone {
             Self::cone_shape()
         } else {
+            let tree = item.mesh.template.is_some_and(|(kind, _)| kind.is_tree())
+                || item.mesh.mesh.vertices.iter().any(|v| {
+                    v.surface[0] == SurfaceKind::TreeBark as u32 as f32
+                        || v.surface[0] == SurfaceKind::TreeBarkLinden as u32 as f32
+                        || v.surface[0] == SurfaceKind::TreeBarkLocust as u32 as f32
+                });
             let points: Vec<_> = item
                 .mesh
                 .mesh
                 .vertices
                 .iter()
                 // Tree foliage is decorative; collision follows its trunk.
-                .filter(|v| v.surface[0] != SurfaceKind::Grass as u32 as f32)
+                .filter(|v| {
+                    if tree {
+                        (v.surface[0] == SurfaceKind::TreeBark as u32 as f32
+                            || v.surface[0] == SurfaceKind::TreeBarkLinden as u32 as f32
+                            || v.surface[0] == SurfaceKind::TreeBarkLocust as u32 as f32)
+                            && v.position[2] - v.surface[3] < 0.022
+                    } else {
+                        v.surface[0] != SurfaceKind::Grass as u32 as f32
+                            && !(15.0..=23.0).contains(&v.surface[0])
+                    }
+                })
                 .map(|v| {
                     let p = item
                         .mesh
@@ -838,7 +859,7 @@ impl Props {
                 }));
         }
     }
-    pub fn authored_instances(&self, center: Vec3) -> Vec<(crate::props::Kind, usize, Mat4)> {
+    pub fn authored_instances(&self, center: Vec3) -> Vec<(crate::props::Kind, usize, Mat4, bool)> {
         let tile = Self::tile(center);
         let mut ids = Vec::new();
         for x in tile.0 - 2..=tile.0 + 2 {
@@ -873,11 +894,13 @@ impl Props {
                 } else {
                     return None;
                 };
-                (position.truncate().distance(center.truncate()) <= VIEW + item.half.length())
+                let draw_view = if kind.is_tree() { TREE_VIEW } else { VIEW };
+                (position.truncate().distance(center.truncate()) <= draw_view + item.half.length())
                     .then_some((
                         kind,
                         part,
                         transform * Mat4::from_scale(Vec3::splat(1. / METERS_PER_UNIT)),
+                        item.mesh.automatic,
                     ))
             })
             .collect()
@@ -888,6 +911,34 @@ impl Props {
 mod lifecycle_tests;
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn tree_impostors_remain_visible_beyond_other_props() {
+        use super::*;
+        let placement = crate::props::Placement {
+            kind: crate::props::Kind::RandomTree,
+            position: Vec3::ZERO,
+            heading: 0.,
+        };
+        let mut props = Props::from_parts_near(vec![placement.parts()], Vec3::ZERO);
+        assert_eq!(props.authored_instances(Vec3::ZERO).len(), 1);
+        props.update_focus(Vec3::X * 350.);
+        assert_eq!(props.authored_instances(Vec3::X * 350.).len(), 1);
+        props.update_focus(Vec3::X * 450.);
+        assert!(props.authored_instances(Vec3::X * 450.).is_empty());
+    }
+
+    #[test]
+    fn baked_tree_foliage_keeps_collision_near_the_trunk() {
+        use super::*;
+        let placement = crate::props::Placement {
+            kind: crate::props::Kind::Tree,
+            position: Vec3::ZERO,
+            heading: 0.,
+        };
+        let props = Props::from_parts_near(vec![placement.parts()], Vec3::ZERO);
+        assert!(props.blocked(Vec3::new(0., 0., 0.5)));
+        assert!(!props.blocked(Vec3::new(2., 0., 4.)));
+    }
     #[test]
     fn authored_streetlamp_emitter_loses_power_when_its_base_breaks() {
         use super::*;

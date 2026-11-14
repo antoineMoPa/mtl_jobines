@@ -54,6 +54,56 @@ fn backspace() -> Vec<egui::Event> {
         modifiers: Default::default(),
     }]
 }
+
+#[test]
+fn click_then_shift_click_open_ends_joins_and_saves_in_game() {
+    let directory = std::env::temp_dir().join(format!(
+        "street-join-{}-{}",
+        std::process::id(),
+        ID.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("map.road");
+    let source = "# Keep this header\nroad street: carlane carlane; end;\na = street(-0.8,0,-0.4,0);\nb = street(0.4,0,0.8,0);\n";
+    std::fs::write(&path, source).unwrap();
+    let mut document = Document::open(&path).unwrap();
+    let ctx = egui::Context::default();
+    frame(&mut document, &ctx, vec![], false, true);
+    let click_end = |x, shift| {
+        let pos = egui::pos2(x, 329.);
+        let modifiers = if shift {
+            egui::Modifiers::SHIFT
+        } else {
+            Default::default()
+        };
+        let mut events = vec![egui::Event::PointerMoved(pos)];
+        for pressed in [true, false] {
+            events.push(egui::Event::PointerButton {
+                pos,
+                pressed,
+                button: egui::PointerButton::Primary,
+                modifiers,
+            });
+        }
+        events
+    };
+    frame(&mut document, &ctx, click_end(300., false), false, true);
+    assert!(document.picker.selected_end().is_some());
+    frame(&mut document, &ctx, click_end(700., true), true, true);
+    assert_eq!(document.projection.segments.len(), 3);
+    let bridge = document.projection.segments.last().unwrap();
+    assert_eq!(document.projection.segments[0].end_ref, bridge.start_ref);
+    assert_eq!(document.projection.segments[1].start_ref, bridge.end_ref);
+    let saved = std::fs::read_to_string(&path).unwrap();
+    assert!(saved.starts_with("# Keep this header\n"));
+    assert_eq!(
+        opencity::map::project(&opencity::parse(&saved).unwrap())
+            .segments
+            .len(),
+        3
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}
 #[test]
 fn shift_click_and_backspace_remove_only_the_selected_road_and_preserve_source() {
     for external in [false, true] {

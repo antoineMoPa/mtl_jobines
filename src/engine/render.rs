@@ -120,6 +120,8 @@ fn material_vertices(source: &[Vertex]) -> (Cow<'_, [Vertex]>, u32, u32) {
     let masked = |triangle: &[Vertex]| {
         triangle.iter().any(|v| {
             v.surface[0] == SurfaceKind::Fence as u32 as f32
+                || (15.0..=23.0).contains(&v.surface[0])
+                || (24.0..=29.0).contains(&v.surface[0])
                 || v.surface[0] >= crate::hermes::commerce_mesh::SIGN
         })
     };
@@ -414,7 +416,7 @@ impl Renderer {
         let shadow_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: &[Some(&camera_layout)],
+                bind_group_layouts: &[Some(&camera_layout), None, None, Some(&commerce.layout)],
                 immediate_size: 0,
             });
         let instance_attributes = wgpu::vertex_attr_array![4=>Float32x4,5=>Float32x4,
@@ -930,6 +932,7 @@ impl Renderer {
             });
             pass.set_pipeline(&self.opaque_shadow_pipeline);
             pass.set_bind_group(0, &self.camera_group, &[]);
+            pass.set_bind_group(3, &self.commerce.group, &[]);
             for mesh in meshes {
                 if mesh.instances.is_some()
                     || mesh.opaque_count == 0
@@ -1316,6 +1319,17 @@ mod tests {
             )
             .validate(&module)
             .unwrap();
+        }
+    }
+    #[test]
+    fn game_pipelines_create_with_tree_shadow_bindings_when_adapter_is_available() {
+        let result = pollster::block_on(super::Renderer::new(None, 64, 64));
+        match result {
+            Ok(_) => {}
+            Err(message) if message.to_ascii_lowercase().contains("adapter") => {
+                eprintln!("Skipping game pipeline validation: {message}");
+            }
+            Err(message) => panic!("game pipeline setup failed: {message}"),
         }
     }
 }

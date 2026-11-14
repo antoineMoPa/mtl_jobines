@@ -176,6 +176,33 @@ impl Document {
                                 self.error = error;
                             }
                         }
+                        let source_height = self.items[index]
+                            .model
+                            .as_ref()
+                            .map(|mesh| {
+                                let (lo, hi) = crate::hermes::external_models::bounds(mesh);
+                                hi.z - lo.z
+                            })
+                            .unwrap_or(0.1);
+                        let current_scale =
+                            self.items[index].feature.height.unwrap_or(0.1) / source_height;
+                        let mut scale = current_scale;
+                        ui.label("Scale");
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut scale)
+                                    .speed(0.01)
+                                    .range(0.01..=100.)
+                                    .suffix("×"),
+                            )
+                            .changed()
+                            && scale.is_finite()
+                            && current_scale > 0.
+                        {
+                            let feature =
+                                geometry::scaled(&self.items[index].feature, scale / current_scale);
+                            self.error = self.edit(city, index, feature).err().unwrap_or_default();
+                        }
                         if model {
                             let points = &self.items[index].feature.points;
                             let edge = Vec2::from_array(points[1]) - Vec2::from_array(points[0]);
@@ -190,6 +217,28 @@ impl Document {
                                 self.error =
                                     self.edit(city, index, feature).err().unwrap_or_default();
                             }
+                        }
+                        let ground = city
+                            .surface_at(
+                                center(&self.items[index].feature).to_array(),
+                                f32::INFINITY,
+                            )
+                            .map_or(0., |surface| surface.height);
+                        let mut vertical_offset =
+                            (self.items[index].feature.elevation - ground) * 100.;
+                        ui.label("Vertical offset");
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut vertical_offset)
+                                    .speed(0.1)
+                                    .suffix(" m"),
+                            )
+                            .changed()
+                            && vertical_offset.is_finite()
+                        {
+                            let mut feature = self.items[index].feature.clone();
+                            feature.elevation = ground + vertical_offset / 100.;
+                            self.error = self.edit(city, index, feature).err().unwrap_or_default();
                         }
                         if ui.button("Landmarks…").clicked() {
                             self.landmark_picker.open = true;

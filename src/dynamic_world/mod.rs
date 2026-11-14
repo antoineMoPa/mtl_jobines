@@ -36,7 +36,7 @@ use crate::hermes::Hermes;
 use glam::Vec3;
 use opencity::runtime::Mesh;
 use player::Pedestrian;
-pub(crate) const PEDESTRIAN_CAPACITY: usize = crowd::CAPACITY + 1;
+pub(crate) const PEDESTRIAN_CAPACITY: usize = crowd::CAPACITY + crowd::KIOSK_CAPACITY + 1;
 pub use player::WalkControls;
 pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -531,7 +531,9 @@ impl DynamicWorld {
     pub fn visible_prop_batches(&self) -> Vec<PropBatch> {
         self.props.visible_batches(self.player_position())
     }
-    pub(crate) fn authored_prop_instances(&self) -> Vec<(crate::props::Kind, usize, glam::Mat4)> {
+    pub(crate) fn authored_prop_instances(
+        &self,
+    ) -> Vec<(crate::props::Kind, usize, glam::Mat4, bool)> {
         self.props.authored_instances(self.player_position())
     }
     pub fn write_prop_batch(&self, batch: &PropBatch, output: &mut Mesh) {

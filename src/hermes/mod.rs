@@ -10,6 +10,7 @@ pub(crate) mod landmark_destinations;
 pub(crate) mod landmarks;
 pub(crate) use landmark_destinations::Landmark;
 mod minimap;
+mod orange_sign;
 mod street_bins;
 pub(crate) mod street_props;
 
@@ -350,6 +351,7 @@ impl Hermes {
         world.vertices.append(&mut self.external_mesh.vertices);
         (world, details)
     }
+    #[cfg(test)]
     pub(crate) fn prop_groups(&self) -> Vec<Vec<Mesh>> {
         let mut groups = street_props::groups(&self.city);
         let (_, frontage) = self.city.building_detail_parts_matching(
@@ -359,14 +361,27 @@ impl Hermes {
         );
         groups.extend(frontage.into_iter().map(|mesh| vec![mesh]));
         groups.extend(commerce_mesh::prop_groups(&self.city));
+        groups.extend(orange_sign::meshes(&self.city));
         groups
     }
     pub(crate) fn prop_parts(&self) -> Vec<Vec<crate::props::Part>> {
-        let mut groups: Vec<_> = self
-            .prop_groups()
-            .into_iter()
-            .map(|group| group.into_iter().map(crate::props::Part::baked).collect())
-            .collect();
+        let mut groups = street_props::parts(&self.city);
+        let (_, frontage) = self.city.building_detail_parts_matching(
+            Region::WholeMap,
+            &building_style::residential(),
+            detailed_frontage,
+        );
+        groups.extend(
+            frontage
+                .into_iter()
+                .map(|mesh| vec![crate::props::Part::baked(mesh)]),
+        );
+        groups.extend(
+            commerce_mesh::prop_groups(&self.city)
+                .into_iter()
+                .map(|group| group.into_iter().map(crate::props::Part::baked).collect()),
+        );
+        groups.extend(orange_sign::parts(&self.city));
         for entry in &self.authored_props {
             if let Ok(placements) = entry.placements(&self.city) {
                 groups.extend(placements.into_iter().map(|(_, p)| p.parts()));

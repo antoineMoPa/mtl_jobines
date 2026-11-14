@@ -28,6 +28,7 @@ fn protected(triangle: &[Vertex], policy: Policy) -> bool {
         let kind = v.surface[0];
         // Authored art (including paint 42), lamps and cutouts retain exact geometry/UVs.
         if kind >= 40.
+            || (15.0..=23.0).contains(&kind)
             || kind == SurfaceKind::Light as u32 as f32
             || kind == SurfaceKind::Fence as u32 as f32
             || kind == SurfaceKind::Window as u32 as f32

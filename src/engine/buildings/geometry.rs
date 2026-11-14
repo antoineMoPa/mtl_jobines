@@ -63,6 +63,15 @@ pub(super) fn translated(feature: &LandscapeFeature, delta: Vec2) -> LandscapeFe
     }
     result
 }
+pub(super) fn scaled(feature: &LandscapeFeature, ratio: f32) -> LandscapeFeature {
+    let mut result = feature.clone();
+    let c = center(feature);
+    for p in &mut result.points {
+        *p = (c + (Vec2::from_array(*p) - c) * ratio).to_array();
+    }
+    result.height = feature.height.map(|height| height * ratio);
+    result
+}
 pub(super) fn rotated(feature: &LandscapeFeature, degrees: f32) -> LandscapeFeature {
     let mut result = feature.clone();
     let c = center(feature);

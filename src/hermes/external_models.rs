@@ -293,6 +293,10 @@ pub(crate) fn build(city: &City, base: &Path) -> Result<Mesh, String> {
         let Some(path) = feature.model.as_deref().filter(|p| p.ends_with(".glb")) else {
             continue;
         };
+        if path == super::orange_sign::MODEL_PATH {
+            // Its two physical parts are drawn by the breakable prop system.
+            continue;
+        }
         let path = base.join(path);
         let metadata = std::fs::metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         if metadata.len() > 64 * 1024 * 1024 {

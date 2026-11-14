@@ -3,6 +3,53 @@
 @group(3) @binding(0) var commerce_signs: texture_2d_array<f32>;
 @group(3) @binding(1) var commerce_rooms: texture_2d<f32>;
 @group(3) @binding(2) var commerce_sampler: sampler;
+@group(3) @binding(8) var tree_atlas: texture_2d_array<f32>;
+@group(3) @binding(9) var tree_sampler: sampler;
+@group(3) @binding(10) var tree_impostors: texture_2d_array<f32>;
+@group(3) @binding(11) var tree_impostor_sampler: sampler;
+fn tree_image_color(v:Output)->vec4<f32> {
+    let winter=select(0,6,camera.daylight_sky.z>0.2);
+    let layer=i32(v.surface.x)-24+winter;
+    let tex=textureSampleGrad(tree_impostors,tree_impostor_sampler,v.fence_uv,layer,dpdx(v.fence_uv),dpdy(v.fence_uv));
+    if tex.a<0.12 {discard;}
+    let eye=camera.eye_time.xyz-v.world;
+    let distance=length(eye);
+    let fog=(1.0-exp(-distance*0.025)*(1.0-smoothstep(5.8,7.6,distance)))*(1.0-camera.daylight_sky.y);
+    let sky=textureSampleLevel(sky_environment,sky_sampler,-eye/max(distance,0.00001),0.0).rgb;
+    return vec4<f32>(filmic_display(mix(tex.rgb,sky,fog)*camera.sun_exposure.w),tex.a);
+}
+fn tree_layer(kind:i32)->i32 {
+    if kind==16 || kind==20 || kind==22 {return select(1,4,kind>=18);}
+    if kind==17 || kind==21 || kind==23 {return select(2,5,kind>=18);}
+    return select(0,3,kind>=18);
+}
+fn tree_color(v:Output,front:bool)->vec4<f32> {
+    let kind=i32(v.surface.x);
+    if kind<=17 && camera.daylight_sky.z>0.2 {discard;}
+    if (kind==19 || kind==22 || kind==23) && camera.daylight_sky.z<=0.2 {discard;}
+    let tex=textureSampleGrad(tree_atlas,tree_sampler,v.fence_uv,tree_layer(kind),dpdx(v.fence_uv),dpdy(v.fence_uv));
+    if kind<=17 && tex.a<0.42 {discard;}
+    var material=v;
+    material.color*=tex.rgb;
+    material.surface=vec4<f32>(7.0,1.0,0.0,0.0);
+    if kind>=18 {
+        let up=clamp(v.normal.z/max(length(v.normal),0.0001),0.0,1.0);
+        let variation=0.75+0.25*sin(v.fence_uv.x*22.0+v.world.z*520.0);
+        let snow=smoothstep(0.14,0.46,up)*camera.daylight_sky.z*variation*0.9;
+        material.color=mix(material.color,vec3<f32>(0.9,0.94,0.95),snow);
+    }
+    let surface=prepare_surface(material);
+    return shade_local_surface(material,front,1.0,surface);
+}
+fn tree_shadow(v:ShadowOutput) {
+    let kind=i32(v.kind_pattern.x);
+    if kind<=17 && camera.daylight_sky.z>0.2 {discard;}
+    if (kind==19 || kind==22 || kind==23) && camera.daylight_sky.z<=0.2 {discard;}
+    if kind<=17 {
+        let alpha=textureSampleLevel(tree_atlas,tree_sampler,v.fence_uv,tree_layer(kind),0.0).a;
+        if alpha<0.42 {discard;}
+    }
+}
 fn shop_room(uv:vec2<f32>,size:vec2<f32>,n:vec3<f32>,tangent:vec3<f32>,eye:vec3<f32>,recipe:f32)->vec3<f32> {
     let origin=vec3<f32>(clamp(uv.x,0.0001,0.9999)*size.x,(1.0-clamp(uv.y,0.0001,0.9999))*size.y,0.0);
     let ray=vec3<f32>(-dot(eye,tangent),-eye.z,max(dot(eye,n),0.00001));
@@ -104,6 +151,8 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
     return shade_local_surface(v,front,1.0,surface);
 }
 @fragment fn fs_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
+    if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v);}
+    if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front);}
     let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);let dx=dpdx(v.world);let dy=dpdy(v.world);
     let surface=prepare_surface(v);let footprint=fwidth(v.fence_uv);
     if v.surface.x>39.5 {return commerce_color(v,du,dv,dx,dy);}
@@ -112,6 +161,7 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
     return shade_local_surface(v,front,coverage,surface);
 }
 @fragment fn fs_shadow_game(v:ShadowOutput) {
+    if v.kind_pattern.x>=15.0 && v.kind_pattern.x<=23.0 {tree_shadow(v);return;}
     let footprint=fwidth(v.fence_uv);
     // Thin applied decals do not cast a second rectangular shadow on their shell.
     if v.kind_pattern.x>39.5&&v.kind_pattern.x<40.5 {discard;}

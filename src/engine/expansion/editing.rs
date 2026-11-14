@@ -1,5 +1,5 @@
 use super::*;
-use opencity::{map, Argument, Statement};
+use opencity::{expansion, map, Argument, Statement};
 
 impl Document {
     pub(super) fn road_input(
@@ -25,6 +25,41 @@ impl Document {
                 .is_some_and(|p| viewport.contains(p));
         if shift_click {
             let pos = ctx.pointer_hover_pos().unwrap();
+            if let Some(first) = self.picker.selected_end() {
+                if let expansion::Anchor::Road { source, at_end } = &first.anchor {
+                    let first = (*source, *at_end);
+                    let target = expansion::ends(&self.program)
+                        .into_iter()
+                        .filter_map(|end| {
+                            let expansion::Anchor::Road { source, at_end } = end.anchor else {
+                                return None;
+                            };
+                            let (screen, depth) = screen(
+                                matrix,
+                                viewport,
+                                glam::Vec3::new(end.point.x, end.point.y, end.height),
+                            )?;
+                            let distance = pos.distance(screen);
+                            (distance < 14.).then_some((distance, depth, (source, at_end)))
+                        })
+                        .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+                    if let Some((_, _, second)) = target {
+                        if first != second {
+                            match map::join_open_ends(&mut self.program, first, second) {
+                                Ok(source) => {
+                                    self.selected_road = Some(source);
+                                    self.picker.message = "Road ends joined".into();
+                                }
+                                Err(error) => self.picker.message = error,
+                            }
+                        } else {
+                            self.picker.message = "Choose another open end".into();
+                        }
+                        ctx.request_repaint();
+                        return true;
+                    }
+                }
+            }
             self.selected_road = self
                 .projection
                 .segments

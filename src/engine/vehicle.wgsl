@@ -7,14 +7,30 @@ struct VehicleTransform {
 };
 @vertex fn vs_vehicle(v: Input, instance: VehicleTransform) -> Output {
     let model = mat4x4<f32>(instance.x, instance.y, instance.z, instance.translation);
-    let world = (model * vec4<f32>(v.position, 1.0)).xyz;
+    var world = (model * vec4<f32>(v.position, 1.0)).xyz;
+    let tree=v.surface.x>=15.0 && v.surface.x<=23.0;
+    let image=v.surface.x>=24.0 && v.surface.x<=29.0;
+    if tree {world=tree_vertex(world,instance.translation.xyz);}
+    if image {
+        let direction=camera.eye_time.xy-instance.translation.xy;
+        let right=normalize(vec2<f32>(-direction.y,direction.x));
+        world=instance.translation.xyz+vec3<f32>(right*v.position.x/100.0,v.position.z/100.0);
+        world=tree_vertex(world,instance.translation.xyz);
+    }
     var o: Output;
     o.clip = camera.view_projection * vec4<f32>(world, 1.0);
     o.world = world;
     o.normal = (model * vec4<f32>(v.normal, 0.0)).xyz * 100.0;
-    o.color = v.color; o.surface = v.surface; o.surface.y *= instance.translation.w; o.fence_uv = v.surface.yz;
+    o.color = v.color; o.surface = v.surface; if !tree {o.surface.y *= instance.translation.w;} o.fence_uv = v.surface.yz;
+    if image {
+        let direction=camera.eye_time.xy-instance.translation.xy;
+        let local=vec2<f32>(dot(direction,instance.x.xy),dot(direction,instance.y.xy));
+        let angle=atan2(local.x,-local.y);
+        let view=(i32(floor((angle+0.785398)*0.63661977))+4)%4;
+        o.fence_uv=v.surface.yz*0.496+vec2<f32>(f32(view%2),f32(view/2))*0.5+vec2<f32>(0.002);
+    }
     let excluded=v.surface.y<0.999 || (v.surface.x>=0.0 && (v.surface.w== -3.0 || v.surface.w>=64.0)) || (v.surface.x<0.0 && fract(-v.surface.x)>0.1);
-    o.snow_control=vec2<f32>(select(1.0,0.0,excluded),1.0);
+    o.snow_control=vec2<f32>(select(1.0,0.0,excluded || tree),1.0);
     if v.surface.x<0.0 {
         o.fence_uv=v.surface.zw;
         o.surface.w=select(0.0,64.0,fract(-v.surface.x)==0.25 && instance.x.w>0.0);
@@ -31,13 +47,17 @@ struct VehicleTransform {
 @vertex fn vs_vehicle_shadow(v: Input, instance: VehicleTransform) -> ShadowOutput {
     let model = mat4x4<f32>(instance.x, instance.y, instance.z, instance.translation);
     var o: ShadowOutput;
-    o.clip = camera.light_view_projection * vec4<f32>((model * vec4<f32>(v.position, 1.0)).xyz, 1.0);
+    var world=(model * vec4<f32>(v.position, 1.0)).xyz;
+    if v.surface.x>=15.0 && v.surface.x<=23.0 {world=tree_vertex(world,instance.translation.xyz);}
+    o.clip = camera.light_view_projection * vec4<f32>(world, 1.0);
     o.fence_uv = v.surface.yz; o.kind_pattern = vec2<f32>(v.surface.x, v.surface.y * instance.translation.w);
     return o;
 }
 // Alpha-to-coverage retains depth-correct seats behind glass without sorting
 // every triangle of each moving vehicle. Opaque parts still cover all samples.
 @fragment fn fs_vehicle(v: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+    if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v);}
+    if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front);}
     let uv_dx=dpdx(v.fence_uv); let uv_dy=dpdy(v.fence_uv);
     var material=v;
     if v.surface.x<0.0 {
@@ -68,6 +88,8 @@ struct VehicleTransform {
     return shade_local_surface(material, front, clamp(material.surface.y, 0.0, 1.0), surface);
 }
 @fragment fn fs_vehicle_shadow(v: ShadowOutput) {
+    if v.kind_pattern.x>=24.0 && v.kind_pattern.x<=29.0 {discard;}
+    if v.kind_pattern.x>=15.0 && v.kind_pattern.x<=23.0 {tree_shadow(v);return;}
     let pattern = array<f32, 16>(0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
         3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
     let pixel = vec2<u32>(v.clip.xy) % vec2<u32>(4u);

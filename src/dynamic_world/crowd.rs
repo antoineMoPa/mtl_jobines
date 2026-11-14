@@ -3,17 +3,86 @@ use super::{
     pedestrian_catalog::{self, JOINT_LIMIT},
     pedestrian_gait::{footing, Gait},
     props::Props,
-    ragdoll, Vehicle,
+    ragdoll, Vehicle, METERS_PER_UNIT,
 };
 use crate::hermes::walking_paths::{support, WalkingPaths};
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec2, Vec3};
 use opencity::runtime::City;
 use std::sync::Arc;
 
 pub(crate) const CAPACITY: usize = 32;
+pub(crate) const KIOSK_CAPACITY: usize = 4;
 const SPAWN_RADIUS: f32 = 100.;
 const RETAIN_RADIUS: f32 = 140.;
 const DRAW_RADIUS: f32 = 100.;
+const KIOSK_SPAWN_RADIUS: f32 = 70.;
+const KIOSK_RETAIN_RADIUS: f32 = 85.;
+struct KioskSite {
+    front: Vec2,
+    toward_front: Vec2,
+    elevation: f32,
+}
+struct KioskActor {
+    model: usize,
+    position: Vec3,
+    yaw: f32,
+    idle_time: f32,
+}
+impl KioskSite {
+    fn from_city(city: &City) -> Option<Self> {
+        let feature = city.landscape.iter().find(|feature| {
+            feature.model.as_deref() == Some("study_01")
+                && feature.name.as_deref() == Some("site_model_01")
+                && feature.points.len() == 4
+        })?;
+        let front_edge = (Vec2::from_array(feature.points[0])
+            + Vec2::from_array(feature.points[1]))
+            * (METERS_PER_UNIT * 0.5);
+        let back = (Vec2::from_array(feature.points[2]) + Vec2::from_array(feature.points[3]))
+            * (METERS_PER_UNIT * 0.5);
+        let along = (Vec2::from_array(feature.points[1]) - Vec2::from_array(feature.points[0]))
+            * METERS_PER_UNIT;
+        // The kiosk occupies the positive-X side of the source sphere mesh.
+        // Match the XY fit used by Hermes' landmark mesh placement.
+        let scale = (along.length() / 2.9923563).min(front_edge.distance(back) / 3.196178);
+        let front = front_edge + along.normalize_or_zero() * (0.76 * scale);
+        Some(Self {
+            front,
+            toward_front: (front_edge - back).normalize_or_zero(),
+            elevation: feature.elevation,
+        })
+    }
+    fn actors(&self, city: &City) -> Vec<KioskActor> {
+        // The counter is inside the open frontage; guests stand outside it.
+        let positions = [(3.1, 0), (-2.6, 1), (-5.0, 3), (-7.4, 5)];
+        positions
+            .into_iter()
+            .map(|(offset, model)| {
+                let xy = self.front - self.toward_front * offset;
+                let map_xy = (xy / METERS_PER_UNIT).to_array();
+                let z = if offset > 0. {
+                    // The cashier stands on the kiosk's authored floor.
+                    self.elevation * METERS_PER_UNIT
+                } else {
+                    city.surface_at(map_xy, self.elevation + 0.05)
+                        .map_or(self.elevation, |surface| surface.height)
+                        * METERS_PER_UNIT
+                };
+                let direction = if offset > 0. {
+                    self.toward_front
+                } else {
+                    -self.toward_front
+                };
+                KioskActor {
+                    model,
+                    position: xy.extend(z),
+                    yaw: direction.y.atan2(direction.x),
+                    idle_time: model as f32 * 0.37,
+                }
+            })
+            .collect()
+    }
+}
 struct Walker {
     serial: u32,
     model: usize,
@@ -91,6 +160,9 @@ pub(crate) struct Crowd {
     serial: u32,
     refill: f32,
     previous_vehicles: Vec<Vec3>,
+    kiosk_checked: bool,
+    kiosk_site: Option<KioskSite>,
+    kiosk_actors: Vec<KioskActor>,
 }
 fn random(seed: &mut u32) -> f32 {
     *seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
@@ -158,9 +230,16 @@ impl Crowd {
             serial: 0,
             refill: 0.,
             previous_vehicles: Vec::new(),
+            kiosk_checked: false,
+            kiosk_site: None,
+            kiosk_actors: Vec::new(),
         }
     }
     pub fn populate(&mut self, city: &City, center: Vec3, vehicles: &[Vehicle], props: &Props) {
+        if !self.kiosk_checked {
+            self.kiosk_site = KioskSite::from_city(city);
+            self.kiosk_checked = true;
+        }
         self.walkers.retain(|w| {
             w.reaction.is_some() || w.position.distance_squared(center) < RETAIN_RADIUS.powi(2)
         });
@@ -270,6 +349,17 @@ impl Crowd {
         // A public world step can also be used by tools; bound displacement before
         // collision sampling even if a tool sends a long frame.
         let dt = dt.min(0.1);
+        if let Some(site) = &self.kiosk_site {
+            let distance = center.truncate().distance(site.front);
+            if distance > KIOSK_RETAIN_RADIUS {
+                self.kiosk_actors = Vec::new();
+            } else if distance < KIOSK_SPAWN_RADIUS && self.kiosk_actors.is_empty() {
+                self.kiosk_actors = site.actors(city);
+            }
+        }
+        for actor in &mut self.kiosk_actors {
+            actor.idle_time += dt;
+        }
         self.refill -= dt;
         if self.refill <= 0. {
             self.refill = 1.;
@@ -511,20 +601,31 @@ impl Crowd {
             .extend(vehicles.iter().map(|v| v.position));
     }
     pub fn instances(&self, center: Vec3) -> impl Iterator<Item = Instance<'_>> + '_ {
-        self.walkers.iter().filter_map(move |w| {
-            let distance = w.position.distance(center);
-            let opacity =
-                ((DRAW_RADIUS - distance) / 15.).clamp(0., 1.) * (w.age / 0.6).clamp(0., 1.);
-            (opacity > 0.).then(|| Instance {
-                model: w.model,
-                transform: pedestrian_catalog::instance_transform(w.position, w.yaw),
-                opacity,
-                idle_time: w.idle_time,
-                walk_time: w.walk_time,
-                movement: w.movement,
-                pose: Some(w.reaction.as_ref().map_or(&w.gait.palette, |r| r.palette())),
+        self.walkers
+            .iter()
+            .filter_map(move |w| {
+                let distance = w.position.distance(center);
+                let opacity =
+                    ((DRAW_RADIUS - distance) / 15.).clamp(0., 1.) * (w.age / 0.6).clamp(0., 1.);
+                (opacity > 0.).then(|| Instance {
+                    model: w.model,
+                    transform: pedestrian_catalog::instance_transform(w.position, w.yaw),
+                    opacity,
+                    idle_time: w.idle_time,
+                    walk_time: w.walk_time,
+                    movement: w.movement,
+                    pose: Some(w.reaction.as_ref().map_or(&w.gait.palette, |r| r.palette())),
+                })
             })
-        })
+            .chain(self.kiosk_actors.iter().map(|actor| Instance {
+                model: actor.model,
+                transform: pedestrian_catalog::instance_transform(actor.position, actor.yaw),
+                opacity: 1.,
+                idle_time: actor.idle_time,
+                walk_time: 0.,
+                movement: 0.,
+                pose: None,
+            }))
     }
     #[cfg(test)]
     pub(super) fn prepare_collision(&mut self) -> (Vec3, f32) {
@@ -622,6 +723,29 @@ fn return_point(
 mod tests {
     use super::*;
     use crate::hermes::Hermes;
+    #[test]
+    fn kiosk_queue_exists_only_near_its_authored_frontage() {
+        let program = opencity::parse(concat!(
+            "concrete(-1,-1,1,-1,1,1,-1,1);",
+            "site_model_01=building(0.2,\"study_01\",0,0,0.12,0,0.12,0.12,0,0.12);",
+            "elevation(site_model_01,0.02);"
+        ))
+        .unwrap();
+        let city = City::from_program(&program, None).unwrap();
+        let graph = Arc::new(WalkingPaths::new(&city));
+        let mut crowd = Crowd::new(&graph);
+        let props = Props::new(Vec::new());
+        crowd.populate(&city, Vec3::X * 200., &[], &props);
+        assert!(crowd.kiosk_actors.is_empty());
+        crowd.step(&city, Vec3::X * 6., false, &[], &props, 0.1);
+        assert_eq!(crowd.kiosk_actors.len(), KIOSK_CAPACITY);
+        assert_eq!(crowd.instances(Vec3::X * 6.).count(), KIOSK_CAPACITY);
+        assert!(crowd.kiosk_actors[0].position.y > 0.);
+        assert!(crowd.kiosk_actors[1].position.y < 0.);
+        crowd.step(&city, Vec3::X * 200., false, &[], &props, 0.1);
+        assert!(crowd.kiosk_actors.is_empty());
+        assert_eq!(crowd.kiosk_actors.capacity(), 0);
+    }
     #[test]
     fn walking_and_sprinting_bumps_use_ragdolls_then_get_up_and_walk_again() {
         let hermes = Hermes::test_map();

@@ -1,5 +1,7 @@
 //! Approved offline-workbench GLBs, placed by the shared sidewalk feature layout.
 use super::external_models;
+use crate::props::{Kind, Part, Placement};
+use glam::Vec3;
 use opencity::runtime::{City, Mesh, Region, StreetFeatureKind};
 use std::sync::OnceLock;
 
@@ -76,6 +78,7 @@ fn placed(model: Model, position: [f32; 3], heading: f32) -> Vec<Mesh> {
         .filter(|mesh| !mesh.vertices.is_empty())
         .collect()
 }
+#[cfg(test)]
 pub(super) fn groups(city: &City) -> Vec<Vec<Mesh>> {
     let features = city.street_features(Region::WholeMap);
     let originals = city.detail_objects(Region::WholeMap);
@@ -97,11 +100,78 @@ pub(super) fn groups(city: &City) -> Vec<Vec<Mesh>> {
     );
     groups
 }
+pub(super) fn parts(city: &City) -> Vec<Vec<Part>> {
+    let features = city.street_features(Region::WholeMap);
+    let bins = super::street_bins::placements(city, &features);
+    let mut groups: Vec<_> = features
+        .into_iter()
+        .map(|feature| match feature.kind {
+            StreetFeatureKind::Tree => {
+                let mut parts = Placement {
+                    kind: Kind::street_tree(feature.position),
+                    position: Vec3::from_array(feature.position),
+                    heading: feature.heading.to_degrees(),
+                }
+                .parts();
+                for part in &mut parts {
+                    part.automatic = true;
+                }
+                parts
+            }
+            kind => placed(
+                Model::from_feature(kind).expect("bench or lamp"),
+                feature.position,
+                feature.heading,
+            )
+            .into_iter()
+            .map(Part::baked)
+            .collect(),
+        })
+        .collect();
+    groups.extend(bins.into_iter().map(|bin| {
+        placed(Model::Bin, bin.position, bin.heading)
+            .into_iter()
+            .map(Part::baked)
+            .collect()
+    }));
+    groups
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use opencity::runtime::{StreetFeature, SurfaceKind};
+
+    #[test]
+    fn automatic_trees_use_instanced_templates_for_per_tree_lod() {
+        let city = City::from_program(
+            &opencity::parse(
+                "ground=terrain(0,0,0,0.7,0,0.7,0.7,0,0.7); woods=vegetation(forest,0,0,0.7,0,0.7,0.7,0,0.7);",
+            )
+            .unwrap(),
+            None,
+        )
+        .unwrap();
+        let features = city.street_features(Region::WholeMap);
+        assert!(features
+            .iter()
+            .any(|feature| feature.kind == StreetFeatureKind::Tree));
+        let groups = parts(&city);
+        for (feature, group) in features.iter().zip(groups.iter()) {
+            if feature.kind == StreetFeatureKind::Tree {
+                assert_eq!(group.len(), 1);
+                assert_eq!(
+                    group[0].template,
+                    Some((Kind::street_tree(feature.position), 0))
+                );
+                assert!(group[0].automatic);
+                assert!(std::sync::Arc::ptr_eq(
+                    &group[0].mesh,
+                    &Kind::street_tree(feature.position).parts()[0],
+                ));
+            }
+        }
+    }
 
     #[test]
     fn bundled_glbs_keep_real_scale_baked_colors_and_lamp_diffusers() {

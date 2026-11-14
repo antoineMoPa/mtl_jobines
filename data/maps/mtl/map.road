@@ -676,3 +676,165 @@ grade(road_29, 0.10200094, 0.10200094);
 placed_prop_6 = prop(tree, 4.7545052, 3.8815298, { heading: 0.0000000, elevation: 0.3990135 });
 
 placed_prop_7 = prop(tree, 4.7660885, 3.9610496, { heading: 0.0000000, elevation: 0.4002080 });
+
+placed_building_6 = building(0.3070346, "study_05", { material: concrete, floor_height: 0.0315000, use: unspecified, family: podium, palette: granite, glazing: teal, section: bands, ground: retail, weathering: 0.12, seed: 334, corners: glass, roof_units: 4 }, 4.9132967, 1.4761887, 4.9132967, 1.1140995, 5.2753854, 1.1140985, 5.2753854, 1.4761887);
+
+elevation(placed_building_6, 0.1881);
+
+# Roadside orange sign at reports 55-56; its breakable prop handles collision.
+orange_sign = building(0.084, "models/orange-sign.glb", { collision: none }, 1.5127944, -0.7482457, 1.5181231, -0.7995698, 1.5245884, -0.7988986, 1.5192597, -0.7475745);
+
+elevation(orange_sign, 0.1000);
+
+
+junction_16 = map_point(1.6049, 2.7287);
+
+road_16 = cross_street(junction_10, 1.6245, 2.0623, 1.6147, 2.3955, junction_16);
+
+grade(road_16, 0.1020, 0.1020);
+
+junction_30 = map_point(1.5755, 3.7283);
+
+road_30 = cross_street(junction_16, 1.5951, 3.0619, 1.5853, 3.3951, junction_30);
+
+grade(road_30, 0.1020, 0.1020);
+
+junction_31 = map_point(1.3991, 9.7257);
+
+road_31 = cross_street(junction_30, 1.5167, 5.7274, 1.4579, 7.7266, junction_31);
+
+grade(road_31, 0.1020, 0.1020);
+
+junction_32 = map_point(1.3946, 9.8788);
+
+road_32 = cross_street(junction_31, 1.3976, 9.7767, 1.3961, 9.8278, junction_32);
+
+grade(road_32, 0.1020, 0.1020);
+
+junction_33 = map_point(1.2415, 9.8743);
+
+road_33 = cross_street(junction_32, 1.3436, 9.8773, 1.2925, 9.8758, junction_33);
+
+grade(road_33, 0.1020, 0.1020);
+
+junction_34 = map_point(1.5477, 9.8833);
+
+road_34 = cross_street(junction_32, 1.4456, 9.8803, 1.4967, 9.8818, junction_34);
+
+grade(road_34, 0.1020, 0.1020);
+
+junction_35 = map_point(1.3901, 10.0319);
+
+road_35 = cross_street(junction_32, 1.3931, 9.9298, 1.3916, 9.9809, junction_35);
+
+grade(road_35, 0.1020, 0.1020);
+
+intersection4(junction_32, cross_street);
+
+elevation(junction_32, 0.1020);
+
+junction_36 = map_point(4.6996, 9.9762);
+
+road_36 = cross_street(junction_25, 4.7026, 9.8741, 4.7011, 9.9252, junction_36);
+
+grade(road_36, 0.1020, 0.1020);
+
+junction_37 = map_point(4.5465, 9.9717);
+
+road_37 = cross_street(junction_36, 4.6486, 9.9747, 4.5975, 9.9732, junction_37);
+
+grade(road_37, 0.1020, 0.1020);
+
+junction_38 = map_point(4.8527, 9.9807);
+
+road_38 = cross_street(junction_36, 4.7506, 9.9777, 4.8017, 9.9792, junction_38);
+
+grade(road_38, 0.1020, 0.1020);
+
+junction_39 = map_point(4.6951, 10.1293);
+
+road_39 = cross_street(junction_36, 4.6981, 10.0272, 4.6966, 10.0783, junction_39);
+
+grade(road_39, 0.1020, 0.1020);
+
+intersection4(junction_36, cross_street);
+
+elevation(junction_36, 0.1020);
+
+placed_prop_8 = prop(tree, 1.7359977, 1.9771768, { heading: 0.0000000, elevation: 0.1008893 });
+
+
+
+placed_prop_9 = prop(tree, 1.7405739, 2.4616854, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_10 = prop(tree, 1.5068598, 1.9480993, { heading: 0.0000000, elevation: 0.1002039 });
+
+placed_prop_11 = prop(tree, 1.4818208, 2.4710732, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_12 = prop(tree, 5.0002689, 1.5126772, { heading: 0.0000000, elevation: 0.2360037 });
+
+placed_prop_13 = prop(tree, 5.0168033, 1.0889294, { heading: 0.0000000, elevation: 0.2350702 });
+
+placed_prop_14 = prop(tree, 5.2148438, 1.0885453, { heading: 0.0000000, elevation: 0.2317766 });
+
+placed_prop_15 = prop(tree, 3.9233131, 2.3105307, { heading: 0.0000000, elevation: 0.2186791 });
+
+placed_prop_16 = prop(tree, 3.1879551, 2.8495140, { heading: 0.0000000, elevation: 0.1989553 });
+
+placed_prop_17 = prop(tree, 2.6523221, 3.0261133, { heading: 0.0000000, elevation: 0.1405836 });
+
+placed_prop_18 = prop(tree_locust, 2.6082845, 2.5782714, { heading: 0.0000000, elevation: 0.1252540 });
+
+placed_prop_19 = prop(tree_locust_2, 3.6164610, 2.4826803, { heading: 0.0000000, elevation: 0.2181199 });
+
+placed_prop_20 = prop(tree_linden_2, 2.9693508, 3.4103684, { heading: 0.0000000, elevation: 0.1853998 });
+
+placed_prop_21 = prop(tree_linden_2, 4.1203585, 1.8575547, { heading: 0.0000000, elevation: 0.1962141 });
+
+placed_prop_22 = prop(tree_linden_2, 3.3370099, 1.9128307, { heading: 0.0000000, elevation: 0.1438385 });
+
+placed_prop_23 = prop(tree_linden_2, 2.1897919, 0.7005064, { heading: 0.0000000, elevation: 0.1025000 });
+
+placed_prop_24 = prop(tree_linden_2, 2.4885492, 0.7083585, { heading: 0.0000000, elevation: 0.1025000 });
+
+placed_prop_25 = prop(tree_linden_2, 1.8354273, 1.4347448, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_26 = prop(tree_linden_2, 1.4297284, 3.2483444, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_27 = prop(tree_linden_2, 1.7514592, 3.2445419, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_28 = prop(tree_linden_2, 1.4110935, 4.1643081, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_29 = prop(tree_linden_2, 1.7207114, 4.1725721, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_30 = prop(tree_linden_2, 1.3681805, 5.2253418, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_31 = prop(tree_linden_2, 1.6838965, 5.2308979, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_32 = prop(tree_linden_2, 1.3305690, 6.3866067, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_33 = prop(tree_linden_2, 1.6183429, 6.3887587, { heading: 0.0000000, elevation: 0.1001985 });
+
+placed_prop_34 = prop(tree_linden_2, 1.3107409, 7.3351784, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_35 = prop(tree_linden_2, 1.6037807, 7.3846292, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_36 = prop(tree_linden_2, 1.2743859, 8.7382908, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_37 = prop(tree_linden_2, 1.5601959, 8.7448263, { heading: 0.0000000, elevation: 0.1000009 });
+
+placed_prop_38 = prop(tree_linden_2, 4.9509740, 4.8738713, { heading: 0.0000000, elevation: 0.3858575 });
+
+placed_prop_39 = prop(tree_linden_2, 5.3696842, 4.6744127, { heading: 0.0000000, elevation: 0.3960056 });
+
+placed_prop_40 = prop(tree_linden_2, 5.2574654, 3.9603281, { heading: 0.0000000, elevation: 0.3960056 });
+
+placed_prop_41 = prop(tree_linden_2, 4.4774303, 5.9947214, { heading: 0.0000000, elevation: 0.3003061 });
+
+placed_prop_42 = prop(tree_linden_2, 4.8269534, 5.9844322, { heading: 0.0000000, elevation: 0.3074033 });
+
+placed_prop_43 = prop(trash_can, 1.0779408, -1.1448685, { heading: 0.0000000, elevation: 0.1020000 });
+
+
+
+placed_prop_45 = prop(trash_can, 1.2322129, -1.1857122, { heading: 0.0000000, elevation: 0.1020000 });

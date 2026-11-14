@@ -261,13 +261,14 @@ impl Document {
             }
             for (placement, ghost) in placements {
                 for (index, part) in placement.parts().into_iter().enumerate() {
-                    let model = self
-                        .models
-                        .entry((placement.kind, index))
-                        .or_insert_with(|| PreviewModel {
-                            mesh: Arc::new(Self::upload_model(renderer, placement.kind, index)),
-                            transforms: Vec::new(),
-                        });
+                    let model_kind = part.template.expect("catalogue part").0;
+                    let model =
+                        self.models
+                            .entry((model_kind, index))
+                            .or_insert_with(|| PreviewModel {
+                                mesh: Arc::new(Self::upload_model(renderer, model_kind, index)),
+                                transforms: Vec::new(),
+                            });
                     let mut transform = (part.transform
                         * glam::Mat4::from_scale(Vec3::splat(0.01)))
                     .to_cols_array_2d();

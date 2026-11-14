@@ -261,6 +261,82 @@ fn city_speed_turns_keep_side_slip_moderate() {
 }
 
 #[test]
+fn highway_speed_full_steering_keeps_a_recoverable_turn() {
+    let road = format!(
+        "road street: {}; end street(-25,3,-20,3);",
+        "carlane ".repeat(40)
+    );
+    let city = City::from_program(&opencity::parse(&road).unwrap(), None).unwrap();
+    for speed in [20., 30.] {
+        for direction in [-1., 1.] {
+            let mut car = Vehicle::spawn(&city);
+            car.position.y = 300.;
+            car.yaw = 0.;
+            car.velocity = Vec3::X * speed;
+            let mut max_slip = 0.0_f32;
+            for _ in 0..120 {
+                car.step(
+                    &city,
+                    Controls {
+                        steering: direction,
+                        ..Default::default()
+                    },
+                    1. / 120.,
+                );
+                let forward = Vec2::new(car.yaw.cos(), car.yaw.sin());
+                let velocity = car.velocity.truncate();
+                max_slip = max_slip.max(
+                    forward
+                        .perp_dot(velocity)
+                        .abs()
+                        .atan2(forward.dot(velocity).abs()),
+                );
+                assert!(car.grounded);
+            }
+            assert!(
+                max_slip.to_degrees() < 12.,
+                "speed={speed}, slip={max_slip}"
+            );
+            assert!(car.yaw * direction > 0.2, "speed={speed}, yaw={}", car.yaw);
+        }
+    }
+}
+
+#[test]
+fn strong_sideways_slide_settles_quickly_on_asphalt() {
+    let road = format!(
+        "road street: {}; end street(-25,3,-20,3);",
+        "carlane ".repeat(40)
+    );
+    let city = City::from_program(&opencity::parse(&road).unwrap(), None).unwrap();
+    for direction in [-1., 1.] {
+        for throttle in [0., 1.] {
+            let mut car = Vehicle::spawn(&city);
+            car.position.y = 300.;
+            car.yaw = 0.;
+            car.velocity = Vec3::new(20., direction * 10., 0.);
+            for _ in 0..48 {
+                car.step(
+                    &city,
+                    Controls {
+                        throttle,
+                        ..Default::default()
+                    },
+                    1. / 120.,
+                );
+                assert!(car.grounded);
+            }
+            assert!(
+                car.velocity.y.abs() < if throttle > 0. { 3.5 } else { 2.5 },
+                "throttle={throttle}, sideways velocity: {}",
+                car.velocity.y
+            );
+            assert!(car.velocity.x > 19.);
+        }
+    }
+}
+
+#[test]
 fn steering_accelerates_yaw_without_snapping_momentum_to_the_body() {
     let city = map();
     for speed in [-5.0_f32, 5., 20.] {
