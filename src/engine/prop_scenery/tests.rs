@@ -114,3 +114,29 @@ fn native_cached_signals_match_combined_mesh_across_phases_and_views() {
         }
     }
 }
+
+#[test]
+fn tree_lod_crossfades_cover_ten_meters_without_endpoint_holes() {
+    for (distance, tier) in [(0., 0), (50., 0), (60., 1), (100., 1), (110., 2), (350., 2)] {
+        assert_eq!(tree_lods(distance), [(tier, 0.), (3, 0.)]);
+    }
+    for (start, tier) in [(50., 0), (100., 1)] {
+        let mut previous = 0.;
+        for step in 1..100 {
+            let [(outgoing, fade), (incoming, other)] = tree_lods(start + step as f32 * 0.1);
+            assert_eq!((outgoing, incoming), (tier, tier + 1));
+            assert_eq!(fade, -other);
+            assert!(fade > previous && fade < 1.);
+            for pixel in 0..256 {
+                let threshold = (pixel as f32 + 0.5) / 256.;
+                assert_ne!(
+                    threshold >= fade,
+                    threshold < -other,
+                    "overlapping silhouettes must have exactly one surviving tier"
+                );
+            }
+            previous = fade;
+        }
+        assert_eq!(tree_lods(start + 5.), [(tier, 0.5), (tier + 1, -0.5)]);
+    }
+}

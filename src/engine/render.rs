@@ -352,7 +352,7 @@ impl Renderer {
             layout: &camera_layout,
             entries: &camera_bindings,
         });
-        let sky = Sky::new(&device, &camera_layout, format);
+        let sky = Sky::new(&device, &queue, &camera_layout, format);
         let shadow = depth(
             &device,
             SHADOW_RESOLUTION,

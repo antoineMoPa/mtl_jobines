@@ -1,3 +1,10 @@
+// Complementary coverage keeps opaque depth writes and foliage alpha cutouts.
+fn tree_lod_mask(pixel:vec2<f32>,fade:f32) {
+    let p=floor(pixel);
+    let threshold=fract(52.9829189*fract(dot(p,vec2<f32>(0.06711056,0.00583715))));
+    if fade>0.0 && threshold<fade {discard;}
+    if fade<0.0 && threshold>=-fade {discard;}
+}
 // Game-private material IDs: 40 = approved alpha sign; 41 = virtual shop room.
 // Vertex stride remains 52 bytes. yz carry interpolated UV; w is a stable atlas layer.
 @group(3) @binding(0) var commerce_signs: texture_2d_array<f32>;
@@ -18,28 +25,49 @@ fn tree_image_color(v:Output)->vec4<f32> {
     let sky=textureSampleLevel(sky_environment,sky_sampler,-eye/max(distance,0.00001),0.0).rgb;
     return vec4<f32>(filmic_display(mix(tex.rgb,sky,fog)*camera.sun_exposure.w),tex.a);
 }
+// Explicit layer mapping: foliage, grass, spare, bark, spare, bark normal.
 fn tree_layer(kind:i32)->i32 {
-    if kind==16 || kind==20 || kind==22 {return select(1,4,kind>=18);}
-    if kind==17 || kind==21 || kind==23 {return select(2,5,kind>=18);}
-    return select(0,3,kind>=18);
+    if kind==16 {return 1;}
+    if kind>=18 {return 3;}
+    return 0;
 }
 fn tree_color(v:Output,front:bool)->vec4<f32> {
     let kind=i32(v.surface.x);
     if kind<=17 && camera.daylight_sky.z>0.2 {discard;}
-    if (kind==19 || kind==22 || kind==23) && camera.daylight_sky.z<=0.2 {discard;}
+    if kind==19 && camera.daylight_sky.z<=0.2 {discard;}
     let tex=textureSampleGrad(tree_atlas,tree_sampler,v.fence_uv,tree_layer(kind),dpdx(v.fence_uv),dpdy(v.fence_uv));
     if kind<=17 && tex.a<0.42 {discard;}
     var material=v;
     material.color*=tex.rgb;
     material.surface=vec4<f32>(7.0,1.0,0.0,0.0);
-    if kind>=18 {
-        let up=clamp(v.normal.z/max(length(v.normal),0.0001),0.0,1.0);
-        let variation=0.75+0.25*sin(v.fence_uv.x*22.0+v.world.z*520.0);
-        let snow=smoothstep(0.14,0.46,up)*camera.daylight_sky.z*variation*0.9;
-        material.color=mix(material.color,vec3<f32>(0.9,0.94,0.95),snow);
+    var n=v.normal/max(length(v.normal),0.0001);
+    if kind<=17 && !front {n=-n;}
+    if kind==18 {
+        // Cotangent frame from the actual trunk UVs; no extra vertex format.
+        let dx=dpdx(v.world);let dy=dpdy(v.world);
+        let ux=dpdx(v.fence_uv);let uy=dpdy(v.fence_uv);
+        let p=cross(dy,n);let q=cross(n,dx);
+        let t=p*ux.x+q*uy.x;let b=p*ux.y+q*uy.y;
+        let scale=inverseSqrt(max(max(dot(t,t),dot(b,b)),0.0000000001));
+        // Normal layer shares the sRGB array; undo its transfer before decoding.
+        let encoded=textureSampleGrad(tree_atlas,tree_sampler,v.fence_uv,5,ux,uy).rgb;
+        let raw=select(encoded*12.92,1.055*pow(encoded,vec3<f32>(1.0/2.4))-0.055,encoded>vec3<f32>(0.0031308));
+        let detail=raw*2.0-1.0;
+        let perturbed=(t*detail.x+b*detail.y)*scale*0.7+n*detail.z;
+        n=perturbed/max(length(perturbed),0.0001);
     }
+    if kind==19 {material.color=vec3<f32>(0.86,0.92,0.96);}
+    material.normal=n;
     let surface=prepare_surface(material);
-    return shade_local_surface(material,front,1.0,surface);
+    let sun=camera.sun_exposure.xyz/max(length(camera.sun_exposure.xyz),0.0001);
+    var transmitted=vec3<f32>(0.0);
+    if kind==15 {
+        let back=pow(max(dot(-n,sun),0.0),1.3);
+        let shell=smoothstep(0.38,0.94,v.color.r);
+        transmitted=camera.sun_color.rgb*camera.sun_color.w*vec3<f32>(1.0,0.94,0.48)
+            *0.25*back*shell*clamp(camera.daylight_sky.x,0.0,1.0)*visibility(v.world,-n);
+    }
+    return shade_surface_lit(material,front,1.0,surface,local_irradiance(v.world,n)+transmitted);
 }
 fn tree_shadow(v:ShadowOutput) {
     let kind=i32(v.kind_pattern.x);

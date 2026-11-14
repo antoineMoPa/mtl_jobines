@@ -46,3 +46,6 @@ mod vehicle_textures;
 pub use app::run;
 #[cfg(target_arch = "wasm32")]
 pub use app::start_web;
+
+#[cfg(test)]
+mod tree_tests;

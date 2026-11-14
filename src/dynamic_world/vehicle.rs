@@ -17,9 +17,6 @@ const WHEEL_STEP_HEIGHT: f32 = 0.4;
 const LATERAL_GRIP_SCALE: f32 = 2.1;
 // Retain the parking-speed steering angle while tempering inputs at road speeds.
 const STEERING_SPEED_TAPER: f32 = 0.025;
-// A full steering input at highway speed should request a turn the tires can hold.
-// Leave spare lateral force for disturbances and for recovery while accelerating.
-const STEERING_LATERAL_ACCELERATION: f32 = 12.;
 // Arcade service brakes shorten stops without changing powered tire grip.
 const SERVICE_BRAKE_GRIP_SCALE: f32 = 1.8;
 // Forward arcade performance; tire grip still limits launches and cornering.
@@ -263,15 +260,12 @@ impl Vehicle {
         let previous_velocity = self.velocity.truncate();
         let f = Vec2::new(self.yaw.cos(), self.yaw.sin());
         let left = Vec2::new(-f.y, f.x);
-        let travel_speed = self.velocity.truncate().length();
-        let max_steering = self
-            .definition()
-            .map_or(0.52, |d| d.config.physics.max_steer_angle)
-            / (1. + travel_speed * STEERING_SPEED_TAPER);
-        let grip_steering = (STEERING_LATERAL_ACCELERATION * self.wheelbase()
-            / travel_speed.powi(2).max(1.))
-        .atan();
-        let target_steering = input.steering.clamp(-1., 1.) * max_steering.min(grip_steering);
+        let speed = self.velocity.truncate().dot(f);
+        let target_steering = input.steering.clamp(-1., 1.)
+            * self
+                .definition()
+                .map_or(0.52, |d| d.config.physics.max_steer_angle)
+            / (1. + speed.abs() * STEERING_SPEED_TAPER);
         self.steering += (target_steering - self.steering) * (1. - (-8. * dt).exp());
         let mut gradient = Vec2::ZERO;
         let mut contacts = 0;
@@ -376,7 +370,7 @@ impl Vehicle {
                     .powi(2))
                 .max(0.)
         } else {
-            3. * throttle * (1. - ((-speed).max(0.) / 10.).powi(2)).max(0.)
+            7.5 * throttle * (1. - ((-speed).max(0.) / 10.).powi(2)).max(0.)
         };
         let mut longitudinal_usage = [0.; 4];
         let mut impulse = Vec2::ZERO;

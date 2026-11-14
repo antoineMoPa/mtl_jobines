@@ -20,10 +20,11 @@ impl DynamicWorld {
             }
         }
         offsets.sort_by_key(|(row, col)| row * row + col * col);
+        let player_definition = self.vehicles[0].definition;
         for (id, def) in catalog::definitions()
             .iter()
             .enumerate()
-            .filter(|(i, d)| *i != 0 && d.config.road_vehicle)
+            .filter(|(i, d)| Some(*i) != player_definition && d.config.road_vehicle)
         {
             let dims = &def.config.dimensions;
             let found = offsets.iter().find_map(|(row, col)| {
@@ -189,7 +190,9 @@ mod tests {
             .count();
         assert_eq!(world.vehicles.len() - world.traffic.count(), road_count);
         for (i, a) in world.vehicles.iter().take(road_count).enumerate() {
-            assert_eq!(a.definition, Some(i));
+            assert!(!world.vehicles[..i]
+                .iter()
+                .any(|other| other.definition == a.definition));
             assert!(a.definition().unwrap().config.road_vehicle);
             let surface = hermes
                 .city()

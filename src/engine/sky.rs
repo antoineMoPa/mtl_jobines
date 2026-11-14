@@ -1,6 +1,9 @@
 //! Small shared GPU environment. Camera motion only changes sampling, never the bake.
 use super::lighting::{Lighting, SkySettings};
 use std::cell::Cell;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod capture_tests;
+mod panorama;
 
 #[derive(Clone, Copy, PartialEq)]
 struct AtmosphereKey {
@@ -36,23 +39,30 @@ impl BakeKey {
 pub struct Sky {
     pub environment: opencity::runtime::surface_materials::EnvironmentMap,
     background: wgpu::RenderPipeline,
+    panorama: wgpu::BindGroup,
     last_bake: Cell<Option<BakeKey>>,
     updates: Cell<u64>,
 }
 impl Sky {
     pub fn new(
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         camera_layout: &wgpu::BindGroupLayout,
         format: wgpu::TextureFormat,
     ) -> Self {
         let environment = opencity::runtime::surface_materials::EnvironmentMap::new(device);
+        let (panorama_layout, panorama) = panorama::create(device, queue);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("sky background"),
             source: wgpu::ShaderSource::Wgsl(background_source().into()),
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("sky background"),
-            bind_group_layouts: &[Some(camera_layout), Some(&environment.layout)],
+            bind_group_layouts: &[
+                Some(camera_layout),
+                Some(&environment.layout),
+                Some(&panorama_layout),
+            ],
             immediate_size: 0,
         });
         let background = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -92,6 +102,7 @@ impl Sky {
         Self {
             environment,
             background,
+            panorama,
             last_bake: Cell::new(None),
             updates: Cell::new(0),
         }
@@ -135,6 +146,7 @@ impl Sky {
         pass.set_pipeline(&self.background);
         pass.set_bind_group(0, camera, &[]);
         pass.set_bind_group(1, &self.environment.group, &[]);
+        pass.set_bind_group(2, &self.panorama, &[]);
         pass.draw(0..3, 0..1);
     }
 }

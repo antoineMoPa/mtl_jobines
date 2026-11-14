@@ -95,7 +95,12 @@ impl DynamicWorld {
             Some(point) => Vehicle::spawn_at(hermes.city(), point)?,
             None => Vehicle::spawn(hermes.city()),
         };
-        vehicle.set_catalog_model(Some(0));
+        vehicle.set_catalog_model(Some(
+            catalog::definitions()
+                .iter()
+                .position(|definition| definition.config.name == "Boreal Colline")
+                .expect("bundled Boreal Colline default vehicle"),
+        ));
         let prop_center = vehicle.position;
         let mut world = Self {
             season: Default::default(),
@@ -607,6 +612,14 @@ impl DynamicWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn default_player_vehicle_is_boreal_colline() {
+        let world = DynamicWorld::new(&Hermes::test_map());
+        assert_eq!(
+            world.player().definition().unwrap().config.name,
+            "Boreal Colline"
+        );
+    }
     #[test]
     fn on_foot_world_steps_knock_down_contacted_pedestrians() {
         let hermes = Hermes::test_map();

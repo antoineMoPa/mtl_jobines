@@ -838,3 +838,106 @@ placed_prop_43 = prop(trash_can, 1.0779408, -1.1448685, { heading: 0.0000000, el
 
 
 placed_prop_45 = prop(trash_can, 1.2322129, -1.1857122, { heading: 0.0000000, elevation: 0.1020000 });
+
+road_40 = cross_street(junction_34, 2.5473, 9.9127, 3.5469, 9.9423, junction_37);
+
+grade(road_40, 0.1020, 0.1020);
+
+# Residential courtyard block: street-facing duplexes and small walk-up apartments.
+# Coordinates follow the cross street; gaps lead to the shared rear pedestrian lane.
+courtyard_street_01 = building(0.0945, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.5707028, 10.0140322, 1.7056445, 10.0179985, 1.7010906, 10.1729316, 1.5661489, 10.1689653);
+elevation(courtyard_street_01, 0.102);
+
+courtyard_street_02 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.7356316, 10.0188799, 1.8705732, 10.0228462, 1.8656668, 10.1897741, 1.7307251, 10.1858078);
+elevation(courtyard_street_02, 0.102);
+
+courtyard_street_03 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.9005603, 10.0237276, 2.0355020, 10.0276939, 2.0302429, 10.2066166, 1.8953013, 10.2026503);
+elevation(courtyard_street_03, 0.102);
+
+courtyard_street_04 = building(0.0945, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 2.0654890, 10.0285753, 2.2004307, 10.0325416, 2.1958768, 10.1874747, 2.0609351, 10.1835084);
+elevation(courtyard_street_04, 0.102);
+
+courtyard_street_05 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 2.2304177, 10.0334230, 2.3653594, 10.0373893, 2.3604529, 10.2043172, 2.2255113, 10.2003509);
+elevation(courtyard_street_05, 0.102);
+
+courtyard_street_06 = building(0.1260, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 2.3953464, 10.0382707, 2.5402838, 10.0425308, 2.5350248, 10.2214535, 2.3900874, 10.2171934);
+elevation(courtyard_street_06, 0.102);
+
+courtyard_street_07 = building(0.0945, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 2.5602752, 10.0431184, 2.6952168, 10.0470847, 2.6906629, 10.2020178, 2.5557213, 10.1980515);
+elevation(courtyard_street_07, 0.102);
+
+courtyard_street_08 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 2.7252039, 10.0479661, 2.8601456, 10.0519324, 2.8552391, 10.2188603, 2.7202974, 10.2148940);
+elevation(courtyard_street_08, 0.102);
+
+courtyard_street_09 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 2.8901326, 10.0528138, 3.0250743, 10.0567801, 3.0198153, 10.2357028, 2.8848736, 10.2317365);
+elevation(courtyard_street_09, 0.102);
+
+courtyard_street_10 = building(0.0945, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 3.0550613, 10.0576615, 3.1900030, 10.0616278, 3.1854491, 10.2165609, 3.0505074, 10.2125946);
+elevation(courtyard_street_10, 0.102);
+
+courtyard_street_11 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 3.2199900, 10.0625092, 3.3549317, 10.0664755, 3.3500253, 10.2334034, 3.2150836, 10.2294371);
+elevation(courtyard_street_11, 0.102);
+
+courtyard_street_12 = building(0.1260, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 3.3849188, 10.0673569, 3.5298561, 10.0716170, 3.5245971, 10.2505397, 3.3796597, 10.2462796);
+elevation(courtyard_street_12, 0.102);
+
+courtyard_street_13 = building(0.0945, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 3.5498475, 10.0722046, 3.6847892, 10.0761709, 3.6802353, 10.2311040, 3.5452936, 10.2271377);
+elevation(courtyard_street_13, 0.102);
+
+courtyard_street_14 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 3.7147762, 10.0770523, 3.8497179, 10.0810186, 3.8448114, 10.2479465, 3.7098697, 10.2439802);
+elevation(courtyard_street_14, 0.102);
+
+courtyard_street_15 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 3.8797049, 10.0819000, 4.0146466, 10.0858663, 4.0093876, 10.2647890, 3.8744459, 10.2608227);
+elevation(courtyard_street_15, 0.102);
+
+courtyard_street_16 = building(0.0945, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 4.0446336, 10.0867477, 4.1795753, 10.0907140, 4.1750214, 10.2456471, 4.0400797, 10.2416808);
+elevation(courtyard_street_16, 0.102);
+
+courtyard_street_17 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 4.2095624, 10.0915954, 4.3445040, 10.0955617, 4.3395976, 10.2624896, 4.2046559, 10.2585233);
+elevation(courtyard_street_17, 0.102);
+
+courtyard_street_18 = building(0.1260, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 4.3744911, 10.0964431, 4.5194284, 10.1007032, 4.5141694, 10.2796259, 4.3692321, 10.2753658);
+elevation(courtyard_street_18, 0.102);
+
+courtyard_walkup_1 = building(0.0945, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.6205408, 10.3606460, 1.9204112, 10.3694600, 1.9151228, 10.5493822, 1.6152524, 10.5405682);
+elevation(courtyard_walkup_1, 0.102);
+
+courtyard_walkup_2 = building(0.1260, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 2.1103291, 10.3750422, 2.4101995, 10.3838562, 2.4049111, 10.5637784, 2.1050407, 10.5549644);
+elevation(courtyard_walkup_2, 0.102);
+
+courtyard_walkup_3 = building(0.0945, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 2.6001175, 10.3894384, 2.8999879, 10.3982524, 2.8946995, 10.5781746, 2.5948291, 10.5693606);
+elevation(courtyard_walkup_3, 0.102);
+
+courtyard_walkup_4 = building(0.1260, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 3.0899058, 10.4038346, 3.3897762, 10.4126486, 3.3844878, 10.5925708, 3.0846174, 10.5837568);
+elevation(courtyard_walkup_4, 0.102);
+
+courtyard_walkup_5 = building(0.0945, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 3.5796941, 10.4182308, 3.8795645, 10.4270448, 3.8742761, 10.6069670, 3.5744057, 10.5981530);
+elevation(courtyard_walkup_5, 0.102);
+
+courtyard_walkup_6 = building(0.1260, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 4.0694824, 10.4326270, 4.3693528, 10.4414410, 4.3640644, 10.6213632, 4.0641940, 10.6125492);
+elevation(courtyard_walkup_6, 0.102);
+
+courtyard_rear_lane = concrete(1.5637985, 10.2489307, 4.5025285, 10.3353079, 4.5015002, 10.3702928, 1.5627702, 10.2839156);
+elevation(courtyard_rear_lane, 0.102);
+
+courtyard_access_1 = concrete(1.7169623, 9.9733118, 1.7369537, 9.9738994, 1.7276990, 10.2887633, 1.7077076, 10.2881757);
+elevation(courtyard_access_1, 0.102);
+
+courtyard_access_2 = concrete(2.7065346, 10.0023980, 2.7265260, 10.0029856, 2.7172713, 10.3178495, 2.6972799, 10.3172619);
+elevation(courtyard_access_2, 0.102);
+
+courtyard_access_3 = concrete(3.6961069, 10.0314842, 3.7160983, 10.0320718, 3.7068436, 10.3469357, 3.6868522, 10.3463481);
+elevation(courtyard_access_3, 0.102);
+
+courtyard_tree_1 = prop(tree, 1.6017247, 10.3200757, { heading: 0, elevation: 0.102 });
+courtyard_tree_2 = prop(tree_locust, 1.8566145, 10.3275676, { heading: 47, elevation: 0.102 });
+courtyard_tree_3 = prop(tree_linden_2, 2.1115043, 10.3350595, { heading: 94, elevation: 0.102 });
+courtyard_tree_4 = prop(tree, 2.3663942, 10.3425514, { heading: 141, elevation: 0.102 });
+courtyard_tree_5 = prop(tree_locust, 2.6212840, 10.3500433, { heading: 188, elevation: 0.102 });
+courtyard_tree_6 = prop(tree_linden_2, 2.8761739, 10.3575352, { heading: 235, elevation: 0.102 });
+courtyard_tree_7 = prop(tree, 3.1310637, 10.3650271, { heading: 282, elevation: 0.102 });
+courtyard_tree_8 = prop(tree_locust, 3.3859535, 10.3725190, { heading: 329, elevation: 0.102 });
+courtyard_tree_9 = prop(tree_linden_2, 3.6408434, 10.3800109, { heading: 16, elevation: 0.102 });
+courtyard_tree_10 = prop(tree, 3.8957332, 10.3875028, { heading: 63, elevation: 0.102 });
+courtyard_tree_11 = prop(tree_locust, 4.1506231, 10.3949947, { heading: 110, elevation: 0.102 });
+courtyard_tree_12 = prop(tree_linden_2, 4.4055129, 10.4024866, { heading: 157, elevation: 0.102 });

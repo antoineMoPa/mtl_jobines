@@ -7,6 +7,8 @@ struct Camera {
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(1) @binding(0) var sky: texture_cube<f32>;
 @group(1) @binding(1) var sky_sampler: sampler;
+@group(2) @binding(0) var cloud_highlights: texture_2d<f32>;
+@group(2) @binding(1) var panorama_sampler: sampler;
 struct Ray { @builtin(position) clip: vec4<f32>, @location(0) ray: vec3<f32> };
 @vertex fn vs(@builtin(vertex_index) vertex: u32) -> Ray {
     let p = vec2(f32((vertex << 1u) & 2u), f32(vertex & 2u)) * 2.0 - 1.0;
@@ -14,8 +16,25 @@ struct Ray { @builtin(position) clip: vec4<f32>, @location(0) ray: vec3<f32> };
     return Ray(vec4(p, 1.0, 1.0), world.xyz / world.w - camera.eye_time.xyz);
 }
 @fragment fn fs(v: Ray) -> @location(0) vec4<f32> {
-    let radiance = textureSampleLevel(sky, sky_sampler, v.ray, 0.0).rgb
-        + sky_stars(v.ray, camera.star_params, camera.star_color);
-    let color = radiance * camera.sun_exposure.w;
-    return vec4(filmic_display(color), 1.0);
+    let ray = v.ray / max(length(v.ray), 0.000001);
+    let atmosphere = textureSampleLevel(sky, sky_sampler, ray, 0.0).rgb;
+    let elevation = asin(clamp(ray.z, -1.0, 1.0));
+    // Z-up hemisphere: bottom of each source photograph is the horizon.
+    let uv = vec2(atan2(v.ray.y, v.ray.x) / 6.2831853 + 0.5,
+        1.0 - clamp(elevation / 1.5707963, 0.0, 1.0));
+    let masks = textureSampleLevel(cloud_highlights, panorama_sampler, uv, 0.0).rg;
+    let daylight = clamp(camera.daylight_sky.x, 0.0, 1.0);
+    // Fade the source's landscape strip and converge cleanly at the dome pole.
+    let coverage = mix(masks.g, masks.r, daylight)
+        * smoothstep(0.015, 0.08, elevation)
+        * (1.0 - smoothstep(1.25, 1.55, elevation));
+    let sunward = pow(max(dot(ray, camera.sun_exposure.xyz), 0.0), 8.0);
+    let sunlight = camera.sun_color.rgb * min(camera.sun_color.w, 4.0)
+        * daylight * (0.45 + 0.55 * sunward);
+    let moonlight = vec3(0.035, 0.045, 0.075) * (1.0 - daylight);
+    let illumination = atmosphere * 0.18 + sunlight + moonlight;
+    let stars = sky_stars(ray, camera.star_params, camera.star_color)
+        * (1.0 - coverage * 0.9);
+    let radiance = atmosphere + illumination * coverage + stars;
+    return vec4(filmic_display(radiance * camera.sun_exposure.w), 1.0);
 }

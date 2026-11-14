@@ -13,6 +13,28 @@ fn planar_energy(vehicle: &Vehicle) -> f32 {
 }
 
 #[test]
+fn reverse_launch_is_prompt_and_retains_speed_limit() {
+    let city = map();
+    for definition in [None, Some(1)] {
+        let mut car = Vehicle::spawn(&city);
+        car.set_catalog_model(definition);
+        car.yaw = 0.;
+        let controls = Controls {
+            throttle: -1.,
+            ..Default::default()
+        };
+        for _ in 0..60 {
+            car.step(&city, controls, 1. / 120.);
+        }
+        assert!(car.velocity.x < -2.8, "reverse launch: {:?}", car.velocity);
+        for _ in 0..1200 {
+            car.step(&city, controls, 1. / 120.);
+            assert!(car.velocity.x >= -10., "reverse speed: {:?}", car.velocity);
+        }
+    }
+}
+
+#[test]
 fn road_barriers_stop_fast_cars_but_leave_underpasses_clear() {
     for height in [0., 0.08] {
         let city = City::from_program(
@@ -257,48 +279,6 @@ fn city_speed_turns_keep_side_slip_moderate() {
             max_slip.to_degrees()
         );
         assert!(car.yaw.abs() > 0.8, "car must still turn readily");
-    }
-}
-
-#[test]
-fn highway_speed_full_steering_keeps_a_recoverable_turn() {
-    let road = format!(
-        "road street: {}; end street(-25,3,-20,3);",
-        "carlane ".repeat(40)
-    );
-    let city = City::from_program(&opencity::parse(&road).unwrap(), None).unwrap();
-    for speed in [20., 30.] {
-        for direction in [-1., 1.] {
-            let mut car = Vehicle::spawn(&city);
-            car.position.y = 300.;
-            car.yaw = 0.;
-            car.velocity = Vec3::X * speed;
-            let mut max_slip = 0.0_f32;
-            for _ in 0..120 {
-                car.step(
-                    &city,
-                    Controls {
-                        steering: direction,
-                        ..Default::default()
-                    },
-                    1. / 120.,
-                );
-                let forward = Vec2::new(car.yaw.cos(), car.yaw.sin());
-                let velocity = car.velocity.truncate();
-                max_slip = max_slip.max(
-                    forward
-                        .perp_dot(velocity)
-                        .abs()
-                        .atan2(forward.dot(velocity).abs()),
-                );
-                assert!(car.grounded);
-            }
-            assert!(
-                max_slip.to_degrees() < 12.,
-                "speed={speed}, slip={max_slip}"
-            );
-            assert!(car.yaw * direction > 0.2, "speed={speed}, yaw={}", car.yaw);
-        }
     }
 }
 

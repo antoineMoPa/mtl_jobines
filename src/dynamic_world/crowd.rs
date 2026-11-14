@@ -11,7 +11,7 @@ use opencity::runtime::City;
 use std::sync::Arc;
 
 pub(crate) const CAPACITY: usize = 32;
-pub(crate) const KIOSK_CAPACITY: usize = 4;
+pub(crate) const KIOSK_CAPACITY: usize = 3;
 const SPAWN_RADIUS: f32 = 100.;
 const RETAIN_RADIUS: f32 = 140.;
 const DRAW_RADIUS: f32 = 100.;
@@ -45,34 +45,26 @@ impl KioskSite {
         // The kiosk occupies the positive-X side of the source sphere mesh.
         // Match the XY fit used by Hermes' landmark mesh placement.
         let scale = (along.length() / 2.9923563).min(front_edge.distance(back) / 3.196178);
-        let front = front_edge + along.normalize_or_zero() * (0.76 * scale);
+        let front = front_edge + along / along.length().max(0.0001) * (0.76 * scale);
         Some(Self {
             front,
-            toward_front: (front_edge - back).normalize_or_zero(),
+            toward_front: (front_edge - back) / front_edge.distance(back).max(0.0001),
             elevation: feature.elevation,
         })
     }
     fn actors(&self, city: &City) -> Vec<KioskActor> {
-        // The counter is inside the open frontage; guests stand outside it.
-        let positions = [(3.1, 0), (-2.6, 1), (-5.0, 3), (-7.4, 5)];
+        // Guests wait in front of the original kiosk frontage.
+        let positions = [(-2.6, 1), (-5.0, 3), (-7.4, 5)];
         positions
             .into_iter()
             .map(|(offset, model)| {
                 let xy = self.front - self.toward_front * offset;
                 let map_xy = (xy / METERS_PER_UNIT).to_array();
-                let z = if offset > 0. {
-                    // The cashier stands on the kiosk's authored floor.
-                    self.elevation * METERS_PER_UNIT
-                } else {
-                    city.surface_at(map_xy, self.elevation + 0.05)
-                        .map_or(self.elevation, |surface| surface.height)
-                        * METERS_PER_UNIT
-                };
-                let direction = if offset > 0. {
-                    self.toward_front
-                } else {
-                    -self.toward_front
-                };
+                let z = city
+                    .surface_at(map_xy, self.elevation + 0.05)
+                    .map_or(self.elevation, |surface| surface.height)
+                    * METERS_PER_UNIT;
+                let direction = -self.toward_front;
                 KioskActor {
                     model,
                     position: xy.extend(z),
@@ -84,6 +76,7 @@ impl KioskSite {
     }
 }
 struct Walker {
+    spawned_at_kiosk: bool,
     serial: u32,
     model: usize,
     path: usize,
@@ -161,6 +154,7 @@ pub(crate) struct Crowd {
     refill: f32,
     previous_vehicles: Vec<Vec3>,
     kiosk_checked: bool,
+    kiosk_spawned: bool,
     kiosk_site: Option<KioskSite>,
     kiosk_actors: Vec<KioskActor>,
 }
@@ -185,6 +179,71 @@ fn path_distance(graph: &WalkingPaths, path: usize, position: Vec3) -> f32 {
         along += length;
     }
     best.0
+}
+fn queue_sidewalk(graph: &WalkingPaths, position: Vec3) -> Option<(usize, f32)> {
+    graph
+        .paths
+        .iter()
+        .enumerate()
+        .filter(|(_, path)| !path.connector && path.length > 1.)
+        .map(|(index, path)| {
+            let distance = path_distance(graph, index, position);
+            let (sample, _) = path.sample(distance);
+            (index, distance, sample.distance_squared(position))
+        })
+        .min_by(|a, b| a.2.total_cmp(&b.2))
+        .map(|(index, distance, _)| (index, distance))
+}
+fn collide_queue(
+    actors: &mut Vec<KioskActor>,
+    walkers: &mut Vec<Walker>,
+    graph: &WalkingPaths,
+    serial: &mut u32,
+    city: &City,
+    vehicles: &[Vehicle],
+    mut impact: impl FnMut(Vec3) -> Option<Vec3>,
+) {
+    let mut index = 0;
+    while index < actors.len() {
+        let Some(velocity) = impact(actors[index].position) else {
+            index += 1;
+            continue;
+        };
+        let Some((path, distance)) = queue_sidewalk(graph, actors[index].position) else {
+            index += 1;
+            continue;
+        };
+        let actor = actors.remove(index);
+        let definition = &pedestrian_catalog::definitions()[actor.model];
+        let mut walker = Walker {
+            spawned_at_kiosk: true,
+            serial: *serial,
+            model: actor.model,
+            path,
+            distance,
+            position: actor.position,
+            yaw: actor.yaw,
+            lane: 0.42,
+            preferred_speed: definition.walk_speed,
+            speed: 0.,
+            movement: 0.,
+            walk_time: 0.,
+            idle_time: actor.idle_time,
+            pause: 0.,
+            until_pause: 12.,
+            blocked_time: 0.,
+            age: 1.,
+            immunity: 0.,
+            reaction: None,
+            returning: None,
+            gait: Gait::new(definition, actor.position, actor.yaw, *serial, |p| {
+                footing(city, p, false)
+            }),
+        };
+        walker.fall(city, vehicles, velocity);
+        walkers.push(walker);
+        *serial = serial.wrapping_add(1);
+    }
 }
 fn placement(
     city: &City,
@@ -231,6 +290,7 @@ impl Crowd {
             refill: 0.,
             previous_vehicles: Vec::new(),
             kiosk_checked: false,
+            kiosk_spawned: false,
             kiosk_site: None,
             kiosk_actors: Vec::new(),
         }
@@ -290,6 +350,7 @@ impl Crowd {
                 0.
             };
             self.walkers.push(Walker {
+                spawned_at_kiosk: false,
                 serial: self.serial,
                 model,
                 path,
@@ -336,6 +397,15 @@ impl Crowd {
                 walker.fall(city, vehicles, velocity);
             }
         }
+        collide_queue(
+            &mut self.kiosk_actors,
+            &mut self.walkers,
+            &self.graph,
+            &mut self.serial,
+            city,
+            vehicles,
+            |position| ragdoll::walking_impact(position, before, after, dt),
+        );
     }
     pub fn step(
         &mut self,
@@ -351,15 +421,28 @@ impl Crowd {
         let dt = dt.min(0.1);
         if let Some(site) = &self.kiosk_site {
             let distance = center.truncate().distance(site.front);
-            if distance > KIOSK_RETAIN_RADIUS {
+            if distance > KIOSK_RETAIN_RADIUS && self.kiosk_spawned {
                 self.kiosk_actors = Vec::new();
-            } else if distance < KIOSK_SPAWN_RADIUS && self.kiosk_actors.is_empty() {
-                self.kiosk_actors = site.actors(city);
+                self.walkers.retain(|walker| !walker.spawned_at_kiosk);
+                self.kiosk_spawned = false;
+            } else if distance < KIOSK_SPAWN_RADIUS && !self.kiosk_spawned {
+                let room = (CAPACITY + KIOSK_CAPACITY).saturating_sub(self.walkers.len());
+                self.kiosk_actors = site.actors(city).into_iter().take(room).collect();
+                self.kiosk_spawned = true;
             }
         }
         for actor in &mut self.kiosk_actors {
             actor.idle_time += dt;
         }
+        collide_queue(
+            &mut self.kiosk_actors,
+            &mut self.walkers,
+            &self.graph,
+            &mut self.serial,
+            city,
+            vehicles,
+            |position| ragdoll::impact(position, &self.previous_vehicles, vehicles, dt),
+        );
         self.refill -= dt;
         if self.refill <= 0. {
             self.refill = 1.;
@@ -740,11 +823,80 @@ mod tests {
         crowd.step(&city, Vec3::X * 6., false, &[], &props, 0.1);
         assert_eq!(crowd.kiosk_actors.len(), KIOSK_CAPACITY);
         assert_eq!(crowd.instances(Vec3::X * 6.).count(), KIOSK_CAPACITY);
-        assert!(crowd.kiosk_actors[0].position.y > 0.);
-        assert!(crowd.kiosk_actors[1].position.y < 0.);
+        assert!(crowd.kiosk_actors[0].position.x > 6.);
+        assert!(crowd.kiosk_actors.iter().all(|actor| actor.position.y < 0.));
+        assert_eq!(
+            crowd
+                .kiosk_actors
+                .iter()
+                .map(|actor| actor.model)
+                .collect::<Vec<_>>(),
+            vec![1, 3, 5]
+        );
         crowd.step(&city, Vec3::X * 200., false, &[], &props, 0.1);
         assert!(crowd.kiosk_actors.is_empty());
         assert_eq!(crowd.kiosk_actors.capacity(), 0);
+    }
+    #[test]
+    fn kiosk_queue_contacts_become_pedestrians_returning_to_sidewalks() {
+        let program = opencity::parse(concat!(
+            "concrete(-1,-1,1,-1,1,1,-1,1);",
+            "road street: sidewalk carlane carlane sidewalk; end street(-1,-0.1,1,-0.1);",
+            "site_model_01=building(0.2,\"study_01\",0,0,0.12,0,0.12,0.12,0,0.12);",
+            "elevation(site_model_01,0.02);"
+        ))
+        .unwrap();
+        let city = City::from_program(&program, None).unwrap();
+        let graph = Arc::new(WalkingPaths::new(&city));
+        assert!(!graph.paths.is_empty());
+        let props = Props::new(Vec::new());
+        let mut crowd = Crowd::new(&graph);
+        crowd.populate(&city, Vec3::X * 200., &[], &props);
+        crowd.refill = 1000.;
+        crowd.step(&city, Vec3::X * 6., false, &[], &props, 0.1);
+        let first = crowd.kiosk_actors[0].position;
+        crowd.player_move(
+            &city,
+            first - Vec3::X * 2. + Vec3::Z * 0.9,
+            first + Vec3::X * 2. + Vec3::Z * 0.9,
+            0.1,
+            &[],
+        );
+        assert_eq!(crowd.kiosk_actors.len(), 2);
+        assert!(crowd.walkers[0].spawned_at_kiosk);
+        assert!(matches!(
+            crowd.walkers[0].reaction.as_deref(),
+            Some(Reaction::Falling(_))
+        ));
+
+        let second = crowd.kiosk_actors[0].position;
+        let mut car = Vehicle::spawn(&city);
+        car.position = second + Vec3::Z * car.ride_height();
+        car.velocity = Vec3::X * 8.;
+        car.yaw = 0.;
+        crowd.previous_vehicles = vec![car.position - Vec3::X * 5.];
+        crowd.step(&city, Vec3::X * 6., false, &[car], &props, 0.1);
+        assert_eq!(crowd.kiosk_actors.len(), 1);
+        assert_eq!(
+            crowd.walkers.iter().filter(|w| w.spawned_at_kiosk).count(),
+            2
+        );
+        let mut returning = false;
+        for _ in 0..900 {
+            crowd.step(&city, Vec3::X * 6., false, &[], &props, 1. / 60.);
+            returning |= crowd.walkers[0].returning.is_some();
+            if returning && support(&city, crowd.walkers[0].position).is_some() {
+                break;
+            }
+        }
+        assert!(
+            returning,
+            "hit guest never got up and headed for a sidewalk"
+        );
+        assert!(support(&city, crowd.walkers[0].position).is_some());
+        crowd.step(&city, Vec3::X * 200., false, &[], &props, 0.1);
+        assert!(crowd.kiosk_actors.is_empty());
+        assert!(!crowd.walkers.iter().any(|w| w.spawned_at_kiosk));
     }
     #[test]
     fn walking_and_sprinting_bumps_use_ragdolls_then_get_up_and_walk_again() {

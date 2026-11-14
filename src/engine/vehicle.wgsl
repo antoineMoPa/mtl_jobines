@@ -22,13 +22,6 @@ struct VehicleTransform {
     o.world = world;
     o.normal = (model * vec4<f32>(v.normal, 0.0)).xyz * 100.0;
     o.color = v.color; o.surface = v.surface; if !tree {o.surface.y *= instance.translation.w;} o.fence_uv = v.surface.yz;
-    if image {
-        let direction=camera.eye_time.xy-instance.translation.xy;
-        let local=vec2<f32>(dot(direction,instance.x.xy),dot(direction,instance.y.xy));
-        let angle=atan2(local.x,-local.y);
-        let view=(i32(floor((angle+0.785398)*0.63661977))+4)%4;
-        o.fence_uv=v.surface.yz*0.496+vec2<f32>(f32(view%2),f32(view/2))*0.5+vec2<f32>(0.002);
-    }
     let excluded=v.surface.y<0.999 || (v.surface.x>=0.0 && (v.surface.w== -3.0 || v.surface.w>=64.0)) || (v.surface.x<0.0 && fract(-v.surface.x)>0.1);
     o.snow_control=vec2<f32>(select(1.0,0.0,excluded || tree),1.0);
     if v.surface.x<0.0 {
@@ -42,6 +35,7 @@ struct VehicleTransform {
         else if variant==3u {o.color=vec3<f32>(0.30,0.022,0.045);}
     }
     if v.surface.x>=0.0 && v.surface.w==64.0 {o.surface.w*=instance.x.w;}
+    if tree || image {o.surface.w=instance.x.w;}
     return o;
 }
 @vertex fn vs_vehicle_shadow(v: Input, instance: VehicleTransform) -> ShadowOutput {
@@ -51,11 +45,13 @@ struct VehicleTransform {
     if v.surface.x>=15.0 && v.surface.x<=23.0 {world=tree_vertex(world,instance.translation.xyz);}
     o.clip = camera.light_view_projection * vec4<f32>(world, 1.0);
     o.fence_uv = v.surface.yz; o.kind_pattern = vec2<f32>(v.surface.x, v.surface.y * instance.translation.w);
+    if v.surface.x>=15.0 && v.surface.x<=29.0 {o.kind_pattern.y=instance.x.w;}
     return o;
 }
 // Alpha-to-coverage retains depth-correct seats behind glass without sorting
 // every triangle of each moving vehicle. Opaque parts still cover all samples.
 @fragment fn fs_vehicle(v: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+    if v.surface.x>=15.0 && v.surface.x<=29.0 {tree_lod_mask(v.clip.xy,v.surface.w);}
     if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v);}
     if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front);}
     let uv_dx=dpdx(v.fence_uv); let uv_dy=dpdy(v.fence_uv);
@@ -89,7 +85,7 @@ struct VehicleTransform {
 }
 @fragment fn fs_vehicle_shadow(v: ShadowOutput) {
     if v.kind_pattern.x>=24.0 && v.kind_pattern.x<=29.0 {discard;}
-    if v.kind_pattern.x>=15.0 && v.kind_pattern.x<=23.0 {tree_shadow(v);return;}
+    if v.kind_pattern.x>=15.0 && v.kind_pattern.x<=23.0 {tree_lod_mask(v.clip.xy,v.kind_pattern.y);tree_shadow(v);return;}
     let pattern = array<f32, 16>(0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
         3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
     let pixel = vec2<u32>(v.clip.xy) % vec2<u32>(4u);

@@ -28,6 +28,21 @@ pub struct PropScenery {
     scratch: Mesh,
     frame: u64,
 }
+// Positive fade removes outgoing pixels; negative fade admits the same pixels
+// on the incoming mesh. Zero is fully visible; tier 3 means no second draw.
+fn tree_lods(distance: f32) -> [(u8, f32); 2] {
+    for (near, center) in [(0, 55.), (1, 105.)] {
+        if distance <= center - 5. {
+            return [(near, 0.), (3, 0.)];
+        }
+        if distance < center + 5. {
+            let t = (distance - (center - 5.)) / 10.;
+            let fade = t * t * (3. - 2. * t);
+            return [(near, fade), (near + 1, -fade)];
+        }
+    }
+    [(2, 0.), (3, 0.)]
+}
 impl PropScenery {
     pub fn update(&mut self, renderer: &Renderer, world: &DynamicWorld) {
         for model in self.models.values_mut() {
@@ -37,34 +52,41 @@ impl PropScenery {
             let distance = (transform.w_axis.truncate() * crate::props::UNITS
                 - world.player_position())
             .length_squared();
-            let lod = if kind.is_tree() && distance > 105.0 * 105.0 {
-                2
-            } else if kind.is_tree() && distance > 55.0 * 55.0 {
-                1
+            let selections = if kind.is_tree() {
+                tree_lods(distance.sqrt())
             } else {
-                0
+                [(0, 0.), (3, 0.)]
             };
-            let model = self
-                .models
-                .entry((kind, index, lod, automatic))
-                .or_insert_with(|| {
-                    let mut vertices = match lod {
-                        1 => kind.far_parts(),
-                        2 => kind.image_parts(),
-                        _ => kind.parts(),
-                    }[index]
-                        .vertices
-                        .clone();
-                    for v in &mut vertices {
-                        v.position = v.position.map(|p| p * crate::props::UNITS);
-                    }
-                    InstancedProp {
-                        mesh: renderer.upload_instanced(&vertices),
-                        transforms: Vec::new(),
-                        automatic,
-                    }
-                });
-            model.transforms.push(transform.to_cols_array_2d());
+            for (lod, fade) in selections {
+                if lod == 3 {
+                    continue;
+                }
+                let model = self
+                    .models
+                    .entry((kind, index, lod, automatic))
+                    .or_insert_with(|| {
+                        let mut vertices = match lod {
+                            1 => kind.far_parts(),
+                            2 => kind.image_parts(),
+                            _ => kind.parts(),
+                        }[index]
+                            .vertices
+                            .clone();
+                        for v in &mut vertices {
+                            v.position = v.position.map(|p| p * crate::props::UNITS);
+                        }
+                        InstancedProp {
+                            mesh: renderer.upload_instanced(&vertices),
+                            transforms: Vec::new(),
+                            automatic,
+                        }
+                    });
+                let mut instance = transform.to_cols_array_2d();
+                if kind.is_tree() {
+                    instance[0][3] = fade;
+                }
+                model.transforms.push(instance);
+            }
         }
         for model in self.models.values_mut() {
             renderer.update_instances(&mut model.mesh, &model.transforms);
