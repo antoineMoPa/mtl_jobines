@@ -43,11 +43,14 @@ fn native_building_tool_captures_both_cameras() {
     let ctx = egui::Context::default();
     ctx.set_theme(egui::ThemePreference::Light);
     let mut painter = Painter::new(&renderer.device, renderer.config.format);
+    let mut time = 0.0;
     for (mode, name) in [
         (CameraMode::Build, "building-build.png"),
         (CameraMode::Street, "building-street.png"),
         (CameraMode::Build, "building-model.png"),
         (CameraMode::Build, "building-overview.png"),
+        (CameraMode::Build, "building-landmark-picker.png"),
+        (CameraMode::Build, "building-basilica.png"),
     ] {
         doc.mode = mode;
         if name == "building-overview.png" {
@@ -64,6 +67,18 @@ fn native_building_tool_captures_both_cameras() {
             world = renderer.upload(&geometry.0);
             details = renderer.upload(&geometry.1);
         }
+        if name == "building-landmark-picker.png" {
+            doc.span = 1.2;
+            doc.landmark_picker.open = true;
+        }
+        if name == "building-basilica.png" {
+            doc.landmark_picker.open = false;
+            doc.choose_landmark(hermes.city(), "study_05").unwrap();
+            hermes = crate::hermes::Hermes::load_with_game_data(&path, None).unwrap();
+            let geometry = hermes.take_geometry();
+            world = renderer.upload(&geometry.0);
+            details = renderer.upload(&geometry.1);
+        }
         renderer.construction_span = doc.orthographic_span();
         let (eye, look, _) = doc.camera().unwrap_or((
             Vec3::new(-0.15, 0., 0.075),
@@ -71,7 +86,8 @@ fn native_building_tool_captures_both_cameras() {
             [0., 0.],
         ));
         let matrix = renderer.view_projection(eye, look);
-        for _ in 0..3 {
+        for _ in 0..5 {
+            time += 0.2;
             renderer.render(
                 &target,
                 &[&world, &details],
@@ -82,6 +98,7 @@ fn native_building_tool_captures_both_cameras() {
             );
             let output = ctx.run_ui(
                 egui::RawInput {
+                    time: Some(time),
                     screen_rect: Some(egui::Rect::from_min_size(
                         egui::Pos2::ZERO,
                         egui::vec2(1280., 800.),
@@ -100,7 +117,9 @@ fn native_building_tool_captures_both_cameras() {
         }
         let pixels = renderer.rgba_pixels(&texture).unwrap();
         let index = ((799 * 1280 + 1100) * 4) as usize;
-        assert_eq!(&pixels[index..index + 3], &[9, 14, 18]);
+        if name != "building-landmark-picker.png" {
+            assert_eq!(&pixels[index..index + 3], &[9, 14, 18]);
+        }
         if let Some(directory) = std::env::var_os("BUILDING_TOOL_CAPTURE") {
             std::fs::create_dir_all(&directory).unwrap();
             let mut encoder = png::Encoder::new(

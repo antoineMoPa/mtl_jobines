@@ -1,0 +1,8 @@
+road street: sidewalk carlane carlane sidewalk; end
+street(-1,0,1,0);
+land(-2,-2,2,-2,2,2,-2,2);
+player_start(-0.06,0,0);
+cone_1 = prop(cone,0,0,{elevation:0.001,heading:0});
+cones_2 = prop_row(cone,-0.05,0.04,0,0.06,0.06,0.035,{elevation:0.001,spacing:2.5});
+bench_1 = prop(bench,0.08,0.06,{elevation:0.001,heading:0});
+lamp_1 = prop(lamp,0.12,-0.06,{elevation:0.001,heading:0});

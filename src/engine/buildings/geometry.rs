@@ -2,7 +2,7 @@ use glam::{Mat4, Vec2, Vec3, Vec4};
 use opencity::{runtime::Mesh, LandscapeFeature};
 
 #[derive(Clone, Copy)]
-pub(super) struct View {
+pub(crate) struct View {
     pub matrix: Mat4,
     pub viewport: egui::Rect,
 }
@@ -103,7 +103,7 @@ pub(super) fn overlap(a: &[[f32; 2]], b: &[[f32; 2]]) -> bool {
     }
     true
 }
-pub(super) fn triangle_hit(origin: Vec3, direction: Vec3, triangle: [Vec3; 3]) -> Option<f32> {
+pub(crate) fn triangle_hit(origin: Vec3, direction: Vec3, triangle: [Vec3; 3]) -> Option<f32> {
     let e1 = triangle[1] - triangle[0];
     let e2 = triangle[2] - triangle[0];
     let p = direction.cross(e2);
@@ -124,7 +124,7 @@ pub(super) fn triangle_hit(origin: Vec3, direction: Vec3, triangle: [Vec3; 3]) -
     let distance = e2.dot(q) / determinant;
     (0. ..=1.).contains(&distance).then_some(distance)
 }
-pub(super) fn mesh_hit(view: View, pos: egui::Pos2, mesh: &Mesh) -> Option<f32> {
+pub(crate) fn mesh_hit(view: View, pos: egui::Pos2, mesh: &Mesh) -> Option<f32> {
     let (a, d) = view.ray(pos);
     mesh.vertices
         .chunks_exact(3)

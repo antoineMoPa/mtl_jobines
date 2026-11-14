@@ -1,9 +1,9 @@
 {
   "category": "bus",
   "dimensions": {
-    "height": 3.356788158416748,
-    "length": 12.199999809265137,
-    "width": 3.41869854927063
+    "length": 12.222537994384766,
+    "height": 3.355962038040161,
+    "width": 3.2152836322784424
   },
   "model": "model.glb",
   "name": "Saint-Laurent Urbain",
@@ -21,7 +21,7 @@
   "qa": {
     "claydashExport": "completed",
     "detailedVehicle": true,
-    "exteriorSourceMeshPreserved": true,
+    "exteriorSourceMeshPreserved": false,
     "glassOpacity": 0.7,
     "glassPanes": 23,
     "interiorPrimitives": 15,
@@ -31,15 +31,25 @@
     "pivot": "axle-local",
     "status": "exported",
     "textures": 0,
-    "triangles": 22325,
+    "triangles": 40208,
     "wheelDonor": "utility-wheel.glb",
-    "wheelStyle": "plain-steel-cylinder",
+    "wheelStyle": "recessed-vented-steel",
     "wheels": [
       "wheel_front_left",
       "wheel_front_right",
       "wheel_rear_left",
       "wheel_rear_right"
-    ]
+    ],
+    "rearBumper": "continuous-mirrored-wraparound",
+    "symmetry": "negative-z-half-reflected",
+    "symmetryDonor": "left",
+    "symmetryScope": "whole-exterior-except-right-doors",
+    "passengerDoors": [
+      "front_right",
+      "rear_right"
+    ],
+    "wheelVentCount": 10,
+    "wheelLugCount": 10
   },
   "researchId": "vehicle-j02",
   "roadVehicle": true,

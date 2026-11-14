@@ -8,6 +8,11 @@
     {
       "name": "OpenCity UI",
       "build": "cargo build -p opencity --no-default-features --features editor --bin editor",
+      "run": "cargo editor"
+    },
+    {
+      "name": "Game Map Editor",
+      "build": "cargo build -p opencity --no-default-features --features editor --bin editor",
       "run": "OPENCITY_LAUNCH_ACTION=\"$PWD/opencity-launch.json\" cargo editor -- \"$PWD/data/maps/mtl/map.road\""
     },
     {

@@ -1,4 +1,4 @@
-//! Six immutable meshes, per-NPC poses, one texture array; shared render lifecycle.
+//! Six immutable meshes, per-actor poses, one texture array; shared render lifecycle.
 use super::render::{GpuMesh, Renderer};
 use crate::dynamic_world::{
     pedestrian_catalog::{self, JOINT_LIMIT},
@@ -7,7 +7,7 @@ use crate::dynamic_world::{
 use glam::Mat4;
 use wgpu::util::DeviceExt;
 
-const POSE_CAPACITY: usize = 32 * JOINT_LIMIT;
+const POSE_CAPACITY: usize = crate::dynamic_world::PEDESTRIAN_CAPACITY * JOINT_LIMIT;
 pub(super) struct Resources {
     pub poses: wgpu::Buffer,
     texture: wgpu::TextureView,

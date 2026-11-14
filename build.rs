@@ -1,4 +1,30 @@
 use std::{fs, path::Path};
+
+fn check_commerce_assets() {
+    let mut missing = Vec::new();
+    for directory in ["assets/commerce", "assets/commerce/brands"] {
+        for entry in fs::read_dir(directory).expect("commerce SVG sources must exist") {
+            let source = entry.expect("commerce SVG source must be readable").path();
+            if source
+                .extension()
+                .is_some_and(|extension| extension == "svg")
+            {
+                let png = source.with_extension("png");
+                if !png.is_file() {
+                    missing.push(png);
+                }
+            }
+        }
+    }
+    missing.sort();
+    assert!(
+        missing.is_empty(),
+        "Missing generated commerce PNGs ({} files).\n\nRun `cargo xtask assets` from the repository root, then retry your Cargo command.\nAsset generation requires Georgia and Arial fonts.\nFirst missing asset: {}",
+        missing.len(),
+        missing.first().map_or_else(String::new, |path| path.display().to_string()),
+    );
+}
+
 fn hash_bytes(hash: &mut u64, bytes: &[u8]) {
     for byte in bytes {
         *hash = (*hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3);
@@ -32,6 +58,7 @@ fn main() {
     println!("cargo:rerun-if-changed=data/landmarks");
     println!("cargo:rerun-if-changed=Cargo.lock");
     println!("cargo:rerun-if-changed=build.rs");
+    check_commerce_assets();
     let mut hash = 0xcbf29ce484222325;
     hash_sources(Path::new("src"), &mut hash);
     hash_sources(Path::new("assets"), &mut hash);

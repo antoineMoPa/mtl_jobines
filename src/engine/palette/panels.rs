@@ -9,7 +9,8 @@ impl Palette {
     ) {
         self.report_overlay = (*selected == Some(PaletteAction::BugReport)
             && (self.buildings.as_ref().is_some_and(|d| d.open)
-                || self.expansion.as_ref().is_some_and(|d| d.picker.open)))
+                || self.expansion.as_ref().is_some_and(|d| d.picker.open)
+                || self.props.as_ref().is_some_and(|d| d.open)))
         .then(|| (primitives.to_vec(), scale));
     }
     pub(super) fn show_panels(
@@ -86,6 +87,20 @@ impl Palette {
                     [renderer.config.width, renderer.scene_height()],
                     city,
                     input_enabled,
+                );
+            }
+            if let Some(document) = &mut self.props {
+                let enabled =
+                    input_enabled && !self.menu.is_open() && !self.sky_open && !self.sound_open;
+                if !enabled {
+                    document.cancel_interaction();
+                }
+                document.show_with_input(
+                    ui,
+                    view_projection,
+                    [renderer.config.width, renderer.scene_height()],
+                    city,
+                    enabled,
                 );
             }
             self.bug_report.show(&ctx);

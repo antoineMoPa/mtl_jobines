@@ -299,6 +299,7 @@ impl Renderer {
             entries: &camera_entries,
         });
         let contact_texture = super::contact_texture::ContactTexture::new(&device, &queue);
+        let pavement = opencity::runtime::surface_materials::SurfaceTextures::new(&device, &queue);
         let snow = super::snow::Snow::new(&device, &queue);
         let mut shadow_entries = vec![
             wgpu::BindGroupLayoutEntry {
@@ -319,6 +320,7 @@ impl Renderer {
             },
         ];
         shadow_entries.extend(super::contact_texture::ContactTexture::layout(2));
+        shadow_entries.extend(opencity::runtime::surface_materials::SurfaceTextures::layout(8));
         shadow_entries.extend(super::snow::Snow::layout());
         let shadow_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("shadow layout"),
@@ -376,6 +378,7 @@ impl Renderer {
             },
         ];
         shadow_bindings.extend(contact_texture.entries(2));
+        shadow_bindings.extend(pavement.entries(8));
         shadow_bindings.extend(snow.entries());
         let shadow_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("sun shadow"),
@@ -403,7 +406,7 @@ impl Renderer {
             bind_group_layouts: &[
                 Some(&camera_layout),
                 Some(&shadow_layout),
-                Some(&sky.layout),
+                Some(&sky.environment.layout),
                 Some(&commerce.layout),
             ],
             immediate_size: 0,
@@ -640,7 +643,11 @@ impl Renderer {
             &self.device,
             &self.queue,
             [&layouts[0], &layouts[1], &layouts[2]],
-            [&self.camera_group, &self.shadow_group, &self.sky.group],
+            [
+                &self.camera_group,
+                &self.shadow_group,
+                &self.sky.environment.group,
+            ],
         )
     }
     pub fn update_route(&mut self, points: &[[f32; 2]]) {
@@ -1011,7 +1018,7 @@ impl Renderer {
             pass.set_pipeline(&self.opaque_pipeline);
             pass.set_bind_group(0, &self.camera_group, &[]);
             pass.set_bind_group(1, &self.shadow_group, &[]);
-            pass.set_bind_group(2, &self.sky.group, &[]);
+            pass.set_bind_group(2, &self.sky.environment.group, &[]);
             pass.set_bind_group(3, &self.commerce.group, &[]);
             for mesh in meshes {
                 if mesh.instances.is_some()

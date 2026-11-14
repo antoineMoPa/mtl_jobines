@@ -5,6 +5,8 @@ water_level(0);
 player_start(1.1318498, -0.94828856, -80.17438820378175);
 
 block terrain_source:
+    # Local soft hill; the elevation bake follows the road grades inside this footprint.
+    road_hill = terrain(0.4, 7.85, 4.3, 7.4481, 7.0, 6.35, 8.9765, 4.85, 9.7, 3.35, 8.9765, 2.2519, 7.0, 1.85, 4.3, 2.2519, 1.6, 3.35, -0.3765, 4.85, -1.1, 6.35, -0.3765, 7.4481, 1.6);
     island = land(-60, 0, -59.927727, -2.94406, -59.711084, -5.881028, -59.350591, -8.803828, -58.847117, -11.705419, -58.201875, -14.578811, -57.41642, -17.417081, -56.492644, -20.213391, -55.432772, -22.961006, -54.239358, -25.653306, -52.915276, -28.283804, -51.463717, -30.846165, -49.888177, -33.334214, -48.192452, -35.741958, -46.380627, -38.063597, -44.457068, -40.293537, -42.426407, -42.426407, -40.293537, -44.457068, -38.063597, -46.380627, -35.741958, -48.192452, -33.334214, -49.888177, -30.846165, -51.463717, -28.283804, -52.915276, -25.653306, -54.239358, -22.961006, -55.432772, -20.213391, -56.492644, -17.417081, -57.41642, -14.578811, -58.201875, -11.705419, -58.847117, -8.803828, -59.350591, -5.881028, -59.711084, -2.94406, -59.927727, 0, -60, 2.94406, -59.927727, 5.881028, -59.711084, 8.803828, -59.350591, 11.705419, -58.847117, 14.578811, -58.201875, 17.417081, -57.41642, 20.213391, -56.492644, 22.961006, -55.432772, 25.653306, -54.239358, 28.283804, -52.915276, 30.846165, -51.463717, 33.334214, -49.888177, 35.741958, -48.192452, 38.063597, -46.380627, 40.293537, -44.457068, 42.426407, -42.426407, 44.457068, -40.293537, 46.380627, -38.063597, 48.192452, -35.741958, 49.888177, -33.334214, 51.463717, -30.846165, 52.915276, -28.283804, 54.239358, -25.653306, 55.432772, -22.961006, 56.492644, -20.213391, 57.41642, -17.417081, 58.201875, -14.578811, 58.847117, -11.705419, 59.350591, -8.803828, 59.711084, -5.881028, 59.927727, -2.94406, 60, 0, 59.927727, 2.94406, 59.711084, 5.881028, 59.350591, 8.803828, 58.847117, 11.705419, 58.201875, 14.578811, 57.41642, 17.417081, 56.492644, 20.213391, 55.432772, 22.961006, 54.239358, 25.653306, 52.915276, 28.283804, 51.463717, 30.846165, 49.888177, 33.334214, 48.192452, 35.741958, 46.380627, 38.063597, 44.457068, 40.293537, 42.426407, 42.426407, 40.293537, 44.457068, 38.063597, 46.380627, 35.741958, 48.192452, 33.334214, 49.888177, 30.846165, 51.463717, 28.283804, 52.915276, 25.653306, 54.239358, 22.961006, 55.432772, 20.213391, 56.492644, 17.417081, 57.41642, 14.578811, 58.201875, 11.705419, 58.847117, 8.803828, 59.350591, 5.881028, 59.711084, 2.94406, 59.927727, 0, 60, -2.94406, 59.927727, -5.881028, 59.711084, -8.803828, 59.350591, -11.705419, 58.847117, -14.578811, 58.201875, -17.417081, 57.41642, -20.213391, 56.492644, -22.961006, 55.432772, -25.653306, 54.239358, -28.283804, 52.915276, -30.846165, 51.463717, -33.334214, 49.888177, -35.741958, 48.192452, -38.063597, 46.380627, -40.293537, 44.457068, -42.426407, 42.426407, -44.457068, 40.293537, -46.380627, 38.063597, -48.192452, 35.741958, -49.888177, 33.334214, -51.463717, 30.846165, -52.915276, 28.283804, -54.239358, 25.653306, -55.432772, 22.961006, -56.492644, 20.213391, -57.41642, 17.417081, -58.201875, 14.578811, -58.847117, 11.705419, -59.350591, 8.803828, -59.711084, 5.881028, -59.927727, 2.94406);
 end
 
@@ -16,19 +18,28 @@ site_model_01 = building(0.246, "study_01", 1.323, -1.157, 1.077, -1.157, 1.077,
 
 elevation(site_model_01, 0.102);
 
-# Parked visitors face the sphere in a circular arc; the forecourt and access stay clear.
-# Model research ID, map X/Y, heading counterclockwise from east in degrees.
 parked_vehicle("vehicle-v2-09", 0.934102, -1.233115, -10);
-parked_vehicle("vehicle-12",    0.955297, -1.165893, -25);
+
+parked_vehicle("vehicle-12", 0.955297, -1.165893, -25);
+
 parked_vehicle("vehicle-v2-09", 0.993168, -1.106447, -40);
+
 parked_vehicle("vehicle-v2-01", 1.045134, -1.058829, -55);
-parked_vehicle("vehicle-12",    1.107655, -1.026283, -70);
+
+parked_vehicle("vehicle-12", 1.107655, -1.026283, -70);
+
 parked_vehicle("vehicle-v2-09", 1.176468, -1.011027, -85);
+
 parked_vehicle("vehicle-v2-01", 1.246885, -1.014102, -100);
+
 parked_vehicle("vehicle-v2-09", 1.314107, -1.035297, -115);
-parked_vehicle("vehicle-12",    1.373553, -1.073168, -130);
+
+parked_vehicle("vehicle-12", 1.373553, -1.073168, -130);
+
 parked_vehicle("vehicle-v2-09", 1.421171, -1.125134, -145);
-parked_vehicle("vehicle-12",    1.453717, -1.187655, -160);
+
+parked_vehicle("vehicle-12", 1.453717, -1.187655, -160);
+
 parked_vehicle("vehicle-v2-09", 1.468973, -1.256468, -175);
 
 road service_north:
@@ -61,8 +72,6 @@ road cross_street:
     sidewalk carlane middle carlane sidewalk;
 end
 
-# The first band adds 3.5 m of paved shoulder toward the highway interior.
-# Shift the ramp deck inward by half that width to keep its wall-side edge fixed.
 road access_ramp:
     verge carlane;
     direction forward;
@@ -250,58 +259,6 @@ road junction_highway:
     role highway;
 end
 
-junction_main_p022 = map_point(-8.485894753, -0.601739351);
-
-junction_main_p023 = map_point(-11.875285266, -0.702226307);
-
-junction_route_15_022 = junction_highway(junction_main_p022, -9.603790247, -0.524003534, -10.756533738, -0.759125808, junction_main_p023);
-
-grade(junction_route_15_022, 0.117661998, 0.111587003);
-
-junction_route_40_p032 = map_point(-17.373145310, 4.471292773);
-
-junction_route_40_p033 = map_point(-16.782929047, 2.864071660);
-
-junction_route_40_p034 = map_point(-16.685621102, 0.108806631);
-
-junction_route_40_p035 = map_point(-16.923604275, -0.871217588);
-
-junction_route_40_p036 = map_point(-18.013160320, -4.256632639);
-
-junction_route_40_p037 = map_point(-18.855704350, -7.006444869);
-
-junction_route_40_p038 = map_point(-19.867623100, -10.352753425);
-
-junction_route_40_s032 = junction_highway(junction_route_40_p032, -17.100742385, 4.025518318, -16.876291692, 3.456478271, junction_route_40_p033);
-
-grade(junction_route_40_s032, 0.109412000, 0.109412000);
-
-junction_route_40_s033 = junction_highway(junction_route_40_p033, -16.647117849, 2.002316383, -16.651164657, 1.023728945, junction_route_40_p034);
-
-grade(junction_route_40_s033, 0.109412000, 0.109412000);
-
-junction_route_40_s034 = junction_highway(junction_route_40_p034, -16.698056116, -0.221367626, -16.846418050, -0.543785920, junction_route_40_p035);
-
-grade(junction_route_40_s034, 0.109412000, 0.109412000);
-
-junction_route_40_s035_frame_p001 = map_point(-17.599977124, -3.527041365);
-
-junction_route_40_s035_frame_s000 = junction_highway(junction_route_40_p035, -17.132594191, -1.757768450, -17.254116605, -2.686049571, junction_route_40_s035_frame_p001);
-
-grade(junction_route_40_s035_frame_s000, 0.109412000, 0.109412000);
-
-junction_route_40_s035_frame_s001 = junction_highway(junction_route_40_s035_frame_p001, -17.708127987, -3.790018343, -17.893095001, -4.009492088, junction_route_40_p036);
-
-grade(junction_route_40_s035_frame_s001, 0.109412000, 0.320000000);
-
-junction_route_40_s036 = junction_highway(junction_route_40_p036, -18.442279481, -5.139932319, -18.576830555, -6.089711569, junction_route_40_p037);
-
-grade(junction_route_40_s036, 0.320000000, 0.320000000);
-
-junction_route_40_s037 = junction_highway(junction_route_40_p037, -19.194985125, -8.121752789, -19.516806987, -9.238317895, junction_route_40_p038);
-
-grade(junction_route_40_s037, 0.320000000, 0.420000000);
-
 road junction_ramp:
     verge carlane verge;
     direction forward;
@@ -313,102 +270,6 @@ road junction_mouth:
     direction forward;
     role merge;
 end
-
-junction_interchange_north_15n_40e_entry = lane_point(junction_route_15_022, 6.000000000, 1.000000000);
-
-junction_interchange_north_15n_40e_merge = lane_point(junction_route_40_s036, 6.000000000, 0.750000000);
-
-junction_interchange_north_15n_40e_p00 = map_point(-12.735285217, 0.011198378);
-
-junction_interchange_north_15n_40e_p01 = map_point(-15.716932288, 0.341239135);
-
-junction_interchange_north_15n_40e_p02 = map_point(-18.348923837, -2.121900397);
-
-junction_interchange_north_15n_40e_p03 = map_point(-19.028838608, -5.603958762);
-
-junction_interchange_north_15n_40e_entry_mouth = junction_three_mouth(junction_interchange_north_15n_40e_entry, -12.220770968, -0.604551269, -12.547975676, -0.154376943, junction_interchange_north_15n_40e_p00);
-
-grade(junction_interchange_north_15n_40e_entry_mouth, 0.111587003, 0.111587003);
-
-junction_interchange_north_15n_40e_s00 = junction_three_lane(junction_interchange_north_15n_40e_p00, -13.609396689, 0.783882173, -14.692302448, 0.795325677, junction_interchange_north_15n_40e_p01);
-
-grade(junction_interchange_north_15n_40e_s00, 0.111587003, 0.447372675);
-
-junction_interchange_north_15n_40e_s01 = junction_three_lane(junction_interchange_north_15n_40e_p01, -16.741562128, -0.112847410, -17.707916047, -1.032464000, junction_interchange_north_15n_40e_p02);
-
-grade(junction_interchange_north_15n_40e_s01, 0.447372666, 0.517019663);
-
-junction_interchange_north_15n_40e_s02 = junction_three_lane(junction_interchange_north_15n_40e_p02, -18.989931626, -3.211336793, -19.305593287, -4.470592996, junction_interchange_north_15n_40e_p03);
-
-grade(junction_interchange_north_15n_40e_s02, 0.517019663, 0.319999993);
-
-junction_interchange_north_15n_40e_merge_mouth = junction_three_mouth(junction_interchange_north_15n_40e_p03, -18.969533960, -5.846822607, -18.690442491, -6.081360967, junction_interchange_north_15n_40e_merge);
-
-grade(junction_interchange_north_15n_40e_merge_mouth, 0.319999993, 0.319999993);
-
-junction_interchange_north_40w_15s_entry = lane_point(junction_route_40_s036, 2.000000000, 0.300000000);
-
-junction_interchange_north_40w_15s_merge = lane_point(junction_route_15_022, 2.000000000, 1.000000000);
-
-junction_interchange_north_40w_15s_p00 = map_point(-17.649071875, -4.654959339);
-
-junction_interchange_north_40w_15s_p01 = map_point(-16.212171460, -3.056901246);
-
-junction_interchange_north_40w_15s_p02 = map_point(-14.933089778, -1.791876525);
-
-junction_interchange_north_40w_15s_p03 = map_point(-13.068924616, -0.973576162);
-
-junction_interchange_north_40w_15s_entry_mouth = junction_three_mouth(junction_interchange_north_40w_15s_entry, -18.188564280, -4.881616429, -17.827700616, -4.829864341, junction_interchange_north_40w_15s_p00);
-
-grade(junction_interchange_north_40w_15s_entry_mouth, 0.319999993, 0.319999993);
-
-junction_interchange_north_40w_15s_s00 = junction_three_lane(junction_interchange_north_40w_15s_p00, -17.061257257, -4.079400078, -16.623562798, -3.540397881, junction_interchange_north_40w_15s_p01);
-
-grade(junction_interchange_north_40w_15s_s00, 0.319999993, 0.392540019);
-
-junction_interchange_north_40w_15s_s01 = junction_three_lane(junction_interchange_north_40w_15s_p01, -15.800780122, -2.573404611, -15.415691907, -2.145413539, junction_interchange_north_40w_15s_p02);
-
-grade(junction_interchange_north_40w_15s_s01, 0.392540008, 0.220000000);
-
-junction_interchange_north_40w_15s_s02 = junction_three_lane(junction_interchange_north_40w_15s_p02, -14.450487649, -1.438339512, -13.870371607, -1.159256559, junction_interchange_north_40w_15s_p03);
-
-grade(junction_interchange_north_40w_15s_s02, 0.220000000, 0.220000000);
-
-junction_interchange_north_40w_15s_merge_mouth = junction_three_mouth(junction_interchange_north_40w_15s_p03, -12.825376217, -0.917150340, -12.228897530, -0.764344853, junction_interchange_north_40w_15s_merge);
-
-grade(junction_interchange_north_40w_15s_merge_mouth, 0.220000000, 0.111587003);
-
-junction_interchange_north_40e_15s_entry = lane_point(junction_route_40_s032, 7.000000000, 0.300000012);
-
-junction_interchange_north_40e_15s_merge = lane_point(junction_interchange_north_40w_15s_s02, 1.000000000, 0.550000000);
-
-junction_interchange_north_40e_15s_p00 = map_point(-17.367898558, 3.274576541);
-
-junction_interchange_north_40e_15s_p01 = map_point(-17.278859478, 1.057120722);
-
-junction_interchange_north_40e_15s_p02 = map_point(-16.689810703, -0.798974449);
-
-junction_interchange_north_40e_15s_p03 = map_point(-14.753792145, -1.103704477);
-
-junction_interchange_north_40e_15s_entry_mouth = junction_mouth(junction_interchange_north_40e_15s_entry, -17.164305995, 3.787363112, -17.354452398, 3.524214680, junction_interchange_north_40e_15s_p00);
-
-grade(junction_interchange_north_40e_15s_entry_mouth, 0.109412000, 0.109412000);
-
-junction_interchange_north_40e_15s_s00 = junction_ramp(junction_interchange_north_40e_15s_p00, -17.403141650, 2.620261869, -17.382668039, 1.808577909, junction_interchange_north_40e_15s_p01);
-
-grade(junction_interchange_north_40e_15s_s00, 0.109412000, 0.251641573);
-
-junction_interchange_north_40e_15s_s01 = junction_ramp(junction_interchange_north_40e_15s_p01, -17.175050918, 0.305663536, -16.987907408, -0.385566876, junction_interchange_north_40e_15s_p02);
-
-grade(junction_interchange_north_40e_15s_s01, 0.251641573, 0.251648924);
-
-junction_interchange_north_40e_15s_s02 = junction_ramp(junction_interchange_north_40e_15s_p02, -16.391713937, -1.212382604, -15.251945044, -1.060766257, junction_interchange_north_40e_15s_p03);
-
-grade(junction_interchange_north_40e_15s_s02, 0.251648933, 0.220000000);
-
-junction_interchange_north_40e_15s_merge_mouth = junction_mouth(junction_interchange_north_40e_15s_p03, -14.504715697, -1.125173588, -14.247819721, -1.323686079, junction_interchange_north_40e_15s_merge);
-
-grade(junction_interchange_north_40e_15s_merge_mouth, 0.220000000, 0.219999999);
 
 road junction_three_lane:
     verge carlane carlane carlane verge;
@@ -428,22 +289,6 @@ road junction_approach:
     role highway;
 end
 
-junction_inlet = lane_point(junction_route_15_022, 6, 0);
-
-junction_outlet = lane_point(junction_route_15_022, 2, 0);
-
-junction_climb = junction_approach(junction_base_inlet, -6.490032941, -0.432518705, -7.482754766941071, -0.5913022384047508, junction_inlet);
-
-grade(junction_climb, 0.002, 0.117661998);
-
-junction_descent = junction_approach(junction_outlet, -7.4938536286354065, -0.7509168013930321, -6.483513355, -0.652422082, junction_base_outlet);
-
-grade(junction_descent, 0.117661998, 0.002);
-
-junction_divider = highway_median(-5.487212345496711, -0.5128359147217407, -6.486773147879936, -0.5424703936103974, -7.488303793574275, -0.6711095243055536, -8.485894752646388, -0.6017393513877107);
-
-grade(junction_divider, 0.002, 0.117661998);
-
 junction_climb_cut = terrain_cut(0.115661998, { slope_x: -0.038537067, slope_y: -0.001142528 }, -8.477523012, -0.884115278, -5.478830610, -0.795211545, -5.495574090, -0.230459692, -8.494266493, -0.319363425);
 
 cross_island_end = map_point(1.643345531, 1.422824589);
@@ -452,61 +297,17 @@ cross_island_extension = cross_street(cross_outer_east, 1.654675780, 1.040659176
 
 grade(cross_island_extension, 0.102, 0.102);
 
-junction_base_inlet = lane_point(highway_south, 2, 1);
-
-junction_base_outlet = lane_point(highway_north, 2, 0);
-
-# Report 35: a 120 m square building block outside the south service-road corner.
-# Local axes follow the service road and cross street; leave both sidewalks clear.
 block south_corner_buildings:
     paving = concrete(0.06, 0.18, 0.18, 0.06, 1.32, 0.06, 1.32, 1.32, 0.06, 1.32);
     elevation(paving, 0.02);
-
     courtyard = land(0.38, 0.54, 1.02, 0.54, 1.02, 0.72, 0.38, 0.72);
     elevation(courtyard, 0.0205);
-
-    corner_heritage = building(0.2505, {
-        material: glass, family: heritage, floor_height: 0.0325,
-        palette: brownstone, glazing: smoke, weathering: 0.65,
-        section: piers, ground: retail, corners: stone,
-        setback: off, roof_units: 3, seed: 351, front_edge: 0
-    }, 0.12, 0.12, 0.44, 0.12, 0.44, 0.45, 0.12, 0.45);
-
-    service_mixed = building(0.3805, {
-        material: glass, family: mixed, floor_height: 0.0325,
-        palette: sandstone, glazing: teal, weathering: 0.22,
-        section: piers, ground: retail, corners: stone,
-        setback: on, roof_units: 4, seed: 352, front_edge: 0
-    }, 0.49, 0.12, 0.87, 0.12, 0.87, 0.45, 0.49, 0.45);
-
-    service_curtain = building(0.608, {
-        material: glass, family: curtain_wall, floor_height: 0.0325,
-        palette: granite, glazing: blue, weathering: 0.08,
-        section: bands, ground: lobby, corners: glass,
-        setback: on, roof_units: 4, seed: 353, front_edge: 0
-    }, 0.92, 0.12, 1.26, 0.12, 1.26, 0.45, 0.92, 0.45);
-
-    cross_civic = building(0.283, {
-        material: glass, family: civic, floor_height: 0.0325,
-        palette: limestone, glazing: silver, weathering: 0.35,
-        section: frame, ground: lobby, corners: stone,
-        setback: off, roof_units: 2, seed: 354, front_edge: 3
-    }, 0.12, 0.80, 0.47, 0.80, 0.47, 1.26, 0.12, 1.26);
-
-    courtyard_concrete = building(0.4455, {
-        material: glass, family: concrete_frame, floor_height: 0.0325,
-        palette: concrete, glazing: teal, weathering: 0.40,
-        section: frame, ground: arcade, corners: stone,
-        setback: on, roof_units: 3, seed: 355, front_edge: 0
-    }, 0.52, 0.80, 0.88, 0.80, 0.88, 1.26, 0.52, 1.26);
-
-    rear_podium = building(0.7055, {
-        material: glass, family: podium, floor_height: 0.0325,
-        palette: chalk, glazing: teal, weathering: 0.12,
-        section: bands, ground: retail, corners: glass,
-        podium_floors: 2, tower_ratio: 0.48,
-        setback: on, roof_units: 4, seed: 356, front_edge: 0
-    }, 0.93, 0.80, 1.26, 0.80, 1.26, 1.26, 0.93, 1.26);
+    corner_heritage = building(0.2505, { material: glass, family: heritage, floor_height: 0.0325, palette: brownstone, glazing: smoke, weathering: 0.65, section: piers, ground: retail, corners: stone, setback: off, roof_units: 3, seed: 351, front_edge: 0 }, 0.12, 0.12, 0.44, 0.12, 0.44, 0.45, 0.12, 0.45);
+    service_mixed = building(0.3805, { material: glass, family: mixed, floor_height: 0.0325, palette: sandstone, glazing: teal, weathering: 0.22, section: piers, ground: retail, corners: stone, setback: on, roof_units: 4, seed: 352, front_edge: 0 }, 0.49, 0.12, 0.87, 0.12, 0.87, 0.45, 0.49, 0.45);
+    service_curtain = building(0.608, { material: glass, family: curtain_wall, floor_height: 0.0325, palette: granite, glazing: blue, weathering: 0.08, section: bands, ground: lobby, corners: glass, setback: on, roof_units: 4, seed: 353, front_edge: 0 }, 0.92, 0.12, 1.26, 0.12, 1.26, 0.45, 0.92, 0.45);
+    cross_civic = building(0.283, { material: glass, family: civic, floor_height: 0.0325, palette: limestone, glazing: silver, weathering: 0.35, section: frame, ground: lobby, corners: stone, setback: off, roof_units: 2, seed: 354, front_edge: 3 }, 0.12, 0.80, 0.47, 0.80, 0.47, 1.26, 0.12, 1.26);
+    courtyard_concrete = building(0.4455, { material: glass, family: concrete_frame, floor_height: 0.0325, palette: concrete, glazing: teal, weathering: 0.40, section: frame, ground: arcade, corners: stone, setback: on, roof_units: 3, seed: 355, front_edge: 0 }, 0.52, 0.80, 0.88, 0.80, 0.88, 1.26, 0.52, 1.26);
+    rear_podium = building(0.7055, { material: glass, family: podium, floor_height: 0.0325, palette: chalk, glazing: teal, weathering: 0.12, section: bands, ground: retail, corners: glass, podium_floors: 2, tower_ratio: 0.48, setback: on, roof_units: 4, seed: 356, front_edge: 0 }, 0.93, 0.80, 1.26, 0.80, 1.26, 1.26, 0.93, 1.26);
 end
 
 south_corner_block = south_corner_buildings(1.684241111, 0.043430682, 0.102, 1.698268);
@@ -521,22 +322,9 @@ placed_building_1 = building(0.2775000, { material: red_brick, floor_height: 0.0
 
 elevation(placed_building_1, 0.1010);
 
-
 placed_building_2 = building(0.1395000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: sandstone, seed: 334 }, 3.0496931, -0.6896468, 2.5466378, -0.7045612, 2.5667241, -1.3820596, 3.0697794, -1.3671453);
 
 elevation(placed_building_2, 0.1010);
-
-
-
-
-
-
-
-
-
-
-
-
 
 junction_2 = map_point(0.6965, -3.4119);
 
@@ -576,20 +364,315 @@ placed_building_3 = building(0.2775000, { material: glass, floor_height: 0.03150
 
 elevation(placed_building_3, 0.1010);
 
-
-
 placed_building_4 = building(0.2775000, { material: glass, floor_height: 0.0315000, use: unspecified, family: curtain_wall, palette: chalk, seed: 351 }, 0.3977373, -0.7630484, 0.1229004, -0.7711966, 0.1284282, -0.9576458, 0.4032650, -0.9494976);
 
 elevation(placed_building_4, 0.1010);
-
 
 placed_building_5 = building(0.2460000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: chalk, seed: 368 }, 0.0829189, -0.7723820, -0.1930622, -0.7805642, -0.1819589, -1.1550729, 0.0940222, -1.1468908);
 
 elevation(placed_building_5, 0.1010);
 
+junction_7 = map_point(1.6388, 1.5760);
 
+road_7 = cross_street(cross_island_end, 1.6418, 1.4739, 1.6403, 1.5249, junction_7);
 
+grade(road_7, 0.1020, 0.1020);
 
+junction_8 = map_point(1.4857, 1.5715);
 
+road_8 = cross_street(junction_7, 1.5878, 1.5745, 1.5367, 1.5730, junction_8);
 
+grade(road_8, 0.1020, 0.1020);
 
+junction_9 = map_point(1.7919, 1.5805);
+
+road_9 = cross_street(junction_7, 1.6898, 1.5775, 1.7409, 1.5790, junction_9);
+
+grade(road_9, 0.1020, 0.1020);
+
+junction_10 = map_point(1.6343, 1.7291);
+
+road_10 = cross_street(junction_7, 1.6373, 1.6270, 1.6358, 1.6781, junction_10);
+
+grade(road_10, 0.1020, 0.1020);
+
+intersection4(junction_7, cross_street);
+
+elevation(junction_7, 0.1020);
+
+junction_11 = map_point(2.7915, 1.6099);
+
+road_11 = cross_street(junction_9, 2.1251, 1.5903, 2.4583, 1.6001, junction_11);
+
+grade(road_11, 0.1020, 0.1020);
+
+junction_12 = map_point(3.7911, 1.6393);
+
+road_12 = cross_street(junction_11, 3.1247, 1.6197, 3.4579, 1.6295, junction_12);
+
+grade(road_12, 0.1020, 0.1820);
+
+junction_13 = map_point(4.7907, 1.6687);
+
+road_13 = cross_street(junction_12, 4.1243, 1.6491, 4.4575, 1.6589, junction_13);
+
+grade(road_13, 0.1820, 0.2420);
+
+junction_14 = map_point(4.9438, 1.6732);
+
+road_14 = cross_street(junction_13, 4.8417, 1.6702, 4.8928, 1.6717, junction_14);
+
+grade(road_14, 0.2420, 0.2420);
+
+junction_15 = map_point(4.9393, 1.8263);
+
+road_15 = cross_street(junction_14, 4.9423, 1.7242, 4.9408, 1.7753, junction_15);
+
+grade(road_15, 0.2420, 0.2420);
+
+junction_17 = map_point(5.0969, 1.6777);
+
+road_17 = cross_street(junction_14, 4.9948, 1.6747, 5.0459, 1.6762, junction_17);
+
+grade(road_17, 0.2420, 0.2420);
+
+intersection3(junction_14, cross_street);
+
+elevation(junction_14, 0.2420);
+
+junction_18 = map_point(4.9099, 2.8259);
+
+road_18 = cross_street(junction_15, 4.9295, 2.1595, 4.9197, 2.4927, junction_18);
+
+grade(road_18, 0.2420, 0.3220);
+
+junction_19 = map_point(5.0700, 3.8255);
+
+road_19 = cross_street(junction_18, 4.9001, 3.1591, 5.0250, 3.4923, junction_19);
+
+grade(road_19, 0.3220, 0.4020);
+
+junction_20 = map_point(5.1800, 4.8251);
+
+road_20 = cross_street(junction_19, 5.1150, 4.1587, 5.2500, 4.4919, junction_20);
+
+grade(road_20, 0.4020, 0.4020);
+
+junction_21 = map_point(4.6500, 5.8247);
+
+road_21 = cross_street(junction_20, 5.1100, 5.1583, 4.7550, 5.4915, junction_21);
+
+grade(road_21, 0.4020, 0.3220);
+
+junction_22 = map_point(4.5500, 6.8243);
+
+road_22 = cross_street(junction_21, 4.5450, 6.1579, 4.5312, 6.4911, junction_22);
+
+grade(road_22, 0.3220, 0.2420);
+
+# Continue the hill descent to the existing ground-level street height.
+junction_23 = map_point(4.7629, 7.8239);
+
+road_23 = cross_street(junction_22, 4.5688, 7.1575, 4.7727, 7.4907, junction_23);
+
+grade(road_23, 0.2420, 0.1620);
+
+junction_24 = map_point(4.7335, 8.8235);
+
+road_24 = cross_street(junction_23, 4.7531, 8.1571, 4.7433, 8.4903, junction_24);
+
+grade(road_24, 0.1620, 0.1020);
+
+junction_25 = map_point(4.7041, 9.8231);
+
+road_25 = cross_street(junction_24, 4.7237, 9.1567, 4.7139, 9.4899, junction_25);
+
+grade(road_25, 0.1020, 0.1020);
+
+placed_prop_1 = prop(cone, 2.7925932, 1.5543488, { heading: 0.0000000, elevation: 0.1020000 });
+
+placed_prop_2 = prop(cone, 2.8082042, 1.5544654, { heading: 0.0000000, elevation: 0.1032053 });
+
+placed_prop_3 = prop(cone, 2.8261423, 1.5525545, { heading: 0.0000000, elevation: 0.1061352 });
+
+placed_prop_4 = prop(cone, 2.8436484, 1.5553086, { heading: 0.0000000, elevation: 0.1060416 });
+
+placed_prop_5 = prop(cone, 2.8585410, 1.5541351, { heading: 0.0000000, elevation: 0.1087296 });
+
+junction_26 = map_point(6.0965, 1.7071);
+
+road_26_ground_1 = map_point(5.15937471, 1.67953753);
+
+road_26 = cross_street(junction_17, 5.11772490, 1.67831254, 5.13854980, 1.67892504, road_26_ground_1);
+
+grade(road_26, 0.24200000, 0.24100119);
+
+road_26_ground_2 = map_point(5.22184992, 1.68137503);
+
+road_26_part_2 = cross_street(road_26_ground_1, 5.18019962, 1.68015003, 5.20102501, 1.68076253, road_26_ground_2);
+
+grade(road_26_part_2, 0.24100119, 0.24101156);
+
+road_26_ground_3 = map_point(5.34679985, 1.68504989);
+
+road_26_part_3 = cross_street(road_26_ground_2, 5.26349974, 1.68260002, 5.30515003, 1.68382490, road_26_ground_3);
+
+grade(road_26_part_3, 0.24101156, 0.24111299);
+
+road_26_ground_4 = map_point(5.47174978, 1.68872499);
+
+road_26_part_4 = cross_street(road_26_ground_3, 5.38844967, 1.68627489, 5.43009996, 1.68750000, road_26_ground_4);
+
+grade(road_26_part_4, 0.24111299, 0.24127987);
+
+road_26_ground_5 = map_point(5.59670019, 1.69239998);
+
+road_26_part_5 = cross_street(road_26_ground_4, 5.51339960, 1.68994999, 5.55505037, 1.69117498, road_26_ground_5);
+
+grade(road_26_part_5, 0.24127987, 0.24024427);
+
+road_26_ground_6 = map_point(5.62793779, 1.69331884);
+
+road_26_part_6 = cross_street(road_26_ground_5, 5.60711288, 1.69270623, 5.61752510, 1.69301260, road_26_ground_6);
+
+grade(road_26_part_6, 0.24024427, 0.23987402);
+
+road_26_ground_7 = map_point(5.65917492, 1.69423759);
+
+road_26_part_7 = cross_street(road_26_ground_6, 5.63835049, 1.69362509, 5.64876223, 1.69393134, road_26_ground_7);
+
+grade(road_26_part_7, 0.23987402, 0.23885025);
+
+road_26_ground_8 = map_point(5.72165012, 1.69607508);
+
+road_26_part_8 = cross_street(road_26_ground_7, 5.67999983, 1.69485009, 5.70082521, 1.69546258, road_26_ground_8);
+
+grade(road_26_part_8, 0.23885025, 0.23596963);
+
+road_26_ground_9 = map_point(5.78412485, 1.69791245);
+
+road_26_part_9 = cross_street(road_26_ground_8, 5.74247503, 1.69668758, 5.76329994, 1.69729996, road_26_ground_9);
+
+grade(road_26_part_9, 0.23596963, 0.23290879);
+
+road_26_ground_10 = map_point(5.84660006, 1.69974995);
+
+road_26_part_10 = cross_street(road_26_ground_9, 5.80494976, 1.69852495, 5.82577515, 1.69913745, road_26_ground_10);
+
+grade(road_26_part_10, 0.23290879, 0.22757214);
+
+road_26_ground_11 = map_point(5.90907478, 1.70158744);
+
+road_26_part_11 = cross_street(road_26_ground_10, 5.86742496, 1.70036244, 5.88824987, 1.70097494, road_26_ground_11);
+
+grade(road_26_part_11, 0.22757214, 0.22175193);
+
+road_26_ground_12 = map_point(5.94031239, 1.70250630);
+
+road_26_part_12 = cross_street(road_26_ground_11, 5.91948748, 1.70189369, 5.92989969, 1.70220006, road_26_ground_12);
+
+grade(road_26_part_12, 0.22175193, 0.21867441);
+
+road_26_ground_13 = map_point(5.97154999, 1.70342505);
+
+road_26_part_13 = cross_street(road_26_ground_12, 5.95072508, 1.70281255, 5.96113729, 1.70311880, road_26_ground_13);
+
+grade(road_26_part_13, 0.21867441, 0.21507312);
+
+road_26_part_14 = cross_street(road_26_ground_13, 6.01319981, 1.70465004, 6.05485010, 1.70587504, junction_26);
+
+grade(road_26_part_14, 0.21507312, 0.19982080);
+
+junction_27 = map_point(7.0961, 1.7365);
+
+road_27_ground_1 = map_point(6.22144985, 1.71077502);
+
+road_27 = cross_street(junction_26, 6.13814974, 1.70832503, 6.17980003, 1.70955002, road_27_ground_1);
+
+grade(road_27, 0.19982080, 0.18566105);
+
+road_27_ground_2 = map_point(6.34639978, 1.71445000);
+
+road_27_part_2 = cross_street(road_27_ground_1, 6.26309967, 1.71200001, 6.30474997, 1.71322501, road_27_ground_2);
+
+grade(road_27_part_2, 0.18566105, 0.17364646);
+
+road_27_ground_3 = map_point(6.59630013, 1.72179997);
+
+road_27_part_3 = cross_street(road_27_ground_2, 6.42969990, 1.71689999, 6.51300001, 1.71934998, road_27_ground_3);
+
+grade(road_27_part_3, 0.17364646, 0.15075682);
+
+road_27_ground_4 = map_point(6.72125006, 1.72547495);
+
+road_27_part_4 = cross_street(road_27_ground_3, 6.63794994, 1.72302496, 6.67960024, 1.72424996, road_27_ground_4);
+
+grade(road_27_part_4, 0.15075682, 0.14018710);
+
+road_27_ground_5 = map_point(6.84619999, 1.72915006);
+
+road_27_part_5 = cross_street(road_27_ground_4, 6.76289988, 1.72669995, 6.80455017, 1.72792506, road_27_ground_5);
+
+grade(road_27_part_5, 0.14018710, 0.13037297);
+
+road_27_ground_6 = map_point(6.97114944, 1.73282504);
+
+road_27_part_6 = cross_street(road_27_ground_5, 6.88784981, 1.73037505, 6.92949963, 1.73160005, road_27_ground_6);
+
+grade(road_27_part_6, 0.13037297, 0.12159815);
+
+road_27_part_7 = cross_street(road_27_ground_6, 7.01279926, 1.73405004, 7.05445004, 1.73527503, junction_27);
+
+grade(road_27_part_7, 0.12159815, 0.11420437);
+
+junction_28 = map_point(8.0957, 1.7659);
+
+road_28_ground_1 = map_point(7.22104979, 1.74017501);
+
+road_28 = cross_street(junction_27, 7.13774967, 1.73772502, 7.17939997, 1.73895001, road_28_ground_1);
+
+grade(road_28, 0.11420437, 0.10833737);
+
+road_28_ground_2 = map_point(7.28352499, 1.74201250);
+
+road_28_part_2 = cross_street(road_28_ground_1, 7.24187469, 1.74078751, 7.26270008, 1.74140000, road_28_ground_2);
+
+grade(road_28_part_2, 0.10833737, 0.10597345);
+
+road_28_ground_3 = map_point(7.34599972, 1.74384999);
+
+road_28_part_3 = cross_street(road_28_ground_2, 7.30434990, 1.74262500, 7.32517481, 1.74323750, road_28_ground_3);
+
+grade(road_28_part_3, 0.10597345, 0.10438050);
+
+road_28_ground_4 = map_point(7.40847492, 1.74568748);
+
+road_28_part_4 = cross_street(road_28_ground_3, 7.36682463, 1.74446249, 7.38765001, 1.74507499, road_28_ground_4);
+
+grade(road_28_part_4, 0.10438050, 0.10303379);
+
+road_28_ground_5 = map_point(7.47095013, 1.74752498);
+
+road_28_part_5 = cross_street(road_28_ground_4, 7.42929983, 1.74629998, 7.45012522, 1.74691248, road_28_ground_5);
+
+grade(road_28_part_5, 0.10303379, 0.10236602);
+
+road_28_ground_6 = map_point(7.59589958, 1.75119996);
+
+road_28_part_6 = cross_street(road_28_ground_5, 7.51259995, 1.74874997, 7.55424976, 1.74997497, road_28_ground_6);
+
+grade(road_28_part_6, 0.10236602, 0.10200094);
+
+road_28_part_7 = cross_street(road_28_ground_6, 7.76249981, 1.75609994, 7.92910004, 1.76100004, junction_28);
+
+grade(road_28_part_7, 0.10200094, 0.10200094);
+
+junction_29 = map_point(9.0953, 1.7953);
+
+road_29 = cross_street(junction_28, 8.42889977, 1.77569997, 8.76210022, 1.78550005, junction_29);
+
+grade(road_29, 0.10200094, 0.10200094);
+
+placed_prop_6 = prop(tree, 4.7545052, 3.8815298, { heading: 0.0000000, elevation: 0.3990135 });
+
+placed_prop_7 = prop(tree, 4.7660885, 3.9610496, { heading: 0.0000000, elevation: 0.4002080 });

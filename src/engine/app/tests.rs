@@ -1,6 +1,36 @@
 use super::*;
 
 #[test]
+fn vehicle_switch_command_resumes_driving_with_fresh_input_and_camera() {
+    let mut game = Game::new(Hermes::test_map());
+    assert!(game.world.toggle_vehicle(&game.hermes));
+    game.set_overlay(Overlay::Map);
+    game.keys.insert(KeyCode::ArrowUp);
+    game.orbit = 1.;
+    game.zoom = 3.;
+    game.hood = true;
+    game.sound_eye = Some(Vec3::splat(100.));
+    let position = game.world.player().position.truncate();
+    let definition = &crate::dynamic_world::catalog::definitions()[1];
+    game.apply_palette_action(PaletteAction::SwitchVehicle(1));
+    assert!(game.world.is_driving());
+    assert_eq!(game.world.player().name(), definition.config.name);
+    assert_eq!(game.world.player_position().truncate(), position);
+    assert_eq!(game.overlay, Overlay::Driving);
+    assert!(game.keys.is_empty());
+    assert!(game.sound_eye.is_none());
+    assert_eq!(game.orbit, 0.);
+    assert_eq!(game.zoom, 1.);
+    assert!(!game.hood);
+    assert!(game.scene_dirty);
+    assert!(
+        game.eye
+            .distance(game.world.player_position() / METERS_PER_UNIT)
+            < 1.
+    );
+}
+
+#[test]
 fn jump_command_maps_zoomed_click_to_world_and_resumes_with_current_car() {
     let mut game = Game::new(Hermes::test_map_from_source(
         "road street: carlane carlane; end street(-2,0,2,0);
@@ -143,11 +173,13 @@ fn space_handbrake_and_shift_sprint_are_independent() {
     assert!(driving.handbrake);
     assert!(!driving.brake);
     assert!(!walking.run);
+    assert!(walking.jump);
     for key in [KeyCode::ShiftLeft, KeyCode::ShiftRight] {
         let (driving, walking) = movement_controls(&HashSet::from([key]), 10.);
         assert!(!driving.handbrake);
         assert!(!driving.brake);
         assert!(walking.run);
+        assert!(!walking.jump);
     }
 }
 

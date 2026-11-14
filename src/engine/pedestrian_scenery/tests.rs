@@ -23,10 +23,142 @@ fn pixels(png: &[u8]) -> Vec<u8> {
 }
 #[test]
 #[ignore = "requires a native GPU adapter"]
+fn native_player_uses_shared_skin_and_extra_pose_slot() {
+    let hermes = Hermes::test_map_from_source(
+        "land(-2,-2,2,-2,2,2,-2,2); road street:sidewalk carlane carlane sidewalk;end
+        street(-0.4,0,0.4,0); street(-0.4,0.2,0.4,0.2); street(-0.4,-0.2,0.4,-0.2);",
+    );
+    let mut world = DynamicWorld::new(&hermes);
+    for _ in 0..60 {
+        world.step(
+            &hermes,
+            Controls {
+                handbrake: true,
+                ..Default::default()
+            },
+            WalkControls::default(),
+            1. / 120.,
+        );
+    }
+    assert!(world.toggle_vehicle(&hermes));
+    assert_eq!(
+        world.pedestrian_instances().count(),
+        crate::dynamic_world::PEDESTRIAN_CAPACITY
+    );
+    let mut renderer = pollster::block_on(Renderer::new(None, 960, 720)).unwrap();
+    renderer.daylight = Some(1.);
+    renderer.sky_settings.solar_hour = Some(12.);
+    let mut scenery = PedestrianScenery::new(&renderer);
+    let mut images = Vec::new();
+    for (label, steps) in [
+        ("player-idle", 0),
+        ("player-walk", 90),
+        ("player-turn", 60),
+        ("player-turn-full", 200),
+        ("player-sprint", 120),
+        ("player-jump-crouch", 17),
+        ("player-jump-extension", 7),
+        ("player-jump-takeoff", 4),
+        ("player-jump", 64),
+        ("player-jump-land", 120),
+        ("player-moving-warmup", 120),
+        ("player-moving-jump-extension", 24),
+        ("player-moving-jump-takeoff", 8),
+        ("player-moving-jump-flight", 30),
+        ("player-jump-land", 120),
+        ("player-turning-warmup", 30),
+        ("player-turning-jump-extension", 24),
+        ("player-turning-jump-takeoff", 8),
+        ("player-turning-jump-flight", 30),
+    ] {
+        for _ in 0..steps {
+            world.step(
+                &hermes,
+                Controls::default(),
+                WalkControls {
+                    forward: if matches!(label, "player-walk" | "player-sprint")
+                        || label.starts_with("player-moving")
+                    {
+                        1.
+                    } else {
+                        0.
+                    },
+                    turn: if label.starts_with("player-turn") {
+                        1.
+                    } else {
+                        0.
+                    },
+                    run: label == "player-sprint" || label.starts_with("player-moving"),
+                    jump: label.contains("-jump"),
+                    ..Default::default()
+                },
+                1. / 120.,
+            );
+        }
+        scenery.update(&renderer, &world);
+        assert!(scenery.poses.len() <= POSE_CAPACITY);
+        let actor = world.pedestrian_instances().next().unwrap();
+        assert_eq!(actor.model, 0);
+        assert_eq!(actor.opacity, 1.);
+        let root = actor.transform.w_axis.truncate();
+        assert!((world.player_position().z / 100. - root.z - 0.009).abs() < 1e-5);
+        // Isolate the player for a close view; the update above exercised all 33 palettes.
+        for (index, model) in scenery.models.iter_mut().enumerate() {
+            if index == actor.model {
+                model.transforms.truncate(1);
+            } else {
+                model.transforms.clear();
+            }
+            renderer.update_instances(&mut model.mesh, &model.transforms);
+        }
+        let png = renderer
+            .report_screenshot(
+                &scenery.visible().collect::<Vec<_>>(),
+                root + Vec3::new(0.035, -0.055, 0.023),
+                root + Vec3::Z * 0.009,
+                0.,
+                hermes.minimap_view([root.x, root.y], world.player_yaw()),
+            )
+            .unwrap();
+        save(label, &png);
+        images.push(pixels(&png));
+    }
+    let changed = images[0]
+        .chunks_exact(4)
+        .zip(images[1].chunks_exact(4))
+        .filter(|(a, b)| {
+            a[0].abs_diff(b[0]) > 10 || a[1].abs_diff(b[1]) > 10 || a[2].abs_diff(b[2]) > 10
+        })
+        .count();
+    assert!(
+        changed > 100,
+        "player gait did not change visible pixels: {changed}"
+    );
+    // The faster sprint travels beyond the car's interaction radius. Return for re-entry QA.
+    world.reset_player(&hermes);
+    assert!(world.toggle_vehicle(&hermes));
+    assert!(world.toggle_vehicle(&hermes));
+    scenery.update(&renderer, &world);
+    assert!(world.is_driving());
+}
+#[test]
+#[ignore = "requires a native GPU adapter"]
 fn native_vehicle_hit_ragdoll_get_up_and_walk_again() {
+    capture_ragdoll_recovery(false);
+}
+#[test]
+#[ignore = "requires a native GPU adapter"]
+fn native_player_bump_ragdoll_get_up_and_walk_again() {
+    capture_ragdoll_recovery(true);
+}
+fn capture_ragdoll_recovery(on_foot: bool) {
     let mut hermes = Hermes::test_map();
     let mut world = DynamicWorld::new(&hermes);
-    let target = world.prepare_pedestrian_collision() / 100.;
+    let target = if on_foot {
+        world.prepare_player_pedestrian_collision(&hermes)
+    } else {
+        world.prepare_pedestrian_collision()
+    } / 100.;
     let mut renderer = pollster::block_on(Renderer::new(None, 1280, 800)).unwrap();
     renderer.daylight = Some(1.);
     renderer.sky_settings.solar_hour = Some(12.);
@@ -42,7 +174,10 @@ fn native_vehicle_hit_ragdoll_get_up_and_walk_again() {
                 brake: frame >= 35,
                 ..Default::default()
             },
-            WalkControls::default(),
+            WalkControls {
+                forward: if on_foot && frame < 35 { 1. } else { 0. },
+                ..Default::default()
+            },
             1. / 60.,
         );
         let counts = world.pedestrian_reactions();
@@ -69,13 +204,18 @@ fn native_vehicle_hit_ragdoll_get_up_and_walk_again() {
                     hermes.minimap_view([target.x, target.y], 0.),
                 )
                 .unwrap();
-            save(label, &png);
+            let label = if on_foot {
+                format!("player-bump-{label}")
+            } else {
+                label.to_string()
+            };
+            save(&label, &png);
             eprintln!("{label}: walking/falling/rising {counts:?}");
         }
     }
     assert!(
         seen_fall && seen_rise,
-        "vehicle never triggered the full reaction cycle"
+        "contact never triggered the full reaction cycle"
     );
     assert_eq!(world.pedestrian_reactions(), [1, 0, 0]);
 }
@@ -252,6 +392,9 @@ fn native_ik_gait_six_rigs_and_rear_foot_placement() {
         ("ik-walk-contact", 40, false),
         ("ik-walk-transfer", 75, false),
         ("ik-walk-rear", 110, true),
+        ("ik-turn-quarter", 170, false),
+        ("ik-turn-half", 250, false),
+        ("ik-turn-full", 398, false),
     ] {
         for _ in frame..end {
             frame += 1;
@@ -260,13 +403,19 @@ fn native_ik_gait_six_rigs_and_rear_foot_placement() {
                 .zip(pedestrian_catalog::definitions())
                 .enumerate()
             {
-                let p = Vec3::new((i as f32 - 2.5) * 2., -frame as f32 * 1.05 / 120., 0.);
+                let p = Vec3::new(
+                    (i as f32 - 2.5) * 2.,
+                    -frame.min(110) as f32 * 1.05 / 120.,
+                    0.,
+                );
+                let yaw =
+                    -std::f32::consts::FRAC_PI_2 + (frame - frame.min(110)) as f32 * 2.62 / 120.;
                 gait.advance(
                     def,
                     p,
-                    -std::f32::consts::FRAC_PI_2,
-                    1.05,
-                    p - Vec3::Y,
+                    yaw,
+                    if frame <= 110 { 1.05 } else { 0. },
+                    p + Vec3::new(yaw.cos(), yaw.sin(), 0.),
                     1. / 120.,
                     sample,
                 );
@@ -275,10 +424,14 @@ fn native_ik_gait_six_rigs_and_rear_foot_placement() {
         }
         scenery.poses.clear();
         for (i, (model, gait)) in scenery.models.iter_mut().zip(&gaits).enumerate() {
-            let position = Vec3::new((i as f32 - 2.5) * 2., -frame as f32 * 1.05 / 120., 0.);
+            let position = Vec3::new(
+                (i as f32 - 2.5) * 2.,
+                -frame.min(110) as f32 * 1.05 / 120.,
+                0.,
+            );
+            let yaw = -std::f32::consts::FRAC_PI_2 + (frame - frame.min(110)) as f32 * 2.62 / 120.;
             let mut transform =
-                pedestrian_catalog::instance_transform(position, -std::f32::consts::FRAC_PI_2)
-                    .to_cols_array_2d();
+                pedestrian_catalog::instance_transform(position, yaw).to_cols_array_2d();
             transform[0][3] = i as f32;
             transform[2][3] = scenery.poses.len() as f32;
             model.transforms.clear();

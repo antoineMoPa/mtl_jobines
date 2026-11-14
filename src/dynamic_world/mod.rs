@@ -31,10 +31,12 @@ pub(crate) use traffic::SignalBatch;
 mod handbrake_tests;
 mod vehicle;
 mod vehicle_lights;
+mod vehicle_switch;
 use crate::hermes::Hermes;
 use glam::Vec3;
 use opencity::runtime::Mesh;
 use player::Pedestrian;
+pub(crate) const PEDESTRIAN_CAPACITY: usize = crowd::CAPACITY + 1;
 pub use player::WalkControls;
 pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -113,7 +115,7 @@ impl DynamicWorld {
             vehicle_notice: 4.,
             pedestrian: None,
             vehicle_spawns: Vec::new(),
-            props: props::Props::from_groups_near(hermes.prop_groups(), prop_center),
+            props: props::Props::from_parts_near(hermes.prop_parts(), prop_center),
         };
         world.traffic.update_prop_focus(prop_center);
         world.add_parked_vehicles(hermes)?;
@@ -304,6 +306,10 @@ impl DynamicWorld {
         } else if self.player().velocity.length() <= 3. {
             self.pedestrian = Pedestrian::beside_if(hermes.city(), self.player(), |position| {
                 self.props.blocked(position)
+                    || self
+                        .vehicles
+                        .iter()
+                        .any(|v| player::blocked_by_vehicle(position, v))
             });
             return self.pedestrian.is_some();
         }
@@ -439,20 +445,15 @@ impl DynamicWorld {
         }
         if let Some(player) = &mut self.pedestrian {
             let before = player.position;
-            player.step(
-                hermes.city(),
-                &self.vehicles[self.player_vehicle.0],
-                walk,
-                dt,
-            );
-            if self.props.blocked(player.position)
-                || self
-                    .vehicles
-                    .iter()
-                    .any(|v| v.entry_distance(player.position) < 0.42)
-            {
-                player.position = before;
-            }
+            player.step(hermes.city(), walk, dt, |position| {
+                self.props.blocked(position)
+                    || self
+                        .vehicles
+                        .iter()
+                        .any(|v| player::blocked_by_vehicle(position, v))
+            });
+            self.crowd
+                .player_move(hermes.city(), before, player.position, dt, &self.vehicles);
         }
         self.props.step(dt);
         self.crowd.step(
@@ -484,7 +485,10 @@ impl DynamicWorld {
         self.traffic.physics_counts(self.vehicles.len())
     }
     pub(crate) fn pedestrian_instances(&self) -> impl Iterator<Item = crowd::Instance<'_>> + '_ {
-        self.crowd.instances(self.player_position())
+        self.pedestrian
+            .iter()
+            .map(Pedestrian::instance)
+            .chain(self.crowd.instances(self.player_position()))
     }
     #[cfg(test)]
     pub(crate) fn prepare_pedestrian_collision(&mut self) -> glam::Vec3 {
@@ -494,6 +498,17 @@ impl DynamicWorld {
         vehicle.position = target - direction * 5. + glam::Vec3::Z * vehicle.ride_height();
         vehicle.yaw = yaw;
         vehicle.velocity = direction * 8.;
+        target
+    }
+    #[cfg(test)]
+    pub(crate) fn prepare_player_pedestrian_collision(&mut self, hermes: &Hermes) -> Vec3 {
+        let (target, yaw) = self.crowd.prepare_collision();
+        let direction = Vec3::new(yaw.cos(), yaw.sin(), 0.);
+        self.pedestrian = Some(Pedestrian::new(
+            hermes.city(),
+            target - direction * 1.6 + Vec3::Z * player::HALF_HEIGHT,
+            yaw,
+        ));
         target
     }
     #[cfg(test)]
@@ -515,6 +530,9 @@ impl DynamicWorld {
     /// Exact visible intact-prop selections, without copying their vertices.
     pub fn visible_prop_batches(&self) -> Vec<PropBatch> {
         self.props.visible_batches(self.player_position())
+    }
+    pub(crate) fn authored_prop_instances(&self) -> Vec<(crate::props::Kind, usize, glam::Mat4)> {
+        self.props.authored_instances(self.player_position())
     }
     pub fn write_prop_batch(&self, batch: &PropBatch, output: &mut Mesh) {
         self.props.write_batch(batch, output);
@@ -581,15 +599,42 @@ impl DynamicWorld {
         }
         self.traffic
             .append_signal_debris(mesh, self.player_position());
-        if let Some(player) = &self.pedestrian {
-            mesh.vertices.extend(player.mesh().vertices);
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn on_foot_world_steps_knock_down_contacted_pedestrians() {
+        let hermes = Hermes::test_map();
+        for run in [false, true] {
+            let mut world = DynamicWorld::new(&hermes);
+            world.prepare_player_pedestrian_collision(&hermes);
+            assert!(!world.is_driving());
+            let mut falling = false;
+            for _ in 0..120 {
+                world.step(
+                    &hermes,
+                    Controls::default(),
+                    WalkControls {
+                        forward: 1.,
+                        run,
+                        ..Default::default()
+                    },
+                    1. / 120.,
+                );
+                falling |= world.pedestrian_reactions()[1] == 1;
+                if falling {
+                    break;
+                }
+            }
+            assert!(
+                falling,
+                "walking contact did not reach the ragdoll system (run={run})"
+            );
+        }
+    }
     #[test]
     fn sound_snapshot_uses_real_drivers_controls_and_bounded_recent_events() {
         let hermes = Hermes::test_map();

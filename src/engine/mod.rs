@@ -21,6 +21,8 @@ mod local_lights;
 mod palette;
 mod pedestrian_scenery;
 mod prop_scenery;
+#[cfg(not(target_arch = "wasm32"))]
+mod props;
 mod render;
 #[cfg(not(target_arch = "wasm32"))]
 mod report_replay;

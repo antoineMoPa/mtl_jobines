@@ -44,5 +44,5 @@
         && camera.star_params.z>0.0 && dot(camera.star_color.rgb,vec3(1.0))>0.1 {
         proof=min(1.0,max(stellar.r,max(stellar.g,stellar.b))/camera.star_params.z);
     }
-    return vec4(color/(color+vec3(1.0)),proof);
+    return vec4(filmic_display(color),proof);
 }

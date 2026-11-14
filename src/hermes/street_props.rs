@@ -76,7 +76,6 @@ fn placed(model: Model, position: [f32; 3], heading: f32) -> Vec<Mesh> {
         .filter(|mesh| !mesh.vertices.is_empty())
         .collect()
 }
-
 pub(super) fn groups(city: &City) -> Vec<Vec<Mesh>> {
     let features = city.street_features(Region::WholeMap);
     let originals = city.detail_objects(Region::WholeMap);

@@ -8,6 +8,14 @@ use serde::Deserialize;
 use std::sync::OnceLock;
 pub(crate) const SNOWPLOW_ID: &str = "vehicle-j03";
 
+// Preserve the integer paint-variant mask; fractional bits carry the authored
+// GLB finish without increasing vertex stride or changing lamp/snow metadata.
+fn vehicle_finish(roughness: f32, metallic: f32, paint: bool, coat: bool) -> f32 {
+    let rough = (roughness.clamp(0., 1.) * 127.).round() as u32;
+    let metal = (metallic.clamp(0., 1.) * 127.).round() as u32;
+    f32::from(paint) + (32768 | rough | (metal << 7) | (u32::from(coat) << 14)) as f32 / 65536.
+}
+
 #[cfg(test)]
 #[path = "catalog_collecteur_tests.rs"]
 mod collecteur_tests;
@@ -325,6 +333,10 @@ impl Definition {
                         .material()
                         .pbr_metallic_roughness()
                         .base_color_factor();
+                    let finish = primitive.material().pbr_metallic_roughness();
+                    let coat =
+                        matches!(node.name(), Some("body_shell" | "body" | "hood" | "trunk"))
+                            && finish.metallic_factor() < 0.8;
                     let coverage = match primitive.material().alpha_mode() {
                         gltf::material::AlphaMode::Opaque => 1.,
                         gltf::material::AlphaMode::Blend => color[3].clamp(0., 1.),
@@ -386,11 +398,12 @@ impl Definition {
                                 [
                                     SurfaceKind::Prop as u32 as f32,
                                     coverage * tint[3],
-                                    if role == PartRole::Body && paint == Some(color) {
-                                        1.
-                                    } else {
-                                        0.
-                                    },
+                                    vehicle_finish(
+                                        finish.roughness_factor(),
+                                        finish.metallic_factor(),
+                                        role == PartRole::Body && paint == Some(color),
+                                        coat,
+                                    ),
                                     vehicle_lamp_marker(node.name().unwrap_or("")),
                                 ]
                             },
@@ -663,6 +676,22 @@ const ASSETS: &[(&[u8], &[u8])] = &[
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn authored_finish_round_trips_without_changing_paint_mask() {
+        for paint in [false, true] {
+            for coat in [false, true] {
+                for (rough, metal) in [(0.07, 0.), (0.4, 0.65), (0.95, 1.)] {
+                    let value = super::vehicle_finish(rough, metal, paint, coat);
+                    assert_eq!(value.floor(), f32::from(paint));
+                    let bits = (value.fract() * 65536.).round() as u32;
+                    assert_ne!(bits & 32768, 0);
+                    assert!(((bits & 127) as f32 / 127. - rough).abs() < 0.004);
+                    assert!((((bits >> 7) & 127) as f32 / 127. - metal).abs() < 0.004);
+                    assert_eq!((bits >> 14) & 1, u32::from(coat));
+                }
+            }
+        }
+    }
     use super::*;
     #[test]
     fn shadow_sources_omit_cabin_details_without_changing_wheel_geometry() {
@@ -759,7 +788,12 @@ mod tests {
             .filter(|d| {
                 matches!(
                     d.config.qa["packager"].as_str(),
-                    Some("runtime-packager" | "claydash-game-package" | "rust-source-cleanup")
+                    Some(
+                        "runtime-packager"
+                            | "claydash-game-package"
+                            | "rust-source-cleanup"
+                            | "rear-half-mirror"
+                    )
                 )
             })
             .collect::<Vec<_>>();
@@ -823,7 +857,8 @@ mod tests {
             .find(|d| d.config.research_id == "vehicle-j02")
             .unwrap();
         assert_eq!(definition.config.category, "bus");
-        assert_eq!(definition.config.qa["wheelStyle"], "plain-steel-cylinder");
+        assert_eq!(definition.config.qa["wheelStyle"], "recessed-vented-steel");
+        assert_eq!(definition.config.qa["wheelVentCount"], 10);
         assert!(definition.config.road_vehicle);
         assert_eq!(source.images().count(), 0);
         let nodes: std::collections::HashMap<_, _> =
@@ -925,16 +960,7 @@ mod tests {
                 .primitives()
                 .find(|p| p.material().pbr_metallic_roughness().metallic_factor() > 0.5)
                 .unwrap();
-            // A 48-sided closed cylinder has 48 * 4 triangles, without spokes/hubs.
-            assert_eq!(
-                steel
-                    .reader(|_| Some(blob))
-                    .read_indices()
-                    .unwrap()
-                    .into_u32()
-                    .count(),
-                48 * 4 * 3
-            );
+            vehicle_qa::vented_bus_rim(steel, blob, name.ends_with("left"));
         }
         for part in definition.parts.iter().filter(|p| p.role != PartRole::Body) {
             assert!(part
@@ -1234,7 +1260,7 @@ mod tests {
                 let painted: Vec<_> = definition.parts[0]
                     .vertices
                     .iter()
-                    .filter(|v| v.surface[2] == 1.)
+                    .filter(|v| v.surface[2].floor() == 1.)
                     .collect();
                 assert!(
                     !painted.is_empty(),
@@ -1250,7 +1276,7 @@ mod tests {
                         .iter()
                         .skip(1)
                         .flat_map(|p| &p.vertices)
-                        .all(|v| v.surface[2] == 0.),
+                        .all(|v| v.surface[2].floor() == 0.),
                     "wheels must retain authored rubber and rim colors"
                 );
             } else {

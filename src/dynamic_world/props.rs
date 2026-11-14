@@ -1,7 +1,8 @@
 //! Independently collidable scenery. Vehicle handling remains game-owned; Rapier
 //! supplies continuous collision queries and simulates detached debris.
 use super::{Vehicle, METERS_PER_UNIT};
-use glam::{Quat, Vec3};
+use crate::props::Part;
+use glam::{Mat4, Quat, Vec3};
 use opencity::runtime::{City, Mesh, SurfaceKind};
 use rapier3d::{
     na::{point, vector, Isometry3},
@@ -28,7 +29,7 @@ pub struct PropBatch {
 struct Prop {
     lamp: Option<Vec3>,
     group: usize,
-    mesh: Mesh,
+    mesh: Part,
     center: Vec3,
     half: Vec3,
     collider: Option<ColliderHandle>,
@@ -49,6 +50,7 @@ pub struct Props {
     colliders: ColliderSet,
     bodies: RigidBodySet,
     query: QueryPipeline,
+    debris_query: QueryPipeline,
     debris_colliders: ColliderSet,
     debris_bodies: RigidBodySet,
     pipeline: PhysicsPipeline,
@@ -61,6 +63,18 @@ pub struct Props {
     ccd: CCDSolver,
 }
 impl Props {
+    fn cone_shape() -> ColliderBuilder {
+        ColliderBuilder::compound(vec![
+            (
+                Isometry3::translation(0., 0., -0.4725),
+                SharedShape::cuboid(0.25, 0.25, 0.0275),
+            ),
+            (
+                Isometry3::translation(0., 0., 0.005),
+                SharedShape::capsule_z(0.30, 0.13),
+            ),
+        ])
+    }
     pub(super) fn damaged_groups(&self) -> impl Iterator<Item = usize> + '_ {
         self.damaged.iter().copied()
     }
@@ -74,10 +88,25 @@ impl Props {
     /// Parts collide independently, preserving open space under structures.
     /// An impact detaches all parts of that assembly as separate rigid bodies.
     pub fn from_groups(groups: Vec<Vec<Mesh>>) -> Self {
-        Self::build(groups, None)
+        Self::build(
+            groups
+                .into_iter()
+                .map(|g| g.into_iter().map(Part::baked).collect())
+                .collect(),
+            None,
+        )
     }
     /// Keep immutable map meshes, but only build collision hulls near the player.
     pub fn from_groups_near(groups: Vec<Vec<Mesh>>, center: Vec3) -> Self {
+        Self::build(
+            groups
+                .into_iter()
+                .map(|g| g.into_iter().map(Part::baked).collect())
+                .collect(),
+            Some(Self::tile(center)),
+        )
+    }
+    pub fn from_parts_near(groups: Vec<Vec<Part>>, center: Vec3) -> Self {
         Self::build(groups, Some(Self::tile(center)))
     }
     fn tile(center: Vec3) -> (i32, i32) {
@@ -89,13 +118,21 @@ impl Props {
     fn resident_tile(tile: (i32, i32), focus: (i32, i32)) -> bool {
         (tile.0 - focus.0).abs() <= RESIDENT_RANGE && (tile.1 - focus.1).abs() <= RESIDENT_RANGE
     }
-    fn build(groups: Vec<Vec<Mesh>>, resident: Option<(i32, i32)>) -> Self {
+    fn build(groups: Vec<Vec<Part>>, resident: Option<(i32, i32)>) -> Self {
         let sound_materials = groups
             .iter()
             .map(|parts| {
+                if let Some((kind, _)) = parts.first().and_then(|p| p.template) {
+                    return match kind {
+                        crate::props::Kind::Tree => crate::audio::Material::Timber,
+                        crate::props::Kind::Lamp => crate::audio::Material::Lamp,
+                        _ => crate::audio::Material::Hard,
+                    };
+                }
                 let has_surface = |kind: SurfaceKind| {
                     parts.iter().any(|mesh| {
-                        mesh.vertices
+                        mesh.mesh
+                            .vertices
                             .iter()
                             .any(|v| v.surface[0] == kind as u32 as f32)
                     })
@@ -122,6 +159,7 @@ impl Props {
             colliders: ColliderSet::new(),
             bodies: RigidBodySet::new(),
             query: QueryPipeline::new(),
+            debris_query: QueryPipeline::new(),
             debris_colliders: ColliderSet::new(),
             debris_bodies: RigidBodySet::new(),
             pipeline: PhysicsPipeline::new(),
@@ -133,20 +171,53 @@ impl Props {
             multibody: MultibodyJointSet::new(),
             ccd: CCDSolver::new(),
         };
+        let mut model_bounds = HashMap::new();
         for (group, mesh) in groups
             .into_iter()
             .enumerate()
             .flat_map(|(g, parts)| parts.into_iter().map(move |m| (g, m)))
         {
-            if mesh.vertices.is_empty() {
+            if mesh.mesh.vertices.is_empty() {
                 continue;
             }
+            let bounds = || {
+                let mut lo = Vec3::splat(f32::INFINITY);
+                let mut hi = Vec3::splat(f32::NEG_INFINITY);
+                let mut light_lo = lo;
+                let mut light_hi = hi;
+                for vertex in &mesh.mesh.vertices {
+                    let p = Vec3::from_array(vertex.position);
+                    lo = lo.min(p);
+                    hi = hi.max(p);
+                    if vertex.surface[0] == SurfaceKind::Light as u32 as f32
+                        && vertex.surface[3] == 0.
+                    {
+                        light_lo = light_lo.min(p);
+                        light_hi = light_hi.max(p);
+                    }
+                }
+                (
+                    lo,
+                    hi,
+                    light_lo.is_finite().then_some((light_lo + light_hi) * 0.5),
+                )
+            };
+            let (local_lo, local_hi, lamp) = if let Some(key) = mesh.template {
+                *model_bounds.entry(key).or_insert_with(bounds)
+            } else {
+                bounds()
+            };
             let mut lo = Vec3::splat(f32::INFINITY);
             let mut hi = Vec3::splat(f32::NEG_INFINITY);
-            for v in &mesh.vertices {
-                let p = Vec3::from_array(v.position) * METERS_PER_UNIT;
-                lo = lo.min(p);
-                hi = hi.max(p);
+            for x in [local_lo.x, local_hi.x] {
+                for y in [local_lo.y, local_hi.y] {
+                    for z in [local_lo.z, local_hi.z] {
+                        let p =
+                            mesh.transform.transform_point3(Vec3::new(x, y, z)) * METERS_PER_UNIT;
+                        lo = lo.min(p);
+                        hi = hi.max(p);
+                    }
+                }
             }
             let center = (lo + hi) * 0.5;
             let half = ((hi - lo) * 0.5).max(Vec3::splat(0.03));
@@ -161,18 +232,7 @@ impl Props {
                 .or_default()
                 .push(id);
             result.items.push(Prop {
-                lamp: {
-                    let mut lo = Vec3::splat(f32::INFINITY);
-                    let mut hi = Vec3::splat(f32::NEG_INFINITY);
-                    for v in &mesh.vertices {
-                        if v.surface[0] == SurfaceKind::Light as u32 as f32 && v.surface[3] == 0. {
-                            let p = Vec3::from_array(v.position);
-                            lo = lo.min(p);
-                            hi = hi.max(p);
-                        }
-                    }
-                    lo.is_finite().then_some((lo + hi) * 0.5)
-                },
+                lamp: lamp.map(|p| mesh.transform.transform_point3(p)),
                 group,
                 mesh,
                 center,
@@ -194,21 +254,35 @@ impl Props {
         let item = &mut self.items[id];
         let center = item.center;
         let half = item.half;
-        let points: Vec<_> = item
+        let cone = item
             .mesh
-            .vertices
-            .iter()
-            // Tree foliage is decorative; collision follows its trunk.
-            .filter(|v| v.surface[0] != SurfaceKind::Grass as u32 as f32)
-            .map(|v| {
-                let p = Vec3::from_array(v.position) * METERS_PER_UNIT - center;
-                point![p.x, p.y, p.z]
-            })
-            .collect();
-        let shape = (points.len() >= 4)
-            .then(|| ColliderBuilder::convex_hull(&points))
-            .flatten()
-            .unwrap_or_else(|| ColliderBuilder::cuboid(half.x, half.y, half.z));
+            .template
+            .is_some_and(|(k, _)| k == crate::props::Kind::Cone);
+        let shape = if cone {
+            Self::cone_shape()
+        } else {
+            let points: Vec<_> = item
+                .mesh
+                .mesh
+                .vertices
+                .iter()
+                // Tree foliage is decorative; collision follows its trunk.
+                .filter(|v| v.surface[0] != SurfaceKind::Grass as u32 as f32)
+                .map(|v| {
+                    let p = item
+                        .mesh
+                        .transform
+                        .transform_point3(Vec3::from_array(v.position))
+                        * METERS_PER_UNIT
+                        - center;
+                    point![p.x, p.y, p.z]
+                })
+                .collect();
+            (points.len() >= 4)
+                .then(|| ColliderBuilder::convex_hull(&points))
+                .flatten()
+                .unwrap_or_else(|| ColliderBuilder::cuboid(half.x, half.y, half.z))
+        };
         item.collider = Some(
             self.colliders.insert(
                 shape
@@ -318,6 +392,52 @@ impl Props {
             Rotation::new_unchecked(rapier3d::na::Quaternion::new(q.w, q.x, q.y, q.z)),
         );
         let motion = vector![delta.x, delta.y, delta.z];
+        // Fallen cones remain physical targets: a later pass can push them
+        // again, without giving the local debris floor a vehicle collider.
+        let mut touched = HashSet::new();
+        loop {
+            let predicate = |_: ColliderHandle, c: &Collider| {
+                c.user_data > 0 && c.parent().is_some_and(|p| !touched.contains(&p))
+            };
+            let Some((handle, contact)) = self.debris_query.cast_shape(
+                &self.debris_bodies,
+                &self.debris_colliders,
+                &pose,
+                &motion,
+                &shape,
+                ShapeCastOptions {
+                    stop_at_penetration: false,
+                    ..ShapeCastOptions::with_max_time_of_impact(1.)
+                },
+                QueryFilter::only_dynamic().predicate(&predicate),
+            ) else {
+                break;
+            };
+            let parent = self.debris_colliders[handle].parent().unwrap();
+            touched.insert(parent);
+            let body = &mut self.debris_bodies[parent];
+            let point = contact.witness1;
+            let n = contact.normal1;
+            let normal = Vec3::new(n.x, n.y, n.z);
+            let arm =
+                Vec3::new(point.x, point.y, point.z) - (before + delta * contact.time_of_impact);
+            let speed = body.velocity_at_point(&point);
+            let inward =
+                (vehicle.velocity_at(arm) - Vec3::new(speed.x, speed.y, speed.z)).dot(normal);
+            if inward < -0.05 {
+                let magnitude = -inward
+                    / (vehicle.impulse_response(arm, normal) / vehicle.mass() + 1. / body.mass());
+                let impulse = normal * magnitude;
+                body.apply_impulse_at_point(
+                    vector![-impulse.x, -impulse.y, -impulse.z],
+                    point,
+                    true,
+                );
+                vehicle.apply_impulse(arm, impulse / vehicle.mass());
+                vehicle.collisions += 1;
+                vehicle.sound_impact(-inward * 0.35, crate::audio::Material::Hard, false);
+            }
+        }
         let mut hit = false;
         // Remove every object crossed this frame, including closely spaced fences.
         while let Some((handle, contact)) = self.query.cast_shape(
@@ -340,7 +460,11 @@ impl Props {
             let inward = vehicle.velocity_at(arm).dot(normal);
             let id = self.colliders[handle].user_data as usize;
             let material = self.sound_materials[self.items[id].group];
-            if inward >= -3. {
+            let cone = self.items[id]
+                .mesh
+                .template
+                .is_some_and(|(k, _)| k == crate::props::Kind::Cone);
+            if inward >= -(if cone { 0.05 } else { 3. }) {
                 vehicle.position = before + delta * (contact.time_of_impact - 0.001).max(0.);
                 if inward < 0. {
                     let impulse = -inward / vehicle.impulse_response(arm, normal);
@@ -367,7 +491,8 @@ impl Props {
                 }
             }
             // Breakage transfers a modest contact impulse back to the chassis.
-            let impulse = -inward * 0.12 / vehicle.impulse_response(arm, normal);
+            let impulse = -inward * (if cone { 0.0015 } else { 0.12 })
+                / vehicle.impulse_response(arm, normal);
             vehicle.apply_impulse(arm, normal * impulse);
             // The query tree may retain removed handles; Rapier ignores those
             // absent from the collider set, and intact colliders never move.
@@ -397,6 +522,10 @@ impl Props {
         // Unsupported parts collapse with a small transferred impulse. Only
         // the part actually struck receives the full vehicle kick and spin.
         let transfer = if direct_hit { 1. } else { 0.2 };
+        let cone = item
+            .mesh
+            .template
+            .is_some_and(|(k, _)| k == crate::props::Kind::Cone);
         let body = self.debris_bodies.insert(
             RigidBodyBuilder::dynamic()
                 .translation(vector![p.x, p.y, p.z])
@@ -411,15 +540,37 @@ impl Props {
                     0.3 * transfer
                 ])
                 .ccd_enabled(true)
+                .angular_damping(if cone { 0.35 } else { 0. })
                 .build(),
         );
-        self.debris_colliders.insert_with_parent(
-            ColliderBuilder::cuboid(item.half.x, item.half.y, item.half.z)
-                .density(20.)
-                .build(),
-            body,
-            &mut self.debris_bodies,
-        );
+        if cone {
+            for collider in [
+                ColliderBuilder::cuboid(0.25, 0.25, 0.0275)
+                    .translation(vector![0., 0., -0.4725])
+                    .mass(3.2),
+                ColliderBuilder::capsule_z(0.30, 0.13)
+                    .translation(vector![0., 0., 0.005])
+                    .mass(0.8),
+            ] {
+                self.debris_colliders.insert_with_parent(
+                    collider
+                        .friction(0.85)
+                        .restitution(0.18)
+                        .user_data(id as u128 + 1)
+                        .build(),
+                    body,
+                    &mut self.debris_bodies,
+                );
+            }
+        } else {
+            self.debris_colliders.insert_with_parent(
+                ColliderBuilder::cuboid(item.half.x, item.half.y, item.half.z)
+                    .density(20.)
+                    .build(),
+                body,
+                &mut self.debris_bodies,
+            );
+        }
         let floor = city
             .surface_at(
                 [p.x / METERS_PER_UNIT, p.y / METERS_PER_UNIT],
@@ -495,6 +646,14 @@ impl Props {
             &(),
             &(),
         );
+        if self.active.iter().any(|&id| {
+            self.items[id]
+                .mesh
+                .template
+                .is_some_and(|(kind, _)| kind == crate::props::Kind::Cone)
+        }) {
+            self.debris_query.update(&self.debris_colliders);
+        }
         let mut index = 0;
         while index < self.active.len() {
             let id = self.active[index];
@@ -537,19 +696,24 @@ impl Props {
                         {
                             continue;
                         }
-                        if item.collider.is_some() {
-                            output.vertices.extend_from_slice(&item.mesh.vertices);
+                        if item.mesh.template.is_some() {
                             continue;
                         }
-                        output.vertices.extend(item.mesh.vertices.iter().map(|v| {
-                            let mut v = *v;
-                            let local =
-                                Vec3::from_array(v.position) * METERS_PER_UNIT - item.center;
-                            v.position =
-                                ((position + rotation * local) / METERS_PER_UNIT).to_array();
-                            v.normal = (rotation * Vec3::from_array(v.normal)).to_array();
-                            v
-                        }));
+                        if item.collider.is_some() {
+                            output.vertices.extend_from_slice(&item.mesh.mesh.vertices);
+                            continue;
+                        }
+                        output
+                            .vertices
+                            .extend(item.mesh.mesh.vertices.iter().map(|v| {
+                                let mut v = *v;
+                                let local =
+                                    Vec3::from_array(v.position) * METERS_PER_UNIT - item.center;
+                                v.position =
+                                    ((position + rotation * local) / METERS_PER_UNIT).to_array();
+                                v.normal = (rotation * Vec3::from_array(v.normal)).to_array();
+                                v
+                            }));
                     }
                 }
             }
@@ -591,7 +755,8 @@ impl Props {
                 if let Some(ids) = self.tiles.get(&(x, y)) {
                     for &id in ids {
                         let item = &self.items[id];
-                        if item.collider.is_none()
+                        if item.mesh.template.is_some()
+                            || item.collider.is_none()
                             || (item.center.truncate() - center.truncate()).length()
                                 > VIEW + item.half.length()
                         {
@@ -617,8 +782,8 @@ impl Props {
             let item = &self.items[id];
             // A caller holding an older descriptor must never restore a prop
             // already removed by physics.
-            if item.collider.is_some() {
-                output.vertices.extend_from_slice(&item.mesh.vertices);
+            if item.mesh.template.is_none() && item.collider.is_some() {
+                output.vertices.extend_from_slice(&item.mesh.mesh.vertices);
             }
         }
     }
@@ -641,6 +806,9 @@ impl Props {
         });
         for id in ids {
             let item = &self.items[id];
+            if item.mesh.template.is_some() {
+                continue;
+            }
             let source = (
                 (item.center.x / TILE).floor() as i32,
                 (item.center.y / TILE).floor() as i32,
@@ -659,14 +827,60 @@ impl Props {
             }
             let q = body.rotation().quaternion();
             let rotation = Quat::from_xyzw(q.i, q.j, q.k, q.w);
-            output.vertices.extend(item.mesh.vertices.iter().map(|v| {
-                let mut v = *v;
-                let local = Vec3::from_array(v.position) * METERS_PER_UNIT - item.center;
-                v.position = ((position + rotation * local) / METERS_PER_UNIT).to_array();
-                v.normal = (rotation * Vec3::from_array(v.normal)).to_array();
-                v
-            }));
+            output
+                .vertices
+                .extend(item.mesh.mesh.vertices.iter().map(|v| {
+                    let mut v = *v;
+                    let local = Vec3::from_array(v.position) * METERS_PER_UNIT - item.center;
+                    v.position = ((position + rotation * local) / METERS_PER_UNIT).to_array();
+                    v.normal = (rotation * Vec3::from_array(v.normal)).to_array();
+                    v
+                }));
         }
+    }
+    pub fn authored_instances(&self, center: Vec3) -> Vec<(crate::props::Kind, usize, Mat4)> {
+        let tile = Self::tile(center);
+        let mut ids = Vec::new();
+        for x in tile.0 - 2..=tile.0 + 2 {
+            for y in tile.1 - 2..=tile.1 + 2 {
+                if let Some(items) = self.tiles.get(&(x, y)) {
+                    ids.extend_from_slice(items);
+                }
+            }
+        }
+        ids.extend_from_slice(&self.active);
+        ids.sort_unstable();
+        ids.dedup();
+        ids.into_iter()
+            .filter_map(|id| {
+                let item = &self.items[id];
+                let (kind, part) = item.mesh.template?;
+                let (position, transform) = if let Some(handle) = item.debris {
+                    let body = &self.debris_bodies[handle];
+                    let p = body.translation();
+                    let q = body.rotation().quaternion();
+                    let position = Vec3::new(p.x, p.y, p.z);
+                    (
+                        position,
+                        Mat4::from_rotation_translation(
+                            Quat::from_xyzw(q.i, q.j, q.k, q.w),
+                            position / METERS_PER_UNIT,
+                        ) * Mat4::from_translation(-item.center / METERS_PER_UNIT)
+                            * item.mesh.transform,
+                    )
+                } else if item.collider.is_some() {
+                    (item.center, item.mesh.transform)
+                } else {
+                    return None;
+                };
+                (position.truncate().distance(center.truncate()) <= VIEW + item.half.length())
+                    .then_some((
+                        kind,
+                        part,
+                        transform * Mat4::from_scale(Vec3::splat(1. / METERS_PER_UNIT)),
+                    ))
+            })
+            .collect()
     }
 }
 

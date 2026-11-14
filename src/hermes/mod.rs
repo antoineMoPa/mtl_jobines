@@ -6,8 +6,8 @@ mod commerce_props;
 mod commercial;
 pub(crate) mod external_models;
 mod game_data;
-mod landmark_destinations;
-mod landmarks;
+pub(crate) mod landmark_destinations;
+pub(crate) mod landmarks;
 pub(crate) use landmark_destinations::Landmark;
 mod minimap;
 mod street_bins;
@@ -109,6 +109,7 @@ fn detailed_frontage(feature: &opencity::LandscapeFeature) -> bool {
         .is_some_and(|name| name.starts_with("generated_area_"))
 }
 pub struct Hermes {
+    authored_props: Vec<crate::props::Entry>,
     default_start: Option<crate::dynamic_world::SpawnPoint>,
     parked_vehicles: Vec<crate::dynamic_world::parked::ParkedVehicle>,
     city: Arc<City>,
@@ -274,7 +275,12 @@ impl Hermes {
         };
         let router = routing::Router::new(&city, program);
         let landmark_mesh = landmarks::build(&city)?;
+        let authored_props = crate::props::read(program)?;
+        for entry in &authored_props {
+            entry.placements(&city)?;
+        }
         Ok(Self {
+            authored_props,
             default_start: crate::dynamic_world::SpawnPoint::from_program(program)?,
             parked_vehicles: crate::dynamic_world::parked::ParkedVehicle::from_program(program)?,
             traffic_paths: Arc::new(traffic_paths::TrafficPaths::new(&city, program)),
@@ -353,6 +359,19 @@ impl Hermes {
         );
         groups.extend(frontage.into_iter().map(|mesh| vec![mesh]));
         groups.extend(commerce_mesh::prop_groups(&self.city));
+        groups
+    }
+    pub(crate) fn prop_parts(&self) -> Vec<Vec<crate::props::Part>> {
+        let mut groups: Vec<_> = self
+            .prop_groups()
+            .into_iter()
+            .map(|group| group.into_iter().map(crate::props::Part::baked).collect())
+            .collect();
+        for entry in &self.authored_props {
+            if let Ok(placements) = entry.placements(&self.city) {
+                groups.extend(placements.into_iter().map(|(_, p)| p.parts()));
+            }
+        }
         groups
     }
     #[cfg(not(target_arch = "wasm32"))]

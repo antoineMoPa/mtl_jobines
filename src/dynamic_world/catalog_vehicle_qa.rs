@@ -1,6 +1,55 @@
 use super::*;
 use std::collections::{HashMap, HashSet};
 
+pub(super) fn vented_bus_rim(steel: gltf::Primitive<'_>, blob: &[u8], left: bool) {
+    let reader = steel.reader(|_| Some(blob));
+    let positions: Vec<_> = reader.read_positions().unwrap().collect();
+    let indices: Vec<_> = reader.read_indices().unwrap().into_u32().collect();
+    let mut lip = f32::NEG_INFINITY;
+    let mut dish = f32::NEG_INFINITY;
+    let mut hub = f32::NEG_INFINITY;
+    for p in &positions {
+        let radius = p[0].hypot(p[1]);
+        let outward = if left { -p[2] } else { p[2] };
+        if radius > 0.37 {
+            lip = lip.max(outward);
+        }
+        if (0.18..0.23).contains(&radius) {
+            dish = dish.max(outward);
+        }
+        if radius < 0.12 {
+            hub = hub.max(outward);
+        }
+        assert!(radius < 0.401, "rim extends beyond the tire bead");
+        assert!(p[2].abs() < 0.199, "rim protrudes beyond the tire sidewall");
+    }
+    assert!(lip > dish + 0.045, "wheel face lacks a recessed dish");
+    assert!(hub > dish + 0.035, "wheel hub is still flat");
+    // A ray through each vent center must pass through the steel completely.
+    // This rejects a solid cylinder with dark dots painted on its front face.
+    for vent in 0..10 {
+        let angle = std::f32::consts::TAU * vent as f32 / 10.;
+        let center = glam::Vec2::new(angle.cos(), angle.sin()) * 0.27;
+        let blocked = indices.chunks_exact(3).any(|ix| {
+            let [a, b, c] = [ix[0], ix[1], ix[2]].map(|i| {
+                let p = positions[i as usize];
+                glam::Vec2::new(p[0], p[1])
+            });
+            let ab = b - a;
+            let ac = c - a;
+            let area = ab.perp_dot(ac);
+            if area.abs() < 1e-10 {
+                return false;
+            }
+            let q = center - a;
+            let u = q.perp_dot(ac) / area;
+            let v = ab.perp_dot(q) / area;
+            u >= -1e-5 && v >= -1e-5 && u + v <= 1.00001
+        });
+        assert!(!blocked, "wheel vent {vent} is filled by a steel face");
+    }
+}
+
 pub(super) fn textured_truck(
     bytes: &[u8],
     id: &str,

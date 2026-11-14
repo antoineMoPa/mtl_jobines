@@ -52,6 +52,7 @@ fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkCont
         forward: direction,
         turn: driving.steering,
         run: held(KeyCode::ShiftLeft) || held(KeyCode::ShiftRight),
+        jump: held(KeyCode::Space),
     };
     (driving, walking)
 }
@@ -329,6 +330,11 @@ impl Game {
     }
     fn apply_palette_action(&mut self, action: PaletteAction) {
         match action {
+            PaletteAction::SwitchVehicle(model) => {
+                if self.world.switch_vehicle(model) {
+                    self.finish_location_change();
+                }
+            }
             PaletteAction::Season(season) => {
                 self.world.set_season(&self.hermes, season);
                 if let Some(renderer) = &mut self.renderer {
@@ -345,6 +351,7 @@ impl Game {
             }
             #[cfg(not(target_arch = "wasm32"))]
             PaletteAction::BuildBuildings
+            | PaletteAction::PlaceProps(_)
             | PaletteAction::ExpandNetwork
             | PaletteAction::GrowNetwork => self.open_construction(action),
             PaletteAction::JumpToLocation => {
@@ -507,6 +514,23 @@ impl Game {
         }
         #[cfg(not(target_arch = "wasm32"))]
         let surface_preview = self.palette.as_mut().and_then(|p| p.road_preview(renderer));
+        #[cfg(not(target_arch = "wasm32"))]
+        let prop_preview = self
+            .palette
+            .as_mut()
+            .and_then(|p| p.props.as_mut())
+            .and_then(|d| d.preview(renderer, self.hermes.city()));
+        #[cfg(not(target_arch = "wasm32"))]
+        let authored_visible = !self
+            .palette
+            .as_ref()
+            .and_then(|p| p.props.as_ref())
+            .is_some_and(|d| d.open);
+        #[cfg(target_arch = "wasm32")]
+        let (prop_preview, authored_visible): (
+            Option<Vec<std::sync::Arc<super::render::GpuMesh>>>,
+            bool,
+        ) = (None, true);
         #[cfg(target_arch = "wasm32")]
         let surface_preview: Option<std::sync::Arc<super::render::GpuMesh>> = None;
         self.scenery
@@ -520,8 +544,9 @@ impl Game {
             surface_preview.is_some(),
         );
         meshes.extend(surface_preview.iter().map(|mesh| mesh.as_ref()));
+        meshes.extend(prop_preview.iter().flatten().map(|mesh| mesh.as_ref()));
         meshes.push(car);
-        meshes.extend(self.prop_scenery.visible());
+        meshes.extend(self.prop_scenery.visible_with_authored(authored_visible));
         meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());
         let texture = renderer.surface.as_ref().unwrap().get_current_texture();
         let suboptimal = matches!(&texture, wgpu::CurrentSurfaceTexture::Suboptimal(_));

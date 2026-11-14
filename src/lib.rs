@@ -2,6 +2,7 @@ mod audio;
 mod dynamic_world;
 mod engine;
 mod hermes;
+mod props;
 mod season;
 
 #[cfg(not(target_arch = "wasm32"))]

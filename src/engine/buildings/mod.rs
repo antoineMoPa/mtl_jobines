@@ -1,10 +1,11 @@
 //! Native building authoring. All accepted construction remains ordinary `.road` calls.
 #[cfg(test)]
 mod editing_tests;
-mod geometry;
+pub(super) mod geometry;
 #[cfg(test)]
 mod gpu_tests;
 mod input;
+mod landmarks;
 #[cfg(test)]
 mod perf_tests;
 mod roads;
@@ -89,6 +90,7 @@ pub(super) struct Document {
     draft: Option<LandscapeFeature>,
     error: String,
     importing: bool,
+    landmark_picker: landmarks::Picker,
     seed: u32,
     revision: u64,
     candidate_cache: Option<roads::CandidateCache>,
@@ -122,8 +124,14 @@ impl Document {
             let model = feature
                 .model
                 .as_ref()
-                .filter(|p| p.ends_with(".glb"))
+                .filter(|p| {
+                    p.ends_with(".glb") || crate::hermes::landmark_destinations::title(p).is_some()
+                })
                 .map(|relative| {
+                    if crate::hermes::landmark_destinations::title(relative).is_some() {
+                        return crate::hermes::landmarks::source_mesh(relative).map(Arc::new);
+                    }
+
                     let bytes = storage::read_model(
                         &path.parent().unwrap_or(Path::new(".")).join(relative),
                     )?;
@@ -157,6 +165,7 @@ impl Document {
             draft: None,
             error: String::new(),
             importing: false,
+            landmark_picker: landmarks::Picker::default(),
             seed: 317,
             revision: 0,
             candidate_cache: None,

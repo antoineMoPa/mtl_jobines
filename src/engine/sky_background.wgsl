@@ -17,5 +17,5 @@ struct Ray { @builtin(position) clip: vec4<f32>, @location(0) ray: vec3<f32> };
     let radiance = textureSampleLevel(sky, sky_sampler, v.ray, 0.0).rgb
         + sky_stars(v.ray, camera.star_params, camera.star_color);
     let color = radiance * camera.sun_exposure.w;
-    return vec4(color / (color + vec3(1.0)), 1.0);
+    return vec4(filmic_display(color), 1.0);
 }

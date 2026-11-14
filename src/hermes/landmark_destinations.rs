@@ -10,7 +10,7 @@ pub(crate) struct Landmark {
     pub radius: f32,
 }
 
-fn title(model: &str) -> Option<&'static str> {
+pub(crate) fn title(model: &str) -> Option<&'static str> {
     Some(match model {
         "study_01" => "Orange sphere",
         "study_02" => "Stepped downtown skyscraper",

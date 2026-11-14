@@ -34,7 +34,29 @@ fn asset(id: &str) -> Result<&'static [u8], String> {
         _ => return Err(format!("Unknown landmark asset: {id}")),
     })
 }
-pub(super) fn build(city: &City) -> Result<Mesh, String> {
+/// Original model coordinates for the authoring picker and its previews.
+pub(crate) fn source_mesh(id: &str) -> Result<Mesh, String> {
+    let bytes = asset(id)?;
+    let count = u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize;
+    if bytes.len() != 32 + count * 40 || count % 3 != 0 {
+        return Err("Invalid landmark asset".into());
+    }
+    let mut mesh = Mesh::default();
+    for record in bytes[32..].chunks_exact(40) {
+        let v: [f32; 10] = std::array::from_fn(|i| {
+            f32::from_le_bytes(record[i * 4..i * 4 + 4].try_into().unwrap())
+        });
+        mesh.vertices.push(Vertex {
+            position: [v[0], v[1], v[2]],
+            normal: [v[3], v[4], v[5]],
+            color: [v[6].powf(2.2), v[7].powf(2.2), v[8].powf(2.2)],
+            surface: [SurfaceKind::Prop as u32 as f32, v[9], 0., 0.],
+        });
+    }
+    Ok(mesh)
+}
+
+pub(crate) fn build(city: &City) -> Result<Mesh, String> {
     let mut mesh = Mesh::default();
     for feature in &city.landscape {
         let Some(id) = feature.model.as_deref() else {

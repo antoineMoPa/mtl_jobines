@@ -1,7 +1,8 @@
 //! World-anchored footholds and the approved continuous full-body walking gait.
 //! Simulation is in metres; motion space uses the GLB's +Y up and +Z forward.
 use super::pedestrian_catalog::{Definition, JOINT_LIMIT};
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec2, Vec3};
+use opencity::runtime::{City, SurfaceKind};
 use std::f32::consts::PI;
 
 pub(super) fn game_to_motion(p: Vec3) -> Vec3 {
@@ -17,10 +18,68 @@ fn ease(t: f32) -> f32 {
     let t = t.clamp(0., 1.);
     t * t * (3. - 2. * t)
 }
+#[derive(Clone, Copy, Default)]
+pub(super) struct JumpMotion {
+    forward: f32,
+    sideways: f32,
+    turn: f32,
+}
+impl JumpMotion {
+    /// Map accepted game-space travel into the rig's facing and side axes.
+    pub fn from_travel(velocity: Vec2, yaw: f32, turn_rate: f32) -> Self {
+        Self {
+            forward: (velocity.dot(Vec2::new(yaw.cos(), yaw.sin())) / 5.2).clamp(-1., 1.),
+            sideways: (velocity.dot(Vec2::new(-yaw.sin(), yaw.cos())) / 5.2).clamp(-1., 1.),
+            turn: (turn_rate / 2.62).clamp(-1., 1.),
+        }
+    }
+    fn follow(&mut self, target: Self, dt: f32) {
+        let amount = 1. - (-18. * dt).exp();
+        self.forward += (target.forward - self.forward) * amount;
+        self.sideways += (target.sideways - self.sideways) * amount;
+        self.turn += (target.turn - self.turn) * amount;
+    }
+    fn side_lean(self) -> f32 {
+        (self.sideways + self.turn * (0.5 + 0.5 * self.forward.abs())).clamp(-1., 1.)
+    }
+}
+pub(super) struct JumpPreparation {
+    pub compression: f32,
+    pub extension: f32,
+    pub motion: JumpMotion,
+}
 #[derive(Clone, Copy)]
 pub(crate) struct Ground {
     pub point: Vec3,
     pub gradient: [f32; 2],
+}
+pub(super) fn footing(city: &City, point: Vec3, sidewalk_only: bool) -> Option<Ground> {
+    let xy = (point.truncate() / super::METERS_PER_UNIT).to_array();
+    let surface = city.surface_at(xy, (point.z + 0.42) / super::METERS_PER_UNIT)?;
+    let walkable = match surface.kind {
+        SurfaceKind::Sidewalk => true,
+        SurfaceKind::Asphalt | SurfaceKind::Grass | SurfaceKind::Sand | SurfaceKind::Marking => {
+            !sidewalk_only
+        }
+        _ => false,
+    };
+    let height = surface.height * super::METERS_PER_UNIT;
+    if !walkable || (height - point.z).abs() > 0.42 {
+        return None;
+    }
+    let bottom = (height + 0.12) / super::METERS_PER_UNIT;
+    let top = (height + 1.75) / super::METERS_PER_UNIT;
+    if city.building_collision(xy, 0.3 / super::METERS_PER_UNIT, bottom, top)
+        || city
+            .road_barrier_contact(xy, 0.3 / super::METERS_PER_UNIT, bottom, top)
+            .is_some()
+    {
+        return None;
+    }
+    Some(Ground {
+        point: point.truncate().extend(height),
+        gradient: surface.gradient,
+    })
 }
 impl Ground {
     fn tilt(self) -> Quat {
@@ -62,6 +121,32 @@ impl Rig {
             scale,
         }
     }
+    fn grounded_feet(
+        &self,
+        position: Vec3,
+        yaw: f32,
+        sample: impl Fn(Vec3) -> Option<Ground>,
+    ) -> [Foot; 2] {
+        let root = game_to_motion(position);
+        std::array::from_fn(|i| {
+            let ankle = self.ankles[i];
+            let mut p = root + Quat::from_rotation_y(yaw) * Vec3::new(ankle.x * 0.50, 0., ankle.z);
+            let ground = sample(motion_to_game(p));
+            let tilt = ground.map_or(Quat::IDENTITY, Ground::tilt);
+            p.y = ground.map_or(root.y, |s| s.point.z) + ankle.y;
+            Foot {
+                position: p,
+                start: p,
+                target: p,
+                yaw,
+                start_yaw: yaw,
+                target_yaw: yaw,
+                tilt,
+                start_tilt: tilt,
+                target_tilt: tilt,
+            }
+        })
+    }
 }
 pub(crate) struct Gait {
     rig: Rig,
@@ -78,6 +163,10 @@ pub(crate) struct Gait {
     planned: bool,
     movement: f32,
     idle_time: f32,
+    compression: f32,
+    jump_extension: f32,
+    jump_motion: JumpMotion,
+    air_time: Option<f32>,
     pub palette: [Mat4; JOINT_LIMIT],
     pub reach_error: f32,
 }
@@ -91,24 +180,7 @@ impl Gait {
     ) -> Self {
         let rig = Rig::new(def);
         let root = game_to_motion(position);
-        let feet = std::array::from_fn(|i| {
-            let ankle = rig.ankles[i];
-            let mut p = root + Quat::from_rotation_y(yaw) * Vec3::new(ankle.x * 0.50, 0., ankle.z);
-            let ground = sample(motion_to_game(p));
-            let tilt = ground.map_or(Quat::IDENTITY, Ground::tilt);
-            p.y = ground.map_or(root.y, |s| s.point.z) + ankle.y;
-            Foot {
-                position: p,
-                start: p,
-                target: p,
-                yaw,
-                start_yaw: yaw,
-                target_yaw: yaw,
-                tilt,
-                start_tilt: tilt,
-                target_tilt: tilt,
-            }
-        });
+        let feet = rig.grounded_feet(position, yaw, sample);
         let mut gait = Self {
             rig,
             feet,
@@ -124,11 +196,66 @@ impl Gait {
             planned: false,
             movement: 0.,
             idle_time: (seed % 19) as f32 * 0.17,
+            compression: 0.,
+            jump_extension: 0.,
+            jump_motion: JumpMotion::default(),
+            air_time: None,
             palette: [Mat4::IDENTITY; JOINT_LIMIT],
             reach_error: 0.,
         };
         gait.update_pose(def);
         gait
+    }
+    pub fn carry(&mut self, delta: Vec3) {
+        let delta = game_to_motion(delta);
+        self.position += delta;
+        for foot in &mut self.feet {
+            foot.position += delta;
+            foot.start += delta;
+            foot.target += delta;
+        }
+    }
+    pub(super) fn prepare_jump(
+        &mut self,
+        def: &Definition,
+        position: Vec3,
+        yaw: f32,
+        preparation: JumpPreparation,
+        dt: f32,
+        sample: impl Fn(Vec3) -> Option<Ground>,
+    ) {
+        self.jump_motion.follow(preparation.motion, dt);
+        self.feet = self.rig.grounded_feet(position, yaw, &sample);
+        // A small split stance gives the moving push-off a trailing support leg.
+        for (side, foot) in self.feet.iter_mut().enumerate() {
+            let offset = Quat::from_rotation_y(yaw)
+                * Vec3::Z
+                * self.jump_motion.forward
+                * 0.065
+                * if side == 0 { 1. } else { -1. };
+            let candidate = foot.position + offset;
+            if let Some(ground) = sample(motion_to_game(
+                candidate - Vec3::Y * self.rig.ankles[side].y,
+            )) {
+                foot.position = game_to_motion(ground.point) + Vec3::Y * self.rig.ankles[side].y;
+                foot.start = foot.position;
+                foot.target = foot.position;
+                foot.tilt = ground.tilt();
+            }
+        }
+        self.position = game_to_motion(position);
+        self.yaw = yaw;
+        self.compression = preparation.compression;
+        self.jump_extension = preparation.extension;
+        self.air_time = None;
+        self.planned = false;
+        self.phase = 0.;
+        self.speed = 0.;
+        self.acceleration = 0.;
+        self.turn_rate = 0.;
+        self.movement = 0.;
+        self.idle_time += dt;
+        self.update_pose(def);
     }
     /// Body travel is bounded by available support; a blocked foothold cannot leave a leg behind.
     pub fn permits(&self, position: Vec3) -> bool {
@@ -140,6 +267,36 @@ impl Gait {
             let delta = p - f.position;
             Vec3::new(delta.x, 0., delta.z).length() < 0.61 * self.rig.scale
         })
+    }
+    /// Carry the takeoff pose with the body while neither foot has ground contact.
+    pub(super) fn airborne(
+        &mut self,
+        def: &Definition,
+        position: Vec3,
+        yaw: f32,
+        motion: JumpMotion,
+        dt: f32,
+    ) {
+        let to = game_to_motion(position);
+        let turn = angle_delta(self.yaw, yaw);
+        let rotation = Quat::from_rotation_y(turn);
+        for foot in &mut self.feet {
+            foot.position = to + rotation * (foot.position - self.position);
+            foot.start = to + rotation * (foot.start - self.position);
+            foot.target = to + rotation * (foot.target - self.position);
+            foot.yaw += turn;
+            foot.start_yaw += turn;
+            foot.target_yaw += turn;
+        }
+        self.position = to;
+        self.yaw = yaw;
+        self.compression = 0.;
+        self.jump_motion.follow(motion, dt);
+        let elapsed = self.air_time.map_or(0., |t| t + dt);
+        self.air_time = Some(elapsed);
+        self.jump_extension = 1. - ease((elapsed - 0.15) / 0.65);
+        self.idle_time += dt;
+        self.update_pose(def);
     }
     pub fn advance(
         &mut self,
@@ -157,8 +314,18 @@ impl Gait {
         let to = game_to_motion(position);
         let from = self.position;
         let old_yaw = self.yaw;
-        let speed = to.distance(from) / dt;
-        let acceleration = ((speed - self.speed) / dt).clamp(-2., 1.2);
+        let forward = Vec3::new(self.yaw.sin(), 0., self.yaw.cos());
+        let direction = if (to - from).dot(forward) < 0. {
+            -1.
+        } else {
+            1.
+        };
+        let speed = to.distance(from) / dt * direction;
+        let acceleration = ((speed - self.speed) / dt).clamp(-32., 32.);
+        self.compression = 0.;
+        self.jump_extension = 0.;
+        self.jump_motion = JumpMotion::default();
+        self.air_time = None;
         let turn_rate = angle_delta(self.yaw, yaw) / dt;
         let subdivisions = (dt / (1. / 120.)).ceil().max(1.) as usize;
         for i in 0..subdivisions {
@@ -169,7 +336,7 @@ impl Gait {
             self.acceleration = acceleration;
             self.turn_rate = turn_rate;
             self.idle_time += h;
-            let amount = (speed / desired_speed.max(0.35)).min(1.);
+            let amount = (speed.abs() / desired_speed.abs().max(0.35)).min(1.);
             self.movement += (amount - self.movement).clamp(-h * 3., h * 3.);
             self.tick(def, desired_speed, game_to_motion(aim), h, &sample);
         }
@@ -191,18 +358,28 @@ impl Gait {
                 let d = neutral - f.position;
                 Vec3::new(d.x, 0., d.z).length() > 0.09 || angle_delta(f.yaw, self.yaw).abs() > 0.18
             });
-            if self.speed < 0.015 && !unsettled {
+            if self.speed.abs() < 0.015 && !unsettled {
                 return;
             }
-            self.duration = (0.55 * self.rig.scale / desired_speed.max(0.35)).clamp(0.34, 0.75);
+            // Faster travel needs a faster cadence; turns need short pivot steps even at rest.
+            self.duration = (0.50 * self.rig.scale
+                / desired_speed.abs().max(self.speed.abs()).max(0.35))
+            .min(0.30 / self.turn_rate.abs().max(0.01))
+            .clamp(0.09, 0.75);
             let mut p = self.position;
             let mut yaw = self.yaw;
             let mut speed = self.speed;
             for _ in 0..12 {
                 let h = self.duration / 12.;
-                speed += (desired_speed - speed).clamp(-2. * h, 1.2 * h);
-                let delta = aim - p;
-                if delta.x * delta.x + delta.z * delta.z > 0.0025 && speed > 0.015 {
+                speed += (desired_speed - speed).clamp(
+                    -self.acceleration.abs().max(2.) * h,
+                    self.acceleration.abs().max(1.2) * h,
+                );
+                // Backward steps keep the body's facing while planning behind it.
+                let delta = (aim - p) * if speed < 0. { -1. } else { 1. };
+                if self.turn_rate.abs() > 0.1 {
+                    yaw += self.turn_rate * h;
+                } else if delta.x * delta.x + delta.z * delta.z > 0.0025 && speed.abs() > 0.015 {
                     yaw += angle_delta(yaw, delta.x.atan2(delta.z)).clamp(-2.2 * h, 2.2 * h);
                 }
                 p += Vec3::new(yaw.sin(), 0., yaw.cos()) * speed * h;
@@ -236,6 +413,10 @@ impl Gait {
         foot.position.y += 0.11 * self.rig.scale * (PI * flight).sin().max(0.).powf(1.4);
         foot.yaw = foot.start_yaw + angle_delta(foot.start_yaw, foot.target_yaw) * ease(flight);
         foot.tilt = foot.start_tilt.slerp(foot.target_tilt, ease(flight));
+        // Let planted feet swivel before the body can wind the ankle around its old heading.
+        for foot in &mut self.feet {
+            foot.yaw = self.yaw + angle_delta(self.yaw, foot.yaw).clamp(-0.4, 0.4);
+        }
         if self.phase >= 1. {
             self.steps += 1;
             self.swing = 1 - self.swing;
@@ -254,25 +435,46 @@ impl Gait {
         let pelvis_roll = weight_shift * 0.035;
         locals[self.rig.hips].translation.x += weight_shift * 0.040;
         locals[self.rig.hips].translation.y -= 0.020 + (2. * cycle).cos() * 0.012 * movement;
+        locals[self.rig.hips].translation.y -= self.compression * 0.26 * self.rig.scale;
+        let push = self.compression * 0.25 + self.jump_extension;
+        let forward_lean = self.jump_motion.forward * push;
+        let side_lean = self.jump_motion.side_lean() * push;
+        locals[self.rig.hips].translation.z += forward_lean * 0.13 * self.rig.scale;
+        locals[self.rig.hips].translation.x += side_lean * 0.065 * self.rig.scale;
         locals[self.rig.hips].rotation *=
             Quat::from_rotation_y(cycle.cos() * 0.075 * 0.8 * movement)
                 * Quat::from_rotation_z(pelvis_roll);
+        locals[self.rig.hips].rotation *= Quat::from_rotation_x(forward_lean * 0.10)
+            * Quat::from_rotation_z(-side_lean * 0.08)
+            * Quat::from_rotation_y(self.jump_motion.turn * self.jump_extension * 0.10);
         let lean = (self.turn_rate * self.speed * 0.035).clamp(-0.09, 0.09) * 0.8;
         locals[model.node("Spine")].rotation *= Quat::from_rotation_z(-lean - pelvis_roll * 0.65)
-            * Quat::from_rotation_x((self.acceleration * 0.025 + self.speed * 0.025) * 0.8);
+            * Quat::from_rotation_x(
+                (self.acceleration.clamp(-10., 7.) * 0.025 + self.speed * 0.025) * 0.8
+                    + self.compression * 0.14,
+            );
+        locals[model.node("Spine")].rotation *=
+            Quat::from_rotation_x(forward_lean * 0.12) * Quat::from_rotation_z(-side_lean * 0.10);
         locals[model.node("Chest")].rotation *=
             Quat::from_rotation_y(-cycle.cos() * 0.14 * 0.8 * movement);
+        locals[model.node("Chest")].rotation *=
+            Quat::from_rotation_y(self.jump_motion.turn * self.jump_extension * 0.10);
         locals[model.node("Neck")].rotation *=
             Quat::from_rotation_z(lean * 0.5 - pelvis_roll * 0.2);
         for (i, side) in ["L", "R"].iter().enumerate() {
             let sign = if i == 0 { 1. } else { -1. };
             let arm_phase = cycle - 0.16 + i as f32 * PI;
             let swing = -arm_phase.cos() * 35f32.to_radians() * movement;
-            locals[model.node(&format!("UpperArm_{side}"))].rotation *=
-                Quat::from_rotation_x(swing)
-                    * Quat::from_rotation_z(sign * (0.045 + lean.abs() * 0.5) * 0.8);
-            locals[model.node(&format!("Forearm_{side}"))].rotation *=
-                Quat::from_rotation_x((-0.18 + (arm_phase - 0.30).cos() * 0.13) * movement);
+            locals[model.node(&format!("UpperArm_{side}"))].rotation *= Quat::from_rotation_x(
+                swing + self.compression * 0.35
+                    - self.jump_extension
+                        * (self.jump_motion.forward * 0.45 + sign * self.jump_motion.turn * 0.16),
+            ) * Quat::from_rotation_z(
+                sign * (0.045 + lean.abs() * 0.5) * 0.8 - side_lean * 0.12,
+            );
+            locals[model.node(&format!("Forearm_{side}"))].rotation *= Quat::from_rotation_x(
+                (-0.18 + (arm_phase - 0.30).cos() * 0.13) * movement - self.compression * 0.65,
+            );
             locals[model.node(&format!("Hand_{side}"))].rotation *=
                 Quat::from_rotation_x(-(arm_phase - 0.50).cos() * 0.10 * movement * 0.8);
         }
@@ -314,9 +516,14 @@ impl Gait {
                 let direction = (to - from) / to.distance(from).max(0.00001);
                 let rotation = Quat::from_rotation_arc(rest_direction, direction);
                 // The knee bend selects the leg plane; retain facing-axis twist.
-                let local_direction = Quat::from_rotation_y(-self.yaw) * direction;
+                let facing = if bone == leg[1] {
+                    self.feet[i].yaw
+                } else {
+                    self.yaw
+                };
+                let local_direction = Quat::from_rotation_y(-facing) * direction;
                 let rotation = if local_direction.y < -0.05 {
-                    Quat::from_rotation_y(self.yaw)
+                    Quat::from_rotation_y(facing)
                         * Quat::from_rotation_arc(rest_direction, local_direction)
                 } else {
                     rotation
@@ -339,7 +546,7 @@ impl Gait {
     }
     fn foot_contact(&self, _model: &Definition, side: usize) -> (Vec3, Quat) {
         let foot = &self.feet[side];
-        let active = self.speed > 0.02 || self.planned;
+        let active = self.speed.abs() > 0.02 || self.planned;
         let (pitch, heel) = if !active {
             (0., 0.)
         } else if side == self.swing {
@@ -358,11 +565,32 @@ impl Gait {
             (0.18 * ease((self.phase - 0.48) / 0.52), 0.)
         };
         let ankle_height = self.rig.ankles[side].y;
+        let follow_through = self
+            .air_time
+            .map_or(0., |t| ease(t / 0.12) * (1. - ease((t - 0.6) / 0.3)));
+        let drive = self
+            .jump_motion
+            .forward
+            .abs()
+            .max(self.jump_motion.turn.abs() * 0.5);
+        let pitch = pitch + 0.20 * drive * self.jump_extension * (1. - follow_through);
         let pivot = Vec3::new(0., -ankle_height, 0.14 * (1. - heel) - 0.065 * heel);
         let ground = foot.tilt * Quat::from_rotation_y(foot.yaw);
         let roll = Quat::from_rotation_x(pitch);
+        let sign = if side == 0 { 1. } else { -1. };
+        let flight = Quat::from_rotation_y(self.yaw)
+            * Vec3::new(
+                0.,
+                (drive * 0.075
+                    + sign * self.jump_motion.forward * 0.055
+                    + sign * self.jump_motion.turn * 0.025)
+                    .max(0.),
+                sign * self.jump_motion.forward * 0.10,
+            )
+            * follow_through
+            * self.rig.scale;
         (
-            foot.position + ground * (pivot - roll * pivot),
+            foot.position + ground * (pivot - roll * pivot) + flight,
             ground * roll,
         )
     }
@@ -386,6 +614,122 @@ fn solve_leg(hip: Vec3, target: Vec3, pole: Vec3, a: f32, b: f32) -> (Vec3, Vec3
 mod tests {
     use super::*;
     use crate::dynamic_world::pedestrian_catalog;
+    #[test]
+    fn directional_jump_poses_remain_reachable_on_all_six_rigs() {
+        let sample = |p: Vec3| {
+            Some(Ground {
+                point: p.truncate().extend(p.x * 0.04),
+                gradient: [0.04, 0.],
+            })
+        };
+        for def in pedestrian_catalog::definitions() {
+            for (speed, turn) in [(0., 2.62), (15.6, 2.62), (-15.6, -2.62)] {
+                let mut gait = Gait::new(def, Vec3::ZERO, 0., 0, sample);
+                for frame in 0..180 {
+                    let yaw = frame as f32 * turn / 120.;
+                    let motion =
+                        JumpMotion::from_travel(Vec2::new(yaw.cos(), yaw.sin()) * speed, yaw, turn);
+                    if frame < 26 {
+                        let elapsed = (frame + 1) as f32 / 120.;
+                        let extension = ease((elapsed - 0.14) / 0.08);
+                        let compression = if elapsed < 0.14 {
+                            ease(elapsed / 0.14)
+                        } else {
+                            1. - extension
+                        };
+                        gait.prepare_jump(
+                            def,
+                            Vec3::ZERO,
+                            yaw,
+                            JumpPreparation {
+                                compression,
+                                extension,
+                                motion,
+                            },
+                            1. / 120.,
+                            sample,
+                        );
+                    } else {
+                        gait.airborne(def, Vec3::Z, yaw, motion, 1. / 120.);
+                    }
+                    assert!(
+                        gait.reach_error < 0.06,
+                        "directional jump strained a leg: {}",
+                        gait.reach_error
+                    );
+                    assert!(gait.palette.iter().all(|m| m.is_finite()));
+                }
+            }
+        }
+    }
+    #[test]
+    fn turning_keeps_shoes_compact_on_every_rig() {
+        let sample = |p: Vec3| {
+            Some(Ground {
+                point: p.truncate().extend(0.),
+                gradient: [0., 0.],
+            })
+        };
+        for (index, def) in pedestrian_catalog::definitions().iter().enumerate() {
+            for speed in [0., 1.05] {
+                for turn in [-2.62, 2.62] {
+                    let mut position = Vec3::ZERO;
+                    let mut gait = Gait::new(def, position, 0., 0, sample);
+                    for frame in 1..=600 {
+                        let yaw = frame as f32 * turn / 120.;
+                        position += Vec3::new(yaw.cos(), yaw.sin(), 0.) * speed / 120.;
+                        gait.advance(
+                            def,
+                            position,
+                            yaw,
+                            speed,
+                            position + Vec3::new(yaw.cos(), yaw.sin(), 0.),
+                            1. / 120.,
+                            sample,
+                        );
+                        for foot in &gait.feet {
+                            assert!(angle_delta(yaw, foot.yaw).abs() < 0.401);
+                        }
+                        assert!(
+                            gait.reach_error < 0.06,
+                            "rig {index}, speed {speed}: {}",
+                            gait.reach_error
+                        );
+                        if frame % 10 != 0 {
+                            continue;
+                        }
+                        // Check the rendered shoe triangles, including vertices blended at the ankle.
+                        for (vertices, weights) in
+                            def.vertices.chunks_exact(3).zip(def.skin.chunks_exact(3))
+                        {
+                            if vertices
+                                .iter()
+                                .any(|v| v.position[1] > gait.rig.ankles[0].y * 0.95)
+                            {
+                                continue;
+                            }
+                            let posed: [Vec3; 3] = std::array::from_fn(|i| {
+                                weights[i].joints.iter().zip(weights[i].weights).fold(
+                                    Vec3::ZERO,
+                                    |p, (&joint, weight)| {
+                                        p + gait.palette[joint as usize]
+                                            .transform_point3(Vec3::from(vertices[i].position))
+                                            * weight
+                                    },
+                                )
+                            });
+                            for (a, b) in [(0, 1), (1, 2), (2, 0)] {
+                                let rest = Vec3::from(vertices[a].position)
+                                    .distance(Vec3::from(vertices[b].position));
+                                assert!(posed[a].distance(posed[b]) < rest * 1.25 + 0.003,
+                                    "rig {index}, speed {speed}, frame {frame}: shoe edge {} became {}", rest, posed[a].distance(posed[b]));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     #[test]
     fn approved_gait_keeps_stance_targets_and_has_continuous_balance_on_all_six_rigs() {
         for (index, def) in pedestrian_catalog::definitions().iter().enumerate() {

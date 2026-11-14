@@ -1,7 +1,7 @@
 //! Bounded nearby sidewalk population, independent of vehicle physics.
 use super::{
     pedestrian_catalog::{self, JOINT_LIMIT},
-    pedestrian_gait::{Gait, Ground},
+    pedestrian_gait::{footing, Gait},
     props::Props,
     ragdoll, Vehicle,
 };
@@ -54,6 +54,21 @@ impl Reaction {
         }
     }
 }
+impl Walker {
+    fn fall(&mut self, city: &City, vehicles: &[Vehicle], velocity: Vec3) {
+        self.reaction = Some(Box::new(Reaction::Falling(ragdoll::Ragdoll::new(
+            &pedestrian_catalog::definitions()[self.model],
+            self.gait.palette,
+            self.position,
+            self.yaw,
+            velocity,
+            city,
+            vehicles,
+        ))));
+        self.speed = 0.;
+        self.movement = 0.;
+    }
+}
 #[derive(Clone, Copy)]
 struct ReturnPoint {
     position: Vec3,
@@ -83,35 +98,6 @@ fn random(seed: &mut u32) -> f32 {
 }
 fn angle_delta(from: f32, to: f32) -> f32 {
     (to - from + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI
-}
-fn footing(city: &City, point: Vec3, sidewalk_only: bool) -> Option<Ground> {
-    use opencity::runtime::SurfaceKind;
-    let xy = (point.truncate() / super::METERS_PER_UNIT).to_array();
-    let surface = city.surface_at(xy, (point.z + 0.42) / super::METERS_PER_UNIT)?;
-    let walkable = match surface.kind {
-        SurfaceKind::Sidewalk => true,
-        SurfaceKind::Asphalt | SurfaceKind::Grass | SurfaceKind::Sand | SurfaceKind::Marking => {
-            !sidewalk_only
-        }
-        _ => false,
-    };
-    let height = surface.height * super::METERS_PER_UNIT;
-    if !walkable || (height - point.z).abs() > 0.42 {
-        return None;
-    }
-    let bottom = (height + 0.12) / super::METERS_PER_UNIT;
-    let top = (height + 1.75) / super::METERS_PER_UNIT;
-    if city.building_collision(xy, 0.3 / super::METERS_PER_UNIT, bottom, top)
-        || city
-            .road_barrier_contact(xy, 0.3 / super::METERS_PER_UNIT, bottom, top)
-            .is_some()
-    {
-        return None;
-    }
-    Some(Ground {
-        point: point.truncate().extend(height),
-        gradient: surface.gradient,
-    })
 }
 fn path_distance(graph: &WalkingPaths, path: usize, position: Vec3) -> f32 {
     let mut best = (0., f32::INFINITY);
@@ -255,6 +241,23 @@ impl Crowd {
             self.serial = self.serial.wrapping_add(1);
         }
     }
+    pub fn player_move(
+        &mut self,
+        city: &City,
+        before: Vec3,
+        after: Vec3,
+        dt: f32,
+        vehicles: &[Vehicle],
+    ) {
+        for walker in &mut self.walkers {
+            if walker.reaction.is_some() || walker.immunity > 0. {
+                continue;
+            }
+            if let Some(velocity) = ragdoll::walking_impact(walker.position, before, after, dt) {
+                walker.fall(city, vehicles, velocity);
+            }
+        }
+    }
     pub fn step(
         &mut self,
         city: &City,
@@ -344,18 +347,7 @@ impl Crowd {
                 if let Some(velocity) =
                     ragdoll::impact(walker.position, &self.previous_vehicles, vehicles, dt)
                 {
-                    let def = &pedestrian_catalog::definitions()[walker.model];
-                    walker.reaction = Some(Box::new(Reaction::Falling(ragdoll::Ragdoll::new(
-                        def,
-                        walker.gait.palette,
-                        walker.position,
-                        walker.yaw,
-                        velocity,
-                        city,
-                        vehicles,
-                    ))));
-                    walker.speed = 0.;
-                    walker.movement = 0.;
+                    walker.fall(city, vehicles, velocity);
                     continue;
                 }
             }
@@ -630,6 +622,59 @@ fn return_point(
 mod tests {
     use super::*;
     use crate::hermes::Hermes;
+    #[test]
+    fn walking_and_sprinting_bumps_use_ragdolls_then_get_up_and_walk_again() {
+        let hermes = Hermes::test_map();
+        let city = hermes.city();
+        let props = Props::new(Vec::new());
+        for speed in [1., 5.2, 15.6] {
+            let mut crowd = Crowd::new(hermes.walking_paths());
+            crowd.populate(city, Vec3::ZERO, &[], &props);
+            let (target, _) = crowd.prepare_collision();
+            let mut player = target - Vec3::X * 1.5 + Vec3::Z * super::super::player::HALF_HEIGHT;
+            let mut falling = false;
+            let mut rising = false;
+            let mut recovered = None;
+            for frame in 0..720 {
+                let before = player;
+                if (player.x - target.x) < 2. {
+                    player.x += speed / 60.;
+                }
+                crowd.player_move(city, before, player, 1. / 60., &[]);
+                crowd.step(city, player, true, &[], &props, 1. / 60.);
+                let counts = crowd.reaction_counts();
+                falling |= counts[1] > 0;
+                rising |= counts[2] > 0;
+                if rising && counts[0] == 1 && recovered.is_none() {
+                    recovered = Some(crowd.walkers[0].position);
+                }
+                assert!(
+                    crowd.walkers[0]
+                        .reaction
+                        .as_ref()
+                        .is_none_or(|r| r.palette().iter().all(|m| m.is_finite())),
+                    "invalid player-bump ragdoll at {frame}"
+                );
+            }
+            assert!(
+                falling && rising,
+                "speed {speed} did not trigger full ragdoll recovery"
+            );
+            assert_eq!(crowd.reaction_counts(), [1, 0, 0]);
+            assert!(crowd.walkers[0].position.distance(recovered.unwrap()) > 0.3);
+            // Recovery immunity prevents immediately knocking down the same walker again.
+            crowd.walkers[0].immunity = 3.;
+            let target = crowd.walkers[0].position;
+            crowd.player_move(
+                city,
+                target + Vec3::new(-0.8, 0., 0.9),
+                target + Vec3::new(0.8, 0., 0.9),
+                0.1,
+                &[],
+            );
+            assert_eq!(crowd.reaction_counts(), [1, 0, 0]);
+        }
+    }
     #[test]
     fn get_up_stays_at_impact_site_then_ik_steps_walk_back_from_road_to_sidewalk() {
         let hermes = Hermes::test_map_from_source(

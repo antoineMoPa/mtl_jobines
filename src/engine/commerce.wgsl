@@ -46,10 +46,9 @@ fn commerce_color(v:Output,du:vec2<f32>,dv:vec2<f32>,dx:vec3<f32>,dy:vec3<f32>)-
         let room=shop_room(v.fence_uv,size,n,horizontal/max(length(horizontal),0.000001),eye,v.surface.w);
         lit=room_glass(room,n,view,daylight);
     }
-    lit*=camera.sun_exposure.w;lit=lit/(lit+vec3<f32>(1.0));
     let fog=(1.0-exp(-length(eye)*0.025)*(1.0-smoothstep(5.8,7.6,length(eye))))*(1.0-camera.daylight_sky.y);
-    let sky=textureSampleLevel(sky_environment,sky_sampler,-view,0.0).rgb*camera.sun_exposure.w;
-    return vec4<f32>(mix(lit,sky/(sky+vec3<f32>(1.0)),fog),coverage);
+    let sky=textureSampleLevel(sky_environment,sky_sampler,-view,0.0).rgb;
+    return vec4<f32>(filmic_display(mix(lit,sky,fog)*camera.sun_exposure.w),coverage);
 }
 // Colored vehicle/signal lamps carry an explicit marker; ordinary street
 // lighting retains its authored warm emission in the shared shader.
@@ -60,10 +59,9 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
         let eye=camera.eye_time.xyz-v.world;
         let distance=length(eye);
         let radiance=v.color*2.0*strength*camera.sun_exposure.w;
-        let lit=radiance/(radiance+vec3<f32>(1.0));
         let fog=(1.0-exp(-distance*0.025)*(1.0-smoothstep(5.8,7.6,distance)))*(1.0-camera.daylight_sky.y);
         let sky=textureSampleLevel(sky_environment,sky_sampler,-eye/max(distance,0.00001),0.0).rgb*camera.sun_exposure.w;
-        return vec4<f32>(mix(lit,sky/(sky+vec3<f32>(1.0)),fog),1.0);
+        return vec4<f32>(filmic_display(mix(radiance,sky,fog)),1.0);
 }
 // No reachable discard, preserving early depth rejection for opaque scenery.
 @fragment fn fs_opaque_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {

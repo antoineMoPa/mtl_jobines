@@ -13,8 +13,13 @@ struct CachedSignal {
     mesh: GpuMesh,
     last_seen: u64,
 }
+struct InstancedProp {
+    mesh: GpuMesh,
+    transforms: Vec<[[f32; 4]; 4]>,
+}
 #[derive(Default)]
 pub struct PropScenery {
+    models: HashMap<(crate::props::Kind, usize), InstancedProp>,
     batches: HashMap<usize, CachedBatch>,
     visible: Vec<usize>,
     signals: HashMap<usize, CachedSignal>,
@@ -24,6 +29,25 @@ pub struct PropScenery {
 }
 impl PropScenery {
     pub fn update(&mut self, renderer: &Renderer, world: &DynamicWorld) {
+        for model in self.models.values_mut() {
+            model.transforms.clear();
+        }
+        for (kind, index, transform) in world.authored_prop_instances() {
+            let model = self.models.entry((kind, index)).or_insert_with(|| {
+                let mut vertices = kind.parts()[index].vertices.clone();
+                for v in &mut vertices {
+                    v.position = v.position.map(|p| p * crate::props::UNITS);
+                }
+                InstancedProp {
+                    mesh: renderer.upload_instanced(&vertices),
+                    transforms: Vec::new(),
+                }
+            });
+            model.transforms.push(transform.to_cols_array_2d());
+        }
+        for model in self.models.values_mut() {
+            renderer.update_instances(&mut model.mesh, &model.transforms);
+        }
         self.frame += 1;
         self.visible.clear();
         self.visible_signals.clear();
@@ -80,6 +104,9 @@ impl PropScenery {
             .retain(|_, batch| self.frame - batch.last_seen < 240);
     }
     pub fn visible(&self) -> impl Iterator<Item = &GpuMesh> {
+        self.visible_with_authored(true)
+    }
+    pub fn visible_with_authored(&self, authored: bool) -> impl Iterator<Item = &GpuMesh> {
         self.visible
             .iter()
             .filter_map(|key| self.batches.get(key).map(|batch| &batch.mesh))
@@ -87,6 +114,12 @@ impl PropScenery {
                 self.visible_signals
                     .iter()
                     .filter_map(|id| self.signals.get(id).map(|batch| &batch.mesh)),
+            )
+            .chain(
+                self.models
+                    .values()
+                    .filter(move |m| authored && !m.transforms.is_empty())
+                    .map(|m| &m.mesh),
             )
     }
 }

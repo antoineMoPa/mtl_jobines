@@ -161,6 +161,69 @@ fn native_contact_texture_covers_curbs_and_preserves_flush_pavement() {
 }
 
 #[test]
+#[ignore = "requires a native GPU adapter"]
+fn native_winter_contacts_brighten_plowed_edges_and_restore_summer() {
+    use crate::{dynamic_world::snow::Tracks, season::Season};
+    let program = opencity::parse(include_str!(
+        "../../opencity/tests/fixtures/contact_debris.road"
+    ))
+    .unwrap();
+    let city = City::from_program(&program, None).unwrap();
+    let mesh = city.mesh(Region::WholeMap, 0.04).unwrap();
+    let mut r = pollster::block_on(Renderer::new(None, 1024, 640)).unwrap();
+    r.daylight = Some(1.);
+    r.ambient_occlusion = false;
+    r.winter_weather = false;
+    r.snow.set_geometry(&[&mesh]);
+    let mut tracks = Tracks::default();
+    for y in -80..100 {
+        for x in -80..160 {
+            tracks.clear_height((x, y), 0.);
+        }
+    }
+    r.snow.update(&r.queue, [0., 0.], &tracks);
+    let gpu = r.upload(&mesh);
+    let output = target(&r);
+    let view = output.create_view(&Default::default());
+    let eye = Vec3::new(-0.05, -0.08, 0.035);
+    let look = Vec3::new(0., 0.025, 0.);
+    let mut summer = Vec::new();
+    for (season, name) in [
+        (Season::Summer, "summer"),
+        (Season::Winter, "winter"),
+        (Season::Summer, "summer-return"),
+    ] {
+        r.season = season;
+        let mut images = Vec::new();
+        for enabled in [false, true] {
+            r.contact_debris = enabled;
+            r.render(&view, &[&gpu], eye, look, 0., navigation());
+            let pixels = r.rgba_pixels(&output).unwrap();
+            save(&r, &pixels, &format!("edge-{name}-{enabled}.png"));
+            images.push(pixels);
+        }
+        let mut brighter = 0;
+        let mut darker = 0;
+        for (a, b) in images[0].chunks_exact(4).zip(images[1].chunks_exact(4)) {
+            let delta: i32 = (0..3).map(|i| i32::from(b[i]) - i32::from(a[i])).sum();
+            brighter += usize::from(delta > 6);
+            darker += usize::from(delta < -6);
+        }
+        if season == Season::Winter {
+            assert!(brighter > 100, "snow contacts invisible: {brighter}");
+            assert!(brighter > darker * 10, "winter retained dark debris");
+        } else {
+            assert!(darker > 100, "summer lost its grime");
+            if summer.is_empty() {
+                summer = images;
+            } else {
+                assert_eq!(summer, images, "winter contacts survived season switch");
+            }
+        }
+    }
+}
+
+#[test]
 #[ignore = "requires a native GPU adapter and the selected local bug report"]
 fn native_contact_texture_report_camera_and_cost() {
     use crate::{

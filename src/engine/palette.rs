@@ -43,6 +43,7 @@ pub(super) enum PaletteAction {
     Season(crate::season::Season),
     Time(TimeCommand),
     Respawn(String),
+    SwitchVehicle(usize),
     JumpToLocation,
     #[cfg(not(target_arch = "wasm32"))]
     ExpandNetwork,
@@ -51,10 +52,25 @@ pub(super) enum PaletteAction {
     #[cfg(not(target_arch = "wasm32"))]
     BuildBuildings,
     #[cfg(not(target_arch = "wasm32"))]
+    PlaceProps(crate::props::Kind),
+    #[cfg(not(target_arch = "wasm32"))]
     BugReport,
 }
 impl PaletteAction {
     fn from_id(id: &str) -> Option<Self> {
+        if let Some(vehicle) = id.strip_prefix("vehicle.switch.") {
+            return crate::dynamic_world::catalog::definitions()
+                .iter()
+                .position(|definition| definition.config.research_id == vehicle)
+                .map(Self::SwitchVehicle);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(kind) = id
+            .strip_prefix("prop.place.")
+            .and_then(crate::props::Kind::from_keyword)
+        {
+            return Some(Self::PlaceProps(kind));
+        }
         if let Some(season) = crate::season::Season::from_command(id) {
             return Some(Self::Season(season));
         }
@@ -169,9 +185,31 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
             .into(),
         shortcut: String::new(),
     });
+    #[cfg(not(target_arch = "wasm32"))]
+    commands.extend(crate::props::Kind::ALL.into_iter().map(|kind| Command {
+        id: format!("prop.place.{}", kind.keyword()),
+        title: format!("Place props: {}…", kind.label()),
+        description: "Add collidable props, draw rows, or select and move saved objects".into(),
+        shortcut: String::new(),
+    }));
+    commands.extend(
+        crate::dynamic_world::catalog::definitions()
+            .iter()
+            .map(|definition| Command {
+                id: format!("vehicle.switch.{}", definition.config.research_id),
+                title: format!("Switch vehicle: {}", definition.config.name),
+                description: format!(
+                    "{} · Replace your current vehicle in place and take the wheel",
+                    definition.config.category
+                ),
+                shortcut: String::new(),
+            }),
+    );
     commands
 }
 pub struct Palette {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) props: Option<super::props::Document>,
     #[cfg(not(target_arch = "wasm32"))]
     report_overlay: Option<(Vec<egui::ClippedPrimitive>, f32)>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -218,6 +256,7 @@ impl Palette {
         ctx.set_theme(egui::ThemePreference::Dark);
         Self {
             report_overlay: None,
+            props: None,
             buildings: None,
             expansion: None,
             input: Input::new(
@@ -251,6 +290,8 @@ impl Palette {
             Some(renderer.device.limits().max_texture_dimension_2d as usize),
         );
         Self {
+            #[cfg(not(target_arch = "wasm32"))]
+            props: None,
             #[cfg(not(target_arch = "wasm32"))]
             report_overlay: None,
             #[cfg(not(target_arch = "wasm32"))]
@@ -295,6 +336,7 @@ impl Palette {
         {
             self.expansion = None;
             self.buildings = None;
+            self.props = None;
             self.report_overlay = None;
         }
         self.menu.dismiss();
@@ -311,6 +353,8 @@ impl Palette {
         let open = open || self.expansion.as_ref().is_some_and(|d| d.picker.open);
         #[cfg(not(target_arch = "wasm32"))]
         let open = open || self.buildings.as_ref().is_some_and(|d| d.open);
+        #[cfg(not(target_arch = "wasm32"))]
+        let open = open || self.props.as_ref().is_some_and(|d| d.open);
         open
     }
     pub fn shortcut(&self) -> bool {
@@ -324,6 +368,11 @@ impl Palette {
         command && self.modifiers.shift_key()
     }
     pub(super) fn reserved_bottom(&self, width: u32, height: u32) -> u32 {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(document) = &self.props {
+            let scale = self.ctx.pixels_per_point();
+            return (document.strip_height(width as f32 / scale) * scale).round() as u32;
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(document) = &self.buildings {
             let scale = self.ctx.pixels_per_point();
@@ -344,6 +393,10 @@ impl Palette {
     }
     pub(super) fn build_camera(&self) -> Option<(glam::Vec3, glam::Vec3, [f32; 2])> {
         #[cfg(not(target_arch = "wasm32"))]
+        if let Some(document) = &self.props {
+            return document.camera();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some(document) = &self.buildings {
             return document.camera();
         }
@@ -356,6 +409,9 @@ impl Palette {
     pub(super) fn orthographic_span(&self) -> Option<f32> {
         #[cfg(not(target_arch = "wasm32"))]
         {
+            if let Some(document) = &self.props {
+                return document.orthographic_span();
+            }
             if let Some(document) = &self.buildings {
                 return document.orthographic_span();
             }
@@ -936,3 +992,11 @@ mod season_tests {
         }
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "palette/props_tests.rs"]
+mod props_tests;
+
+#[cfg(test)]
+#[path = "palette/vehicle_tests.rs"]
+mod vehicle_tests;

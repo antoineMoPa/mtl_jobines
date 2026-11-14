@@ -27,7 +27,7 @@ impl Document {
             ),
         };
         let candidates = self.candidates(city);
-        if input_enabled {
+        if input_enabled && !self.landmark_picker.open && !self.landmark_picker.dismissed {
             self.interaction(&ctx, city, view, &candidates);
         }
         let painter = ctx
@@ -137,11 +137,7 @@ impl Document {
                     }
                     if let Some(index) = self.selected {
                         let item = &self.items[index];
-                        let model = item
-                            .feature
-                            .model
-                            .as_ref()
-                            .is_some_and(|p| p.ends_with(".glb"));
+                        let model = item.feature.model.as_ref().is_some();
                         let current = item
                             .feature
                             .building_style
@@ -151,7 +147,13 @@ impl Document {
                         let mut family = None;
                         egui::ComboBox::from_id_salt("placed-building-style")
                             .width(135.)
-                            .selected_text(if model { "Custom .glb" } else { label(current) })
+                            .selected_text(
+                                item.feature
+                                    .model
+                                    .as_deref()
+                                    .and_then(crate::hermes::landmark_destinations::title)
+                                    .unwrap_or(if model { "Custom .glb" } else { label(current) }),
+                            )
                             .show_ui(ui, |ui| {
                                 for value in BuildingFamily::ALL {
                                     if ui
@@ -189,6 +191,10 @@ impl Document {
                                     self.edit(city, index, feature).err().unwrap_or_default();
                             }
                         }
+                        if ui.button("Landmarks…").clicked() {
+                            self.landmark_picker.open = true;
+                            self.cancel_interaction();
+                        }
                         if ui.button(".glb").clicked() {
                             self.importing = true;
                         }
@@ -203,6 +209,7 @@ impl Document {
                     }
                 });
             });
+        self.landmarks_ui(root.ctx(), city, input_enabled);
         if std::mem::take(&mut self.importing) {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Building model", &["glb"])

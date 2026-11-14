@@ -4,6 +4,30 @@ impl Game {
         let Some(watcher) = &self.live_reload else {
             return;
         };
+        if let PaletteAction::PlaceProps(kind) = action {
+            match super::super::props::Document::open(
+                watcher.path(),
+                self.world.player_position() / METERS_PER_UNIT,
+                self.world.player_yaw(),
+            ) {
+                Ok(mut document) => {
+                    document.choose_kind(kind);
+                    if let Some(palette) = &mut self.palette {
+                        palette.buildings = None;
+                        palette.expansion = None;
+                        palette.props = Some(document);
+                    }
+                }
+                Err(error) => eprintln!("Could not open Props: {error}"),
+            }
+            self.keys.clear();
+            self.dragging = false;
+            self.scene_dirty = true;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            return;
+        }
         if action == PaletteAction::BuildBuildings {
             let player = self.world.player_position() / METERS_PER_UNIT;
             match super::super::buildings::Document::open(
@@ -14,6 +38,7 @@ impl Game {
                 Ok(document) => {
                     if let Some(palette) = &mut self.palette {
                         palette.expansion = None;
+                        palette.props = None;
                         palette.buildings = Some(document);
                     }
                 }
@@ -37,6 +62,7 @@ impl Game {
                     }
                     if let Some(palette) = &mut self.palette {
                         palette.buildings = None;
+                        palette.props = None;
                         palette.expansion = Some(document);
                     }
                 }

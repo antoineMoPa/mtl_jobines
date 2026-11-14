@@ -226,6 +226,9 @@ impl Game {
         }
         if let Some(palette) = &mut self.palette {
             palette.update_landmarks(&hermes.landmarks());
+            if let Some(props) = &mut palette.props {
+                props.map_reloaded();
+            }
             if let Some(buildings) = &mut palette.buildings {
                 buildings.map_reloaded();
             }

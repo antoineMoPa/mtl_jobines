@@ -353,6 +353,28 @@ impl Ragdoll {
     }
 }
 
+/// Swept player capsule. Only accepted travel toward a pedestrian can start a fall.
+pub(super) fn walking_impact(position: Vec3, before: Vec3, after: Vec3, dt: f32) -> Option<Vec3> {
+    if !dt.is_finite() || dt <= 0. || !before.is_finite() || !after.is_finite() {
+        return None;
+    }
+    let travel = (after - before).truncate();
+    let distance_squared = travel.length_squared();
+    if distance_squared < (0.5 * dt).powi(2) || (position - before).truncate().dot(travel) <= 0. {
+        return None;
+    }
+    let along = ((position - before).truncate().dot(travel) / distance_squared).clamp(0., 1.);
+    let contact = before.lerp(after, along);
+    let radius = super::player::RADIUS + 0.30;
+    if (position - contact).truncate().length_squared() >= radius * radius
+        || contact.z - super::player::HALF_HEIGHT >= position.z + 1.75
+        || contact.z + super::player::HALF_HEIGHT <= position.z
+    {
+        return None;
+    }
+    Some((travel / dt).extend(0.))
+}
+
 /// Swept oriented vehicle footprint, including vertical clearance. Standing
 /// or very slow cars do not repeatedly knock down a recovering pedestrian.
 pub(super) fn impact(
@@ -415,6 +437,35 @@ pub(super) fn impact(
 mod tests {
     use super::*;
     use crate::hermes::Hermes;
+    #[test]
+    fn player_sweep_catches_walk_and_sprint_but_respects_height_and_near_misses() {
+        for (speed, dt) in [(1., 1. / 60.), (5.2, 1. / 30.), (15.6, 0.1)] {
+            let before = Vec3::new(-0.705, 0., super::super::player::HALF_HEIGHT);
+            let after = before + Vec3::X * speed * dt;
+            assert!(walking_impact(Vec3::ZERO, before, after, dt)
+                .unwrap()
+                .abs_diff_eq(Vec3::X * speed, 1e-4));
+            assert!(walking_impact(Vec3::Y, before, after, dt).is_none());
+            assert!(walking_impact(Vec3::Z * 4., before, after, dt).is_none());
+            assert!(
+                walking_impact(Vec3::ZERO, before + Vec3::Z * 3., after + Vec3::Z * 3., dt)
+                    .is_none()
+            );
+        }
+        let before = Vec3::new(-0.4, 0., 0.9);
+        assert!(walking_impact(Vec3::ZERO, before, before, 1. / 60.).is_none());
+        assert!(walking_impact(Vec3::ZERO, before, before - Vec3::X, 1.).is_none());
+        assert!(walking_impact(Vec3::ZERO, before, before + Vec3::X * 0.001, 1. / 60.).is_none());
+        assert!(walking_impact(Vec3::ZERO, before, before + Vec3::X, 0.).is_none());
+        // Both endpoints miss: a fast crossing must still contact the body between them.
+        assert!(walking_impact(
+            Vec3::ZERO,
+            Vec3::new(-2., 0., 0.9),
+            Vec3::new(2., 0., 0.9),
+            0.1
+        )
+        .is_some());
+    }
     #[test]
     fn ragdoll_rigs_keep_joint_anchors_together_and_recover_to_idle_for_all_six_models() {
         let hermes = Hermes::test_map();

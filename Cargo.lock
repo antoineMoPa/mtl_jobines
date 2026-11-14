@@ -2682,6 +2682,8 @@ dependencies = [
  "eframe",
  "egui",
  "egui_command_palette",
+ "glam",
+ "gltf",
  "moon_toggle_switch",
  "muda",
  "png 0.17.16",
@@ -2691,6 +2693,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
+ "wgpu",
 ]
 
 [[package]]

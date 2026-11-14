@@ -131,3 +131,92 @@ fn a_large_assembly_has_a_fixed_live_body_and_floor_budget() {
     props.update_focus(Vec3::ZERO);
     assert_eq!(props.colliders.len(), MAX_DEBRIS + 32);
 }
+
+#[test]
+fn a_slow_cone_bump_topples_one_weighted_body_and_resets_after_departure() {
+    let hermes = crate::hermes::Hermes::test_map();
+    let placement = crate::props::Placement {
+        kind: crate::props::Kind::Cone,
+        position: Vec3::ZERO,
+        heading: 0.,
+    };
+    let mut props = Props::from_parts_near(vec![placement.parts()], Vec3::ZERO);
+    let mut car = Vehicle::spawn(hermes.city());
+    car.yaw = 0.;
+    car.velocity = Vec3::X;
+    car.position = Vec3::new(2., 0., car.ride_height());
+    let before = Vec3::new(-3., 0., car.ride_height());
+    props.vehicle_move(&mut car, before, hermes.city());
+    assert!(!props.group_intact(0));
+    assert!(car.velocity.x > 0.9, "a cone should barely slow the car");
+    assert_eq!(props.debris_bodies.len(), 1);
+    assert_eq!(props.debris_colliders.len(), 3);
+    assert_eq!(props.authored_instances(Vec3::ZERO).len(), 1);
+    let body = props.items[0].debris.unwrap();
+    assert!((props.debris_bodies[body].mass() - 4.).abs() < 0.01);
+    for _ in 0..60 {
+        props.step(1. / 120.);
+    }
+    assert!(props.debris_bodies[body].rotation().angle() > 0.01);
+    props.update_focus(Vec3::X * 2_000.);
+    assert!(props.debris_bodies.is_empty());
+    assert!(props.debris_colliders.is_empty());
+    props.update_focus(Vec3::ZERO);
+    assert!(props.group_intact(0));
+    assert!(props.blocked(Vec3::new(0., 0., 0.5)));
+    assert_eq!(props.authored_instances(Vec3::ZERO).len(), 1);
+}
+
+#[test]
+fn a_second_pass_pushes_a_fallen_cone_instead_of_ignoring_it() {
+    let hermes = crate::hermes::Hermes::test_map();
+    let placement = crate::props::Placement {
+        kind: crate::props::Kind::Cone,
+        position: Vec3::ZERO,
+        heading: 0.,
+    };
+    let mut props = Props::from_parts_near(vec![placement.parts()], Vec3::ZERO);
+    strike(&mut props, hermes.city());
+    let handle = props.items[0].debris.unwrap();
+    props.debris_bodies[handle].set_translation(vector![0., 0., 0.5], true);
+    props.debris_bodies[handle].set_linvel(vector![0., 0., 0.], true);
+    props.debris_bodies[handle].set_angvel(vector![0., 0., 0.], true);
+    props.step(1. / 120.);
+    let mut car = Vehicle::spawn(hermes.city());
+    car.yaw = 0.;
+    car.velocity = Vec3::X * 5.;
+    car.position = Vec3::new(3., 0., car.ride_height());
+    let before = Vec3::new(-3., 0., car.ride_height());
+    props.vehicle_move(&mut car, before, hermes.city());
+    assert!(
+        props.debris_bodies[handle].linvel().x > 2.,
+        "velocity {:?}; car contacts {}",
+        props.debris_bodies[handle].linvel(),
+        car.collisions
+    );
+    assert!(car.collisions > 0);
+    assert!(car.velocity.x > 4.8);
+}
+
+#[test]
+fn distant_copies_share_model_storage_and_only_nearby_collision_is_resident() {
+    let groups = (0..1000)
+        .map(|i| {
+            crate::props::Placement {
+                kind: crate::props::Kind::Cone,
+                position: Vec3::X * (i as f32 * 2.),
+                heading: 0.,
+            }
+            .parts()
+        })
+        .collect();
+    let props = Props::from_parts_near(groups, Vec3::ZERO);
+    assert_eq!(props.items.len(), 1000);
+    assert!(std::sync::Arc::ptr_eq(
+        &props.items[0].mesh.mesh,
+        &props.items[999].mesh.mesh
+    ));
+    assert!(props.colliders.len() <= 3);
+    assert_eq!(props.authored_instances(Vec3::ZERO).len(), 1);
+    assert!(props.debris_bodies.is_empty());
+}
