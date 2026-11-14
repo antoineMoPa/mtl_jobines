@@ -15,6 +15,7 @@ mod expansion;
 mod frame_rate;
 mod gpu_profile;
 mod graffiti;
+mod grass;
 mod hud;
 mod lighting;
 mod local_lights;

@@ -30,12 +30,13 @@ fn decode(bytes: &[u8]) -> (Vec<u8>, u32, u32) {
 }
 pub(super) fn shader() -> String {
     format!(
-        "{}\n{}\n{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}\n{}",
         opencity::runtime::GAME_SHADER,
         include_str!("snow.wgsl"),
         include_str!("local_lights.wgsl"),
         include_str!("commerce.wgsl"),
-        include_str!("graffiti.wgsl")
+        include_str!("graffiti.wgsl"),
+        include_str!("grass.wgsl")
     )
 }
 impl Commerce {
@@ -176,6 +177,8 @@ impl Commerce {
         });
         entries.extend(opencity::runtime::tree_textures::TreeTextures::layout(8));
         entries.extend(opencity::runtime::tree_textures::TreeImpostors::layout(10));
+        entries.extend(super::grass::layout());
+        let (grass, grass_sampler) = super::grass::upload(device, queue);
         let (vehicle_albedo, vehicle_sampler) = super::vehicle_textures::upload(device, queue);
         let trees = opencity::runtime::tree_textures::TreeTextures::new(device, queue);
         let impostors = opencity::runtime::tree_textures::TreeImpostors::new(device, queue);
@@ -234,6 +237,16 @@ impl Commerce {
             .into_iter()
             .chain(trees.entries(8))
             .chain(impostors.entries(10))
+            .chain([
+                wgpu::BindGroupEntry {
+                    binding: 12,
+                    resource: wgpu::BindingResource::TextureView(&grass),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 13,
+                    resource: wgpu::BindingResource::Sampler(&grass_sampler),
+                },
+            ])
             .collect::<Vec<_>>(),
         });
         Self {

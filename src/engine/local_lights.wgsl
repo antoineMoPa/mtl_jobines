@@ -36,6 +36,9 @@ fn local_irradiance(world:vec3<f32>,normal:vec3<f32>)->vec3<f32> {
 fn shade_local_surface(v:Output,front:bool,coverage:f32,surface:SurfaceData)->vec4<f32> {
     var seasonal=surface;
     seasonal.snow=winter_coverage(v,surface);
+    if v.surface.x>0.5 && v.surface.x<1.5 {
+        return shade_grass(v,front,coverage,seasonal);
+    }
     var n=surface.normal;
     if v.surface.x>10.5&&v.surface.x<11.5&&!front {n=-n;}
     return shade_surface_lit(v,front,coverage,seasonal,local_irradiance(v.world,n));
