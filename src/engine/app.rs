@@ -1156,6 +1156,7 @@ pub fn run() -> Result<(), String> {
                 profile: args
                     .iter()
                     .any(|a| a == "--profile" || a == "--profile-120"),
+                profile_cpu: args.iter().any(|a| a == "--profile-cpu"),
                 realtime: args.iter().any(|a| a == "--profile-realtime"),
                 target_120: args.iter().any(|a| a == "--profile-120"),
                 night: args.iter().any(|a| a == "--night"),

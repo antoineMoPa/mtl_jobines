@@ -56,6 +56,7 @@ struct Parameters {
     muffler_step: AtomicU32,
     horn_gain: AtomicU32,
     horn_reset: AtomicBool,
+    engine_reset: AtomicBool,
     horn_frequency_a: AtomicU32,
     horn_frequency_b: AtomicU32,
     air_horn: AtomicBool,
@@ -142,6 +143,13 @@ impl Synth {
         self.seed as f32 / u32::MAX as f32 * 2. - 1.
     }
     fn sample(&mut self) -> f32 {
+        if self.parameters.engine_reset.swap(false, Ordering::Relaxed) {
+            // A recycled slot starts at the new engine's pitch, not a glide
+            // from the previous car. Slot reuse happens only after fade-out.
+            self.rpm = get(&self.parameters.rpm);
+            self.gain = 0.;
+            self.output = 0.;
+        }
         if self.parameters.horn_reset.load(Ordering::Relaxed) {
             self.horn_level = 0.;
             self.parameters.horn_reset.store(false, Ordering::Relaxed);
@@ -296,6 +304,8 @@ struct Spatial {
     id: usize,
     gear: usize,
     shifting: f32,
+    presence: f32,
+    present: bool,
 }
 impl Spatial {
     fn new(index: usize) -> Self {
@@ -320,6 +330,8 @@ impl Spatial {
             id: usize::MAX,
             gear: 0,
             shifting: 0.,
+            presence: 0.,
+            present: false,
         }
     }
     fn position(&mut self, position: Vec3, velocity: Vec3, frame: &Frame) {
@@ -344,6 +356,7 @@ impl Spatial {
             self.gear = 0;
             self.shifting = 0.;
             self.parameters.horn_reset.store(true, Ordering::Relaxed);
+            self.parameters.engine_reset.store(true, Ordering::Relaxed);
         }
         let speed = car.velocity.truncate().length();
         let sound = car.sound;
@@ -553,11 +566,13 @@ impl Mix {
         }
         let frame = self.frame;
         for voice in &mut self.voices[..CAR_VOICES] {
-            if !frame
+            voice.present = frame
                 .cars
                 .iter()
-                .any(|car| car.id != usize::MAX && car.id == voice.id)
-            {
+                .any(|car| car.id != usize::MAX && car.id == voice.id);
+            // Preserve the old profile and spatial state until it is silent.
+            // Reassigning immediately changes timbre/pitch at audible gain.
+            if !voice.present && voice.presence == 0. {
                 voice.id = usize::MAX;
                 put(&voice.parameters.gain, 0.);
             }
@@ -579,6 +594,7 @@ impl Mix {
                 });
             if let Some(slot) = slot {
                 self.voices[slot].car(car, &frame);
+                self.voices[slot].present = true;
             }
         }
         for i in 0..IMPACT_VOICES {
@@ -670,9 +686,17 @@ impl Iterator for Mix {
         }
         let mut l = 0.;
         let mut r = 0.;
-        for voice in &mut self.voices {
-            l += voice.renderer.next().unwrap_or(0.);
-            r += voice.renderer.next().unwrap_or(0.);
+        for (index, voice) in self.voices.iter_mut().enumerate() {
+            let envelope = if index < CAR_VOICES {
+                let target = if voice.present { 1. } else { 0. };
+                let step = 1. / (RATE as f32 * 0.02);
+                voice.presence += (target - voice.presence).clamp(-step, step);
+                voice.presence
+            } else {
+                1.
+            };
+            l += voice.renderer.next().unwrap_or(0.) * envelope;
+            r += voice.renderer.next().unwrap_or(0.) * envelope;
         }
         // Smooth bounded saturation, unity at low level, no hard clipping.
         let l = l * OUTPUT_GAIN;

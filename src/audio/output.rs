@@ -36,7 +36,10 @@ impl Backend {
         #[cfg(target_arch = "wasm32")]
         let config = cpal::StreamConfig {
             channels: 2,
-            buffer_size: cpal::BufferSize::Fixed(512),
+            // CPAL's web backend refills two alternating buffers from main-thread
+            // onended callbacks. 512 frames leave only ~11 ms at 48 kHz, less
+            // than one city render frame. Keep ~85 ms ahead for render jitter.
+            buffer_size: cpal::BufferSize::Fixed(4096),
             ..config
         };
         if config.channels == 0 || config.sample_rate.0 == 0 {

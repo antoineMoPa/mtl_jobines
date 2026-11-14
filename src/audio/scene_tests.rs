@@ -532,3 +532,65 @@ fn bus_retains_engine_tone_with_a_quieter_noise_bed() {
         "engine tone {tone} vs previous {old_tone}"
     );
 }
+
+#[test]
+fn traffic_slots_fade_to_silence_before_changing_source() {
+    let bridge = bridge();
+    let mut mix = Mix::new(bridge.clone());
+    let mut frame = Frame::default();
+    for (id, car) in frame.cars.iter_mut().enumerate() {
+        *car = Car {
+            id,
+            engine_on: true,
+            position: Vec3::X * (id + 2) as f32,
+            ..Car::default()
+        };
+    }
+    publish(&bridge, frame);
+    render(&mut mix, BLOCK * 8);
+    assert_eq!(mix.voices[0].presence, 1.);
+    frame.cars[0].id = 100;
+    frame.cars[0].sound.idle_rpm = 1500.;
+    publish(&bridge, frame);
+    render(&mut mix, BLOCK);
+    assert_eq!(mix.voices[0].id, 0, "outgoing engine must keep its profile");
+    assert!(mix.voices[0].presence > 0. && mix.voices[0].presence < 1.);
+    assert!(!mix.voices[0].present);
+    render(&mut mix, BLOCK);
+    assert_eq!(mix.voices[0].presence, 0.);
+    render(&mut mix, BLOCK);
+    assert_eq!(mix.voices[0].id, 100);
+    assert!(mix.voices[0].present);
+    assert!(mix.voices[0].presence > 0. && mix.voices[0].presence < 1.);
+    assert_eq!(get(&mix.voices[0].parameters.rpm), 1500.);
+}
+
+#[test]
+fn reused_engine_starts_at_requested_pitch_in_web_renderer() {
+    let mut voice = Spatial::new(0);
+    let mut car = Car {
+        id: 1,
+        engine_on: true,
+        position: Vec3::X * 2.,
+        ..Car::default()
+    };
+    voice.car(car, &Frame::default());
+    let mut synth = Synth::new(voice.parameters.clone(), 0, 1789);
+    for _ in 0..RATE / 10 {
+        synth.sample();
+    }
+    car.id = 2;
+    car.sound.idle_rpm = 1600.;
+    voice.car(car, &Frame::default());
+    synth.sample();
+    assert_eq!(synth.rpm, 1600., "no inherited engine pitch sweep");
+    assert!(synth.gain < 0.01, "replacement engine must fade in");
+    let (mut renderer, mut controller) = super::super::spatial_web::Renderer::new(synth);
+    controller.adjust_position([2., 1., 0.]);
+    controller.set_velocity([0., -20., 0.]);
+    let samples: Vec<_> = renderer.by_ref().take(RATE as usize / 5).collect();
+    assert!(samples
+        .iter()
+        .all(|value| value.is_finite() && value.abs() < 1.));
+    assert!(samples.iter().any(|value| value.abs() > 0.01));
+}

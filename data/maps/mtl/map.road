@@ -941,3 +941,7 @@ courtyard_tree_9 = prop(tree_linden_2, 3.6408434, 10.3800109, { heading: 16, ele
 courtyard_tree_10 = prop(tree, 3.8957332, 10.3875028, { heading: 63, elevation: 0.102 });
 courtyard_tree_11 = prop(tree_locust, 4.1506231, 10.3949947, { heading: 110, elevation: 0.102 });
 courtyard_tree_12 = prop(tree_linden_2, 4.4055129, 10.4024866, { heading: 157, elevation: 0.102 });
+
+placed_building_7 = building(0.2820000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: sandstone, glazing: smoke, section: piers, ground: retail, weathering: 0.65, seed: 334, setback: off, corners: stone, roof_units: 3 }, 1.3787738, 0.1154099, 1.5187124, 0.1195587, 1.5133783, 0.2994797, 1.3734397, 0.2953309);
+
+elevation(placed_building_7, 0.1010);

@@ -41,6 +41,11 @@ pub use player::WalkControls;
 pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VehicleId(usize);
+#[derive(Default)]
+pub(crate) struct StepProfile {
+    pub stages_ns: [u64; 8],
+    pub crowd_ns: [u64; 7],
+}
 pub struct DynamicWorld {
     season: crate::season::Season,
     pub(crate) snow: snow::Tracks,
@@ -330,8 +335,37 @@ impl DynamicWorld {
         self.vehicle_notice = 4.;
     }
     pub fn step(&mut self, hermes: &Hermes, input: Controls, walk: WalkControls, dt: f32) {
+        self.step_inner(hermes, input, walk, dt, None);
+    }
+    pub(crate) fn step_profiled(
+        &mut self,
+        hermes: &Hermes,
+        input: Controls,
+        walk: WalkControls,
+        dt: f32,
+        profile: &mut StepProfile,
+    ) {
+        self.step_inner(hermes, input, walk, dt, Some(profile));
+    }
+    fn step_inner(
+        &mut self,
+        hermes: &Hermes,
+        input: Controls,
+        walk: WalkControls,
+        dt: f32,
+        mut profile: Option<&mut StepProfile>,
+    ) {
         if !dt.is_finite() || dt <= 0. {
             return;
+        }
+        let mut mark = profile.as_ref().map(|_| web_time::Instant::now());
+        macro_rules! stage {
+            ($index:expr) => {
+                if let (Some(profile), Some(start)) = (profile.as_deref_mut(), mark.as_mut()) {
+                    profile.stages_ns[$index] += start.elapsed().as_nanos() as u64;
+                    *start = web_time::Instant::now();
+                }
+            };
         }
         self.vehicle_notice = (self.vehicle_notice - dt).max(0.);
         if self.traffic.needs_refill(dt) {
@@ -375,12 +409,14 @@ impl DynamicWorld {
             center,
             center_velocity,
         );
+        stage!(0);
         let ai = self.traffic.controls(
             hermes.city(),
             &self.vehicles,
             self.pedestrian.as_ref().map(|p| p.position),
             dt,
         );
+        stage!(1);
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
             let signal = if driving && i == self.player_vehicle.0 {
                 hermes.route_signal()
@@ -431,9 +467,11 @@ impl DynamicWorld {
             self.props.vehicle_move(vehicle, before, hermes.city());
             self.traffic.vehicle_move(vehicle, before, hermes.city());
         }
+        stage!(2);
         let contacts = contacts::resolve_with_contacts(&mut self.vehicles);
         self.traffic
             .record_contacts(&contacts, self.player_vehicle.0);
+        stage!(3);
         for hit in &mut self.sound_impacts {
             hit.age += dt;
         }
@@ -460,15 +498,30 @@ impl DynamicWorld {
             self.crowd
                 .player_move(hermes.city(), before, player.position, dt, &self.vehicles);
         }
+        stage!(4);
         self.props.step(dt);
-        self.crowd.step(
-            hermes.city(),
-            self.player_position(),
-            self.pedestrian.is_some(),
-            &self.vehicles,
-            &self.props,
-            dt,
-        );
+        stage!(5);
+        if let Some(profile) = profile.as_deref_mut() {
+            self.crowd.step_profiled(
+                hermes.city(),
+                self.player_position(),
+                self.pedestrian.is_some(),
+                &self.vehicles,
+                &self.props,
+                dt,
+                &mut profile.crowd_ns,
+            );
+        } else {
+            self.crowd.step(
+                hermes.city(),
+                self.player_position(),
+                self.pedestrian.is_some(),
+                &self.vehicles,
+                &self.props,
+                dt,
+            );
+        }
+        stage!(6);
         self.traffic.step_debris(dt);
         if self.season == crate::season::Season::Winter {
             self.snow_timer += dt;
@@ -480,6 +533,7 @@ impl DynamicWorld {
         if self.player_position().z < -40. {
             self.reset_player(hermes);
         }
+        stage!(7);
     }
     #[cfg(any(not(target_arch = "wasm32"), test))]
     pub(crate) fn use_full_traffic_physics(&mut self) {

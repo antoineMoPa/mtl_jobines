@@ -416,6 +416,39 @@ impl Crowd {
         props: &Props,
         dt: f32,
     ) {
+        self.step_inner(city, center, player_on_foot, vehicles, props, dt, None);
+    }
+    pub(super) fn step_profiled(
+        &mut self,
+        city: &City,
+        center: Vec3,
+        player_on_foot: bool,
+        vehicles: &[Vehicle],
+        props: &Props,
+        dt: f32,
+        profile: &mut [u64; 7],
+    ) {
+        self.step_inner(
+            city,
+            center,
+            player_on_foot,
+            vehicles,
+            props,
+            dt,
+            Some(profile),
+        );
+    }
+    fn step_inner(
+        &mut self,
+        city: &City,
+        center: Vec3,
+        player_on_foot: bool,
+        vehicles: &[Vehicle],
+        props: &Props,
+        dt: f32,
+        mut profile: Option<&mut [u64; 7]>,
+    ) {
+        let setup_started = profile.as_ref().map(|_| web_time::Instant::now());
         // A public world step can also be used by tools; bound displacement before
         // collision sampling even if a tool sends a long frame.
         let dt = dt.min(0.1);
@@ -453,6 +486,10 @@ impl Crowd {
             .iter()
             .map(|w| (w.serial, w.position, w.yaw))
             .collect();
+        if let (Some(profile), Some(started)) = (profile.as_deref_mut(), setup_started) {
+            profile[0] += started.elapsed().as_nanos() as u64;
+        }
+        let walking_started = profile.as_ref().map(|_| web_time::Instant::now());
         for walker in &mut self.walkers {
             walker.age += dt;
             walker.immunity = (walker.immunity - dt).max(0.);
@@ -516,6 +553,7 @@ impl Crowd {
                 }
                 continue;
             }
+            let impact_started = profile.as_ref().map(|_| web_time::Instant::now());
             if walker.immunity <= 0. {
                 if let Some(velocity) =
                     ragdoll::impact(walker.position, &self.previous_vehicles, vehicles, dt)
@@ -523,6 +561,9 @@ impl Crowd {
                     walker.fall(city, vehicles, velocity);
                     continue;
                 }
+            }
+            if let (Some(profile), Some(started)) = (profile.as_deref_mut(), impact_started) {
+                profile[6] += started.elapsed().as_nanos() as u64;
             }
             walker.idle_time += dt;
             walker.until_pause -= dt;
@@ -558,6 +599,7 @@ impl Crowd {
                 }
             }
             let forward = Vec3::new(walker.yaw.cos(), walker.yaw.sin(), 0.);
+            let preview_started = profile.as_ref().map(|_| web_time::Instant::now());
             let preview = walker.returning.map(|p| p.position).or_else(|| {
                 placement_offset(
                     city,
@@ -568,6 +610,10 @@ impl Crowd {
                 )
                 .map(|p| p.0)
             });
+            if let (Some(profile), Some(started)) = (profile.as_deref_mut(), preview_started) {
+                profile[5] += started.elapsed().as_nanos() as u64;
+            }
+            let blocked_started = profile.as_ref().map(|_| web_time::Instant::now());
             let blocked = preview.is_none_or(|p| {
                 props.blocked(p + Vec3::Z * 0.8)
                     || blocked_by_vehicle(p, vehicles)
@@ -586,6 +632,9 @@ impl Crowd {
                             && (!approaching || walker.serial > serial)
                     })
             });
+            if let (Some(profile), Some(started)) = (profile.as_deref_mut(), blocked_started) {
+                profile[3] += started.elapsed().as_nanos() as u64;
+            }
             let aim = preview.unwrap_or(walker.position + forward);
             let delta = aim - walker.position;
             let turn = if delta.truncate().length_squared() > 0.000001 {
@@ -602,6 +651,7 @@ impl Crowd {
             if walker.pause <= 0. {
                 walker.yaw += turn.clamp(-2.2 * dt, 2.2 * dt);
             }
+            let movement_started = profile.as_ref().map(|_| web_time::Instant::now());
             let mut moved = 0.;
             let travel = (walker.speed * dt).min(delta.truncate().length());
             if turn.abs() < 1.2 && travel > 0. {
@@ -631,8 +681,12 @@ impl Crowd {
                     walker.speed = 0.;
                 }
             }
+            if let (Some(profile), Some(started)) = (profile.as_deref_mut(), movement_started) {
+                profile[4] += started.elapsed().as_nanos() as u64;
+            }
             let definition = &pedestrian_catalog::definitions()[walker.model];
             let actual_speed = if dt > 0. { moved / dt } else { 0. };
+            let gait_started = profile.as_ref().map(|_| web_time::Instant::now());
             walker.gait.advance(
                 definition,
                 walker.position,
@@ -651,6 +705,9 @@ impl Crowd {
                     })
                 },
             );
+            if let (Some(profile), Some(started)) = (profile.as_deref_mut(), gait_started) {
+                profile[2] += started.elapsed().as_nanos() as u64;
+            }
             walker.speed = actual_speed;
             walker.blocked_time = if blocked {
                 walker.blocked_time + dt
@@ -678,6 +735,9 @@ impl Crowd {
                 0.
             };
             walker.movement += (movement - walker.movement).clamp(-dt * 4., dt * 4.);
+        }
+        if let (Some(profile), Some(started)) = (profile.as_deref_mut(), walking_started) {
+            profile[1] += started.elapsed().as_nanos() as u64;
         }
         self.previous_vehicles.clear();
         self.previous_vehicles

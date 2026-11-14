@@ -6,7 +6,7 @@ use super::prop_scenery::PropScenery;
 use super::render::Renderer;
 use super::scenery::Scenery;
 use crate::dynamic_world::{
-    Controls, DynamicWorld, SpawnPoint, Vehicle, WalkControls, METERS_PER_UNIT,
+    Controls, DynamicWorld, SpawnPoint, StepProfile, Vehicle, WalkControls, METERS_PER_UNIT,
 };
 use crate::hermes::Hermes;
 use glam::Vec3;
@@ -58,6 +58,7 @@ pub(super) struct SmokeOptions {
     pub(super) vehicle_lamps: bool,
     pub(super) hood: bool,
     pub(super) profile: bool,
+    pub(super) profile_cpu: bool,
     pub(super) realtime: bool,
     pub(super) target_120: bool,
     pub(super) night: bool,
@@ -101,6 +102,117 @@ pub(super) fn run(
         car.surface,
         car.collisions
     );
+    if options.profile_cpu {
+        let mut world =
+            DynamicWorld::with_vehicle_lineup(hermes, options.start, options.vehicle_lineup)?;
+        if std::env::args().any(|arg| arg == "--profile-full-traffic") {
+            world.use_full_traffic_physics();
+        }
+        let (frames, ticks) = if options.target_120 {
+            (1440, 1)
+        } else if options.realtime {
+            (720, 2)
+        } else {
+            (240, 8)
+        };
+        let mut mesh = Mesh::default();
+        let mut step_profile = StepProfile::default();
+        let mut step_times = Vec::with_capacity(frames);
+        let mut mesh_times = Vec::with_capacity(frames);
+        let mut instance_times = Vec::with_capacity(frames);
+        let mut prop_times = Vec::with_capacity(frames);
+        let mut total_times = Vec::with_capacity(frames);
+        let mut counts = [0_usize; 3];
+        for _ in 0..frames {
+            let frame = Instant::now();
+            for _ in 0..ticks {
+                world.step_profiled(
+                    hermes,
+                    Controls {
+                        throttle: 1.,
+                        ..Default::default()
+                    },
+                    WalkControls::default(),
+                    DT,
+                    &mut step_profile,
+                );
+            }
+            step_times.push(frame.elapsed().as_secs_f64() * 1000.);
+            let started = Instant::now();
+            world.write_moving_mesh(&mut mesh);
+            std::hint::black_box(&mesh);
+            mesh_times.push(started.elapsed().as_secs_f64() * 1000.);
+            let started = Instant::now();
+            let instances: Vec<_> = world.vehicle_instances().collect();
+            counts[0] += instances.len();
+            std::hint::black_box(instances);
+            instance_times.push(started.elapsed().as_secs_f64() * 1000.);
+            let started = Instant::now();
+            let props = world.visible_prop_batches();
+            counts[1] += props.len();
+            std::hint::black_box(props);
+            prop_times.push(started.elapsed().as_secs_f64() * 1000.);
+            total_times.push(frame.elapsed().as_secs_f64() * 1000.);
+            counts[2] += mesh.vertices.len();
+        }
+        for (label, mut times) in [
+            ("simulation", step_times),
+            ("moving mesh", mesh_times),
+            ("vehicle transforms", instance_times),
+            ("prop selection", prop_times),
+            ("CPU frame total", total_times),
+        ] {
+            times.sort_by(f64::total_cmp);
+            eprintln!(
+                "{label} ({ticks} ticks/frame): median {:.3} ms, p95 {:.3} ms, max {:.3} ms",
+                times[frames / 2],
+                times[frames * 95 / 100],
+                times[frames - 1]
+            );
+        }
+        eprintln!(
+            "Average per frame: {:.1} vehicles, {:.1} prop batches, {:.1} moving vertices",
+            counts[0] as f64 / frames as f64,
+            counts[1] as f64 / frames as f64,
+            counts[2] as f64 / frames as f64
+        );
+        for (label, ns) in [
+            "setup and physics LOD",
+            "traffic controls",
+            "vehicle stepping",
+            "vehicle contacts",
+            "sound and player pedestrian",
+            "props",
+            "crowd",
+            "debris, snow and remaining",
+        ]
+        .into_iter()
+        .zip(step_profile.stages_ns)
+        {
+            eprintln!(
+                "  {label}: {:.3} ms/frame mean",
+                ns as f64 / frames as f64 / 1e6
+            );
+        }
+        for (label, ns) in [
+            ("crowd setup", step_profile.crowd_ns[0]),
+            (
+                "crowd walking excluding gait",
+                step_profile.crowd_ns[1].saturating_sub(step_profile.crowd_ns[2]),
+            ),
+            ("crowd gait", step_profile.crowd_ns[2]),
+            ("crowd obstruction check", step_profile.crowd_ns[3]),
+            ("crowd ground and path movement", step_profile.crowd_ns[4]),
+            ("crowd path preview", step_profile.crowd_ns[5]),
+            ("crowd vehicle impact", step_profile.crowd_ns[6]),
+        ] {
+            eprintln!(
+                "  {label}: {:.3} ms/frame mean",
+                ns as f64 / frames as f64 / 1e6
+            );
+        }
+        return Ok(());
+    }
     let car = spawn_car()?;
     let p = car.position / METERS_PER_UNIT;
     let (width, height) = options.size;
