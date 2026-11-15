@@ -2,6 +2,11 @@ use super::*;
 use crate::kairos::{MissionId, SiteId};
 
 const LARGE_VEHICLE_CHASE_ZOOM: f32 = 0.9;
+const BUS_PASSENGERS: &[(u32, SiteId)] = &[
+    (1, SiteId::BusStop1),
+    (2, SiteId::BusStop1),
+    (3, SiteId::BusStop2),
+];
 
 impl Game {
     pub(super) fn abandon_mission(&mut self) {
@@ -50,11 +55,7 @@ impl Game {
         }
         let required: &[(u32, SiteId)] = match id {
             MissionId::Taxi => &[(1, SiteId::TaxiPickup)],
-            MissionId::Bus => &[
-                (1, SiteId::BusStop1),
-                (2, SiteId::BusStop1),
-                (3, SiteId::BusStop2),
-            ],
+            MissionId::Bus => BUS_PASSENGERS,
             MissionId::Snowplow => &[],
         };
         let Some(passengers) = required
@@ -202,6 +203,27 @@ impl Game {
         self.world.spawn_service_passenger(1, waiting);
         self.kairos.accept(MissionId::Taxi);
         self.refresh_mission_route();
+        self.scene_dirty = true;
+    }
+
+    pub(super) fn restart_bus_passengers(&mut self) {
+        let Some(passengers) = BUS_PASSENGERS
+            .iter()
+            .map(|(id, site)| {
+                self.hermes
+                    .mission_waiting_point(*site)
+                    .map(|point| (*id, point))
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            eprintln!("Bus waiting point unavailable for the next circuit");
+            return;
+        };
+        self.world.clear_service_passengers();
+        for (index, (id, point)) in passengers.into_iter().enumerate() {
+            self.world
+                .spawn_service_passenger(id, point + Vec3::X * (index as f32 * 0.6));
+        }
         self.scene_dirty = true;
     }
 }

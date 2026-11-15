@@ -141,7 +141,10 @@ highway_south = highway_reverse(highway_south_start, 2.838163907, -0.120945612, 
 
 grade(highway_south, 0.001999999999999988, 0.001999999999999988);
 
-center_barrier = highway_median(-5.487212345, -0.512835915, 7.007297684, -0.142404929);
+highway_median_west_join = map_point(-5.487212345, -0.512835915);
+highway_median_east = map_point(7.007297684, -0.142404929);
+
+center_barrier = highway_median(highway_median_west_join, -1.322375669, -0.389358920, 2.842461008, -0.265881924, highway_median_east);
 
 grade(center_barrier, 0.001999999999999988, 0.001999999999999988);
 
@@ -299,6 +302,39 @@ road junction_approach:
 end
 
 junction_climb_cut = terrain_cut(0.115661998, { slope_x: -0.038537067, slope_y: -0.001142528 }, -8.477523012, -0.884115278, -5.478830610, -0.795211545, -5.495574090, -0.230459692, -8.494266493, -0.319363425);
+
+# Complete the western climb through the existing excavation (bug report 65).
+# Separate placements preserve the ramp attachments on the original highway.
+# The pavement stays 0.002 above the cut; all six lanes share the existing seam refs.
+highway_north_west = map_point(-8.481607748, -0.746675964);
+highway_south_west = map_point(-8.490201747, -0.456803331);
+highway_median_west = map_point(-8.485904747, -0.601739648);
+
+highway_north_climb = highway_forward(highway_north_west, -7.482043614, -0.717041386, -6.482479480, -0.687406809, highway_north_start);
+grade(highway_north_climb, 0.117662384, 0.002);
+
+highway_south_climb = highway_reverse(highway_south_end, -6.491073479, -0.397534176, -7.490637613, -0.427168753, highway_south_west);
+grade(highway_south_climb, 0.002, 0.117662384);
+
+center_barrier_climb = highway_median(highway_median_west, -7.486340613, -0.572105070, -6.486776479, -0.542470493, highway_median_west_join);
+grade(center_barrier_climb, 0.117662384, 0.002);
+
+# Eastern climb: rise out of the trench to the flat terrain at 0.100001.
+# Overlap the excavation by 0.00001 so no retaining wall spans the shared seam.
+highway_east_climb_cut = terrain_cut(-0.000000333337, { slope_x: 0.033319137655, slope_y: 0.000987829145 }, 7.015659429, -0.424781151, 10.014371823, -0.335876825, 9.997628342, 0.228875028, 6.998915948, 0.139970702);
+
+highway_north_east = map_point(10.010287085, -0.198437511);
+highway_south_east = map_point(10.001693087, 0.091435122);
+highway_median_east_crest = map_point(10.005990086, -0.053501195);
+
+highway_north_east_climb = highway_forward(highway_north_end, 8.011158817, -0.257706667, 9.010722951, -0.228072089, highway_north_east);
+grade(highway_north_east_climb, 0.002, 0.102001);
+
+highway_south_east_climb = highway_reverse(highway_south_east, 9.002128953, 0.061800544, 8.002564819, 0.032165966, highway_south_start);
+grade(highway_south_east_climb, 0.102001, 0.002);
+
+center_barrier_east_climb = highway_median(highway_median_east, 8.006861818, -0.112770351, 9.006425952, -0.083135773, highway_median_east_crest);
+grade(center_barrier_east_climb, 0.002, 0.102001);
 
 cross_island_end = map_point(1.643345531, 1.422824589);
 

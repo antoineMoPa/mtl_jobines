@@ -8,6 +8,8 @@ const GREEN: Color32 = Color32::from_rgb(49, 125, 109);
 const PAPER: Color32 = Color32::from_rgb(246, 249, 247);
 const FONT: &str = "money_bold";
 const PHONE_BOTTOM: f32 = 20.;
+const CONTROL_KEY_COLUMN: f32 = 166.;
+const CONTROL_COLUMN_GAP: f32 = 18.;
 
 /// Positions corner actions from the bottom up, keeping each icon centered in one column.
 pub(super) struct CornerIcons {
@@ -102,7 +104,8 @@ fn arrow_key(painter: &egui::Painter, center: egui::Pos2, arrow: Arrow) {
 }
 
 fn arrows(ui: &mut egui::Ui) {
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(166., 80.), egui::Sense::hover());
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(CONTROL_KEY_COLUMN, 80.), egui::Sense::hover());
     let x = rect.center().x;
     let y = rect.top() + 19.;
     let painter = ui.painter();
@@ -112,9 +115,13 @@ fn arrows(ui: &mut egui::Ui) {
     arrow_key(painter, egui::pos2(x + 40., y + 40.), Arrow::Right);
 }
 
-fn letter_key(ui: &mut egui::Ui, label: &str, width: f32) {
-    let (column, _) = ui.allocate_exact_size(egui::vec2(width, 40.), egui::Sense::hover());
-    let rect = egui::Rect::from_min_size(column.min, egui::vec2(38., 38.));
+fn letter_key(ui: &mut egui::Ui, label: &str) {
+    let (column, _) =
+        ui.allocate_exact_size(egui::vec2(CONTROL_KEY_COLUMN, 40.), egui::Sense::hover());
+    let rect = egui::Rect::from_center_size(
+        egui::pos2(column.center().x, column.top() + 19.),
+        egui::vec2(38., 38.),
+    );
     let painter = ui.painter();
     painter.rect_filled(rect, 7., Color32::WHITE);
     painter.rect_stroke(rect, 7., Stroke::new(2., INK), egui::StrokeKind::Inside);
@@ -129,8 +136,8 @@ fn letter_key(ui: &mut egui::Ui, label: &str, width: f32) {
 
 fn control_row(ui: &mut egui::Ui, key: &str, label: &str) {
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 18.;
-        letter_key(ui, key, 166.);
+        ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
+        letter_key(ui, key);
         ui.label(
             RichText::new(label)
                 .color(INK)
@@ -167,7 +174,7 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
                 .show(ui, |ui| {
                     ui.set_width(width - 44.);
                     ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 18.;
+                        ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
                         arrows(ui);
                         ui.label(
                             RichText::new("Se déplacer")
@@ -186,7 +193,8 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
                     ui.separator();
                     ui.add_space(16.);
                     ui.horizontal(|ui| {
-                        letter_key(ui, "?", 38.);
+                        ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
+                        letter_key(ui, "?");
                         ui.label(
                             RichText::new("Retrouvez cette aide à tout moment.")
                                 .color(MUTED)

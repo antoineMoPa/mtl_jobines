@@ -101,7 +101,6 @@ pub(crate) enum MissionObjective {
     BusStop1,
     BusStop2,
     BusStop3,
-    BusComplete,
     SnowClearing,
 }
 
@@ -114,7 +113,6 @@ impl MissionObjective {
             Self::BusStop1 => "Approche-toi de l'arrêt 1/3 et arrête-toi",
             Self::BusStop2 => "Approche-toi de l'arrêt 2/3 et arrête-toi",
             Self::BusStop3 => "Approche-toi de l'arrêt 3/3 et arrête-toi",
-            Self::BusComplete => "Ligne terminée",
             Self::SnowClearing => "Déneige les rues",
         }
     }
@@ -286,6 +284,9 @@ impl Kairos {
         let Some(mission) = self.active.as_mut() else {
             return;
         };
+        let bus_loop = mission.id() == MissionId::Bus
+            && mission.target() == Some(SiteId::BusStop3)
+            && matches!(&event, MissionEvent::StopServed);
         let was_complete = mission.complete();
         let cents = mission.event(&event);
         if cents > 0 {
@@ -296,6 +297,10 @@ impl Kairos {
         }
         if !was_complete && mission.complete() {
             self.progress.completed.increment(mission.id());
+            self.dirty = true;
+        }
+        if bus_loop {
+            self.progress.completed.increment(MissionId::Bus);
             self.dirty = true;
         }
     }
@@ -358,19 +363,26 @@ mod tests {
     }
 
     #[test]
-    fn completed_bus_run_survives_save_round_trip() {
+    fn bus_circuits_repeat_and_survive_save_round_trip() {
         let mut kairos = Kairos::default();
         kairos.accept(MissionId::Bus);
         for _ in 0..4 {
             kairos.event(MissionEvent::StopServed);
         }
-        assert!(kairos.is_complete());
-        assert_eq!(kairos.money_cents(), 2400);
+        assert!(!kairos.is_complete());
+        assert_eq!(kairos.target(), Some(SiteId::BusStop2));
+        assert_eq!(kairos.money_cents(), 3200);
         assert_eq!(kairos.completed(MissionId::Bus), 1);
+        for _ in 0..2 {
+            kairos.event(MissionEvent::StopServed);
+        }
+        assert_eq!(kairos.target(), Some(SiteId::BusStop1));
+        assert_eq!(kairos.money_cents(), 4800);
+        assert_eq!(kairos.completed(MissionId::Bus), 2);
         let bytes = serde_json::to_vec(&kairos.progress).unwrap();
         let loaded = save::decode(&bytes).unwrap();
-        assert_eq!(loaded.money_cents, 2400);
-        assert_eq!(loaded.completed.bus, 1);
+        assert_eq!(loaded.money_cents, 4800);
+        assert_eq!(loaded.completed.bus, 2);
     }
 
     #[test]

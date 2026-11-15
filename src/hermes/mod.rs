@@ -9,6 +9,8 @@ mod game_data;
 pub(crate) mod landmark_destinations;
 pub(crate) mod landmarks;
 pub(crate) use landmark_destinations::Landmark;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod highway_tests;
 mod minimap;
 mod mission_sites;
 mod orange_sign;

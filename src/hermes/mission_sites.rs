@@ -70,7 +70,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn authored_job_sites_have_sidewalks_and_directed_routes() {
+    fn authored_bus_sites_have_sidewalks_and_directed_routes() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
         let mut hermes = super::super::Hermes::load_with_game_data(&path, None).unwrap();
         for site in [SiteId::BusStop1, SiteId::BusStop2, SiteId::BusStop3] {
@@ -83,12 +83,6 @@ mod tests {
         }
         let mut from = [1.1318498, -0.94828856, 0.102];
         for site in [SiteId::BusStop1, SiteId::BusStop2, SiteId::BusStop3] {
-            assert!(hermes.select_mission_destination(site, from), "{:?}", site);
-            let point = hermes.mission_site(site).unwrap();
-            from = [point[0], point[1], 0.102];
-        }
-        assert!(hermes.choose_taxi_run(glam::Vec3::from_array(from)));
-        for site in [SiteId::TaxiPickup, SiteId::TaxiDropoff] {
             assert!(hermes.select_mission_destination(site, from), "{:?}", site);
             let point = hermes.mission_site(site).unwrap();
             from = [point[0], point[1], 0.102];

@@ -394,7 +394,13 @@ impl Game {
             self.accumulator -= DT;
         }
         if self.world.take_service_finished() {
+            let finished_bus_circuit = self.kairos.active_id()
+                == Some(crate::kairos::MissionId::Bus)
+                && self.kairos.target() == Some(crate::kairos::SiteId::BusStop3);
             self.kairos.service_finished();
+            if finished_bus_circuit {
+                self.restart_bus_passengers();
+            }
             if self.kairos.active_id() == Some(crate::kairos::MissionId::Taxi)
                 && self.kairos.is_complete()
             {

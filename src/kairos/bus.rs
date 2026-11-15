@@ -1,8 +1,26 @@
 use super::{Mission, MissionEvent, MissionId, MissionObjective, ServicePlan, SiteId};
 
+#[derive(Clone, Copy, Default)]
+enum BusStop {
+    #[default]
+    First,
+    Second,
+    Third,
+}
+
+impl BusStop {
+    fn next(&self) -> Self {
+        match self {
+            Self::First => Self::Second,
+            Self::Second => Self::Third,
+            Self::Third => Self::First,
+        }
+    }
+}
+
 #[derive(Default)]
 pub(super) struct BusMission {
-    served: u8,
+    next_stop: BusStop,
 }
 
 impl Mission for BusMission {
@@ -11,44 +29,41 @@ impl Mission for BusMission {
     }
 
     fn objective(&self) -> MissionObjective {
-        match self.served {
-            0 => MissionObjective::BusStop1,
-            1 => MissionObjective::BusStop2,
-            2 => MissionObjective::BusStop3,
-            _ => MissionObjective::BusComplete,
+        match self.next_stop {
+            BusStop::First => MissionObjective::BusStop1,
+            BusStop::Second => MissionObjective::BusStop2,
+            BusStop::Third => MissionObjective::BusStop3,
         }
     }
 
     fn target(&self) -> Option<SiteId> {
-        match self.served {
-            0 => Some(SiteId::BusStop1),
-            1 => Some(SiteId::BusStop2),
-            2 => Some(SiteId::BusStop3),
-            _ => None,
-        }
+        Some(match self.next_stop {
+            BusStop::First => SiteId::BusStop1,
+            BusStop::Second => SiteId::BusStop2,
+            BusStop::Third => SiteId::BusStop3,
+        })
     }
 
     fn service_plan(&self) -> Option<ServicePlan> {
-        match self.served {
-            0 => Some(ServicePlan {
+        Some(match self.next_stop {
+            BusStop::First => ServicePlan {
                 board: &[1, 2],
                 alight: &[],
-            }),
-            1 => Some(ServicePlan {
+            },
+            BusStop::Second => ServicePlan {
                 board: &[3],
                 alight: &[1],
-            }),
-            2 => Some(ServicePlan {
+            },
+            BusStop::Third => ServicePlan {
                 board: &[],
                 alight: &[2, 3],
-            }),
-            _ => None,
-        }
+            },
+        })
     }
 
     fn event(&mut self, event: &MissionEvent) -> u64 {
-        if self.served < 3 && matches!(event, MissionEvent::StopServed) {
-            self.served += 1;
+        if matches!(event, MissionEvent::StopServed) {
+            self.next_stop = self.next_stop.next();
             800
         } else {
             0
@@ -56,6 +71,6 @@ impl Mission for BusMission {
     }
 
     fn complete(&self) -> bool {
-        self.served == 3
+        false
     }
 }

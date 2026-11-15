@@ -6,7 +6,7 @@ use egui::{Color32, RichText};
 const INK: Color32 = Color32::from_rgb(38, 62, 61);
 const MUTED: Color32 = Color32::from_rgb(101, 126, 121);
 const GREEN: Color32 = Color32::from_rgb(49, 125, 109);
-const MONEY_BLUE: Color32 = Color32::from_rgb(0, 72, 254);
+const MONEY_GREEN: Color32 = Color32::from_rgb(102, 170, 148);
 const HUD_PAPER: Color32 = Color32::from_rgb(226, 226, 233);
 const MONEY_FONT: &str = "money_bold";
 
@@ -131,12 +131,15 @@ pub(super) fn show(
             let (rect, _) =
                 ui.allocate_exact_size(galley.size() + egui::vec2(4., 4.), egui::Sense::hover());
             let painter = ui.painter();
-            painter.galley(
-                rect.min + egui::vec2(2., 2.),
-                galley.clone(),
-                Color32::WHITE,
-            );
-            painter.galley(rect.min, galley, MONEY_BLUE);
+            for offset in [
+                egui::vec2(0., 0.),
+                egui::vec2(0., 4.),
+                egui::vec2(4., 0.),
+                egui::vec2(4., 4.),
+            ] {
+                painter.galley(rect.min + offset, galley.clone(), INK);
+            }
+            painter.galley(rect.min + egui::vec2(2., 2.), galley, MONEY_GREEN);
         });
     if let Some(objective) = kairos.objective() {
         egui::Area::new(egui::Id::new("job_objective"))
@@ -154,7 +157,7 @@ pub(super) fn show(
                         ));
                         if let Some(MissionProgress::ClearedDistanceKm(km)) = kairos.progress() {
                             ui.add_space(10.);
-                            ui.label(RichText::new(format!("{km:.2} km")).color(MONEY_BLUE).font(
+                            ui.label(RichText::new(format!("{km:.2} km")).color(GREEN).font(
                                 egui::FontId::new(16., egui::FontFamily::Name(MONEY_FONT.into())),
                             ));
                         }
