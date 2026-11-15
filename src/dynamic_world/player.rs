@@ -13,7 +13,8 @@ pub(super) const RADIUS: f32 = 0.4;
 const MODEL: usize = pedestrian_catalog::PLAYER_SUMMER_MODEL;
 const WALK_SPEED: f32 = 5.2;
 const RUN_SPEED: f32 = 15.6;
-const GAIT_SPEED: f32 = 5.2;
+const WALK_GAIT_SPEED: f32 = 5.2;
+const RUN_GAIT_SPEED: f32 = 3.45;
 const ACCELERATION: f32 = 24.;
 const BRAKING: f32 = 32.;
 const GRAVITY: f32 = 9.81;
@@ -200,8 +201,12 @@ impl Pedestrian {
         }
         self.jump_held = input.jump;
         self.speed += (target - self.speed).clamp(-BRAKING * dt, ACCELERATION * dt);
-        let animation_scale = if self.speed.abs() > GAIT_SPEED {
-            GAIT_SPEED / self.speed.abs()
+        self.gait
+            .set_running(self.speed.abs() > WALK_SPEED * 1.05, dt);
+        let run_speed = ((self.speed.abs() - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)).clamp(0., 1.);
+        let gait_speed = WALK_GAIT_SPEED + (RUN_GAIT_SPEED - WALK_GAIT_SPEED) * run_speed;
+        let animation_scale = if self.speed.abs() > gait_speed {
+            gait_speed / self.speed.abs()
         } else {
             1.
         };
@@ -283,8 +288,10 @@ impl Pedestrian {
             turn / dt,
         );
         if landed {
-            self.gait = Gait::new_player(model, foot, self.yaw, |p| footing(city, p, false));
+            self.gait
+                .land(model, foot, self.yaw, |p| footing(city, p, false));
         } else if self.jump.is_airborne() {
+            self.gait.set_air_velocity(self.vertical_speed);
             self.gait.airborne(model, foot, self.yaw, jump_motion, dt);
         } else if matches!(self.jump, Jump::Preparing { .. }) {
             self.gait.prepare_jump(
@@ -307,7 +314,7 @@ impl Pedestrian {
                 model,
                 foot,
                 self.yaw,
-                target.clamp(-GAIT_SPEED, GAIT_SPEED),
+                target.clamp(-gait_speed, gait_speed),
                 foot + Vec3::new(self.yaw.cos(), self.yaw.sin(), 0.)
                     * if self.speed < 0. { -1. } else { 1. },
                 dt,

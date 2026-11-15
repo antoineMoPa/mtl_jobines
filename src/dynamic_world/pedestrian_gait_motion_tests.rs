@@ -1,0 +1,100 @@
+use super::*;
+use crate::dynamic_world::pedestrian_catalog;
+
+fn flat(p: Vec3) -> Option<Ground> {
+    Some(Ground {
+        point: p.truncate().extend(0.),
+        gradient: [0., 0.],
+    })
+}
+
+#[test]
+fn run_has_flight_and_keeps_support_fixed_before_toe_off() {
+    let model = &pedestrian_catalog::definitions()[pedestrian_catalog::PLAYER_SUMMER_MODEL];
+    let mut gait = Gait::new_player(model, Vec3::ZERO, 0., flat);
+    gait.set_running(true, 1.);
+    let mut flight_frames = 0;
+    let mut contact_frames = 0;
+    let mut previous = gait.feet.map(|f| f.position);
+    for frame in 1..=360 {
+        let position = Vec3::X * frame as f32 * 3.45 / 120.;
+        gait.advance(
+            model,
+            position,
+            0.,
+            3.45,
+            position + Vec3::X,
+            1. / 120.,
+            flat,
+        );
+        assert!(gait.reach_error < 0.06, "reach {}", gait.reach_error);
+        assert!(gait.palette.iter().all(|m| m.is_finite()));
+        if gait.phase > 0.15 && gait.phase < 0.6 {
+            let support = 1 - gait.swing;
+            assert!(gait.feet[support].position.distance(previous[support]) < 0.0001);
+            contact_frames += 1;
+        }
+        if gait
+            .feet
+            .iter()
+            .enumerate()
+            .all(|(i, f)| f.position.y > gait.rig.ankles[i].y + 0.005)
+        {
+            flight_frames += 1;
+        }
+        for (i, foot) in gait.feet.iter().enumerate() {
+            assert!(
+                foot.position.distance(previous[i]) < 0.14,
+                "step discontinuity"
+            );
+            assert!(foot.position.x.abs() < 0.03, "foot left narrow lane");
+        }
+        previous = gait.feet.map(|f| f.position);
+    }
+    assert!(contact_frames > 20);
+    assert!(flight_frames > 20, "running never entered flight");
+}
+
+#[test]
+fn jump_tucks_at_apex_reaches_before_landing_and_blends_on_contact() {
+    let model = &pedestrian_catalog::definitions()[pedestrian_catalog::PLAYER_SUMMER_MODEL];
+    let mut gait = Gait::new_player(model, Vec3::ZERO, 0., flat);
+    for frame in 0..100 {
+        let t = frame as f32 / 120.;
+        gait.set_air_velocity(5.4 - 9.81 * t);
+        gait.airborne(model, Vec3::Z, 0., JumpMotion::default(), 1. / 120.);
+        if frame == 60 {
+            assert!(gait.air_tuck() > 0.9);
+        }
+    }
+    gait.set_air_velocity(-5.4);
+    assert_eq!(gait.air_tuck(), 0.);
+    let before = gait.palette;
+    gait.land(model, Vec3::ZERO, 0., flat);
+    for (a, b) in before.iter().zip(gait.palette) {
+        assert!(a.abs_diff_eq(b, 0.0001));
+    }
+    for _ in 0..30 {
+        gait.advance(model, Vec3::ZERO, 0., 0., Vec3::X, 1. / 120., flat);
+        assert!(gait.palette.iter().all(|m| m.is_finite()));
+    }
+    assert!(gait.landing.is_none());
+
+    // An immediate second jump must not freeze the preceding landing blend.
+    gait.land(model, Vec3::ZERO, 0., flat);
+    for _ in 0..24 {
+        gait.prepare_jump(
+            model,
+            Vec3::ZERO,
+            0.,
+            JumpPreparation {
+                compression: 0.5,
+                extension: 0.,
+                motion: JumpMotion::default(),
+            },
+            1. / 120.,
+            flat,
+        );
+    }
+    assert!(gait.landing.is_none());
+}

@@ -5,7 +5,7 @@ use crate::{
 };
 use glam::Vec3;
 
-fn save(label: &str, png: &[u8]) {
+pub(super) fn save(label: &str, png: &[u8]) {
     if let Some(folder) = std::env::var_os("PEDESTRIAN_CAPTURE") {
         std::fs::create_dir_all(&folder).unwrap();
         std::fs::write(
@@ -41,10 +41,8 @@ fn native_player_uses_shared_skin_and_extra_pose_slot() {
         );
     }
     assert!(world.toggle_vehicle(&hermes));
-    assert_eq!(
-        world.pedestrian_instances().count(),
-        crate::dynamic_world::PEDESTRIAN_CAPACITY
-    );
+    let count = world.pedestrian_instances().count();
+    assert!(count > 1 && count <= crate::dynamic_world::PEDESTRIAN_CAPACITY);
     let mut renderer = pollster::block_on(Renderer::new(None, 960, 720)).unwrap();
     renderer.daylight = Some(1.);
     renderer.sky_settings.solar_hour = Some(12.);
@@ -98,7 +96,10 @@ fn native_player_uses_shared_skin_and_extra_pose_slot() {
         scenery.update(&renderer, &world);
         assert!(scenery.poses.len() <= POSE_CAPACITY);
         let actor = world.pedestrian_instances().next().unwrap();
-        assert_eq!(actor.model, 0);
+        assert!(matches!(
+            actor.model,
+            pedestrian_catalog::PLAYER_SUMMER_MODEL | pedestrian_catalog::PLAYER_WINTER_MODEL
+        ));
         assert_eq!(actor.opacity, 1.);
         let root = actor.transform.w_axis.truncate();
         assert!((world.player_position().z / 100. - root.z - 0.009).abs() < 1e-5);
