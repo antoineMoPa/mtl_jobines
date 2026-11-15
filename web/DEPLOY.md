@@ -5,10 +5,12 @@ This game is a static Cloudflare Pages direct-upload project. It uses the includ
 
 ## One-time setup
 
-Use Node.js 22 or newer. Install Wrangler on your `PATH` and authenticate with
-`wrangler login`, or set `WRANGLER_BIN` to an existing Wrangler executable.
-If your shell selects an older Node version, set `NODE_BIN` to the absolute path
-of a newer Node executable. For an API token, Wrangler also
+Use Node.js 22 or newer. The commands run `npx --yes wrangler`, which downloads
+Wrangler on first use if needed. Authenticate with `npx wrangler login`.
+The release commands look for a compatible Node on `PATH`, in nvm, or in
+Homebrew. Set `NODE_BIN` to its absolute path if Node is installed elsewhere.
+You can set `WRANGLER_BIN` to an existing Wrangler
+executable to skip `npx`. For an API token, Wrangler also
 accepts `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in the environment.
 Do not put credentials in the repository.
 

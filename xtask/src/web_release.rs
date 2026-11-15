@@ -1,6 +1,10 @@
 //! Build and publish the browser game as a static Pages site.
 
-use std::{env, fs, path::Path, process::Command};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use crate::Result;
 
@@ -104,11 +108,59 @@ fn production_branch() -> String {
     env::var("PAGES_BRANCH").unwrap_or_else(|_| "main".to_owned())
 }
 
-fn wrangler() -> String {
-    env::var("WRANGLER_BIN").unwrap_or_else(|_| "wrangler".to_owned())
+fn has_supported_node_version(binary: &Path) -> bool {
+    let Ok(output) = Command::new(binary).arg("--version").output() else {
+        return false;
+    };
+    if !output.status.success() {
+        return false;
+    }
+    let Ok(version) = std::str::from_utf8(&output.stdout) else {
+        return false;
+    };
+    version
+        .trim()
+        .strip_prefix('v')
+        .and_then(|version| version.split('.').next())
+        .and_then(|major| major.parse::<u32>().ok())
+        .is_some_and(|major| major >= 22)
 }
 
-fn run(root: &Path, program: &str, args: &[&str]) -> Result<()> {
+fn compatible_node() -> Option<PathBuf> {
+    let search_path = env::var_os("PATH").unwrap_or_default();
+    for directory in env::split_paths(&search_path) {
+        let binary = directory.join("node");
+        if has_supported_node_version(&binary) {
+            return Some(binary);
+        }
+    }
+    let nvm_roots = [
+        env::var_os("NVM_DIR").map(PathBuf::from),
+        env::var_os("HOME").map(|home| PathBuf::from(home).join(".nvm")),
+    ];
+    for root in nvm_roots.into_iter().flatten() {
+        if let Ok(versions) = fs::read_dir(root.join("versions/node")) {
+            for version in versions.flatten() {
+                let binary = version.path().join("bin/node");
+                if has_supported_node_version(&binary) {
+                    return Some(binary);
+                }
+            }
+        }
+    }
+    for binary in [
+        "/opt/homebrew/opt/node/bin/node",
+        "/usr/local/opt/node/bin/node",
+    ] {
+        let binary = PathBuf::from(binary);
+        if has_supported_node_version(&binary) {
+            return Some(binary);
+        }
+    }
+    None
+}
+
+fn run(root: &Path, program: &str, args: &[&str], uses_node: bool) -> Result<()> {
     let mut command = Command::new(program);
     command.args(args).current_dir(root);
     if env::var_os("WRANGLER_LOG_PATH").is_none() {
@@ -117,8 +169,15 @@ fn run(root: &Path, program: &str, args: &[&str]) -> Result<()> {
             env::temp_dir().join("mtl-jobines-wrangler-logs"),
         );
     }
-    if let Some(node_binary) = env::var_os("NODE_BIN") {
-        let node_binary = Path::new(&node_binary);
+    let node_binary = match env::var_os("NODE_BIN") {
+        Some(binary) => Some(PathBuf::from(binary)),
+        None if uses_node => Some(
+            compatible_node()
+                .ok_or("Wrangler requires Node.js 22 or newer; install it or set NODE_BIN")?,
+        ),
+        None => None,
+    };
+    if let Some(node_binary) = node_binary {
         if !node_binary.is_absolute() || !node_binary.is_file() {
             return Err("NODE_BIN must be the absolute path to a Node executable".into());
         }
@@ -138,27 +197,40 @@ fn run(root: &Path, program: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
+fn wrangler(root: &Path, args: &[&str], dry_run: bool) -> Result<()> {
+    let (program, mut command_args) = match env::var("WRANGLER_BIN") {
+        Ok(binary) => (binary, Vec::new()),
+        Err(_) => ("npx".to_owned(), vec!["--yes", "wrangler"]),
+    };
+    command_args.extend_from_slice(args);
+    if dry_run {
+        println!("Dry run: {program} {}", command_args.join(" "));
+        return Ok(());
+    }
+    run(root, &program, &command_args, true)
+}
+
 pub fn create_project(root: &Path) -> Result<()> {
     let project = project_name();
     let branch = format!("--production-branch={}", production_branch());
-    run(
+    wrangler(
         root,
-        &wrangler(),
         &["pages", "project", "create", &project, &branch],
+        false,
     )
 }
 
 pub fn deploy(root: &Path, dry_run: bool) -> Result<()> {
-    run(root, "bash", &["scripts/build-web.sh"])?;
+    run(root, "bash", &["scripts/build-web.sh"], false)?;
     check(root)?;
     let project = project_name();
     let project_arg = format!("--project-name={project}");
     let branch_arg = format!("--branch={}", production_branch());
     let args = ["pages", "deploy", "web/dist", &project_arg, &branch_arg];
     if dry_run {
-        run(root, &wrangler(), &["--version"])?;
-        println!("Dry run: {} {}", wrangler(), args.join(" "));
+        wrangler(root, &["--version"], false)?;
+        wrangler(root, &args, true)?;
         return Ok(());
     }
-    run(root, &wrangler(), &args)
+    wrangler(root, &args, false)
 }

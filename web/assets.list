@@ -46,6 +46,7 @@ data/pedestrian/06.glb
 data/pedestrian/player-winter.glb
 data/pedestrian/player.glb
 assets/terrain/grass.png
+assets/fonts/OFL.txt
 assets/jobines/worker-portrait-01.png
 assets/jobines/driver-portrait-01.png
 assets/jobines/plow-portrait-01.png

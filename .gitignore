@@ -1,6 +1,7 @@
 /target/
 *.ppm
 /web/dist/
+/.wrangler/
 /bug-reports/
 
 # OpenCity launch snapshots may be generated beside any edited map.
@@ -14,6 +15,7 @@
 __pycache__/
 *.txt
 !/low_poly_car_to_replace.txt
+!/assets/fonts/OFL.txt
 
 research/**
 data/maps/montreal

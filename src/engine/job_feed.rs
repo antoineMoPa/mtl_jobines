@@ -16,7 +16,7 @@ pub(super) fn install_font(ctx: &egui::Context) {
     fonts.font_data.insert(
         MONEY_FONT.to_owned(),
         std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
-            "../../assets/fonts/money-bold.ttf"
+            "../../assets/fonts/pt-sans-bold.ttf"
         ))),
     );
     fonts.families.insert(
