@@ -1,6 +1,6 @@
 <!-- please don't touch this file unless asked -->
 
-# mtl_jobine
+# mtl_jobines
 
 ![MTL Jobines splash screen showing a snowy Montréal street](web/boot.png)
 
