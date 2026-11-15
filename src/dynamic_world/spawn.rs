@@ -13,23 +13,31 @@ pub struct SpawnPoint {
 impl SpawnPoint {
     /// Authored default shared by native and browser maps; CLI coordinates override it.
     pub(crate) fn from_program(program: &opencity::Program) -> Result<Option<Self>, String> {
+        Self::from_named_program(program, "player_start")
+    }
+    pub(crate) fn walking_from_program(
+        program: &opencity::Program,
+    ) -> Result<Option<Self>, String> {
+        Self::from_named_program(program, "pedestrian_start")
+    }
+    fn from_named_program(program: &opencity::Program, name: &str) -> Result<Option<Self>, String> {
         let mut result = None;
         for statement in &program.statements {
             let opencity::Statement::Call(call) = statement else {
                 continue;
             };
-            if call.name != "player_start" {
+            if call.name != name {
                 continue;
             }
             if result.is_some() {
-                return Err("Only one player_start is allowed".into());
+                return Err(format!("Only one {name} is allowed"));
             }
             let values = call
                 .args
                 .iter()
                 .map(|argument| match argument {
                     opencity::Argument::Number(value) => Ok(value.as_str()),
-                    _ => Err("player_start expects x,y[,heading-degrees]".to_string()),
+                    _ => Err(format!("{name} expects x,y[,heading-degrees]")),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             result = Some(values.join(",").parse()?);
@@ -148,6 +156,16 @@ mod tests {
         assert_eq!(read("").unwrap(), None);
         assert_eq!(
             read("player_start(2,3,90);").unwrap(),
+            Some(SpawnPoint {
+                point: [2., 3.],
+                heading: Some(std::f32::consts::FRAC_PI_2),
+            })
+        );
+        assert_eq!(
+            SpawnPoint::walking_from_program(
+                &opencity::parse("pedestrian_start(2,3,90);").unwrap()
+            )
+            .unwrap(),
             Some(SpawnPoint {
                 point: [2., 3.],
                 heading: Some(std::f32::consts::FRAC_PI_2),

@@ -22,6 +22,8 @@ impl Harness {
         let matrix = self.renderer.view_projection(eye, look);
         let ctx = self.palette.ctx.clone();
         let mut action = None;
+        let mut help_visible = false;
+        let mut menu_selection = super::super::hud::MenuItem::Resume;
         let output = ctx.run_ui(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -40,6 +42,9 @@ impl Harness {
                     self.hermes.city(),
                     &crate::kairos::Kairos::default(),
                     false,
+                    &mut help_visible,
+                    super::super::hud::Overlay::Driving,
+                    &mut menu_selection,
                 );
             },
         );

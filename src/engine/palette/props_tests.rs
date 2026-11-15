@@ -51,6 +51,8 @@ fn native_props_game_flow_renders_shared_models_and_the_game_toolbar() {
         let (eye, look, center) = palette.build_camera().unwrap();
         let matrix = renderer.view_projection(eye, look);
         let ctx = palette.ctx.clone();
+        let mut help_visible = false;
+        let mut menu_selection = super::super::hud::MenuItem::Resume;
         let mut output = ctx.run_ui(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -68,6 +70,9 @@ fn native_props_game_flow_renders_shared_models_and_the_game_toolbar() {
                     hermes.city(),
                     &crate::kairos::Kairos::default(),
                     false,
+                    &mut help_visible,
+                    super::super::hud::Overlay::Driving,
+                    &mut menu_selection,
                 );
             },
         );

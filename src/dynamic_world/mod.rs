@@ -62,6 +62,7 @@ pub struct DynamicWorld {
     player_vehicle: VehicleId,
     vehicle_notice: f32,
     pedestrian: Option<Pedestrian>,
+    walking_spawn: Option<SpawnPoint>,
     vehicle_spawns: Vec<SpawnPoint>,
     snow_events: Vec<crate::kairos::SnowCell>,
     props: props::Props,
@@ -84,6 +85,7 @@ impl DynamicWorld {
         start: Option<SpawnPoint>,
         vehicle_lineup: bool,
     ) -> Result<Self, String> {
+        let walking_start = start.is_none().then(|| hermes.walking_start()).flatten();
         let start = start.or(hermes.default_start()).or_else(|| {
             let city = hermes.city();
             (!city.roads.iter().any(|road| {
@@ -110,7 +112,13 @@ impl DynamicWorld {
                 .position(|definition| definition.config.name == "Boreal Colline")
                 .expect("bundled Boreal Colline default vehicle"),
         ));
-        let prop_center = vehicle.position;
+        let prop_center = walking_start.map_or(vehicle.position, |point| {
+            Vec3::new(
+                point.point[0] * METERS_PER_UNIT,
+                point.point[1] * METERS_PER_UNIT,
+                vehicle.position.z,
+            )
+        });
         let mut world = Self {
             season: Default::default(),
             snow: snow::Tracks::default(),
@@ -129,6 +137,7 @@ impl DynamicWorld {
             player_vehicle: VehicleId(0),
             vehicle_notice: 4.,
             pedestrian: None,
+            walking_spawn: None,
             vehicle_spawns: Vec::new(),
             snow_events: Vec::new(),
             props: props::Props::from_parts_near(hermes.prop_parts(), prop_center),
@@ -149,6 +158,19 @@ impl DynamicWorld {
         if let Some(start) = start {
             // Preserve authored coordinates instead of rounding through game metres.
             world.vehicle_spawns[0].point = start.point;
+        }
+        if let Some(point) = walking_start {
+            let pedestrian = Pedestrian::at(hermes.city(), point)?;
+            if world.props.blocked(pedestrian.position)
+                || world
+                    .vehicles
+                    .iter()
+                    .any(|vehicle| player::blocked_by_vehicle(pedestrian.position, vehicle))
+            {
+                return Err("Selected walking start overlaps a prop or vehicle".into());
+            }
+            world.pedestrian = Some(pedestrian);
+            world.walking_spawn = Some(point);
         }
         world.populate_traffic(hermes);
         world.crowd.populate(
@@ -365,7 +387,9 @@ impl DynamicWorld {
             Vehicle::spawn_at(hermes.city(), self.vehicle_spawns[self.player_vehicle.0])
                 .expect("validated parking position");
         self.vehicles[self.player_vehicle.0].set_catalog_model(definition);
-        self.pedestrian = None;
+        self.pedestrian = self
+            .walking_spawn
+            .map(|start| Pedestrian::at(hermes.city(), start).expect("validated walking start"));
         self.vehicle_notice = 4.;
     }
     pub fn step(&mut self, hermes: &Hermes, input: Controls, walk: WalkControls, dt: f32) {

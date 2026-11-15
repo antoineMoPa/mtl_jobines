@@ -114,6 +114,7 @@ fn detailed_frontage(feature: &opencity::LandscapeFeature) -> bool {
 pub struct Hermes {
     authored_props: Vec<crate::props::Entry>,
     default_start: Option<crate::dynamic_world::SpawnPoint>,
+    walking_start: Option<crate::dynamic_world::SpawnPoint>,
     mission_sites: mission_sites::MissionSites,
     taxi_run: Option<taxi_runs::TaxiRun>,
     taxi_seed: u64,
@@ -288,6 +289,7 @@ impl Hermes {
         Ok(Self {
             authored_props,
             default_start: crate::dynamic_world::SpawnPoint::from_program(program)?,
+            walking_start: crate::dynamic_world::SpawnPoint::walking_from_program(program)?,
             mission_sites: mission_sites::MissionSites::from_program(program),
             taxi_run: None,
             taxi_seed: web_time::SystemTime::now()
@@ -310,6 +312,9 @@ impl Hermes {
     }
     pub(crate) fn default_start(&self) -> Option<crate::dynamic_world::SpawnPoint> {
         self.default_start
+    }
+    pub(crate) fn walking_start(&self) -> Option<crate::dynamic_world::SpawnPoint> {
+        self.walking_start
     }
     pub(crate) fn mission_site(&self, site: crate::kairos::SiteId) -> Option<[f32; 2]> {
         use crate::kairos::SiteId;

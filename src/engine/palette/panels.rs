@@ -22,8 +22,25 @@ impl Palette {
         city: &opencity::runtime::City,
         kairos: &Kairos,
         walking: bool,
+        help_visible: &mut bool,
+        game_overlay: Overlay,
+        menu_selection: &mut MenuItem,
     ) -> Option<PaletteAction> {
         let ctx = ui.ctx().clone();
+        if *help_visible {
+            super::super::help::show(&ctx, help_visible, game_overlay == Overlay::Start);
+            return None;
+        }
+        if matches!(game_overlay, Overlay::Start | Overlay::Menu) {
+            self.menu_clicked = super::super::help::menu(&ctx, game_overlay, menu_selection);
+            return None;
+        }
+        let mut icons = super::super::help::CornerIcons::new(walking);
+        let phone_anchor = walking.then(|| icons.place(88.));
+        let help_anchor = icons.place(56.);
+        if game_overlay == Overlay::Driving && !self.is_open() {
+            super::super::help::indicator(&ctx, &self.help_icon, help_visible, help_anchor);
+        }
         let mut selected = None;
         #[cfg(not(target_arch = "wasm32"))]
         let reporting = self.bug_report.is_open();
@@ -78,7 +95,7 @@ impl Palette {
             &mut self.job_feed_open,
             kairos,
             renderer.overlay,
-            walking,
+            phone_anchor,
             Some(&self.job_portraits),
         ) {
             selected = Some(action);

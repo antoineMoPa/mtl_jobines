@@ -88,6 +88,23 @@ pub(super) fn blocked_by_vehicle(position: Vec3, vehicle: &Vehicle) -> bool {
         && relative.truncate().dot(left).abs() < vehicle.width() * 0.5 + RADIUS
 }
 impl Pedestrian {
+    pub(super) fn at(city: &City, start: super::SpawnPoint) -> Result<Self, String> {
+        let support = city
+            .surface_at(start.point, f32::INFINITY)
+            .ok_or_else(|| "Selected walking start has no ground support".to_string())?;
+        if support.kind == opencity::runtime::SurfaceKind::Water {
+            return Err("Selected walking start is in water".into());
+        }
+        let position = Vec3::new(
+            start.point[0] * METERS_PER_UNIT,
+            start.point[1] * METERS_PER_UNIT,
+            support.height * METERS_PER_UNIT + HALF_HEIGHT,
+        );
+        if Self::blocked(city, position) {
+            return Err("Selected walking start overlaps a building or barrier".into());
+        }
+        Ok(Self::new(city, position, start.heading.unwrap_or(0.)))
+    }
     pub(super) fn new(city: &City, position: Vec3, yaw: f32) -> Self {
         Self {
             position,

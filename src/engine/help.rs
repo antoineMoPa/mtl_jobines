@@ -1,0 +1,315 @@
+//! First-play controls and the in-game help key.
+use super::hud::{MenuItem, Overlay};
+use egui::{Color32, RichText, Stroke};
+
+const INK: Color32 = Color32::from_rgb(38, 62, 61);
+const MUTED: Color32 = Color32::from_rgb(101, 126, 121);
+const GREEN: Color32 = Color32::from_rgb(49, 125, 109);
+const PAPER: Color32 = Color32::from_rgb(246, 249, 247);
+const FONT: &str = "money_bold";
+const PHONE_BOTTOM: f32 = 20.;
+
+/// Positions corner actions from the bottom up, keeping each icon centered in one column.
+pub(super) struct CornerIcons {
+    right: f32,
+    bottom: f32,
+    column_width: f32,
+    gap: f32,
+}
+
+impl CornerIcons {
+    pub(super) fn new(walking: bool) -> Self {
+        if walking {
+            Self {
+                right: 20.,
+                bottom: PHONE_BOTTOM,
+                column_width: 88.,
+                gap: 12.,
+            }
+        } else {
+            // The vehicle-name HUD starts 48 px above the bottom edge.
+            Self {
+                right: 16.,
+                bottom: 58.,
+                column_width: 56.,
+                gap: 12.,
+            }
+        }
+    }
+
+    pub(super) fn place(&mut self, size: f32) -> egui::Vec2 {
+        let offset = egui::vec2(-self.right - (self.column_width - size) * 0.5, -self.bottom);
+        self.bottom += size + self.gap;
+        offset
+    }
+}
+
+pub(super) fn load_icon(ctx: &egui::Context) -> egui::TextureHandle {
+    let mut reader =
+        png::Decoder::new(include_bytes!("../../assets/jobines/help-button.png").as_slice())
+            .read_info()
+            .expect("help icon PNG");
+    let mut pixels = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut pixels).expect("help icon pixels");
+    assert_eq!(info.color_type, png::ColorType::Rgba);
+    ctx.load_texture(
+        "help key icon",
+        egui::ColorImage::from_rgba_unmultiplied(
+            [info.width as usize, info.height as usize],
+            &pixels[..info.buffer_size()],
+        ),
+        egui::TextureOptions::LINEAR,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum Arrow {
+    Up,
+    Left,
+    Down,
+    Right,
+}
+
+fn arrow_key(painter: &egui::Painter, center: egui::Pos2, arrow: Arrow) {
+    let rect = egui::Rect::from_center_size(center, egui::vec2(36., 36.));
+    painter.rect_filled(rect, 7., Color32::WHITE);
+    painter.rect_stroke(rect, 7., Stroke::new(2., INK), egui::StrokeKind::Inside);
+    let (shaft, head_a, head_b) = match arrow {
+        Arrow::Up => (
+            [egui::vec2(0., 8.), egui::vec2(0., -8.)],
+            [egui::vec2(-6., -2.), egui::vec2(0., -8.)],
+            [egui::vec2(0., -8.), egui::vec2(6., -2.)],
+        ),
+        Arrow::Left => (
+            [egui::vec2(8., 0.), egui::vec2(-8., 0.)],
+            [egui::vec2(-2., -6.), egui::vec2(-8., 0.)],
+            [egui::vec2(-8., 0.), egui::vec2(-2., 6.)],
+        ),
+        Arrow::Down => (
+            [egui::vec2(0., -8.), egui::vec2(0., 8.)],
+            [egui::vec2(-6., 2.), egui::vec2(0., 8.)],
+            [egui::vec2(0., 8.), egui::vec2(6., 2.)],
+        ),
+        Arrow::Right => (
+            [egui::vec2(-8., 0.), egui::vec2(8., 0.)],
+            [egui::vec2(2., -6.), egui::vec2(8., 0.)],
+            [egui::vec2(8., 0.), egui::vec2(2., 6.)],
+        ),
+    };
+    for [from, to] in [shaft, head_a, head_b] {
+        painter.line_segment([center + from, center + to], Stroke::new(2.5, INK));
+    }
+}
+
+fn arrows(ui: &mut egui::Ui) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(166., 80.), egui::Sense::hover());
+    let x = rect.center().x;
+    let y = rect.top() + 19.;
+    let painter = ui.painter();
+    arrow_key(painter, egui::pos2(x, y), Arrow::Up);
+    arrow_key(painter, egui::pos2(x - 40., y + 40.), Arrow::Left);
+    arrow_key(painter, egui::pos2(x, y + 40.), Arrow::Down);
+    arrow_key(painter, egui::pos2(x + 40., y + 40.), Arrow::Right);
+}
+
+fn letter_key(ui: &mut egui::Ui, label: &str, width: f32) {
+    let (column, _) = ui.allocate_exact_size(egui::vec2(width, 40.), egui::Sense::hover());
+    let rect = egui::Rect::from_min_size(column.min, egui::vec2(38., 38.));
+    let painter = ui.painter();
+    painter.rect_filled(rect, 7., Color32::WHITE);
+    painter.rect_stroke(rect, 7., Stroke::new(2., INK), egui::StrokeKind::Inside);
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        label,
+        egui::FontId::new(21., egui::FontFamily::Name(FONT.into())),
+        INK,
+    );
+}
+
+fn control_row(ui: &mut egui::Ui, key: &str, label: &str) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 18.;
+        letter_key(ui, key, 166.);
+        ui.label(
+            RichText::new(label)
+                .color(INK)
+                .font(egui::FontId::new(18., egui::FontFamily::Name(FONT.into()))),
+        );
+    });
+}
+
+fn shade(ctx: &egui::Context) {
+    let bounds = ctx.content_rect();
+    egui::Area::new(egui::Id::new("help_shade"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(bounds.min)
+        .show(ctx, |ui| {
+            let (rect, _) = ui.allocate_exact_size(bounds.size(), egui::Sense::hover());
+            ui.painter()
+                .rect_filled(rect, 0., Color32::from_rgba_unmultiplied(23, 45, 54, 187));
+        });
+}
+
+pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
+    let bounds = ctx.content_rect();
+    shade(ctx);
+    egui::Area::new(egui::Id::new("help_card"))
+        .order(egui::Order::Foreground)
+        .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+        .show(ctx, |ui| {
+            let width = (bounds.width() - 32.).min(510.).max(250.);
+            egui::Frame::new()
+                .fill(PAPER)
+                .stroke(Stroke::new(4., INK))
+                .corner_radius(18)
+                .inner_margin(egui::Margin::same(22))
+                .show(ui, |ui| {
+                    ui.set_width(width - 44.);
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 18.;
+                        arrows(ui);
+                        ui.label(
+                            RichText::new("Se déplacer")
+                                .color(INK)
+                                .font(egui::FontId::new(18., egui::FontFamily::Name(FONT.into()))),
+                        );
+                    });
+                    ui.separator();
+                    ui.add_space(8.);
+                    control_row(ui, "F", "Entrer ou sortir du véhicule");
+                    ui.add_space(8.);
+                    ui.separator();
+                    ui.add_space(8.);
+                    control_row(ui, "P", "Ouvrir le téléphone");
+                    ui.add_space(8.);
+                    ui.separator();
+                    ui.add_space(16.);
+                    ui.horizontal(|ui| {
+                        letter_key(ui, "?", 38.);
+                        ui.label(
+                            RichText::new("Retrouvez cette aide à tout moment.")
+                                .color(MUTED)
+                                .font(egui::FontId::new(15., egui::FontFamily::Name(FONT.into()))),
+                        );
+                    });
+                    ui.add_space(18.);
+                    let label = if first_play { "JOUER" } else { "REPRENDRE" };
+                    let (button, response) =
+                        ui.allocate_exact_size(egui::vec2(width - 44., 56.), egui::Sense::click());
+                    ui.painter().rect_filled(
+                        button,
+                        10.,
+                        if response.hovered() {
+                            Color32::from_rgb(62, 147, 129)
+                        } else {
+                            GREEN
+                        },
+                    );
+                    ui.painter().text(
+                        button.center(),
+                        egui::Align2::CENTER_CENTER,
+                        label,
+                        egui::FontId::new(22., egui::FontFamily::Name(FONT.into())),
+                        Color32::WHITE,
+                    );
+                    if response.clicked() {
+                        *open = false;
+                    }
+                });
+        });
+}
+
+pub(super) fn menu(
+    ctx: &egui::Context,
+    overlay: Overlay,
+    selection: &mut MenuItem,
+) -> Option<MenuItem> {
+    let bounds = ctx.content_rect();
+    shade(ctx);
+    let mut clicked = None;
+    egui::Area::new(egui::Id::new("game_menu_card"))
+        .order(egui::Order::Foreground)
+        .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+        .show(ctx, |ui| {
+            let width = (bounds.width() - 32.).min(360.).max(250.);
+            egui::Frame::new()
+                .fill(PAPER)
+                .stroke(Stroke::new(4., INK))
+                .corner_radius(18)
+                .inner_margin(egui::Margin::same(22))
+                .show(ui, |ui| {
+                    ui.set_width(width - 44.);
+                    for (item, label) in [
+                        (
+                            MenuItem::Resume,
+                            if overlay == Overlay::Start {
+                                "JOUER"
+                            } else {
+                                "REPRENDRE"
+                            },
+                        ),
+                        (MenuItem::Map, "CARTE"),
+                        (MenuItem::Exit, "QUITTER"),
+                    ] {
+                        let (rect, response) = ui.allocate_exact_size(
+                            egui::vec2(width - 44., 52.),
+                            egui::Sense::click(),
+                        );
+                        if response.hovered() {
+                            *selection = item;
+                        }
+                        let active = *selection == item || response.hovered();
+                        ui.painter().rect_filled(
+                            rect,
+                            10.,
+                            if active { GREEN } else { Color32::WHITE },
+                        );
+                        ui.painter().rect_stroke(
+                            rect,
+                            10.,
+                            Stroke::new(2., INK),
+                            egui::StrokeKind::Inside,
+                        );
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            label,
+                            egui::FontId::new(22., egui::FontFamily::Name(FONT.into())),
+                            if active { Color32::WHITE } else { INK },
+                        );
+                        if response.clicked() {
+                            clicked = Some(item);
+                        }
+                        ui.add_space(10.);
+                    }
+                });
+        });
+    clicked
+}
+
+pub(super) fn indicator(
+    ctx: &egui::Context,
+    icon: &egui::TextureHandle,
+    open: &mut bool,
+    offset: egui::Vec2,
+) {
+    egui::Area::new(egui::Id::new("help_key"))
+        .anchor(egui::Align2::RIGHT_BOTTOM, offset)
+        .show(ctx, |ui| {
+            let (rect, response) =
+                ui.allocate_exact_size(egui::vec2(56., 56.), egui::Sense::click());
+            ui.painter().image(
+                icon.id(),
+                rect,
+                egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1., 1.)),
+                Color32::WHITE,
+            );
+            if response
+                .on_hover_text("Afficher les commandes (?)")
+                .clicked()
+            {
+                *open = true;
+            }
+        });
+}

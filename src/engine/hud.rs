@@ -116,15 +116,6 @@ impl FullMapView {
         uv.iter().all(|v| (0. ..=1.).contains(v)).then_some(uv)
     }
 }
-pub fn resume_rect(width: f32, height: f32) -> [f32; 4] {
-    [width * 0.5 - 110., height * 0.5, 220., 56.]
-}
-pub fn map_rect(width: f32, height: f32) -> [f32; 4] {
-    [width * 0.5 - 110., height * 0.5 + 68., 220., 48.]
-}
-pub fn exit_rect(width: f32, height: f32) -> [f32; 4] {
-    [width * 0.5 - 110., height * 0.5 + 128., 220., 48.]
-}
 pub fn contains(rect: [f32; 4], point: [f32; 2]) -> bool {
     point[0] >= rect[0]
         && point[0] <= rect[0] + rect[2]

@@ -1,5 +1,6 @@
 //! Shared OpenCity palette, with a small painter for the game's wgpu 23 device.
 //! egui-wgpu 0.36 targets a newer wgpu, so its renderer cannot share this device.
+use super::hud::{MenuItem, Overlay};
 use super::render::Renderer;
 use crate::hermes::Landmark;
 use crate::kairos::{Kairos, MissionId};
@@ -227,6 +228,8 @@ pub struct Palette {
     sky_open: bool,
     sound_open: bool,
     job_feed_open: bool,
+    help_icon: egui::TextureHandle,
+    pub(super) menu_clicked: Option<MenuItem>,
     job_portraits: super::job_feed::Portraits,
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) bug_report: super::bug_report::Dialog,
@@ -261,6 +264,7 @@ impl Palette {
         ctx.set_theme(egui::ThemePreference::Dark);
         super::job_feed::install_font(&ctx);
         let job_portraits = super::job_feed::load_portraits(&ctx);
+        let help_icon = super::help::load_icon(&ctx);
         Self {
             report_overlay: None,
             props: None,
@@ -281,6 +285,8 @@ impl Palette {
             sky_open: false,
             sound_open: false,
             job_feed_open: false,
+            help_icon,
+            menu_clicked: None,
             job_portraits,
             bug_report: Default::default(),
             commands: commands(&[]),
@@ -292,6 +298,7 @@ impl Palette {
         ctx.set_theme(egui::ThemePreference::Dark);
         super::job_feed::install_font(&ctx);
         let job_portraits = super::job_feed::load_portraits(&ctx);
+        let help_icon = super::help::load_icon(&ctx);
         let input = Input::new(
             ctx.clone(),
             egui::ViewportId::ROOT,
@@ -316,6 +323,8 @@ impl Palette {
             sky_open: false,
             sound_open: false,
             job_feed_open: false,
+            help_icon,
+            menu_clicked: None,
             job_portraits,
             #[cfg(not(target_arch = "wasm32"))]
             bug_report: Default::default(),
@@ -465,12 +474,26 @@ impl Palette {
         city: &opencity::runtime::City,
         kairos: &Kairos,
         walking: bool,
+        help_visible: &mut bool,
+        game_overlay: Overlay,
+        menu_selection: &mut MenuItem,
     ) -> Option<PaletteAction> {
         let mut selected = None;
+        self.menu_clicked = None;
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(self.input.take_egui_input(window), |ui| {
-            selected =
-                self.show_panels(ui, renderer, sound, view_projection, city, kairos, walking);
+            selected = self.show_panels(
+                ui,
+                renderer,
+                sound,
+                view_projection,
+                city,
+                kairos,
+                walking,
+                help_visible,
+                game_overlay,
+                menu_selection,
+            );
         });
         self.input
             .handle_platform_output(window, output.platform_output);

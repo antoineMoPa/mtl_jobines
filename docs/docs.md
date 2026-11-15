@@ -163,6 +163,9 @@ The snapshot is removed on exit; launch failures appear in the editor.
 `--start` takes map-unit X/Y and optional heading, counterclockwise from east; omitted heading
 follows a nearby lane. Browser builds accept `?start=-24,3,90` on the embedded map. Spawning uses
 the highest supported surface and rejects water, buildings and unsupported positions.
+The bundled map also declares `pedestrian_start(x, y, heading_degrees)` for normal launches to
+begin on foot. `player_start` keeps the car's parking and reset position; an explicit `--start`
+or browser `?start=` begins in the car instead.
 
 ## Cache and bundled game data
 

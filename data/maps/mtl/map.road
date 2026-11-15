@@ -3,6 +3,7 @@ elevation_map("elevation.png", -76.8, -76.8, 153.6, 153.6, -0.18, 1.2);
 water_level(0);
 
 player_start(1.1318498, -0.94828856, -80.17438820378175);
+pedestrian_start(2.1649537, 1.6698667, -120.95461);
 
 # Bus stops; taxi stops are selected from the current road network at runtime.
 mission_bus_stop_1 = map_point(2.0, -0.63);

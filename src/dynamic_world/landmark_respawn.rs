@@ -184,6 +184,7 @@ impl DynamicWorld {
         self.vehicles[self.player_vehicle.0] = vehicle;
         self.vehicle_spawns[self.player_vehicle.0] = spawn;
         self.pedestrian = None;
+        self.walking_spawn = None;
         self.vehicle_notice = 4.;
         self.sound_geography_timer = 0.;
         self.populate_traffic(hermes);

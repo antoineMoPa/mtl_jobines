@@ -9,7 +9,6 @@ const GREEN: Color32 = Color32::from_rgb(49, 125, 109);
 const MONEY_BLUE: Color32 = Color32::from_rgb(0, 72, 254);
 const HUD_PAPER: Color32 = Color32::from_rgb(226, 226, 233);
 const MONEY_FONT: &str = "money_bold";
-const PHONE_BOTTOM: f32 = 20.;
 
 pub(super) fn install_font(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
@@ -113,7 +112,7 @@ pub(super) fn show(
     open: &mut bool,
     kairos: &Kairos,
     overlay: Overlay,
-    walking: bool,
+    phone_anchor: Option<egui::Vec2>,
     portraits: Option<&Portraits>,
 ) -> Option<super::palette::PaletteAction> {
     if overlay != Overlay::Driving {
@@ -162,9 +161,9 @@ pub(super) fn show(
                     });
             });
     }
-    if !*open && walking {
+    if let Some(phone_anchor) = phone_anchor.filter(|_| !*open) {
         egui::Area::new(egui::Id::new("job_phone"))
-            .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-20., -PHONE_BOTTOM))
+            .anchor(egui::Align2::RIGHT_BOTTOM, phone_anchor)
             .show(ctx, |ui| {
                 let (rect, response) =
                     ui.allocate_exact_size(egui::vec2(88., 88.), egui::Sense::click());
@@ -368,7 +367,7 @@ mod tests {
         install_font(&ctx);
         let kairos = Kairos::test_session();
         let mut open = false;
-        let point = egui::pos2(758., 600. - PHONE_BOTTOM - 22.);
+        let point = egui::pos2(758., 600. - 20. - 22.);
         for events in [
             vec![],
             vec![],
@@ -398,7 +397,14 @@ mod tests {
                     ..Default::default()
                 },
                 |_| {
-                    let _ = show(&ctx, &mut open, &kairos, Overlay::Driving, true, None);
+                    let _ = show(
+                        &ctx,
+                        &mut open,
+                        &kairos,
+                        Overlay::Driving,
+                        Some(egui::vec2(-20., -20.)),
+                        None,
+                    );
                 },
             );
             output.textures_delta.clear();

@@ -26,7 +26,7 @@ use winit::{
     application::ApplicationHandler,
     event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
+    keyboard::{Key, KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
 pub(super) const DT: f32 = 1. / 120.;
@@ -113,6 +113,7 @@ struct Game {
     cursor_hide_at: Option<Instant>,
     cursor_hidden: bool,
     overlay: Overlay,
+    help_visible: bool,
     full_map: hud::FullMapView,
     menu_selection: MenuItem,
     hood: bool,
@@ -205,6 +206,7 @@ impl Game {
             self.world.reset_player(&self.hermes);
             self.scene_dirty = true;
             self.set_overlay(Overlay::Start);
+            self.help_visible = false;
         }
     }
     fn set_overlay(&mut self, overlay: Overlay) {
@@ -214,6 +216,7 @@ impl Game {
             self.cursor_activity(Instant::now());
         }
         self.overlay = overlay;
+        self.help_visible = overlay == Overlay::Start;
         self.full_map.selection = hud::MapSelection::Route;
         if overlay == Overlay::Driving {
             self.audio.user_gesture();
@@ -337,6 +340,7 @@ impl Game {
             } else {
                 Overlay::Start
             },
+            help_visible: start.is_none(),
             menu_selection: MenuItem::Resume,
             full_map: Default::default(),
             hood: false,
@@ -352,6 +356,7 @@ impl Game {
         self.hidden
             || self.minimized
             || self.overlay.paused()
+            || self.help_visible
             || self.palette.as_ref().is_some_and(|p| p.is_open())
     }
     fn horn_requested(&self) -> bool {
@@ -611,7 +616,11 @@ impl Game {
                 .minimap_view([p.x, p.y], self.world.player_yaw())
                 .player_uv;
         }
-        renderer.overlay = self.overlay;
+        renderer.overlay = if matches!(self.overlay, Overlay::Start | Overlay::Menu) {
+            Overlay::Driving
+        } else {
+            self.overlay
+        };
         renderer.full_map = self.full_map;
         renderer.menu_selection = self.menu_selection;
         renderer.fps = self.frame_rate.value;
@@ -665,6 +674,8 @@ impl Game {
         let texture = renderer.surface.as_ref().unwrap().get_current_texture();
         let suboptimal = matches!(&texture, wgpu::CurrentSurfaceTexture::Suboptimal(_));
         let mut palette_action = None;
+        let mut menu_clicked = None;
+        let help_before_draw = self.help_visible;
         match texture {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
@@ -683,7 +694,11 @@ impl Game {
                         self.hermes.city(),
                         &self.kairos,
                         !self.world.is_driving(),
+                        &mut self.help_visible,
+                        self.overlay,
+                        &mut self.menu_selection,
                     );
+                    menu_clicked = palette.menu_clicked.take();
                     #[cfg(not(target_arch = "wasm32"))]
                     if palette_action == Some(PaletteAction::BugReport) {
                         let screenshot = renderer.report_screenshot_with_overlay(
@@ -761,6 +776,28 @@ impl Game {
         }
         if let Some(action) = palette_action {
             self.apply_palette_action(action);
+        }
+        match menu_clicked {
+            Some(MenuItem::Resume) => self.set_overlay(Overlay::Driving),
+            Some(MenuItem::Map) => self.set_overlay(Overlay::Map),
+            Some(MenuItem::Exit) => self.exit_game(event_loop),
+            None => {}
+        }
+        if self.help_visible != help_before_draw {
+            self.window.as_ref().unwrap().request_redraw();
+        }
+        if self.help_visible {
+            self.audio.silence();
+            self.keys.clear();
+            self.dragging = false;
+            self.accumulator = 0.;
+            self.cursor_hide_at = None;
+            self.cursor_hidden = false;
+            if let Some(window) = &self.window {
+                window.set_cursor_visible(true);
+            }
+        } else if help_before_draw && self.overlay == Overlay::Start {
+            self.set_overlay(Overlay::Driving);
         }
         if !self.simulation_paused() && self.surface_retry.is_none() {
             self.window.as_ref().unwrap().request_redraw();
@@ -865,6 +902,55 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        if let WindowEvent::KeyboardInput {
+            event: key_event, ..
+        } = &event
+        {
+            let question = key_event.text.as_deref() == Some("?")
+                || matches!(&key_event.logical_key, Key::Character(text) if text.as_str() == "?");
+            if key_event.state == ElementState::Pressed && !key_event.repeat {
+                if self.help_visible
+                    && (question
+                        || matches!(
+                            key_event.physical_key,
+                            PhysicalKey::Code(
+                                KeyCode::Escape | KeyCode::Enter | KeyCode::NumpadEnter
+                            )
+                        ))
+                {
+                    self.help_visible = false;
+                    self.accumulator = 0.;
+                    self.last = Instant::now();
+                    if self.overlay == Overlay::Start {
+                        self.set_overlay(Overlay::Driving);
+                    } else if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                    return;
+                }
+                if question
+                    && self.overlay != Overlay::Start
+                    && !self
+                        .palette
+                        .as_ref()
+                        .is_some_and(|palette| palette.is_open())
+                {
+                    self.help_visible = true;
+                    self.keys.clear();
+                    self.dragging = false;
+                    self.accumulator = 0.;
+                    self.audio.silence();
+                    self.show_cursor();
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                    return;
+                }
+            }
+            if self.help_visible {
+                return;
+            }
+        }
         let audio_gesture = match &event {
             WindowEvent::KeyboardInput { event, .. } => {
                 event.state == ElementState::Pressed && !event.repeat
@@ -891,6 +977,25 @@ impl ApplicationHandler<GameEvent> for Game {
             }
             let consumed = palette.event(window, &event);
             let open = palette.is_open();
+            if self.help_visible
+                && matches!(
+                    event,
+                    WindowEvent::Ime(_)
+                        | WindowEvent::MouseInput { .. }
+                        | WindowEvent::MouseWheel { .. }
+                        | WindowEvent::CursorMoved { .. }
+                        | WindowEvent::Touch(_)
+                )
+            {
+                if let WindowEvent::CursorMoved { position, .. } = &event {
+                    self.cursor = Some([position.x as f32, position.y as f32]);
+                    self.cursor_hide_at = None;
+                    self.cursor_hidden = false;
+                    window.set_cursor_visible(true);
+                }
+                window.request_redraw();
+                return;
+            }
             let phone_shortcut = matches!(&event, WindowEvent::KeyboardInput { event, .. }
                 if event.physical_key == PhysicalKey::Code(KeyCode::KeyP)
                     && event.state == ElementState::Pressed && !event.repeat
@@ -1134,21 +1239,6 @@ impl ApplicationHandler<GameEvent> for Game {
                         Overlay::Driving if hud::minimap_contains(w, h, point) => {
                             self.set_overlay(Overlay::Map)
                         }
-                        Overlay::Start | Overlay::Menu
-                            if hud::contains(hud::map_rect(w, h), point) =>
-                        {
-                            self.set_overlay(Overlay::Map)
-                        }
-                        Overlay::Start | Overlay::Menu
-                            if hud::contains(hud::exit_rect(w, h), point) =>
-                        {
-                            self.exit_game(event_loop)
-                        }
-                        Overlay::Start | Overlay::Menu
-                            if hud::contains(hud::resume_rect(w, h), point) =>
-                        {
-                            self.set_overlay(Overlay::Driving)
-                        }
                         Overlay::Map
                             if hud::contains([w - 68., 20., 48., 48.], point)
                                 || !hud::contains([20., 20., w - 40., h - 40.], point) =>
@@ -1165,28 +1255,6 @@ impl ApplicationHandler<GameEvent> for Game {
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_activity(Instant::now());
                 self.move_camera_with_cursor([position.x as f32, position.y as f32]);
-                if matches!(self.overlay, Overlay::Start | Overlay::Menu) {
-                    if let Some(window) = &self.window {
-                        let size = window.inner_size();
-                        let (w, h) = (size.width as f32, size.height as f32);
-                        let point = self.cursor.unwrap();
-                        let selection = if hud::contains(hud::resume_rect(w, h), point) {
-                            Some(MenuItem::Resume)
-                        } else if hud::contains(hud::map_rect(w, h), point) {
-                            Some(MenuItem::Map)
-                        } else if hud::contains(hud::exit_rect(w, h), point) {
-                            Some(MenuItem::Exit)
-                        } else {
-                            None
-                        };
-                        if let Some(selection) = selection {
-                            if selection != self.menu_selection {
-                                self.menu_selection = selection;
-                                window.request_redraw();
-                            }
-                        }
-                    }
-                }
             }
             WindowEvent::RedrawRequested => self.frame(event_loop),
             _ => {}

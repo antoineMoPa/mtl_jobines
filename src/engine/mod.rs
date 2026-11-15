@@ -18,6 +18,7 @@ mod frame_rate;
 mod gpu_profile;
 mod graffiti;
 mod grass;
+mod help;
 mod hud;
 mod job_feed;
 mod lighting;

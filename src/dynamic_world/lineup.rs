@@ -102,6 +102,13 @@ mod tests {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
         let mut world = DynamicWorld::new(&hermes);
+        let walking = hermes
+            .walking_start()
+            .expect("current map has a walking start");
+        assert!(!world.is_driving());
+        assert!((world.player_position().x / METERS_PER_UNIT - walking.point[0]).abs() < 0.00001);
+        assert!((world.player_position().y / METERS_PER_UNIT - walking.point[1]).abs() < 0.00001);
+        assert!((world.player_yaw() - walking.heading.unwrap()).abs() < 0.00001);
         assert_eq!(
             world.vehicles.len() - world.traffic.count(),
             1 + hermes.parked_vehicles().len()
@@ -122,6 +129,7 @@ mod tests {
             }),
         )
         .unwrap();
+        assert!(overridden.is_driving());
         assert_eq!(overridden.player().yaw, 0.);
         let surface = hermes
             .city()
@@ -137,6 +145,9 @@ mod tests {
         );
         world.vehicles[0].position += glam::Vec3::new(20., 20., 20.);
         world.reset_player(&hermes);
+        assert!(!world.is_driving());
+        assert!((world.player_position().x / METERS_PER_UNIT - walking.point[0]).abs() < 0.00001);
+        assert!((world.player_position().y / METERS_PER_UNIT - walking.point[1]).abs() < 0.00001);
         assert!(
             world.player().position.distance(spawn) < 0.0001,
             "reset shifted {spawn:?} to {:?}",
