@@ -2,6 +2,7 @@
 
 # mtl_jobine
 
+![MTL Jobines splash screen showing a snowy Montréal street](web/boot.png)
 
 # building from source
 
