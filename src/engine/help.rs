@@ -147,15 +147,15 @@ fn control_row(ui: &mut egui::Ui, key: &str, label: &str) {
 }
 
 fn shade(ctx: &egui::Context) {
-    let bounds = ctx.content_rect();
-    egui::Area::new(egui::Id::new("help_shade"))
-        .order(egui::Order::Foreground)
-        .fixed_pos(bounds.min)
-        .show(ctx, |ui| {
-            let (rect, _) = ui.allocate_exact_size(bounds.size(), egui::Sense::hover());
-            ui.painter()
-                .rect_filled(rect, 0., Color32::from_rgba_unmultiplied(23, 45, 54, 187));
-        });
+    ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Middle,
+        egui::Id::new("help_shade"),
+    ))
+    .rect_filled(
+        ctx.content_rect(),
+        0.,
+        Color32::from_rgba_unmultiplied(23, 45, 54, 187),
+    );
 }
 
 pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
@@ -320,4 +320,54 @@ pub(super) fn indicator(
                 *open = true;
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pause_menu_map_stays_clickable_after_clicking_the_dimmed_background() {
+        let ctx = egui::Context::default();
+        super::super::job_feed::install_font(&ctx);
+        let mut selection = MenuItem::Resume;
+        let mut frame = |events: Vec<egui::Event>| {
+            let mut clicked = None;
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280., 800.),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| clicked = menu(ctx, Overlay::Menu, &mut selection),
+            );
+            clicked
+        };
+        frame(vec![]);
+        let background = egui::pos2(10., 10.);
+        let map_button = egui::pos2(640., 395.);
+        for position in [background, map_button] {
+            frame(vec![
+                egui::Event::PointerMoved(position),
+                egui::Event::PointerButton {
+                    pos: position,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ]);
+            let clicked = frame(vec![egui::Event::PointerButton {
+                pos: position,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+            if position == map_button {
+                assert_eq!(clicked, Some(MenuItem::Map));
+            }
+        }
+    }
 }

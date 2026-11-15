@@ -471,3 +471,62 @@ fn native_ik_gait_six_rigs_and_rear_foot_placement() {
         "IK palette did not visibly animate: {changed} pixels"
     );
 }
+
+#[test]
+#[ignore = "requires a native GPU adapter"]
+fn fabula_staging_reuses_models_and_restores_original_pose() {
+    use crate::engine::fabula::{Anchor, Scene, Stage};
+    let hermes = Hermes::test_map();
+    let mut world = DynamicWorld::new(&hermes);
+    if world.is_driving() {
+        assert!(world.toggle_vehicle(&hermes));
+    }
+    let renderer = pollster::block_on(Renderer::new(None, 640, 480)).unwrap();
+    let mut scenery = PedestrianScenery::new(&renderer);
+    scenery.update(&renderer, &world);
+    let transforms: Vec<_> = scenery
+        .models
+        .iter()
+        .map(|m| m.transforms.clone())
+        .collect();
+    let poses = scenery.poses.clone();
+    let position = world.player_position();
+    let mut json: serde_json::Value =
+        serde_json::from_str(include_str!("../../../assets/cutscenes/opening/scene.json")).unwrap();
+    json["characters"][0]["offset"] = serde_json::json!([2., 0., 0.]);
+    json["characters"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "source": "model", "index": 0, "offset": [-2., 0., -0.9], "yaw": 90., "pose": "walk"
+        }));
+    let scene = Scene::load(&json.to_string(), None).unwrap();
+    scenery.update_with_stage(
+        &renderer,
+        &world,
+        Some(Stage {
+            definition: &scene.definition,
+            anchor: Anchor {
+                position,
+                yaw: world.player_yaw(),
+            },
+            elapsed: 1.5,
+        }),
+    );
+    assert_eq!(scenery.poses.len(), poses.len() + JOINT_LIMIT);
+    assert_ne!(
+        scenery.models[pedestrian_catalog::player_model(world.season())].transforms,
+        transforms[pedestrian_catalog::player_model(world.season())]
+    );
+    assert_eq!(world.player_position(), position);
+    scenery.update(&renderer, &world);
+    assert_eq!(scenery.poses, poses);
+    assert_eq!(
+        scenery
+            .models
+            .iter()
+            .map(|m| m.transforms.clone())
+            .collect::<Vec<_>>(),
+        transforms
+    );
+}

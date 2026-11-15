@@ -20,6 +20,11 @@ struct Vertex { @builtin(position) position:vec4<f32>, @location(0) uv:vec2<f32>
 fn inside(p:vec2<f32>, r:vec4<f32>)->bool {
     return all(p>=r.xy)&&all(p<=r.xy+r.zw);
 }
+fn inside_rounded(p:vec2<f32>, r:vec4<f32>, radius:f32)->bool {
+    let half=r.zw*0.5;
+    let q=abs(p-r.xy-half)-(half-vec2<f32>(radius));
+    return length(max(q,vec2<f32>(0.)))+min(max(q.x,q.y),0.)<=radius;
+}
 // Small bitmap lettering keeps menus independent of a platform font service.
 fn glyph(code:u32)->u32 {
     switch code {
@@ -210,21 +215,12 @@ fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32
         return color;
     }
     if hud.mode.x==2. {
-        if !inside(p,vec4<f32>(20.,20.,screen-40.)) {return vec4<f32>(0.01,0.02,0.03,0.8);}
-        if lettering(p,vec2<f32>(40.,37.),3.,2u) {return vec4<f32>(0.93,0.96,0.95,1.);}
-        let jumping=hud.full_map.w>0.;
-        if screen.x>700. && (lettering(p,vec2<f32>(140.,39.),2.,select(5u,10u,jumping))
-            || lettering(p,vec2<f32>(screen.x-320.,39.),2.,select(6u,11u,jumping))) {return vec4<f32>(0.7,0.83,0.85,1.);}
-        if hud.full_map.w==2. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,12u) {return vec4<f32>(1.,0.3,0.2,1.);}
-        if hud.full_map.w==1. && screen.x<=700. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,10u) {return vec4<f32>(0.7,0.83,0.85,1.);}
-        if !jumping && hud.destination.z==2. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,7u) {return vec4<f32>(1.,0.3,0.2,1.);}
-        if !jumping && hud.destination.z==3. && lettering(p,vec2<f32>(40.,screen.y-33.),2.,8u) {return vec4<f32>(0.1,1.,0.4,1.);}
-        if screen.x>700. && lettering(p,vec2<f32>(screen.x-340.,screen.y-33.),2.,9u) {return vec4<f32>(0.7,0.83,0.85,1.);}
-        let close=p-vec2<f32>(screen.x-44.,44.);
-        if max(abs(close.x),abs(close.y))<9. && abs(abs(close.x)-abs(close.y))<2. {return vec4<f32>(0.93,0.96,0.95,1.);}
-        let size=screen-vec2<f32>(80.,120.);
-        let local=p-vec2<f32>(40.,80.);
-        if any(local<vec2<f32>(0.)) || any(local>size) {return vec4<f32>(0.035,0.055,0.07,1.);}
+        if !inside_rounded(p,vec4<f32>(20.,20.,screen-40.),17.) {return vec4<f32>(0.09,0.18,0.21,0.74);}
+        if !inside_rounded(p,vec4<f32>(24.,24.,screen-48.),13.) {return vec4<f32>(0.149,0.243,0.239,1.);}
+        let size=screen-vec2<f32>(48.,108.);
+        let local=p-vec2<f32>(24.,84.);
+        if p.y>=82. && p.y<84. {return vec4<f32>(0.149,0.243,0.239,1.);}
+        if any(local<vec2<f32>(0.)) || any(local>size) {return vec4<f32>(0.965,0.976,0.969,1.);}
         let span=min(size.x,size.y)*hud.full_map.z;
         let uv=hud.full_map.xy+map_to_atlas_offset((local-size*0.5)/span);
         let forward=atlas_to_map_offset(vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w)));
@@ -251,8 +247,8 @@ fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32
 // Route geometry remains in atlas coordinates; only the small ribbon buffer changes on reroute.
 fn route_screen(uv:vec2<f32>)->vec2<f32> {
     if hud.mode.x==2. {
-        let size=hud.screen.xy-vec2<f32>(80.,120.);
-        return vec2<f32>(40.,80.)+size*0.5+atlas_to_map_offset(uv-hud.full_map.xy)*min(size.x,size.y)*hud.full_map.z;
+        let size=hud.screen.xy-vec2<f32>(48.,108.);
+        return vec2<f32>(24.,84.)+size*0.5+atlas_to_map_offset(uv-hud.full_map.xy)*min(size.x,size.y)*hud.full_map.z;
     }
     let screen=hud.screen.xy;
     let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));
@@ -272,7 +268,7 @@ fn route_screen(uv:vec2<f32>)->vec2<f32> {
 @fragment fn fs_route(v:Vertex)->@location(0) vec4<f32> {
     let p=v.uv;
     if hud.mode.x==2. {
-        if !inside(p,vec4<f32>(40.,80.,hud.screen.xy-vec2<f32>(80.,120.))) {discard;}
+        if !inside(p,vec4<f32>(24.,84.,hud.screen.xy-vec2<f32>(48.,108.))) {discard;}
     } else {
         let screen=hud.screen.xy;
         let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));

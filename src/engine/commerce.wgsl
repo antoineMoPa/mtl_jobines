@@ -14,10 +14,10 @@ fn tree_lod_mask(pixel:vec2<f32>,fade:f32) {
 @group(3) @binding(9) var tree_sampler: sampler;
 @group(3) @binding(10) var tree_impostors: texture_2d_array<f32>;
 @group(3) @binding(11) var tree_impostor_sampler: sampler;
-fn tree_image_color(v:Output)->vec4<f32> {
+fn tree_image_color(v:Output,uv_dx:vec2<f32>,uv_dy:vec2<f32>)->vec4<f32> {
     let winter=select(0,6,camera.daylight_sky.z>0.2);
     let layer=i32(v.surface.x)-24+winter;
-    let tex=textureSampleGrad(tree_impostors,tree_impostor_sampler,v.fence_uv,layer,dpdx(v.fence_uv),dpdy(v.fence_uv));
+    let tex=textureSampleGrad(tree_impostors,tree_impostor_sampler,v.fence_uv,layer,uv_dx,uv_dy);
     if tex.a<0.12 {discard;}
     let eye=camera.eye_time.xyz-v.world;
     let distance=length(eye);
@@ -31,11 +31,11 @@ fn tree_layer(kind:i32)->i32 {
     if kind>=18 {return 3;}
     return 0;
 }
-fn tree_color(v:Output,front:bool)->vec4<f32> {
+fn tree_color(v:Output,front:bool,uv_dx:vec2<f32>,uv_dy:vec2<f32>,world_dx:vec3<f32>,world_dy:vec3<f32>,prepared:SurfaceData)->vec4<f32> {
     let kind=i32(v.surface.x);
     if kind<=17 && camera.daylight_sky.z>0.2 {discard;}
     if kind==19 && camera.daylight_sky.z<=0.2 {discard;}
-    let tex=textureSampleGrad(tree_atlas,tree_sampler,v.fence_uv,tree_layer(kind),dpdx(v.fence_uv),dpdy(v.fence_uv));
+    let tex=textureSampleGrad(tree_atlas,tree_sampler,v.fence_uv,tree_layer(kind),uv_dx,uv_dy);
     if kind<=17 && tex.a<0.42 {discard;}
     var material=v;
     material.color*=tex.rgb;
@@ -44,13 +44,11 @@ fn tree_color(v:Output,front:bool)->vec4<f32> {
     if kind<=17 && !front {n=-n;}
     if kind==18 {
         // Cotangent frame from the actual trunk UVs; no extra vertex format.
-        let dx=dpdx(v.world);let dy=dpdy(v.world);
-        let ux=dpdx(v.fence_uv);let uy=dpdy(v.fence_uv);
-        let p=cross(dy,n);let q=cross(n,dx);
-        let t=p*ux.x+q*uy.x;let b=p*ux.y+q*uy.y;
+        let p=cross(world_dy,n);let q=cross(n,world_dx);
+        let t=p*uv_dx.x+q*uv_dy.x;let b=p*uv_dx.y+q*uv_dy.y;
         let scale=inverseSqrt(max(max(dot(t,t),dot(b,b)),0.0000000001));
         // Normal layer shares the sRGB array; undo its transfer before decoding.
-        let encoded=textureSampleGrad(tree_atlas,tree_sampler,v.fence_uv,5,ux,uy).rgb;
+        let encoded=textureSampleGrad(tree_atlas,tree_sampler,v.fence_uv,5,uv_dx,uv_dy).rgb;
         let raw=select(encoded*12.92,1.055*pow(encoded,vec3<f32>(1.0/2.4))-0.055,encoded>vec3<f32>(0.0031308));
         let detail=raw*2.0-1.0;
         let perturbed=(t*detail.x+b*detail.y)*scale*0.7+n*detail.z;
@@ -58,7 +56,8 @@ fn tree_color(v:Output,front:bool)->vec4<f32> {
     }
     if kind==19 {material.color=vec3<f32>(0.86,0.92,0.96);}
     material.normal=n;
-    let surface=prepare_surface(material);
+    var surface=prepared;
+    surface.normal=n;
     let sun=camera.sun_exposure.xyz/max(length(camera.sun_exposure.xyz),0.0001);
     var transmitted=vec3<f32>(0.0);
     if kind==15 {
@@ -179,18 +178,18 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
     return shade_local_surface(v,front,1.0,surface);
 }
 @fragment fn fs_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
-    if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v);}
-    if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front);}
     let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);let dx=dpdx(v.world);let dy=dpdy(v.world);
     let surface=prepare_surface(v);let footprint=fwidth(v.fence_uv);
+    if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v,du,dv);}
+    if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front,du,dv,dx,dy,surface);}
     if v.surface.x>39.5 {return commerce_color(v,du,dv,dx,dy);}
     var coverage=1.0;
     if v.surface.x>10.5&&v.surface.x<11.5 {coverage=fence_coverage(v.fence_uv,v.surface.w,footprint);if coverage<0.5 {discard;}}
     return shade_local_surface(v,front,coverage,surface);
 }
 @fragment fn fs_shadow_game(v:ShadowOutput) {
-    if v.kind_pattern.x>=15.0 && v.kind_pattern.x<=23.0 {tree_shadow(v);return;}
     let footprint=fwidth(v.fence_uv);
+    if v.kind_pattern.x>=15.0 && v.kind_pattern.x<=23.0 {tree_shadow(v);return;}
     // Thin applied decals do not cast a second rectangular shadow on their shell.
     if v.kind_pattern.x>39.5&&v.kind_pattern.x<40.5 {discard;}
     if v.kind_pattern.x>10.5&&v.kind_pattern.x<11.5 {if fence_coverage(v.fence_uv,v.kind_pattern.y,footprint)<0.5 {discard;}}

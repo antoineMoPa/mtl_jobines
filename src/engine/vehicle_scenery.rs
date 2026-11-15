@@ -40,7 +40,16 @@ impl VehicleScenery {
         world: &DynamicWorld,
         player_pose_delta: Mat4,
     ) {
-        self.pedestrians.update(renderer, world);
+        self.update_with_stage(renderer, world, player_pose_delta, None);
+    }
+    pub fn update_with_stage(
+        &mut self,
+        renderer: &Renderer,
+        world: &DynamicWorld,
+        player_pose_delta: Mat4,
+        stage: Option<super::fabula::Stage<'_>>,
+    ) {
+        self.pedestrians.update_with_stage(renderer, world, stage);
         if world.season() == crate::season::Season::Winter {
             let center = world.player_position() / crate::dynamic_world::METERS_PER_UNIT;
             renderer

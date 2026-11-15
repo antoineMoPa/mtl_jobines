@@ -81,7 +81,7 @@ fn jump_command_maps_zoomed_click_to_world_and_resumes_with_current_car() {
     assert!(game.simulation_paused());
     assert_eq!(game.full_map.selection, hud::MapSelection::Jump);
     let (w, h) = (1280., 800.);
-    let center = [w * 0.5, h * 0.5 + 20.];
+    let center = [w * 0.5, h * 0.5 + 30.];
     game.full_map.zoom_at(w, h, center, 4.);
     let click = [center[0] - 60., center[1] + 60.];
     let uv = game.full_map.map_uv(w, h, click).unwrap();
@@ -124,20 +124,20 @@ fn jump_ignores_padding_retries_blocked_points_and_cancels_without_moving() {
     let before = game.world.player_position();
     game.apply_palette_action(PaletteAction::JumpToLocation);
     // Header, letterboxing and outside the panel cannot select a point.
-    for click in [[50., 50.], [45., 420.], [0., 0.]] {
+    for click in [[50., 50.], [23., 430.], [0., 0.]] {
         game.select_map_point(1280., 800., click);
         assert_eq!(game.full_map.selection, hud::MapSelection::Jump);
         assert_eq!(game.world.player_position(), before);
     }
-    game.select_map_point(1280., 800., [640., 420.]);
+    game.select_map_point(1280., 800., [640., 430.]);
     assert_eq!(game.full_map.selection, hud::MapSelection::JumpBlocked);
     assert_eq!(game.overlay, Overlay::Map);
     assert_eq!(game.world.player_position(), before);
-    game.full_map.zoom_at(1280., 800., [640., 420.], 4.);
+    game.full_map.zoom_at(1280., 800., [640., 430.], 4.);
     game.full_map.reset_zoom();
     assert_eq!(game.full_map.selection, hud::MapSelection::JumpBlocked);
     // A second click on clear land succeeds, even away from a road.
-    game.select_map_point(1280., 800., [640. - 50., 420. + 80.]);
+    game.select_map_point(1280., 800., [640. - 50., 430. + 80.]);
     assert_eq!(game.overlay, Overlay::Driving);
     assert!(game.world.player_position().distance(before) > 50.);
     let visited = game.world.player_position();
@@ -147,7 +147,7 @@ fn jump_ignores_padding_retries_blocked_points_and_cancels_without_moving() {
     assert_eq!(game.world.player_position(), visited);
     game.set_overlay(Overlay::Map);
     assert_eq!(game.full_map.selection, hud::MapSelection::Route);
-    game.select_map_point(1280., 800., [640., 420. + 140.]);
+    game.select_map_point(1280., 800., [640., 430. + 140.]);
     assert_eq!(game.overlay, Overlay::Map);
     assert_eq!(game.world.player_position(), visited);
     assert_ne!(game.hermes.route_revision(), 0);

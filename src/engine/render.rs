@@ -101,6 +101,7 @@ pub struct Renderer {
     pub adapter_name: String,
     hud: Hud,
     pub overlay: Overlay,
+    pub cinematic: bool,
     pub full_map: super::hud::FullMapView,
     pub menu_selection: MenuItem,
     pub daylight: Option<f32>,
@@ -591,6 +592,7 @@ impl Renderer {
             shadow,
             adapter_name,
             hud,
+            cinematic: false,
             overlay: Overlay::Driving,
             full_map: Default::default(),
             menu_selection: MenuItem::Resume,
@@ -1087,7 +1089,9 @@ impl Renderer {
                 draw.draw(&mut pass, draw.paint..draw.count, 0..1);
             }
             self.sky.draw(&mut pass, &self.camera_group);
-            self.mission_markers.draw(&mut pass);
+            if !self.cinematic {
+                self.mission_markers.draw(&mut pass);
+            }
         }
         let winter = self.season == crate::season::Season::Winter
             && self.winter_weather
@@ -1120,20 +1124,22 @@ impl Renderer {
                 writes
             }),
         );
-        self.hud.render(
-            &self.queue,
-            &mut encoder,
-            target,
-            self.config.width,
-            self.scene_height(),
-            navigation,
-            self.overlay,
-            self.full_map,
-            self.menu_selection,
-            self.fps,
-            self.vehicle_name.as_deref(),
-            self.gpu_profile.as_ref().map(|profile| profile.pass(2)),
-        );
+        if !self.cinematic {
+            self.hud.render(
+                &self.queue,
+                &mut encoder,
+                target,
+                self.config.width,
+                self.scene_height(),
+                navigation,
+                self.overlay,
+                self.full_map,
+                self.menu_selection,
+                self.fps,
+                self.vehicle_name.as_deref(),
+                self.gpu_profile.as_ref().map(|profile| profile.pass(2)),
+            );
+        }
         if let Some(profile) = &self.gpu_profile {
             profile.resolve(&mut encoder);
         }

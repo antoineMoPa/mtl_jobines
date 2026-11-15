@@ -37,7 +37,11 @@ const CAMERA_RETURN_RATE: f32 = 1.0;
 const CURSOR_IDLE_DELAY: Duration = Duration::from_secs(2);
 #[cfg(not(target_arch = "wasm32"))]
 mod construction;
+mod cutscenes;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod cutscenes_preview;
 mod focus;
+use cutscenes::AfterCutscene;
 mod location;
 mod missions;
 #[cfg(not(target_arch = "wasm32"))]
@@ -114,6 +118,10 @@ struct Game {
     cursor_hidden: bool,
     overlay: Overlay,
     help_visible: bool,
+    fabula: super::fabula::Fabula,
+    after_cutscene: Option<AfterCutscene>,
+    intro_played: bool,
+    cutscene_focused: bool,
     full_map: hud::FullMapView,
     menu_selection: MenuItem,
     hood: bool,
@@ -216,7 +224,7 @@ impl Game {
             self.cursor_activity(Instant::now());
         }
         self.overlay = overlay;
-        self.help_visible = overlay == Overlay::Start;
+        self.help_visible = false;
         self.full_map.selection = hud::MapSelection::Route;
         if overlay == Overlay::Driving {
             self.audio.user_gesture();
@@ -340,7 +348,11 @@ impl Game {
             } else {
                 Overlay::Start
             },
-            help_visible: start.is_none(),
+            help_visible: false,
+            fabula: Default::default(),
+            after_cutscene: None,
+            intro_played: start.is_some(),
+            cutscene_focused: true,
             menu_selection: MenuItem::Resume,
             full_map: Default::default(),
             hood: false,
@@ -357,6 +369,7 @@ impl Game {
             || self.minimized
             || self.overlay.paused()
             || self.help_visible
+            || self.fabula.active()
             || self.palette.as_ref().is_some_and(|p| p.is_open())
     }
     fn horn_requested(&self) -> bool {
@@ -365,7 +378,7 @@ impl Game {
             && (self.keys.contains(&KeyCode::Enter) || self.keys.contains(&KeyCode::NumpadEnter))
     }
     fn refresh_scene(&self) -> bool {
-        !self.simulation_paused() || self.scene_dirty
+        !self.simulation_paused() || self.scene_dirty || self.fabula.active()
     }
     fn simulate(&mut self, elapsed: f32) {
         if self.simulation_paused() {
@@ -394,27 +407,20 @@ impl Game {
             self.accumulator -= DT;
         }
         if self.world.take_service_finished() {
-            let finished_bus_circuit = self.kairos.active_id()
-                == Some(crate::kairos::MissionId::Bus)
-                && self.kairos.target() == Some(crate::kairos::SiteId::BusStop3);
-            self.kairos.service_finished();
-            if finished_bus_circuit {
-                self.restart_bus_passengers();
-            }
-            if self.kairos.active_id() == Some(crate::kairos::MissionId::Taxi)
-                && self.kairos.is_complete()
-            {
-                self.start_next_taxi_run();
-            } else {
-                self.refresh_mission_route();
-            }
-            self.kairos.save_now();
+            self.service_completed();
         }
         let cleared = self.world.take_snow_events();
         if !cleared.is_empty()
             && self.kairos.active_id() == Some(crate::kairos::MissionId::Snowplow)
         {
+            let was_complete = self.kairos.is_complete();
             self.kairos.event(MissionEvent::SnowCleared(cleared));
+            if !was_complete && self.kairos.is_complete() {
+                self.begin_cutscene(
+                    super::fabula::Cue::AfterMission(crate::kairos::MissionId::Snowplow),
+                    AfterCutscene::Resume,
+                );
+            }
             #[cfg(target_arch = "wasm32")]
             self.kairos.save_now();
         }
@@ -440,6 +446,7 @@ impl Game {
     }
     fn apply_palette_action(&mut self, action: PaletteAction) {
         match action {
+            PaletteAction::PlayIntro => self.replay_intro(),
             PaletteAction::SelectMission(id) => self.activate_mission(id),
             PaletteAction::AbandonMission => self.abandon_mission(),
             PaletteAction::SwitchVehicle(model) => {
@@ -500,8 +507,16 @@ impl Game {
                 eprintln!("Drawing first frame...");
             }
         }
-        let elapsed = (now - self.last).as_secs_f32().min(0.1);
+        let frame_elapsed = (now - self.last).as_secs_f32();
+        let elapsed = frame_elapsed.min(0.1);
         self.last = now;
+        if self.cutscene_can_play()
+            && self
+                .fabula
+                .advance(frame_elapsed, self.audio.cutscene_time())
+        {
+            self.finish_cutscene(true);
+        }
         let previous_position = self.world.player_position();
         self.simulate(elapsed);
         let paused = self.simulation_paused();
@@ -556,20 +571,28 @@ impl Game {
             self.eye += p - self.camera_anchor;
             self.eye = self.eye.lerp(target_eye, 1. - (-elapsed * 6.).exp());
         }
-        self.camera_anchor = p;
-        if refresh_scene {
-            let terrain = self
-                .hermes
-                .city()
-                .surface_at([self.eye.x, self.eye.y], self.eye.z + 0.005)
-                .map(|s| s.height + 0.015)
-                .unwrap_or(-1.);
-            self.eye.z = self.eye.z.max(terrain);
+        if !self.fabula.active() {
+            self.camera_anchor = p;
+            if refresh_scene {
+                let terrain = self
+                    .hermes
+                    .city()
+                    .surface_at([self.eye.x, self.eye.y], self.eye.z + 0.005)
+                    .map(|s| s.height + 0.015)
+                    .unwrap_or(-1.);
+                self.eye.z = self.eye.z.max(terrain);
+            }
+            self.eye = self
+                .world
+                .camera_eye(&self.hermes, p + Vec3::Z * 0.014, self.eye);
         }
-        self.eye = self
-            .world
-            .camera_eye(&self.hermes, p + Vec3::Z * 0.014, self.eye);
-        let (eye, look) = build_camera.map_or((self.eye, look), |(eye, look, _)| (eye, look));
+        let (eye, look) = if let Some(playback) = &self.fabula.playback {
+            let (eye, look) = playback.camera();
+            let eye = self.world.camera_eye(&self.hermes, look, eye);
+            (eye, look)
+        } else {
+            build_camera.map_or((self.eye, look), |(eye, look, _)| (eye, look))
+        };
         let sound_eye = self.eye * METERS_PER_UNIT;
         let sound_velocity = self.sound_eye.map_or(Vec3::ZERO, |previous| {
             if elapsed > 0.0001 {
@@ -588,12 +611,16 @@ impl Game {
         if let Some(car) = sound_frame.cars.iter_mut().find(|car| car.player) {
             car.horn = horn;
         }
-        self.audio.update(sound_frame, !paused);
+        if !self.fabula.active() {
+            self.audio.update(sound_frame, !paused);
+        }
+        let stage = self.fabula.playback.as_ref().map(|p| p.stage());
         let car = self.dynamic_mesh.as_mut().unwrap();
         if refresh_scene {
             self.world.write_moving_mesh(&mut self.dynamic_vertices);
             renderer.update_dynamic(car, &self.dynamic_vertices);
-            self.prop_scenery.update(renderer, &self.world);
+            self.prop_scenery
+                .update_with_stage(renderer, &self.world, stage);
             let car = self.world.player();
             let player_pose_delta = Mat4::from_rotation_translation(
                 render_orientation,
@@ -603,10 +630,12 @@ impl Game {
                 car.position / METERS_PER_UNIT,
             )
             .inverse();
-            self.vehicle_scenery
-                .as_mut()
-                .unwrap()
-                .update_with_player_pose(renderer, &self.world, player_pose_delta);
+            self.vehicle_scenery.as_mut().unwrap().update_with_stage(
+                renderer,
+                &self.world,
+                player_pose_delta,
+                stage,
+            );
             self.scene_dirty = false;
         }
         if refresh_scene || self.mesh_center != center {
@@ -627,13 +656,18 @@ impl Game {
         } else {
             self.overlay
         };
+        renderer.cinematic = self.fabula.active();
         renderer.full_map = self.full_map;
         renderer.menu_selection = self.menu_selection;
         renderer.fps = self.frame_rate.value;
         renderer.vehicle_name = self.world.vehicle_name_notice().map(str::to_owned);
-        renderer.reserved_bottom = self.palette.as_ref().map_or(0, |palette| {
-            palette.reserved_bottom(renderer.config.width, renderer.config.height)
-        });
+        renderer.reserved_bottom = if self.fabula.active() {
+            0
+        } else {
+            self.palette.as_ref().map_or(0, |palette| {
+                palette.reserved_bottom(renderer.config.width, renderer.config.height)
+            })
+        };
         #[cfg(not(target_arch = "wasm32"))]
         {
             renderer.construction_span = self.palette.as_ref().and_then(|p| p.orthographic_span());
@@ -681,6 +715,7 @@ impl Game {
         let suboptimal = matches!(&texture, wgpu::CurrentSurfaceTexture::Suboptimal(_));
         let mut palette_action = None;
         let mut menu_clicked = None;
+        let mut skip_cutscene = false;
         let help_before_draw = self.help_visible;
         match texture {
             wgpu::CurrentSurfaceTexture::Success(frame)
@@ -703,8 +738,10 @@ impl Game {
                         &mut self.help_visible,
                         self.overlay,
                         &mut self.menu_selection,
+                        self.fabula.playback.as_ref(),
                     );
                     menu_clicked = palette.menu_clicked.take();
+                    skip_cutscene = palette.cutscene_skip;
                     #[cfg(not(target_arch = "wasm32"))]
                     if palette_action == Some(PaletteAction::BugReport) {
                         let screenshot = renderer.report_screenshot_with_overlay(
@@ -729,6 +766,9 @@ impl Game {
                     }
                 }
                 renderer.queue.present(frame);
+                if let Some(playback) = &mut self.fabula.playback {
+                    playback.presented = true;
+                }
                 self.surface_retry = None;
                 if suboptimal {
                     // The texture is usable: present it before reconfiguring the surface.
@@ -780,11 +820,14 @@ impl Game {
                 event_loop.exit();
             }
         }
+        if skip_cutscene {
+            self.finish_cutscene(true);
+        }
         if let Some(action) = palette_action {
             self.apply_palette_action(action);
         }
         match menu_clicked {
-            Some(MenuItem::Resume) => self.set_overlay(Overlay::Driving),
+            Some(MenuItem::Resume) => self.start_playing(),
             Some(MenuItem::Map) => self.set_overlay(Overlay::Map),
             Some(MenuItem::Exit) => self.exit_game(event_loop),
             None => {}
@@ -803,15 +846,24 @@ impl Game {
                 window.set_cursor_visible(true);
             }
         } else if help_before_draw && self.overlay == Overlay::Start {
-            self.set_overlay(Overlay::Driving);
+            self.start_playing();
         }
-        if !self.simulation_paused() && self.surface_retry.is_none() {
+        let cutscene_playing = self.cutscene_can_play();
+        if self.fabula.active() {
+            self.audio.cutscene_active(
+                cutscene_playing && self.fabula.playback.as_ref().is_some_and(|p| p.presented),
+            );
+        }
+        if (!self.simulation_paused() || cutscene_playing) && self.surface_retry.is_none() {
             self.window.as_ref().unwrap().request_redraw();
         }
     }
 }
 impl ApplicationHandler<GameEvent> for Game {
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        if self.fabula.active() {
+            self.finish_cutscene(false);
+        }
         self.kairos.save_now();
         let started = Instant::now();
         if let Some(window) = &self.window {
@@ -825,10 +877,11 @@ impl ApplicationHandler<GameEvent> for Game {
         let _ = started;
     }
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+        self.cutscene_focused = false;
         self.kairos.save_now();
         self.audio.silence();
         self.sound_eye = None;
-        if self.overlay != Overlay::Start {
+        if self.overlay != Overlay::Start && !self.fabula.active() {
             self.set_overlay(Overlay::Menu);
         }
     }
@@ -836,7 +889,7 @@ impl ApplicationHandler<GameEvent> for Game {
         self.kairos.save_if_due();
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_map_reload(Instant::now());
-        if self.simulation_paused() {
+        if self.simulation_paused() && !self.cutscene_can_play() {
             self.audio.silence();
         }
         let now = Instant::now();
@@ -863,7 +916,10 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_some() {
+        self.cutscene_focused = true;
+        self.last = Instant::now();
+        if let Some(window) = &self.window {
+            window.request_redraw();
             return;
         }
         let attributes = Window::default_attributes()
@@ -908,6 +964,34 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        if self.fabula.active() {
+            if let WindowEvent::KeyboardInput { event: key, .. } = &event {
+                if key.state == ElementState::Pressed
+                    && !key.repeat
+                    && matches!(
+                        key.physical_key,
+                        PhysicalKey::Code(KeyCode::Escape | KeyCode::Enter | KeyCode::NumpadEnter)
+                    )
+                {
+                    self.finish_cutscene(true);
+                }
+                return;
+            }
+            if matches!(
+                &event,
+                WindowEvent::MouseInput { .. }
+                    | WindowEvent::MouseWheel { .. }
+                    | WindowEvent::CursorMoved { .. }
+                    | WindowEvent::Touch(_)
+                    | WindowEvent::Ime(_)
+            ) {
+                if let (Some(palette), Some(window)) = (&mut self.palette, &self.window) {
+                    palette.event(window, &event);
+                    window.request_redraw();
+                }
+                return;
+            }
+        }
         if let WindowEvent::KeyboardInput {
             event: key_event, ..
         } = &event
@@ -928,7 +1012,7 @@ impl ApplicationHandler<GameEvent> for Game {
                     self.accumulator = 0.;
                     self.last = Instant::now();
                     if self.overlay == Overlay::Start {
-                        self.set_overlay(Overlay::Driving);
+                        self.start_playing();
                     } else if let Some(window) = &self.window {
                         window.request_redraw();
                     }
@@ -965,7 +1049,7 @@ impl ApplicationHandler<GameEvent> for Game {
             WindowEvent::Touch(touch) => touch.phase == winit::event::TouchPhase::Started,
             _ => false,
         };
-        if !self.simulation_paused() && audio_gesture {
+        if audio_gesture {
             self.audio.user_gesture();
         }
         if matches!(
@@ -1087,6 +1171,7 @@ impl ApplicationHandler<GameEvent> for Game {
             }
             WindowEvent::Occluded(occluded) => {
                 self.hidden = occluded;
+                self.last = Instant::now();
                 self.sound_eye = None;
                 if occluded {
                     self.audio.silence();
@@ -1097,6 +1182,8 @@ impl ApplicationHandler<GameEvent> for Game {
                 }
             }
             WindowEvent::Focused(true) => {
+                self.cutscene_focused = true;
+                self.last = Instant::now();
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
@@ -1114,7 +1201,12 @@ impl ApplicationHandler<GameEvent> for Game {
                 if let PhysicalKey::Code(key) = event.physical_key {
                     if key == KeyCode::Escape {
                         if event.state == ElementState::Pressed && !event.repeat {
-                            self.set_overlay(self.overlay.escape());
+                            let next = self.overlay.escape();
+                            if next == Overlay::Driving {
+                                self.start_playing();
+                            } else {
+                                self.set_overlay(next);
+                            }
                         }
                         return;
                     }
@@ -1132,7 +1224,7 @@ impl ApplicationHandler<GameEvent> for Game {
                             if let (Some(steps), Some(window)) = (steps, &self.window) {
                                 let size = window.inner_size();
                                 let (w, h) = (size.width as f32, size.height as f32);
-                                self.full_map.zoom_at(w, h, [w * 0.5, h * 0.5 + 20.], steps);
+                                self.full_map.zoom_at(w, h, [w * 0.5, h * 0.5 + 30.], steps);
                                 window.request_redraw();
                                 return;
                             }
@@ -1140,7 +1232,7 @@ impl ApplicationHandler<GameEvent> for Game {
                         match self.menu_key(key, event.state, event.repeat) {
                             Some(MenuItem::Map) => self.set_overlay(Overlay::Map),
                             Some(MenuItem::Exit) => self.exit_game(event_loop),
-                            Some(MenuItem::Resume) => self.set_overlay(Overlay::Driving),
+                            Some(MenuItem::Resume) => self.start_playing(),
                             None => {}
                         }
                         return;
@@ -1224,7 +1316,7 @@ impl ApplicationHandler<GameEvent> for Game {
                     if self.full_map.selection == hud::MapSelection::Route {
                         self.hermes.clear_destination();
                     } else {
-                        self.set_overlay(Overlay::Driving);
+                        self.start_playing();
                     }
                     if let Some(window) = &self.window {
                         window.request_redraw();
@@ -1246,10 +1338,10 @@ impl ApplicationHandler<GameEvent> for Game {
                             self.set_overlay(Overlay::Map)
                         }
                         Overlay::Map
-                            if hud::contains([w - 68., 20., 48., 48.], point)
+                            if hud::contains(hud::full_map_close_rect(w), point)
                                 || !hud::contains([20., 20., w - 40., h - 40.], point) =>
                         {
-                            self.set_overlay(Overlay::Driving)
+                            self.start_playing()
                         }
                         Overlay::Map => {
                             self.select_map_point(w, h, point);

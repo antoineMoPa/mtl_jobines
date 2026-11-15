@@ -1,0 +1,14 @@
+{
+  "duration": 7.0,
+  "voice_start": 0.8,
+  "shots": [
+    {"start": 0.0, "end": 2.5, "eye_from": [-12.0, -8.0, 12.0], "eye_to": [-8.0, -5.0, 7.0], "look_from": [12.0, 0.0, 1.0], "look_to": [0.0, 0.0, 0.4]},
+    {"start": 2.5, "end": 7.0, "eye_from": [4.0, -3.0, 1.5], "eye_to": [3.0, -2.0, 1.0], "look_from": [0.0, 0.0, 0.4], "look_to": [0.0, 0.0, 0.4]}
+  ],
+  "subtitles": [
+    {"start": 0.8, "end": 2.5, "text": "Montréal... C’était ma ville..."},
+    {"start": 2.5, "end": 6.6, "text": "avant que j’aille flauber toute mon argent à Sherbrooke."}
+  ],
+  "characters": [{"source": "player", "offset": [0.0, 0.0, 0.0], "yaw": 0.0, "pose": "idle"}],
+  "props": []
+}

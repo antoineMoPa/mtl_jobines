@@ -1,8 +1,15 @@
 use super::*;
 impl Game {
     pub(super) fn window_focus_lost(&mut self) {
+        self.cutscene_focused = false;
         self.audio.silence();
         self.sound_eye = None;
+        if self.fabula.active() {
+            self.keys.clear();
+            self.dragging = false;
+            self.show_cursor();
+            return;
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(document) = self
             .palette

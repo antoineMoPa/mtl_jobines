@@ -46,6 +46,14 @@ impl Game {
     }
 
     pub(super) fn activate_mission(&mut self, id: MissionId) {
+        if !self.begin_cutscene(
+            super::super::fabula::Cue::BeforeMission(id),
+            AfterCutscene::ActivateMission(id),
+        ) {
+            self.activate_mission_now(id);
+        }
+    }
+    pub(super) fn activate_mission_now(&mut self, id: MissionId) {
         if id == MissionId::Taxi {
             let player = self.world.player_position() / METERS_PER_UNIT;
             if !self.hermes.choose_taxi_run(player) {

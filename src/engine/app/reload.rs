@@ -201,6 +201,9 @@ impl Game {
         // Validate a supported player spawn before touching any active state.
         let mut world = DynamicWorld::with_start(&hermes, Some(start))
             .or_else(|_| DynamicWorld::with_start(&hermes, None))?;
+        if self.fabula.active() {
+            self.finish_cutscene(false);
+        }
         world.retain_player_vehicle(&self.world);
         if !self.world.is_driving() {
             world.toggle_vehicle(&hermes);

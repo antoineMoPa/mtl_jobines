@@ -51,10 +51,8 @@ struct VehicleTransform {
 // Alpha-to-coverage retains depth-correct seats behind glass without sorting
 // every triangle of each moving vehicle. Opaque parts still cover all samples.
 @fragment fn fs_vehicle(v: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
-    if v.surface.x>=15.0 && v.surface.x<=29.0 {tree_lod_mask(v.clip.xy,v.surface.w);}
-    if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v);}
-    if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front);}
     let uv_dx=dpdx(v.fence_uv); let uv_dy=dpdy(v.fence_uv);
+    let world_dx=dpdx(v.world); let world_dy=dpdy(v.world);
     var material=v;
     if v.surface.x<0.0 {
         let albedo=textureSampleGrad(vehicle_albedo,vehicle_albedo_sampler,v.fence_uv,i32(floor(-v.surface.x))-1,uv_dx,uv_dy);
@@ -63,6 +61,9 @@ struct VehicleTransform {
         material.surface=vec4<f32>(7.0,material.surface.y,0.0,v.surface.w);
     }
     var surface=prepare_surface(material);
+    if v.surface.x>=15.0 && v.surface.x<=29.0 {tree_lod_mask(v.clip.xy,v.surface.w);}
+    if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v,uv_dx,uv_dy);}
+    if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front,uv_dx,uv_dy,world_dx,world_dy,surface);}
     surface.finish=vec3<f32>(0.65,0.0,0.0);
     if v.surface.x>=0.0 && fract(v.surface.z)>=0.5 {
         let packed=u32(round(fract(v.surface.z)*65536.0));

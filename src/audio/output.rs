@@ -16,6 +16,7 @@ use std::{
 
 pub(super) struct Backend {
     bridge: Arc<Bridge>,
+    voice: Arc<super::voice::VoiceBus>,
     stream: cpal::Stream,
     playing: Rc<Cell<bool>>,
     #[cfg(target_arch = "wasm32")]
@@ -51,7 +52,12 @@ impl Backend {
             revision: AtomicU64::new(0),
             reset: AtomicBool::new(false),
         });
-        let mixer = Mix::new(bridge.clone());
+        let voice = Arc::new(super::voice::VoiceBus::default());
+        let mixer = super::voice::Soundtrack {
+            world: Mix::new(bridge.clone()),
+            voice: voice.clone(),
+            right: None,
+        };
         let stream = match format {
             cpal::SampleFormat::F32 => build::<f32>(&device, &config, mixer, bridge.clone()),
             cpal::SampleFormat::F64 => build::<f64>(&device, &config, mixer, bridge.clone()),
@@ -65,6 +71,7 @@ impl Backend {
         let visibility = VisibilityGuard::new(&stream, bridge.clone(), playing.clone())?;
         Ok(Self {
             bridge,
+            voice,
             stream,
             playing,
             #[cfg(target_arch = "wasm32")]
@@ -87,6 +94,36 @@ impl Backend {
             self.silence();
         }
     }
+    pub fn load_cutscene(
+        &self,
+        clip: Option<Arc<super::VoiceClip>>,
+        start: f32,
+        duration: f32,
+        gain: f32,
+    ) {
+        self.silence();
+        self.voice.load(clip, start, duration, gain);
+    }
+    pub fn cutscene_time(&self) -> Option<f32> {
+        self.playing.get().then(|| self.voice.time()).flatten()
+    }
+    pub fn cutscene_active(&self, active: bool) {
+        #[cfg(target_arch = "wasm32")]
+        let active = active && !self._visibility.document.hidden();
+        self.voice.set_playing(active);
+        if active {
+            self.bridge.active.store(true, Ordering::Release);
+            if !self.playing.get() {
+                self.resume();
+            }
+        } else {
+            self.silence();
+        }
+    }
+    pub fn stop_cutscene(&self) {
+        self.silence();
+        self.voice.clear();
+    }
     pub fn resume(&self) {
         #[cfg(not(target_arch = "wasm32"))]
         let result = self.stream.play().map_err(|error| error.to_string());
@@ -101,6 +138,7 @@ impl Backend {
         }
     }
     pub fn silence(&self) {
+        self.voice.set_playing(false);
         self.bridge.active.store(false, Ordering::Release);
         if self.playing.get() {
             // Pause can stop callbacks before Mix sees active=false. Keep a
@@ -116,7 +154,7 @@ impl Backend {
 fn build<T: cpal::SizedSample + cpal::FromSample<f32>>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
-    mixer: Mix,
+    mixer: super::voice::Soundtrack<Mix>,
     bridge: Arc<Bridge>,
 ) -> Result<cpal::Stream, String> {
     let channels = config.channels as usize;

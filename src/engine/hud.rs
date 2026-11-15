@@ -49,6 +49,12 @@ pub fn minimap_rect(width: f32, height: f32) -> [f32; 4] {
         .max(1.);
     [16., height - side - 16., side, side]
 }
+pub fn full_map_rect(width: f32, height: f32) -> [f32; 4] {
+    [24., 84., width - 48., height - 108.]
+}
+pub fn full_map_close_rect(width: f32) -> [f32; 4] {
+    [width - 66., 34., 38., 38.]
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MapSelection {
     #[default]
@@ -104,14 +110,15 @@ impl FullMapView {
 
     /// Inverse of the rotated, zoomed shader projection.
     pub fn map_uv(self, width: f32, height: f32, point: [f32; 2]) -> Option<[f32; 2]> {
-        let size = [width - 80., height - 120.];
+        let [left, top, map_width, map_height] = full_map_rect(width, height);
+        let size = [map_width, map_height];
         let span = size[0].min(size[1]);
-        if span <= 0. || !contains([40., 80., size[0], size[1]], point) {
+        if span <= 0. || !contains([left, top, size[0], size[1]], point) {
             return None;
         }
         let uv = [
-            self.center[0] + (point[1] - 80. - size[1] * 0.5) / (span * self.zoom),
-            self.center[1] - (point[0] - 40. - size[0] * 0.5) / (span * self.zoom),
+            self.center[0] + (point[1] - top - size[1] * 0.5) / (span * self.zoom),
+            self.center[1] - (point[0] - left - size[0] * 0.5) / (span * self.zoom),
         ];
         uv.iter().all(|v| (0. ..=1.).contains(v)).then_some(uv)
     }
@@ -468,8 +475,8 @@ mod tests {
     fn full_map_zoom_keeps_cursor_anchor_and_limits_then_resets_to_overview() {
         for (w, h) in [(1280., 800.), (800., 1280.), (320., 240.)] {
             let mut view = super::FullMapView::default();
-            let span = (w - 80.0_f32).min(h - 120.0);
-            let point = [w * 0.5 + span * 0.2, h * 0.5 + 20. - span * 0.15];
+            let span = (w - 48.0_f32).min(h - 108.0);
+            let point = [w * 0.5 + span * 0.2, h * 0.5 + 30. - span * 0.15];
             let anchor = view.map_uv(w, h, point).unwrap();
             view.zoom_at(w, h, point, 4.);
             let actual = view.map_uv(w, h, point).unwrap();
@@ -477,7 +484,7 @@ mod tests {
             for i in 0..2 {
                 assert!((actual[i] - anchor[i]).abs() < 1e-6);
             }
-            let center = [w * 0.5, h * 0.5 + 20.];
+            let center = [w * 0.5, h * 0.5 + 30.];
             let right = view
                 .map_uv(w, h, [center[0] + span * 0.1, center[1]])
                 .unwrap();
@@ -515,12 +522,12 @@ mod tests {
     #[test]
     fn map_clicks_match_shader_projection_and_exclude_header_and_padding() {
         for (w, h) in [(1280., 800.), (800., 1280.), (320., 240.)] {
-            let center = [w * 0.5, h * 0.5 + 20.];
+            let center = [w * 0.5, h * 0.5 + 30.];
             assert_eq!(
                 super::FullMapView::default().map_uv(w, h, center),
                 Some([0.5, 0.5])
             );
-            let span = (w - 80.0_f32).min(h - 120.0);
+            let span = (w - 48.0_f32).min(h - 108.0);
             assert_eq!(
                 super::FullMapView::default().map_uv(
                     w,
@@ -553,7 +560,7 @@ mod tests {
                 .is_none());
         }
         assert!(super::FullMapView::default()
-            .map_uv(1280., 800., [41., 400.])
+            .map_uv(1280., 800., [23., 400.])
             .is_none());
         assert!(super::FullMapView::default()
             .map_uv(30., 30., [15., 15.])

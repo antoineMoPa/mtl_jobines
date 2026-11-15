@@ -35,6 +35,10 @@ impl Palette {
             self.menu_clicked = super::super::help::menu(&ctx, game_overlay, menu_selection);
             return None;
         }
+        if game_overlay == Overlay::Map {
+            super::super::map_ui::show(&ctx, renderer.full_map.selection);
+            return None;
+        }
         let mut icons = super::super::help::CornerIcons::new(walking);
         let phone_anchor = walking.then(|| icons.place(88.));
         let help_anchor = icons.place(56.);

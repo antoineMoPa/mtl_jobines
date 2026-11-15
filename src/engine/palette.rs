@@ -42,6 +42,7 @@ impl TimeCommand {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum PaletteAction {
+    PlayIntro,
     SelectMission(MissionId),
     AbandonMission,
     Season(crate::season::Season),
@@ -62,6 +63,9 @@ pub(super) enum PaletteAction {
 }
 impl PaletteAction {
     fn from_id(id: &str) -> Option<Self> {
+        if id == "mission.intro" {
+            return Some(Self::PlayIntro);
+        }
         if let Some(vehicle) = id.strip_prefix("vehicle.switch.") {
             return crate::dynamic_world::catalog::definitions()
                 .iter()
@@ -105,6 +109,11 @@ impl PaletteAction {
 }
 fn commands(landmarks: &[Landmark]) -> Vec<Command> {
     let mut commands: Vec<_> = [
+        (
+            "mission.intro",
+            "Mission: Intro",
+            "Replay the opening cutscene here, then show the controls",
+        ),
         (
             "time.day",
             "Time: Set day",
@@ -230,6 +239,7 @@ pub struct Palette {
     job_feed_open: bool,
     help_icon: egui::TextureHandle,
     pub(super) menu_clicked: Option<MenuItem>,
+    pub(super) cutscene_skip: bool,
     job_portraits: super::job_feed::Portraits,
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) bug_report: super::bug_report::Dialog,
@@ -287,6 +297,7 @@ impl Palette {
             job_feed_open: false,
             help_icon,
             menu_clicked: None,
+            cutscene_skip: false,
             job_portraits,
             bug_report: Default::default(),
             commands: commands(&[]),
@@ -325,6 +336,7 @@ impl Palette {
             job_feed_open: false,
             help_icon,
             menu_clicked: None,
+            cutscene_skip: false,
             job_portraits,
             #[cfg(not(target_arch = "wasm32"))]
             bug_report: Default::default(),
@@ -477,11 +489,17 @@ impl Palette {
         help_visible: &mut bool,
         game_overlay: Overlay,
         menu_selection: &mut MenuItem,
+        cutscene: Option<&super::fabula::Playback>,
     ) -> Option<PaletteAction> {
         let mut selected = None;
         self.menu_clicked = None;
+        self.cutscene_skip = false;
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(self.input.take_egui_input(window), |ui| {
+            if let Some(playback) = cutscene {
+                self.cutscene_skip = super::fabula::show(ui.ctx(), playback);
+                return;
+            }
             selected = self.show_panels(
                 ui,
                 renderer,

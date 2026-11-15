@@ -7,6 +7,8 @@ pub(crate) use vehicle::VehicleSound;
 pub(crate) use vehicle::{EngineKind, HornKind};
 
 mod output;
+mod voice;
+pub(crate) use voice::VoiceClip;
 mod scene;
 #[cfg(any(target_arch = "wasm32", test))]
 mod spatial_web;
@@ -192,6 +194,32 @@ impl Audio {
         self.ensure_backend(active, output::Backend::open);
         if let Some(backend) = &self.backend {
             backend.update(frame, active);
+        }
+    }
+    pub fn load_cutscene(
+        &mut self,
+        clip: Option<std::sync::Arc<VoiceClip>>,
+        start: f32,
+        duration: f32,
+        gain: f32,
+    ) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.ensure_backend(true, output::Backend::open);
+        if let Some(backend) = &self.backend {
+            backend.load_cutscene(clip, start, duration, gain);
+        }
+    }
+    pub fn cutscene_time(&self) -> Option<f32> {
+        self.backend.as_ref().and_then(|b| b.cutscene_time())
+    }
+    pub fn cutscene_active(&self, active: bool) {
+        if let Some(backend) = &self.backend {
+            backend.cutscene_active(active);
+        }
+    }
+    pub fn stop_cutscene(&self) {
+        if let Some(backend) = &self.backend {
+            backend.stop_cutscene();
         }
     }
     pub fn silence(&self) {

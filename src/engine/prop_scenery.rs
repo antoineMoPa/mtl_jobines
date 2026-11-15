@@ -45,10 +45,22 @@ fn tree_lods(distance: f32) -> [(u8, f32); 2] {
 }
 impl PropScenery {
     pub fn update(&mut self, renderer: &Renderer, world: &DynamicWorld) {
+        self.update_with_stage(renderer, world, None);
+    }
+    pub fn update_with_stage(
+        &mut self,
+        renderer: &Renderer,
+        world: &DynamicWorld,
+        stage: Option<super::fabula::Stage<'_>>,
+    ) {
         for model in self.models.values_mut() {
             model.transforms.clear();
         }
-        for (kind, index, transform, automatic) in world.authored_prop_instances() {
+        for (kind, index, transform, automatic) in world
+            .authored_prop_instances()
+            .into_iter()
+            .chain(stage.map(|s| s.props()).unwrap_or_default())
+        {
             let distance = (transform.w_axis.truncate() * crate::props::UNITS
                 - world.player_position())
             .length_squared();

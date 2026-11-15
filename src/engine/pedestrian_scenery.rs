@@ -7,7 +7,9 @@ use crate::dynamic_world::{
 use glam::Mat4;
 use wgpu::util::DeviceExt;
 
-const POSE_CAPACITY: usize = crate::dynamic_world::PEDESTRIAN_CAPACITY * JOINT_LIMIT;
+const POSE_CAPACITY: usize = (crate::dynamic_world::PEDESTRIAN_CAPACITY
+    + super::fabula::staging::EXTRA_ACTORS)
+    * JOINT_LIMIT;
 pub(super) struct Resources {
     pub poses: wgpu::Buffer,
     texture: wgpu::TextureView,
@@ -102,25 +104,58 @@ impl PedestrianScenery {
         }
     }
     pub fn update(&mut self, renderer: &Renderer, world: &DynamicWorld) {
+        self.update_with_stage(renderer, world, None);
+    }
+    pub fn update_with_stage(
+        &mut self,
+        renderer: &Renderer,
+        world: &DynamicWorld,
+        stage: Option<super::fabula::Stage<'_>>,
+    ) {
         self.poses.clear();
         for model in &mut self.models {
             model.transforms.clear();
         }
-        for actor in world.pedestrian_instances() {
+        for (index, actor) in world.pedestrian_instances().enumerate() {
+            let staged = stage
+                .as_ref()
+                .filter(|_| index == 0 && !world.is_driving())
+                .and_then(|s| s.player());
+            let transform = if let (Some(s), Some(c)) = (stage, staged) {
+                s.anchor.render_delta(c.offset, c.yaw) * actor.transform
+            } else {
+                actor.transform
+            };
             assert!(self.poses.len() + JOINT_LIMIT <= POSE_CAPACITY);
-            let mut columns = actor.transform.to_cols_array_2d();
+            let mut columns = transform.to_cols_array_2d();
             columns[0][3] = actor.model as f32;
             columns[2][3] = self.poses.len() as f32;
             columns[3][3] = actor.opacity;
             self.models[actor.model].transforms.push(columns);
-            let pose = actor.pose.copied().unwrap_or_else(|| {
-                pedestrian_catalog::definitions()[actor.model].pose(
-                    actor.idle_time,
-                    actor.walk_time,
-                    actor.movement,
-                )
-            });
+            let pose = staged
+                .map(|c| c.pose.palette(actor.model, stage.unwrap().elapsed))
+                .unwrap_or_else(|| {
+                    actor.pose.copied().unwrap_or_else(|| {
+                        pedestrian_catalog::definitions()[actor.model].pose(
+                            actor.idle_time,
+                            actor.walk_time,
+                            actor.movement,
+                        )
+                    })
+                });
             self.poses.extend(pose.map(|m| m.to_cols_array_2d()));
+        }
+        if let Some(stage) = stage {
+            for (model, transform, pose) in stage.extra_characters() {
+                let mut columns = transform.to_cols_array_2d();
+                columns[0][3] = model as f32;
+                columns[2][3] = self.poses.len() as f32;
+                self.models[model].transforms.push(columns);
+                self.poses.extend(
+                    pose.palette(model, stage.elapsed)
+                        .map(|m| m.to_cols_array_2d()),
+                );
+            }
         }
         if !self.poses.is_empty() {
             renderer.queue.write_buffer(

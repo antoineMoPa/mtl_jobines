@@ -14,6 +14,7 @@ mod contact_tests;
 mod contact_texture;
 #[cfg(not(target_arch = "wasm32"))]
 mod expansion;
+mod fabula;
 mod frame_rate;
 mod gpu_profile;
 mod graffiti;
@@ -23,6 +24,7 @@ mod hud;
 mod job_feed;
 mod lighting;
 mod local_lights;
+mod map_ui;
 mod palette;
 mod pedestrian_scenery;
 mod prop_scenery;
