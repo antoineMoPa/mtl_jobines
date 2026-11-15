@@ -477,9 +477,9 @@ impl Game {
                 }
                 if let Some(window) = &self.window {
                     window.set_title(match command {
-                        TimeCommand::Day => "MTL Jobines — day",
-                        TimeCommand::Night => "MTL Jobines — night",
-                        TimeCommand::Automatic => "MTL Jobines — automatic daylight",
+                        TimeCommand::Day => "MTL Jobines - day",
+                        TimeCommand::Night => "MTL Jobines - night",
+                        TimeCommand::Automatic => "MTL Jobines - automatic daylight",
                     });
                     window.request_redraw();
                 }
@@ -1267,7 +1267,7 @@ impl ApplicationHandler<GameEvent> for Game {
                                         renderer.sky_settings.solar_hour = None;
                                         if let Some(window) = &self.window {
                                             window.set_title(&format!(
-                                                "MTL Jobines — daylight {daylight:.1}"
+                                                "MTL Jobines - daylight {daylight:.1}"
                                             ));
                                         }
                                     }
@@ -1278,7 +1278,7 @@ impl ApplicationHandler<GameEvent> for Game {
                                         renderer.sky_settings.solar_hour = None;
                                     }
                                     if let Some(window) = &self.window {
-                                        window.set_title("MTL Jobines — automatic daylight");
+                                        window.set_title("MTL Jobines - automatic daylight");
                                     }
                                 }
                                 _ => {}

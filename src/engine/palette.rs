@@ -212,7 +212,7 @@ fn commands(landmarks: &[Landmark]) -> Vec<Command> {
                 id: format!("vehicle.switch.{}", definition.config.research_id),
                 title: format!("Switch vehicle: {}", definition.config.name),
                 description: format!(
-                    "{} — Replace your current vehicle in place and take the wheel",
+                    "{} - Replace your current vehicle in place and take the wheel",
                     definition.config.category
                 ),
                 shortcut: String::new(),

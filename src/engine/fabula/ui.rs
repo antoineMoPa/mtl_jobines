@@ -45,9 +45,9 @@ pub(in crate::engine) fn show(ctx: &egui::Context, playback: &Playback) -> bool 
         .anchor(Align2::RIGHT_TOP, egui::vec2(-18., bar + 10.))
         .show(ctx, |ui| {
             ui.add(
-                egui::Button::new(RichText::new("Passer · Échap").color(Color32::WHITE))
+                egui::Button::new(RichText::new("Passer (Échap)").color(Color32::WHITE))
                     .fill(Color32::from_black_alpha(210))
-                    .min_size(egui::vec2(135., 40.)),
+                    .min_size(egui::vec2(0., 40.)),
             )
             .clicked()
         })

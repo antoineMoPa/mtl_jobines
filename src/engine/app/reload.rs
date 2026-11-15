@@ -184,9 +184,9 @@ impl Game {
         }
         if let Some(window) = &self.window {
             window.set_title(if result.is_ok() {
-                "MTL Jobines — map reloaded"
+                "MTL Jobines - map reloaded"
             } else {
-                "MTL Jobines — map reload failed (see terminal)"
+                "MTL Jobines - map reload failed (see terminal)"
             });
             window.request_redraw();
         }

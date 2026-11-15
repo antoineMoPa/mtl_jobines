@@ -333,7 +333,7 @@ mod tests {
         let mut selection = MenuItem::Resume;
         let mut frame = |events: Vec<egui::Event>| {
             let mut clicked = None;
-            ctx.run(
+            let mut output = ctx.run_ui(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
                         egui::Pos2::ZERO,
@@ -342,8 +342,9 @@ mod tests {
                     events,
                     ..Default::default()
                 },
-                |ctx| clicked = menu(ctx, Overlay::Menu, &mut selection),
+                |ui| clicked = menu(ui.ctx(), Overlay::Menu, &mut selection),
             );
+            output.textures_delta.clear();
             clicked
         };
         frame(vec![]);
