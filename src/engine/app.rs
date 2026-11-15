@@ -385,6 +385,7 @@ impl Game {
                 self.orbit -= step_turn;
             }
             self.world.step(&self.hermes, input, walk, DT);
+            self.try_service();
             self.accumulator -= DT;
         }
         if self.world.take_service_finished() {
@@ -1044,7 +1045,6 @@ impl ApplicationHandler<GameEvent> for Game {
                                         self.hood = false;
                                     }
                                 }
-                                KeyCode::KeyE => self.try_service(),
                                 KeyCode::Tab => self.hood = !self.hood,
                                 KeyCode::BracketLeft | KeyCode::BracketRight => {
                                     if let Some(renderer) = &mut self.renderer {

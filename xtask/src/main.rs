@@ -5,6 +5,7 @@ mod formatting;
 mod sources;
 #[cfg(test)]
 mod tests;
+mod web_release;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -23,6 +24,17 @@ fn run() -> Result<()> {
     if args.as_slice() == ["assets"] {
         return assets::generate(root);
     }
+    match args.as_slice() {
+        [command] if command == "web-check" => return web_release::check(root),
+        [command] if command == "web-project-create" => {
+            return web_release::create_project(root);
+        }
+        [command] if command == "web-deploy" => return web_release::deploy(root, false),
+        [command, flag] if command == "web-deploy" && flag == "--dry-run" => {
+            return web_release::deploy(root, true);
+        }
+        _ => {}
+    }
     let (staged, check) = match args
         .iter()
         .map(String::as_str)
@@ -33,7 +45,9 @@ fn run() -> Result<()> {
         ["--staged"] => (true, false),
         ["--check"] => (false, true),
         ["--staged", "--check"] | ["--check", "--staged"] => (true, true),
-        _ => return Err("Usage: cargo xtask [assets | [--staged] [--check]]".into()),
+        _ => {
+            return Err("Usage: cargo xtask [assets | web-check | web-project-create | web-deploy [--dry-run] | [--staged] [--check]]".into());
+        }
     };
     clean(root, staged, check)
 }

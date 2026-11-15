@@ -683,15 +683,33 @@ macro_rules! asset {
     ($path:literal) => {
         (
             include_bytes!(concat!("../../data/vehicle/", $path, "/vehicle.json")).as_slice(),
-            include_bytes!(concat!("../../data/vehicle/", $path, "/model.glb")).as_slice(),
+            crate::web_asset!(
+                concat!("../../data/vehicle/", $path, "/model.glb"),
+                concat!("data/vehicle/", $path, "/model.glb")
+            ),
         )
     };
+}
+fn assets() -> [(&'static [u8], &'static [u8]); 11] {
+    [
+        asset!("pickup/castor-rive"),
+        asset!("suv/boreal-colline"),
+        asset!("compact/laurent-clair"),
+        asset!("taxi/bonjour-electrique"),
+        asset!("bus/saint-laurent-urbain"),
+        asset!("municipal/castor-blizzard"),
+        asset!("municipal/castor-collecteur"),
+        asset!("emergency/laurent-vigile"),
+        asset!("emergency/saint-laurent-secours"),
+        asset!("rail/azur-classique"),
+        asset!("rail/prairie-express"),
+    ]
 }
 pub fn definitions() -> &'static [Definition] {
     static CATALOG: OnceLock<Vec<Definition>> = OnceLock::new();
     CATALOG.get_or_init(|| {
         let mut texture_layer = 0;
-        let mut definitions: Vec<_> = ASSETS
+        let mut definitions: Vec<_> = assets()
             .iter()
             .map(|(json, glb)| {
                 let definition = Definition::load(json, glb, texture_layer)
@@ -706,20 +724,6 @@ pub fn definitions() -> &'static [Definition] {
         definitions
     })
 }
-const ASSETS: &[(&[u8], &[u8])] = &[
-    asset!("pickup/castor-rive"),
-    asset!("suv/boreal-colline"),
-    asset!("compact/laurent-clair"),
-    asset!("taxi/bonjour-electrique"),
-    asset!("bus/saint-laurent-urbain"),
-    asset!("municipal/castor-blizzard"),
-    asset!("municipal/castor-collecteur"),
-    asset!("emergency/laurent-vigile"),
-    asset!("emergency/saint-laurent-secours"),
-    asset!("rail/azur-classique"),
-    asset!("rail/prairie-express"),
-];
-
 #[cfg(test)]
 mod tests {
     #[test]
@@ -770,7 +774,7 @@ mod tests {
     }
     #[test]
     fn authored_lenses_are_moved_once_without_adding_or_dropping_source_triangles() {
-        for (definition, (_, bytes)) in definitions().iter().zip(ASSETS) {
+        for (definition, (_, bytes)) in definitions().iter().zip(assets()) {
             let glb = gltf::Gltf::from_slice(bytes).unwrap();
             let source_vertices: usize = glb
                 .meshes()

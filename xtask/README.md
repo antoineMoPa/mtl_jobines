@@ -19,3 +19,5 @@ runs this command, so it now applies safe formatting fixes automatically.
 
 `make fmt` applies formatting; `make lint` checks without writing. Asset generation
 is unchanged: `cargo xtask assets`.
+
+The browser release commands are documented in [web/DEPLOY.md](../web/DEPLOY.md).

@@ -39,8 +39,9 @@ fn linear_to_srgb(value: f32) -> u8 {
 }
 
 fn mip_chain() -> Vec<(u32, u32, Vec<u8>)> {
-    let mut reader = png::Decoder::new(std::io::Cursor::new(include_bytes!(
-        "../../assets/terrain/grass.png"
+    let mut reader = png::Decoder::new(std::io::Cursor::new(crate::web_asset!(
+        "../../assets/terrain/grass.png",
+        "assets/terrain/grass.png"
     )))
     .read_info()
     .expect("ground grass PNG");

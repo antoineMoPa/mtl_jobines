@@ -7,6 +7,7 @@ const INK: Color32 = Color32::from_rgb(38, 62, 61);
 const MUTED: Color32 = Color32::from_rgb(101, 126, 121);
 const GREEN: Color32 = Color32::from_rgb(49, 125, 109);
 const MONEY_BLUE: Color32 = Color32::from_rgb(0, 72, 254);
+const HUD_PAPER: Color32 = Color32::from_rgb(226, 226, 233);
 const MONEY_FONT: &str = "money_bold";
 const PHONE_BOTTOM: f32 = 20.;
 
@@ -82,17 +83,26 @@ pub(super) fn load_portraits(ctx: &egui::Context) -> Portraits {
         taxi: load_portrait(
             ctx,
             "job portrait taxi",
-            include_bytes!("../../assets/jobines/worker-portrait-01.png"),
+            crate::web_asset!(
+                "../../assets/jobines/worker-portrait-01.png",
+                "assets/jobines/worker-portrait-01.png"
+            ),
         ),
         bus: load_portrait(
             ctx,
             "job portrait bus",
-            include_bytes!("../../assets/jobines/driver-portrait-01.png"),
+            crate::web_asset!(
+                "../../assets/jobines/driver-portrait-01.png",
+                "assets/jobines/driver-portrait-01.png"
+            ),
         ),
         snowplow: load_portrait(
             ctx,
             "job portrait snowplow",
-            include_bytes!("../../assets/jobines/plow-portrait-01.png"),
+            crate::web_asset!(
+                "../../assets/jobines/plow-portrait-01.png",
+                "assets/jobines/plow-portrait-01.png"
+            ),
         ),
         phone: load_phone_icon(ctx),
     }
@@ -129,28 +139,26 @@ pub(super) fn show(
             );
             painter.galley(rect.min, galley, MONEY_BLUE);
         });
-    if let (Some(id), Some(objective)) = (kairos.active_id(), kairos.objective()) {
+    if let Some(objective) = kairos.objective() {
         egui::Area::new(egui::Id::new("job_objective"))
             .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-20., money_top + 76.))
             .show(ctx, |ui| {
                 egui::Frame::new()
-                    .fill(Color32::WHITE)
-                    .corner_radius(10)
-                    .inner_margin(egui::Margin::symmetric(12, 7))
+                    .fill(HUD_PAPER)
+                    .stroke(egui::Stroke::new(7., Color32::BLACK))
+                    .corner_radius(24)
+                    .inner_margin(egui::Margin::symmetric(18, 14))
                     .show(ui, |ui| {
-                        let progress =
-                            kairos
-                                .progress()
-                                .map_or(String::new(), |progress| match progress {
-                                    MissionProgress::ClearedDistanceKm(km) => {
-                                        format!("  {km:.3} km")
-                                    }
-                                });
-                        ui.label(
-                            RichText::new(format!("{}  {objective}{progress}", id.title()))
-                                .color(INK)
-                                .size(12.),
-                        );
+                        ui.set_max_width((ctx.content_rect().width() - 72.).clamp(120., 360.));
+                        ui.label(RichText::new(objective.label()).color(Color32::BLACK).font(
+                            egui::FontId::new(24., egui::FontFamily::Name(MONEY_FONT.into())),
+                        ));
+                        if let Some(MissionProgress::ClearedDistanceKm(km)) = kairos.progress() {
+                            ui.add_space(10.);
+                            ui.label(RichText::new(format!("{km:.2} km")).color(MONEY_BLUE).font(
+                                egui::FontId::new(16., egui::FontFamily::Name(MONEY_FONT.into())),
+                            ));
+                        }
                     });
             });
     }
@@ -250,7 +258,7 @@ pub(super) fn show(
                     MissionId::Snowplow,
                     "Yvan Tansiarge",
                     "@yvan_tansiarge  déneigeur",
-                    "La neige arrive! Une déneigeuse t'attend au garage.",
+                    "Une déneigeuse t'attend.",
                     "❄",
                 ),
             ] {

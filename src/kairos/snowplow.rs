@@ -1,4 +1,7 @@
-use super::{Mission, MissionEvent, MissionId, MissionProgress, ServicePlan, SiteId, SnowCell};
+use super::{
+    Mission, MissionEvent, MissionId, MissionObjective, MissionProgress, ServicePlan, SiteId,
+    SnowCell,
+};
 use std::collections::HashSet;
 
 // Each cleared cell covers 0.25 m². A 3 m swath gives 12,000 cells per km.
@@ -15,8 +18,8 @@ impl Mission for SnowplowMission {
         MissionId::Snowplow
     }
 
-    fn objective(&self) -> &'static str {
-        "Déneige les rues"
+    fn objective(&self) -> MissionObjective {
+        MissionObjective::SnowClearing
     }
 
     fn progress(&self) -> Option<MissionProgress> {

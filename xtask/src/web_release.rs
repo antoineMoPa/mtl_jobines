@@ -1,0 +1,164 @@
+//! Build and publish the browser game as a static Pages site.
+
+use std::{env, fs, path::Path, process::Command};
+
+use crate::Result;
+
+const MAX_FILE_BYTES: u64 = 25 * 1024 * 1024;
+const MAX_FILES: usize = 20_000;
+const REQUIRED: &[&str] = &[
+    "index.html",
+    "boot.png",
+    "pkg/mtl_jobines.js",
+    "pkg/mtl_jobines_bg.wasm",
+];
+const HIDDEN_BUG_UI: &[&[u8]] = &[b"[bug]", b"Report a bug", b"bug.report", b"bug_report_link"];
+
+pub fn check(root: &Path) -> Result<()> {
+    let dist = root.join("web/dist");
+    if !dist.is_dir() {
+        return Err("Web build is missing; run make build first".into());
+    }
+    for file in REQUIRED {
+        if !dist.join(file).is_file() {
+            return Err(format!("Web build is missing {file}").into());
+        }
+    }
+    let manifest = fs::read_to_string(root.join("web/assets.list"))?;
+    for path in manifest.lines() {
+        if path.is_empty() || path.starts_with('/') || path.split('/').any(|part| part == "..") {
+            return Err(format!("Invalid web asset path: {path}").into());
+        }
+        let source = root.join(path);
+        let deployed = dist.join(path);
+        if !source.is_file() || !deployed.is_file() {
+            return Err(format!("Web asset is missing: {path}").into());
+        }
+        if fs::read(source)? != fs::read(deployed)? {
+            return Err(format!("Web asset differs from source: {path}").into());
+        }
+    }
+
+    let mut files = 0usize;
+    let mut bytes = 0u64;
+    let mut stack = vec![dist.clone()];
+    while let Some(directory) = stack.pop() {
+        for entry in fs::read_dir(directory)? {
+            let entry = entry?;
+            let kind = entry.file_type()?;
+            if kind.is_symlink() {
+                return Err(
+                    format!("Web build contains a symlink: {}", entry.path().display()).into(),
+                );
+            }
+            if kind.is_dir() {
+                stack.push(entry.path());
+                continue;
+            }
+            if !kind.is_file() {
+                return Err(
+                    format!("Unexpected web build entry: {}", entry.path().display()).into(),
+                );
+            }
+            let size = entry.metadata()?.len();
+            if size > MAX_FILE_BYTES {
+                return Err(format!(
+                    "Pages file limit exceeded: {} has {size} bytes (max {MAX_FILE_BYTES})",
+                    entry.path().display()
+                )
+                .into());
+            }
+            files += 1;
+            bytes += size;
+        }
+    }
+    if files > MAX_FILES {
+        return Err(format!("Pages file limit exceeded: {files} files (max {MAX_FILES})").into());
+    }
+    for file in [
+        "index.html",
+        "pkg/mtl_jobines.js",
+        "pkg/mtl_jobines_bg.wasm",
+    ] {
+        let content = fs::read(dist.join(file))?;
+        for phrase in HIDDEN_BUG_UI {
+            if content
+                .windows(phrase.len())
+                .any(|window| window == *phrase)
+            {
+                return Err(
+                    format!("Browser build contains native bug-report UI in {file}").into(),
+                );
+            }
+        }
+    }
+    println!("Web release ready: {files} files, {bytes} bytes; each file fits Pages Free.");
+    Ok(())
+}
+
+fn project_name() -> String {
+    env::var("PAGES_PROJECT").unwrap_or_else(|_| "mtl-jobines".to_owned())
+}
+
+fn production_branch() -> String {
+    env::var("PAGES_BRANCH").unwrap_or_else(|_| "main".to_owned())
+}
+
+fn wrangler() -> String {
+    env::var("WRANGLER_BIN").unwrap_or_else(|_| "wrangler".to_owned())
+}
+
+fn run(root: &Path, program: &str, args: &[&str]) -> Result<()> {
+    let mut command = Command::new(program);
+    command.args(args).current_dir(root);
+    if env::var_os("WRANGLER_LOG_PATH").is_none() {
+        command.env(
+            "WRANGLER_LOG_PATH",
+            env::temp_dir().join("mtl-jobines-wrangler-logs"),
+        );
+    }
+    if let Some(node_binary) = env::var_os("NODE_BIN") {
+        let node_binary = Path::new(&node_binary);
+        if !node_binary.is_absolute() || !node_binary.is_file() {
+            return Err("NODE_BIN must be the absolute path to a Node executable".into());
+        }
+        let previous = env::var_os("PATH").unwrap_or_default();
+        let search_path = env::join_paths(
+            std::iter::once(node_binary.parent().unwrap().to_path_buf())
+                .chain(env::split_paths(&previous)),
+        )?;
+        command.env("PATH", search_path);
+    }
+    let status = command
+        .status()
+        .map_err(|error| format!("Could not run {program}: {error}"))?;
+    if !status.success() {
+        return Err(format!("{program} failed with {status}").into());
+    }
+    Ok(())
+}
+
+pub fn create_project(root: &Path) -> Result<()> {
+    let project = project_name();
+    let branch = format!("--production-branch={}", production_branch());
+    run(
+        root,
+        &wrangler(),
+        &["pages", "project", "create", &project, &branch],
+    )
+}
+
+pub fn deploy(root: &Path, dry_run: bool) -> Result<()> {
+    run(root, "bash", &["scripts/build-web.sh"])?;
+    check(root)?;
+    let project = project_name();
+    let project_arg = format!("--project-name={project}");
+    let branch_arg = format!("--branch={}", production_branch());
+    let args = ["pages", "deploy", "web/dist", &project_arg, &branch_arg];
+    if dry_run {
+        run(root, &wrangler(), &["--version"])?;
+        println!("Dry run: {} {}", wrangler(), args.join(" "));
+        return Ok(());
+    }
+    run(root, &wrangler(), &args)
+}

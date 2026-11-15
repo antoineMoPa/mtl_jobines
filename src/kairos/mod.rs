@@ -93,9 +93,36 @@ pub(crate) enum MissionProgress {
     ClearedDistanceKm(f64),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MissionObjective {
+    TaxiPickup,
+    TaxiDropoff,
+    TaxiComplete,
+    BusStop1,
+    BusStop2,
+    BusStop3,
+    BusComplete,
+    SnowClearing,
+}
+
+impl MissionObjective {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::TaxiPickup => "Approche-toi du passager et arrête-toi",
+            Self::TaxiDropoff => "Approche-toi de la destination et arrête-toi",
+            Self::TaxiComplete => "Course terminée",
+            Self::BusStop1 => "Approche-toi de l'arrêt 1/3 et arrête-toi",
+            Self::BusStop2 => "Approche-toi de l'arrêt 2/3 et arrête-toi",
+            Self::BusStop3 => "Approche-toi de l'arrêt 3/3 et arrête-toi",
+            Self::BusComplete => "Ligne terminée",
+            Self::SnowClearing => "Déneige les rues",
+        }
+    }
+}
+
 pub(crate) trait Mission {
     fn id(&self) -> MissionId;
-    fn objective(&self) -> &'static str;
+    fn objective(&self) -> MissionObjective;
     fn progress(&self) -> Option<MissionProgress> {
         None
     }
@@ -214,7 +241,7 @@ impl Kairos {
         self.active.as_ref().map(|mission| mission.id())
     }
 
-    pub(crate) fn objective(&self) -> Option<&'static str> {
+    pub(crate) fn objective(&self) -> Option<MissionObjective> {
         self.active.as_ref().map(|mission| mission.objective())
     }
     pub(crate) fn progress(&self) -> Option<MissionProgress> {

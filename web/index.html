@@ -9,7 +9,7 @@
     html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #18212d; color: #fff; font: 14px system-ui, sans-serif; }
     #game { display: block; width: 100% !important; height: 100% !important; outline: none; }
     #loading { position: fixed; inset: 0; display: grid; place-items: center; padding: 2rem; background: #18212d; text-align: center; }
-    #loading img { display: block; width: min(100%, 1328px); max-height: calc(100vh - 4rem); object-fit: contain; }
+    #loading img { display: block; width: min(80vw, 800px); max-height: 70vh; object-fit: contain; }
     #loading-message { position: absolute; bottom: 1.5rem; margin: 0; }
     #loading[data-state="ready"] { display: none; }
     #loading[data-state="error"] #loading-message { color: #ffb8a0; }
@@ -35,8 +35,16 @@
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     try {
       if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over localhost or HTTPS.');
-      const { default: init, start } = await import('./pkg/mtl_jobines.js');
+      const { default: init, start, asset_paths, install_assets } = await import('./pkg/mtl_jobines.js');
       await init();
+      const paths = asset_paths().trim().split('\n');
+      document.getElementById('loading-message').textContent = `Loading ${paths.length} game assets…`;
+      const values = await Promise.all(paths.map(async path => {
+        const response = await fetch(`./${path}`);
+        if (!response.ok) throw new Error(`Could not load ${path}: HTTP ${response.status}`);
+        return new Uint8Array(await response.arrayBuffer());
+      }));
+      install_assets(values);
       start();
     } catch (error) {
       fail(error);

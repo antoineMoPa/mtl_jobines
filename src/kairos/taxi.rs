@@ -1,4 +1,4 @@
-use super::{Mission, MissionEvent, MissionId, ServicePlan, SiteId};
+use super::{Mission, MissionEvent, MissionId, MissionObjective, ServicePlan, SiteId};
 
 #[derive(Default)]
 pub(super) struct TaxiMission {
@@ -10,11 +10,11 @@ impl Mission for TaxiMission {
         MissionId::Taxi
     }
 
-    fn objective(&self) -> &'static str {
+    fn objective(&self) -> MissionObjective {
         match self.stage {
-            0 => "Passager — arrête-toi et appuie E",
-            1 => "Destination — arrête-toi et appuie E",
-            _ => "Course terminée",
+            0 => MissionObjective::TaxiPickup,
+            1 => MissionObjective::TaxiDropoff,
+            _ => MissionObjective::TaxiComplete,
         }
     }
 

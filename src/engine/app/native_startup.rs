@@ -79,7 +79,7 @@ impl ApplicationHandler<GameEvent> for NativeApp {
         }
         let attributes = Window::default_attributes()
             .with_title("MTL Jobines")
-            .with_inner_size(winit::dpi::LogicalSize::new(1328., 800.))
+            .with_inner_size(winit::dpi::LogicalSize::new(800., 482.))
             .with_window_level(WindowLevel::AlwaysOnTop);
         let window = match event_loop.create_window(attributes) {
             Ok(window) => Arc::new(window),

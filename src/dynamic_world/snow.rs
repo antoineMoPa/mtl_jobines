@@ -2,11 +2,18 @@
 use super::{catalog, Vehicle, METERS_PER_UNIT};
 use glam::{Vec2, Vec3};
 use opencity::runtime::{City, SurfaceKind};
-use std::collections::{HashMap, VecDeque};
+use std::{
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap, VecDeque},
+};
 
 pub(crate) const CELL_METERS: f32 = 0.5;
 pub(crate) const EMPTY: f32 = -10000.;
 pub(crate) type Cell = (i32, i32);
+// Tracks update every 0.1 seconds in winter. Staggered recovery grows snowy patches
+// across a cleared road over one to three minutes instead of restoring a whole strip at once.
+const RECOVERY_START_TICKS: u64 = 600;
+const RECOVERY_SPREAD_TICKS: u64 = 1200;
 #[derive(Default)]
 pub(crate) struct Tracks {
     pub cells: HashMap<Cell, [f32; 4]>,
@@ -14,6 +21,8 @@ pub(crate) struct Tracks {
     pub epoch: u64,
     pub changes: VecDeque<(u64, Cell)>,
     previous: HashMap<usize, Vec3>,
+    tick: u64,
+    recoveries: BinaryHeap<Reverse<(u64, i32, i32, u32)>>,
 }
 impl Tracks {
     pub fn reset(&mut self) {
@@ -22,6 +31,8 @@ impl Tracks {
         self.previous.clear();
         self.revision = 0;
         self.epoch = self.epoch.wrapping_add(1);
+        self.tick = 0;
+        self.recoveries.clear();
     }
     pub fn update(
         &mut self,
@@ -29,6 +40,7 @@ impl Tracks {
         vehicles: &[Vehicle],
         player: usize,
     ) -> Vec<crate::kairos::SnowCell> {
+        self.advance_reaccumulation();
         let mut player_cells = Vec::new();
         for (id, vehicle) in vehicles.iter().enumerate().filter(|(_, v)| {
             v.position.z > -100.
@@ -118,12 +130,49 @@ impl Tracks {
                 .0
         });
         layers[slot] = height;
+        let spread = (key.0 as u32).wrapping_mul(0x9e37_79b9)
+            ^ (key.1 as u32).wrapping_mul(0x85eb_ca6b)
+            ^ height.to_bits().wrapping_mul(0xc2b2_ae35);
+        let due = self
+            .tick
+            .saturating_add(RECOVERY_START_TICKS + u64::from(spread) % RECOVERY_SPREAD_TICKS);
+        self.recoveries
+            .push(Reverse((due, key.0, key.1, height.to_bits())));
         self.revision += 1;
         self.changes.push_back((self.revision, key));
         if self.changes.len() > 4096 {
             self.changes.pop_front();
         }
         true
+    }
+
+    fn advance_reaccumulation(&mut self) {
+        self.tick = self.tick.saturating_add(1);
+        while let Some(&Reverse((due, x, y, height_bits))) = self.recoveries.peek() {
+            if due > self.tick {
+                break;
+            }
+            self.recoveries.pop();
+            let key = (x, y);
+            let Some(layers) = self.cells.get_mut(&key) else {
+                continue;
+            };
+            let Some(slot) = layers
+                .iter()
+                .position(|height| height.to_bits() == height_bits)
+            else {
+                continue;
+            };
+            layers[slot] = EMPTY;
+            if layers.iter().all(|height| *height == EMPTY) {
+                self.cells.remove(&key);
+            }
+            self.revision += 1;
+            self.changes.push_back((self.revision, key));
+            if self.changes.len() > 4096 {
+                self.changes.pop_front();
+            }
+        }
     }
 }
 
@@ -162,5 +211,32 @@ mod tests {
         tracks.reset();
         assert!(tracks.cells.is_empty());
         assert_eq!(tracks.epoch, 1);
+    }
+
+    #[test]
+    fn cleared_snow_returns_gradually_and_can_be_plowed_again() {
+        let mut tracks = Tracks::default();
+        for x in 0..64 {
+            assert!(tracks.clear_height((x, 0), 0.));
+        }
+        let cleared_revision = tracks.revision;
+        for _ in 0..RECOVERY_START_TICKS - 1 {
+            tracks.advance_reaccumulation();
+        }
+        assert_eq!(tracks.cells.len(), 64);
+        for _ in 0..RECOVERY_SPREAD_TICKS / 2 + 1 {
+            tracks.advance_reaccumulation();
+        }
+        assert!(!tracks.cells.is_empty());
+        assert!(tracks.cells.len() < 64);
+        for _ in 0..RECOVERY_SPREAD_TICKS {
+            tracks.advance_reaccumulation();
+        }
+        assert!(tracks.cells.is_empty());
+        assert!(tracks.revision > cleared_revision);
+        assert!(tracks.clear_height((0, 0), 0.));
+        tracks.reset();
+        assert!(tracks.cells.is_empty());
+        assert!(tracks.recoveries.is_empty());
     }
 }

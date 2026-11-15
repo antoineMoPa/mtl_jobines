@@ -8,16 +8,24 @@ pub(crate) const JOINT_LIMIT: usize = 32;
 pub(crate) const CROWD_MODEL_COUNT: usize = 6;
 pub(crate) const PLAYER_SUMMER_MODEL: usize = 6;
 pub(crate) const PLAYER_WINTER_MODEL: usize = 7;
-const ASSETS: [&[u8]; 8] = [
-    include_bytes!("../../data/pedestrian/01.glb"),
-    include_bytes!("../../data/pedestrian/02.glb"),
-    include_bytes!("../../data/pedestrian/03.glb"),
-    include_bytes!("../../data/pedestrian/04.glb"),
-    include_bytes!("../../data/pedestrian/05.glb"),
-    include_bytes!("../../data/pedestrian/06.glb"),
-    include_bytes!("../../data/pedestrian/player.glb"),
-    include_bytes!("../../data/pedestrian/player-winter.glb"),
-];
+fn assets() -> [&'static [u8]; 8] {
+    [
+        crate::web_asset!("../../data/pedestrian/01.glb", "data/pedestrian/01.glb"),
+        crate::web_asset!("../../data/pedestrian/02.glb", "data/pedestrian/02.glb"),
+        crate::web_asset!("../../data/pedestrian/03.glb", "data/pedestrian/03.glb"),
+        crate::web_asset!("../../data/pedestrian/04.glb", "data/pedestrian/04.glb"),
+        crate::web_asset!("../../data/pedestrian/05.glb", "data/pedestrian/05.glb"),
+        crate::web_asset!("../../data/pedestrian/06.glb", "data/pedestrian/06.glb"),
+        crate::web_asset!(
+            "../../data/pedestrian/player.glb",
+            "data/pedestrian/player.glb"
+        ),
+        crate::web_asset!(
+            "../../data/pedestrian/player-winter.glb",
+            "data/pedestrian/player-winter.glb"
+        ),
+    ]
+}
 
 pub(crate) fn player_model(season: crate::season::Season) -> usize {
     match season {
@@ -413,7 +421,7 @@ impl Definition {
 }
 pub(crate) fn definitions() -> &'static [Definition] {
     static MODELS: OnceLock<Vec<Definition>> = OnceLock::new();
-    MODELS.get_or_init(|| ASSETS.into_iter().map(Definition::read).collect())
+    MODELS.get_or_init(|| assets().into_iter().map(Definition::read).collect())
 }
 pub(crate) fn instance_transform(position: Vec3, yaw: f32) -> Mat4 {
     let axes = Mat4::from_cols(Vec4::Y, Vec4::Z, Vec4::X, Vec4::W);

@@ -5,6 +5,7 @@ mod hermes;
 mod kairos;
 mod props;
 mod season;
+mod web_assets;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use engine::run;

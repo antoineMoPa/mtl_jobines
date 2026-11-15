@@ -1,4 +1,4 @@
-.PHONY: all build serve editor
+.PHONY: all build serve editor web-check web-project web-deploy
 
 PORT ?= 8878
 
@@ -12,6 +12,15 @@ serve:
 
 editor:
 	OPENCITY_LAUNCH_ACTION="$(CURDIR)/opencity-launch.json" cargo editor
+
+web-check:
+	cargo xtask web-check
+
+web-project:
+	cargo xtask web-project-create
+
+web-deploy:
+	cargo xtask web-deploy
 
 .PHONY: assets fmt lint hooks
 
