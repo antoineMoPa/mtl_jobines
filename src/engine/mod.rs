@@ -17,6 +17,7 @@ mod gpu_profile;
 mod graffiti;
 mod grass;
 mod hud;
+mod job_feed;
 mod lighting;
 mod local_lights;
 mod palette;

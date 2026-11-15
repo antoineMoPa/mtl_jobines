@@ -243,6 +243,7 @@ impl Game {
         }
         self.audio.silence();
         self.sound_eye = None;
+        self.kairos.abandon();
         self.hermes = hermes;
         self.world = world;
         self.mesh_center = mesh_center;

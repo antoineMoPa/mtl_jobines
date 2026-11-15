@@ -2,6 +2,7 @@
 //! egui-wgpu 0.36 targets a newer wgpu, so its renderer cannot share this device.
 use super::render::Renderer;
 use crate::hermes::Landmark;
+use crate::kairos::{Kairos, MissionId};
 #[cfg(not(target_arch = "wasm32"))]
 use egui_winit::State as Input;
 #[cfg(target_arch = "wasm32")]
@@ -40,6 +41,8 @@ impl TimeCommand {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum PaletteAction {
+    SelectMission(MissionId),
+    AbandonMission,
     Season(crate::season::Season),
     Time(TimeCommand),
     Respawn(String),
@@ -223,6 +226,8 @@ pub struct Palette {
     modifiers: winit::keyboard::ModifiersState,
     sky_open: bool,
     sound_open: bool,
+    job_feed_open: bool,
+    job_portraits: super::job_feed::Portraits,
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) bug_report: super::bug_report::Dialog,
     commands: Vec<Command>,
@@ -254,6 +259,8 @@ impl Palette {
         }
         let ctx = egui::Context::default();
         ctx.set_theme(egui::ThemePreference::Dark);
+        super::job_feed::install_font(&ctx);
+        let job_portraits = super::job_feed::load_portraits(&ctx);
         Self {
             report_overlay: None,
             props: None,
@@ -273,6 +280,8 @@ impl Palette {
             modifiers: Default::default(),
             sky_open: false,
             sound_open: false,
+            job_feed_open: false,
+            job_portraits,
             bug_report: Default::default(),
             commands: commands(&[]),
         }
@@ -281,6 +290,8 @@ impl Palette {
     pub fn new(window: &Window, renderer: &Renderer, landmarks: &[Landmark]) -> Self {
         let ctx = egui::Context::default();
         ctx.set_theme(egui::ThemePreference::Dark);
+        super::job_feed::install_font(&ctx);
+        let job_portraits = super::job_feed::load_portraits(&ctx);
         let input = Input::new(
             ctx.clone(),
             egui::ViewportId::ROOT,
@@ -304,6 +315,8 @@ impl Palette {
             modifiers: Default::default(),
             sky_open: false,
             sound_open: false,
+            job_feed_open: false,
+            job_portraits,
             #[cfg(not(target_arch = "wasm32"))]
             bug_report: Default::default(),
             commands: commands(landmarks),
@@ -342,11 +355,15 @@ impl Palette {
         self.menu.dismiss();
         self.sky_open = false;
         self.sound_open = false;
+        self.job_feed_open = false;
         #[cfg(not(target_arch = "wasm32"))]
         self.bug_report.dismiss();
     }
+    pub fn open_job_feed(&mut self) {
+        self.job_feed_open = true;
+    }
     pub fn is_open(&self) -> bool {
-        let open = self.menu.is_open() || self.sky_open || self.sound_open;
+        let open = self.menu.is_open() || self.sky_open || self.sound_open || self.job_feed_open;
         #[cfg(not(target_arch = "wasm32"))]
         let open = open || self.bug_report.is_open();
         #[cfg(not(target_arch = "wasm32"))]
@@ -446,11 +463,14 @@ impl Palette {
         sound: &mut crate::audio::Settings,
         view_projection: glam::Mat4,
         city: &opencity::runtime::City,
+        kairos: &Kairos,
+        walking: bool,
     ) -> Option<PaletteAction> {
         let mut selected = None;
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(self.input.take_egui_input(window), |ui| {
-            selected = self.show_panels(ui, renderer, sound, view_projection, city);
+            selected =
+                self.show_panels(ui, renderer, sound, view_projection, city, kairos, walking);
         });
         self.input
             .handle_platform_output(window, output.platform_output);

@@ -20,6 +20,8 @@ impl Palette {
         sound: &mut crate::audio::Settings,
         view_projection: glam::Mat4,
         city: &opencity::runtime::City,
+        kairos: &Kairos,
+        walking: bool,
     ) -> Option<PaletteAction> {
         let ctx = ui.ctx().clone();
         let mut selected = None;
@@ -28,8 +30,17 @@ impl Palette {
         #[cfg(not(target_arch = "wasm32"))]
         let report_link = {
             let enabled = !self.menu.is_open() && !self.sky_open && !self.sound_open && !reporting;
+            let pixels_per_point = ctx.pixels_per_point();
+            let screen_height = ctx.content_rect().height() * pixels_per_point;
+            let fps_scale = (screen_height / 800.).clamp(1., 2.);
             let response = egui::Area::new(egui::Id::new("bug_report_link"))
-                .anchor(egui::Align2::LEFT_TOP, egui::vec2(12., 8.))
+                .anchor(
+                    egui::Align2::LEFT_TOP,
+                    egui::vec2(
+                        16. * fps_scale / pixels_per_point,
+                        48. * fps_scale / pixels_per_point + 8.,
+                    ),
+                )
                 .show(&ctx, |ui| {
                     ui.add_enabled(enabled, egui::Link::new("[bug]"))
                         .on_hover_text("Report a bug")
@@ -62,6 +73,16 @@ impl Palette {
             self.sound_open = false;
         }
         sound.show(&ctx, &mut self.sound_open);
+        if let Some(action) = super::super::job_feed::show(
+            &ctx,
+            &mut self.job_feed_open,
+            kairos,
+            renderer.overlay,
+            walking,
+            Some(&self.job_portraits),
+        ) {
+            selected = Some(action);
+        }
         #[cfg(not(target_arch = "wasm32"))]
         {
             let report_hovered = ctx

@@ -2,6 +2,7 @@ mod audio;
 mod dynamic_world;
 mod engine;
 mod hermes;
+mod kairos;
 mod props;
 mod season;
 

@@ -1,6 +1,31 @@
 use super::*;
 
 #[test]
+fn reported_close_chase_view_and_pointer_orbit() {
+    let mut game = Game::new(Hermes::test_map());
+    let player = game.world.player_position() / METERS_PER_UNIT;
+    let distance = game.eye.truncate().distance(player.truncate());
+    assert!((distance - 0.0675).abs() < 0.0001);
+    assert!((game.eye.z - player.z - 0.03375).abs() < 0.0001);
+    assert_eq!(game.zoom, DEFAULT_CHASE_ZOOM);
+
+    game.set_overlay(Overlay::Driving);
+    game.move_camera_with_cursor([100., 100.]);
+    assert_eq!(game.orbit, 0.);
+    game.move_camera_with_cursor([140., 140.]);
+    assert!((game.orbit + 0.2).abs() < 0.0001);
+    assert!((game.camera_pitch - 0.12).abs() < 0.0001);
+
+    game.set_overlay(Overlay::Map);
+    game.move_camera_with_cursor([200., 200.]);
+    assert!((game.orbit + 0.2).abs() < 0.0001);
+    assert!((game.camera_pitch - 0.12).abs() < 0.0001);
+    game.set_overlay(Overlay::Driving);
+    game.move_camera_with_cursor([210., 200.]);
+    assert!((game.orbit + 0.25).abs() < 0.0001);
+}
+
+#[test]
 fn vehicle_switch_command_resumes_driving_with_fresh_input_and_camera() {
     let mut game = Game::new(Hermes::test_map());
     assert!(game.world.toggle_vehicle(&game.hermes));
@@ -20,7 +45,7 @@ fn vehicle_switch_command_resumes_driving_with_fresh_input_and_camera() {
     assert!(game.keys.is_empty());
     assert!(game.sound_eye.is_none());
     assert_eq!(game.orbit, 0.);
-    assert_eq!(game.zoom, 1.);
+    assert_eq!(game.zoom, DEFAULT_CHASE_ZOOM);
     assert!(!game.hood);
     assert!(game.scene_dirty);
     assert!(
@@ -64,7 +89,7 @@ fn jump_command_maps_zoomed_click_to_world_and_resumes_with_current_car() {
     assert_eq!(game.world.player().velocity, Vec3::ZERO);
     assert_eq!(game.orbit, 0.);
     assert_eq!(game.camera_pitch, 0.);
-    assert_eq!(game.zoom, 1.);
+    assert_eq!(game.zoom, DEFAULT_CHASE_ZOOM);
     assert!(!game.hood);
     assert!(game.keys.is_empty());
     assert!(game.sound_eye.is_none());
@@ -135,7 +160,7 @@ fn landmark_command_resumes_driving_and_moves_camera_without_stale_input() {
     assert_eq!(game.overlay, Overlay::Driving);
     assert!(game.world.is_driving());
     assert_eq!(game.orbit, 0.);
-    assert_eq!(game.zoom, 1.);
+    assert_eq!(game.zoom, DEFAULT_CHASE_ZOOM);
     assert!(!game.hood);
     assert!(game.keys.is_empty());
     assert!(game.sound_eye.is_none());

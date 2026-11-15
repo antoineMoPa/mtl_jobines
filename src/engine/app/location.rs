@@ -28,13 +28,14 @@ impl Game {
 
     pub(super) fn finish_location_change(&mut self) {
         self.orbit = 0.;
-        self.zoom = 1.;
+        self.zoom = DEFAULT_CHASE_ZOOM;
         self.camera_pitch = 0.;
         self.hood = false;
         let p = self.world.player_position() / METERS_PER_UNIT;
         let yaw = self.world.player_yaw();
         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
-        self.eye = p - forward * 0.15 + Vec3::Z * 0.075;
+        self.eye =
+            p - forward * (0.15 * DEFAULT_CHASE_ZOOM) + Vec3::Z * (0.075 * DEFAULT_CHASE_ZOOM);
         self.hermes.update_navigation(p.to_array());
         self.scene_dirty = true;
         self.set_overlay(Overlay::Driving);

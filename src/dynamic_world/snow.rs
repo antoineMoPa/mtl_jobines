@@ -23,7 +23,13 @@ impl Tracks {
         self.revision = 0;
         self.epoch = self.epoch.wrapping_add(1);
     }
-    pub fn update(&mut self, city: &City, vehicles: &[Vehicle]) {
+    pub fn update(
+        &mut self,
+        city: &City,
+        vehicles: &[Vehicle],
+        player: usize,
+    ) -> Vec<crate::kairos::SnowCell> {
+        let mut player_cells = Vec::new();
         for (id, vehicle) in vehicles.iter().enumerate().filter(|(_, v)| {
             v.position.z > -100.
                 && v.definition()
@@ -42,10 +48,21 @@ impl Tracks {
             } else {
                 blade
             };
-            self.sweep(city, previous, blade, vehicle.width() * 0.5);
+            let cells = self.sweep(city, previous, blade, vehicle.width() * 0.5);
+            if id == player {
+                player_cells.extend(cells);
+            }
         }
+        player_cells
     }
-    pub fn sweep(&mut self, city: &City, from: Vec3, to: Vec3, radius: f32) {
+    pub fn sweep(
+        &mut self,
+        city: &City,
+        from: Vec3,
+        to: Vec3,
+        radius: f32,
+    ) -> Vec<crate::kairos::SnowCell> {
+        let mut cleared = Vec::new();
         let a = from.truncate();
         let b = to.truncate();
         let delta = b - a;
@@ -75,14 +92,21 @@ impl Tracks {
                 {
                     continue;
                 }
-                self.clear_height((x, y), surface.height);
+                if self.clear_height((x, y), surface.height) {
+                    cleared.push(crate::kairos::SnowCell {
+                        x,
+                        y,
+                        height_bits: surface.height.to_bits(),
+                    });
+                }
             }
         }
+        cleared
     }
-    pub fn clear_height(&mut self, key: Cell, height: f32) {
+    pub fn clear_height(&mut self, key: Cell, height: f32) -> bool {
         let layers = self.cells.entry(key).or_insert([EMPTY; 4]);
         if layers.iter().any(|h| (*h - height).abs() < 0.0025) {
-            return;
+            return false;
         }
         // Four independent road elevations per XY cell; keep the common case compact.
         let slot = layers.iter().position(|h| *h == EMPTY).unwrap_or_else(|| {
@@ -99,6 +123,7 @@ impl Tracks {
         if self.changes.len() > 4096 {
             self.changes.pop_front();
         }
+        true
     }
 }
 

@@ -10,7 +10,7 @@ use opencity::runtime::City;
 // Keep the public player/camera position at body height; the rig root is at its feet.
 pub(super) const HALF_HEIGHT: f32 = 0.9;
 pub(super) const RADIUS: f32 = 0.4;
-const MODEL: usize = 0;
+const MODEL: usize = pedestrian_catalog::PLAYER_SUMMER_MODEL;
 const WALK_SPEED: f32 = 5.2;
 const RUN_SPEED: f32 = 15.6;
 const GAIT_SPEED: f32 = 5.2;
@@ -20,7 +20,7 @@ const GRAVITY: f32 = 9.81;
 const JUMP_HEIGHT: f32 = 1.5;
 const JUMP_CROUCH_TIME: f32 = 0.14;
 const JUMP_EXTENSION_TIME: f32 = 0.08;
-const TURN_SPEED: f32 = std::f32::consts::PI * 5. / 6.;
+pub(crate) const TURN_SPEED: f32 = std::f32::consts::PI * 5. / 6.;
 
 enum Jump {
     Grounded,
@@ -96,11 +96,10 @@ impl Pedestrian {
             vertical_speed: 0.,
             jump: Jump::Grounded,
             jump_held: false,
-            gait: Gait::new(
+            gait: Gait::new_player(
                 &pedestrian_catalog::definitions()[MODEL],
                 position - Vec3::Z * HALF_HEIGHT,
                 yaw,
-                0,
                 |p| footing(city, p, false),
             ),
         }
@@ -267,7 +266,7 @@ impl Pedestrian {
             turn / dt,
         );
         if landed {
-            self.gait = Gait::new(model, foot, self.yaw, 0, |p| footing(city, p, false));
+            self.gait = Gait::new_player(model, foot, self.yaw, |p| footing(city, p, false));
         } else if self.jump.is_airborne() {
             self.gait.airborne(model, foot, self.yaw, jump_motion, dt);
         } else if matches!(self.jump, Jump::Preparing { .. }) {
@@ -302,9 +301,9 @@ impl Pedestrian {
         self.speed = (self.position - before).truncate().length() / dt
             * if self.speed < 0. { -1. } else { 1. };
     }
-    pub(super) fn instance(&self) -> Instance<'_> {
+    pub(super) fn instance(&self, season: crate::season::Season) -> Instance<'_> {
         Instance {
-            model: MODEL,
+            model: pedestrian_catalog::player_model(season),
             transform: pedestrian_catalog::instance_transform(
                 self.position - Vec3::Z * HALF_HEIGHT,
                 self.yaw,
@@ -385,6 +384,17 @@ mod tests {
         assert!(Pedestrian::beside(&blocked, &vehicle).is_none());
     }
     #[test]
+    fn season_changes_player_outfit_without_resetting_gait() {
+        let city = open_ground();
+        let player = Pedestrian::new(&city, origin(&city), 0.);
+        let summer = player.instance(crate::season::Season::Summer);
+        let winter = player.instance(crate::season::Season::Winter);
+        assert_eq!(summer.model, pedestrian_catalog::PLAYER_SUMMER_MODEL);
+        assert_eq!(winter.model, pedestrian_catalog::PLAYER_WINTER_MODEL);
+        assert_eq!(summer.transform, winter.transform);
+        assert!(std::ptr::eq(summer.pose.unwrap(), winter.pose.unwrap()));
+    }
+    #[test]
     fn turning_in_place_keeps_body_position_and_rotates_the_skinned_model() {
         let city = open_ground();
         for direction in [-1., 1.] {
@@ -404,7 +414,7 @@ mod tests {
             }
             assert_eq!(player.position, start);
             assert!((player.yaw - direction * TURN_SPEED).abs() < 0.0001);
-            let instance = player.instance();
+            let instance = player.instance(crate::season::Season::Summer);
             let forward = instance.transform.transform_vector3(Vec3::Z) * METERS_PER_UNIT;
             assert!(forward.abs_diff_eq(Vec3::new(player.yaw.cos(), player.yaw.sin(), 0.), 1e-5));
             assert!(initial
@@ -788,7 +798,11 @@ mod tests {
                 );
                 assert!(player.position.x <= wall);
             }
-            assert!(player.position.x > wall - 0.3);
+            assert!(
+                player.position.x > wall - 0.3,
+                "stopped {} before wall {wall}",
+                player.position.x
+            );
         }
     }
     #[test]

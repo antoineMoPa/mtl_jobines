@@ -38,7 +38,7 @@ native-only. Moon's **Game UI**/**OpenCity UI** targets build/run the game or co
 | Handbrake turn | Space: all-wheel braking with reduced rear lateral grip |
 | Enter/exit vehicle | F; exit below 3 m/s, enter within 4 m |
 | Walk/run | W/S moves, A/D turns; Shift runs |
-| Camera | Tab chase/hood; wheel zooms; right-drag orbits |
+| Camera | Tab chase/hood; wheel zooms; mouse movement orbits while driving |
 | Reset | R returns to the initial spawn |
 | Pause/resume | Escape; arrows/Enter select menu actions |
 | Command palette | Cmd/Ctrl+Shift+P |
@@ -125,7 +125,7 @@ reachable nearby lane and stop if recovery fails. Stopped NPC cars can be entere
 Cars carry pitch, roll and yaw momentum through jumps and falls. Supported wheels supply
 suspension torque; unsupported ends tip under gravity. Vehicle and prop impacts transfer spin
 at their contact points. Tilted cars can land on the chassis or roof, and overturned cars cannot
-drive or automatically right themselves. Use **R** to reset after a rollover.
+drive or automatically right themselves.
 
 The palette's **Sky: Atmosphere and stars…** panel offers presets, solar position, haze, sun and
 star settings. The automatic day/night cycle lasts 20 minutes and pauses with simulation.

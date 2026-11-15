@@ -60,7 +60,15 @@ fn native_props_game_flow_renders_shared_models_and_the_game_toolbar() {
                 ..Default::default()
             },
             |ui| {
-                palette.show_panels(ui, &mut renderer, sound, matrix, hermes.city());
+                palette.show_panels(
+                    ui,
+                    &mut renderer,
+                    sound,
+                    matrix,
+                    hermes.city(),
+                    &crate::kairos::Kairos::default(),
+                    false,
+                );
             },
         );
         let text: Vec<_> = output

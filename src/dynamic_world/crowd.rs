@@ -348,7 +348,7 @@ impl Crowd {
                 continue;
             }
             let definitions = pedestrian_catalog::definitions();
-            let model = self.serial as usize % definitions.len();
+            let model = self.serial as usize % pedestrian_catalog::CROWD_MODEL_COUNT;
             let definition = &definitions[model];
             let preferred_speed = definition.walk_speed * (0.88 + random(&mut self.seed) * 0.24);
             let pause = if random(&mut self.seed) < 0.2 {

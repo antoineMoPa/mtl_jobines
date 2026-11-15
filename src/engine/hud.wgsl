@@ -82,7 +82,7 @@ fn vehicle_lettering(p:vec2<f32>)->bool {
 }
 fn fps_rect()->vec4<f32> {
     let scale=fps_scale();
-    return vec4<f32>(hud.screen.x-142.0*scale,16.0*scale,126.0*scale,32.0*scale);
+    return vec4<f32>(16.0*scale,16.0*scale,126.0*scale,32.0*scale);
 }
 fn fps_lettering(p:vec2<f32>,origin:vec2<f32>,scale:f32)->bool {
     let q=(p-origin)/scale;

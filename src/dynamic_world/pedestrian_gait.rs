@@ -160,6 +160,7 @@ pub(crate) struct Gait {
     steps: usize,
     swing: usize,
     duration: f32,
+    step_length: f32,
     planned: bool,
     movement: f32,
     idle_time: f32,
@@ -193,6 +194,7 @@ impl Gait {
             steps: (seed % 2) as usize,
             swing: (seed % 2) as usize,
             duration: 0.5,
+            step_length: 0.50,
             planned: false,
             movement: 0.,
             idle_time: (seed % 19) as f32 * 0.17,
@@ -204,6 +206,16 @@ impl Gait {
             reach_error: 0.,
         };
         gait.update_pose(def);
+        gait
+    }
+    pub fn new_player(
+        def: &Definition,
+        position: Vec3,
+        yaw: f32,
+        sample: impl Fn(Vec3) -> Option<Ground>,
+    ) -> Self {
+        let mut gait = Self::new(def, position, yaw, 0, sample);
+        gait.step_length = 0.65;
         gait
     }
     pub fn carry(&mut self, delta: Vec3) {
@@ -391,7 +403,7 @@ impl Gait {
                 return;
             }
             // Faster travel needs a faster cadence; turns need short pivot steps even at rest.
-            self.duration = (0.50 * self.rig.scale
+            self.duration = (self.step_length * self.rig.scale
                 / desired_speed.abs().max(self.speed.abs()).max(0.35))
             .min(0.30 / self.turn_rate.abs().max(0.01))
             .clamp(0.09, 0.75);
@@ -643,6 +655,51 @@ fn solve_leg(hip: Vec3, target: Vec3, pole: Vec3, a: f32, b: f32) -> (Vec3, Vec3
 mod tests {
     use super::*;
     use crate::dynamic_world::pedestrian_catalog;
+    #[test]
+    fn player_has_longer_slower_steps_at_the_same_travel_speed() {
+        let def = &pedestrian_catalog::definitions()[pedestrian_catalog::PLAYER_SUMMER_MODEL];
+        let sample = |p: Vec3| {
+            Some(Ground {
+                point: Vec3::new(p.x, p.y, 0.),
+                gradient: [0., 0.],
+            })
+        };
+        let measure = |mut gait: Gait| {
+            let mut max_step: f32 = 0.;
+            for frame in 1..=240 {
+                let position = Vec3::new(frame as f32 * 5.2 / 120., 0., 0.);
+                gait.advance(
+                    def,
+                    position,
+                    0.,
+                    5.2,
+                    position + Vec3::X,
+                    1. / 120.,
+                    sample,
+                );
+                for foot in &gait.feet {
+                    max_step = max_step.max(foot.start.distance(foot.target));
+                }
+                assert!(
+                    gait.reach_error < 0.06,
+                    "frame {frame}, step length {}, reach {}",
+                    gait.step_length,
+                    gait.reach_error
+                );
+            }
+            (gait.steps, max_step)
+        };
+        let standard = measure(Gait::new(def, Vec3::ZERO, 0., 0, sample));
+        let player = measure(Gait::new_player(def, Vec3::ZERO, 0., sample));
+        assert!(
+            player.0 < standard.0 * 9 / 10,
+            "step counts: {standard:?} {player:?}"
+        );
+        assert!(
+            player.1 > standard.1 * 1.1,
+            "step lengths: {standard:?} {player:?}"
+        );
+    }
     #[test]
     fn directional_jump_poses_remain_reachable_on_all_six_rigs() {
         let sample = |p: Vec3| {

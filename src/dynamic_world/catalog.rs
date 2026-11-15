@@ -203,7 +203,8 @@ impl Definition {
         match self.config.research_id.as_str() {
             "vehicle-v2-01" => (-2.767, 1.04),
             "vehicle-12" => (-2.340, 1.06),
-            "vehicle-v2-09" | "vehicle-j01" | "vehicle-j06" => (-2.318, 0.72),
+            "vehicle-v2-09" => (-2.318, 0.79),
+            "vehicle-j01" | "vehicle-j06" => (-2.318, 0.72),
             "vehicle-j02" => (-6.105, 1.12),
             "vehicle-j03" => (-4.510, 1.65),
             "vehicle-j05" => (-4.130, 0.72),

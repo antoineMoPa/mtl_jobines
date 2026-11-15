@@ -5,14 +5,26 @@ use opencity::runtime::{SurfaceKind, Vertex};
 use std::sync::OnceLock;
 
 pub(crate) const JOINT_LIMIT: usize = 32;
-const ASSETS: [&[u8]; 6] = [
+pub(crate) const CROWD_MODEL_COUNT: usize = 6;
+pub(crate) const PLAYER_SUMMER_MODEL: usize = 6;
+pub(crate) const PLAYER_WINTER_MODEL: usize = 7;
+const ASSETS: [&[u8]; 8] = [
     include_bytes!("../../data/pedestrian/01.glb"),
     include_bytes!("../../data/pedestrian/02.glb"),
     include_bytes!("../../data/pedestrian/03.glb"),
     include_bytes!("../../data/pedestrian/04.glb"),
     include_bytes!("../../data/pedestrian/05.glb"),
     include_bytes!("../../data/pedestrian/06.glb"),
+    include_bytes!("../../data/pedestrian/player.glb"),
+    include_bytes!("../../data/pedestrian/player-winter.glb"),
 ];
+
+pub(crate) fn player_model(season: crate::season::Season) -> usize {
+    match season {
+        crate::season::Season::Summer => PLAYER_SUMMER_MODEL,
+        crate::season::Season::Winter => PLAYER_WINTER_MODEL,
+    }
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -47,6 +59,7 @@ struct Track {
     node: usize,
     times: Vec<f32>,
     values: Values,
+    interpolation: gltf::animation::Interpolation,
 }
 struct Clip {
     duration: f32,
@@ -60,7 +73,9 @@ impl Clip {
             let a = upper.saturating_sub(1);
             let b = upper.min(track.times.len() - 1);
             let span = track.times[b] - track.times[a];
-            let t = if span > 0. {
+            let t = if track.interpolation == gltf::animation::Interpolation::Step {
+                0.
+            } else if span > 0. {
                 (time - track.times[a]) / span
             } else {
                 0.
@@ -214,10 +229,12 @@ impl Definition {
             let tracks = animation
                 .channels()
                 .map(|channel| {
-                    assert_eq!(
-                        channel.sampler().interpolation(),
+                    let interpolation = channel.sampler().interpolation();
+                    assert!(matches!(
+                        interpolation,
                         gltf::animation::Interpolation::Linear
-                    );
+                            | gltf::animation::Interpolation::Step
+                    ));
                     let reader = channel.reader(buffer);
                     let times: Vec<_> = reader.read_inputs().unwrap().collect();
                     duration = duration.max(*times.last().unwrap());
@@ -235,6 +252,7 @@ impl Definition {
                         node: channel.target().node().index(),
                         times,
                         values,
+                        interpolation,
                     }
                 })
                 .collect();
@@ -411,11 +429,11 @@ mod tests {
     #[test]
     fn pedestrian_assets_have_valid_skin_bind_pose_and_distinct_moving_clips() {
         let models = definitions();
-        assert_eq!(models.len(), 6);
+        assert_eq!(models.len(), CROWD_MODEL_COUNT + 2);
         let mut cadences = Vec::new();
         for model in models {
             assert_eq!(model.joints.len(), 22);
-            assert!((5_000..7_000).contains(&(model.vertices.len() / 3)));
+            assert!((3_000..8_000).contains(&(model.vertices.len() / 3)));
             assert_eq!(model.skin.len(), model.vertices.len());
             assert!(model.texture_png.starts_with(b"\x89PNG"));
             let mut cache = vec![None; model.rest.len()];
@@ -436,11 +454,20 @@ mod tests {
             assert!(a.iter().all(|m| m.is_finite()));
             assert!(a.iter().zip(b).any(|(a, b)| !a.abs_diff_eq(b, 0.01)));
             assert!((0.6..1.8).contains(&model.walk_speed));
-            cadences.push(model.walk_duration.to_bits());
+            if cadences.len() < CROWD_MODEL_COUNT {
+                cadences.push(model.walk_duration.to_bits());
+            }
         }
         cadences.sort();
         cadences.dedup();
         assert_eq!(cadences.len(), 6);
+        let summer = &models[PLAYER_SUMMER_MODEL];
+        let winter = &models[PLAYER_WINTER_MODEL];
+        assert_eq!(summer.names, winter.names);
+        assert_eq!(summer.walk_duration, winter.walk_duration);
+        for (a, b) in summer.inverse_bind.iter().zip(&winter.inverse_bind) {
+            assert!(a.abs_diff_eq(*b, 0.00001));
+        }
         let transform = instance_transform(Vec3::new(20., 30., 4.), 0.);
         assert!(transform
             .transform_point3(Vec3::Y)

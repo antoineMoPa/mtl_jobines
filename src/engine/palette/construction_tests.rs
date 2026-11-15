@@ -38,6 +38,8 @@ impl Harness {
                     &mut self.sound,
                     matrix,
                     self.hermes.city(),
+                    &crate::kairos::Kairos::default(),
+                    false,
                 );
             },
         );

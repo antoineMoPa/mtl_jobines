@@ -10,6 +10,7 @@ pub(crate) mod landmark_destinations;
 pub(crate) mod landmarks;
 pub(crate) use landmark_destinations::Landmark;
 mod minimap;
+mod mission_sites;
 mod orange_sign;
 mod street_bins;
 pub(crate) mod street_props;
@@ -112,6 +113,7 @@ fn detailed_frontage(feature: &opencity::LandscapeFeature) -> bool {
 pub struct Hermes {
     authored_props: Vec<crate::props::Entry>,
     default_start: Option<crate::dynamic_world::SpawnPoint>,
+    mission_sites: mission_sites::MissionSites,
     parked_vehicles: Vec<crate::dynamic_world::parked::ParkedVehicle>,
     city: Arc<City>,
     minimap: minimap::Minimap,
@@ -283,6 +285,7 @@ impl Hermes {
         Ok(Self {
             authored_props,
             default_start: crate::dynamic_world::SpawnPoint::from_program(program)?,
+            mission_sites: mission_sites::MissionSites::from_program(program),
             parked_vehicles: crate::dynamic_world::parked::ParkedVehicle::from_program(program)?,
             traffic_paths: Arc::new(traffic_paths::TrafficPaths::new(&city, program)),
             walking_paths: Arc::new(walking_paths::WalkingPaths::new(&city)),
@@ -300,6 +303,24 @@ impl Hermes {
     }
     pub(crate) fn default_start(&self) -> Option<crate::dynamic_world::SpawnPoint> {
         self.default_start
+    }
+    pub(crate) fn mission_site(&self, site: crate::kairos::SiteId) -> Option<[f32; 2]> {
+        self.mission_sites.get(site)
+    }
+    pub(crate) fn mission_waiting_point(&self, site: crate::kairos::SiteId) -> Option<glam::Vec3> {
+        let point = self.mission_site(site)?;
+        self.mission_sites.waiting_point(&self.walking_paths, point)
+    }
+    pub(crate) fn select_mission_destination(
+        &mut self,
+        site: crate::kairos::SiteId,
+        player_position: [f32; 3],
+    ) -> bool {
+        let Some(point) = self.mission_site(site) else {
+            return false;
+        };
+        self.select_destination(self.minimap.map_uv(point), player_position);
+        self.navigation.status != RouteStatus::Unreachable
     }
     pub(crate) fn parked_vehicles(&self) -> &[crate::dynamic_world::parked::ParkedVehicle] {
         &self.parked_vehicles

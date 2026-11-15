@@ -16,6 +16,7 @@ pub(crate) mod parked;
 mod player;
 mod props;
 mod ragdoll;
+mod service_passengers;
 pub use props::PropBatch;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod physics_lod_tests;
@@ -36,8 +37,9 @@ use crate::hermes::Hermes;
 use glam::Vec3;
 use opencity::runtime::Mesh;
 use player::Pedestrian;
-pub(crate) const PEDESTRIAN_CAPACITY: usize = crowd::CAPACITY + crowd::KIOSK_CAPACITY + 1;
+pub(crate) const PEDESTRIAN_CAPACITY: usize = crowd::CAPACITY + crowd::KIOSK_CAPACITY + 5;
 pub use player::WalkControls;
+pub(crate) use player::TURN_SPEED as WALK_TURN_SPEED;
 pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VehicleId(usize);
@@ -61,9 +63,11 @@ pub struct DynamicWorld {
     vehicle_notice: f32,
     pedestrian: Option<Pedestrian>,
     vehicle_spawns: Vec<SpawnPoint>,
+    snow_events: Vec<crate::kairos::SnowCell>,
     props: props::Props,
     traffic: traffic::Traffic,
     crowd: crowd::Crowd,
+    service_passengers: service_passengers::ServicePassengers,
     buildings: buildings::Buildings,
     building_candidates: Vec<usize>,
 }
@@ -117,6 +121,7 @@ impl DynamicWorld {
             sound_geography_timer: 0.,
             traffic: traffic::Traffic::new_near(hermes.traffic_paths(), prop_center),
             crowd: crowd::Crowd::new(hermes.walking_paths()),
+            service_passengers: Default::default(),
             buildings: buildings::Buildings::new(hermes.city()),
             building_candidates: Vec::new(),
             vehicles: vec![vehicle],
@@ -125,6 +130,7 @@ impl DynamicWorld {
             vehicle_notice: 4.,
             pedestrian: None,
             vehicle_spawns: Vec::new(),
+            snow_events: Vec::new(),
             props: props::Props::from_parts_near(hermes.prop_parts(), prop_center),
         };
         world.traffic.update_prop_focus(prop_center);
@@ -172,6 +178,23 @@ impl DynamicWorld {
     pub(crate) fn season(&self) -> crate::season::Season {
         self.season
     }
+    pub(crate) fn take_snow_events(&mut self) -> Vec<crate::kairos::SnowCell> {
+        std::mem::take(&mut self.snow_events)
+    }
+    pub(crate) fn clear_service_passengers(&mut self) {
+        self.service_passengers.clear();
+    }
+    pub(crate) fn spawn_service_passenger(&mut self, id: u32, point: Vec3) {
+        self.service_passengers.spawn(id, point);
+    }
+    pub(crate) fn begin_service(&mut self, board: &[u32], alight: &[u32], sidewalk: Vec3) -> bool {
+        let vehicle = &self.vehicles[self.player_vehicle.0];
+        self.service_passengers
+            .begin(board, alight, vehicle, sidewalk)
+    }
+    pub(crate) fn take_service_finished(&mut self) -> bool {
+        self.service_passengers.take_finished()
+    }
     pub(crate) fn set_season(&mut self, hermes: &Hermes, season: crate::season::Season) {
         if self.season == season {
             return;
@@ -185,6 +208,11 @@ impl DynamicWorld {
     }
     pub fn player(&self) -> &Vehicle {
         &self.vehicles[self.player_vehicle.0]
+    }
+    pub(crate) fn player_model_id(&self) -> Option<&str> {
+        self.player()
+            .definition()
+            .map(|model| model.config.research_id.as_str())
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn retain_player_vehicle(&mut self, previous: &Self) {
@@ -522,12 +550,17 @@ impl DynamicWorld {
             );
         }
         stage!(6);
+        self.service_passengers.step(dt);
         self.traffic.step_debris(dt);
         if self.season == crate::season::Season::Winter {
             self.snow_timer += dt;
             if self.snow_timer >= 0.1 {
                 self.snow_timer = 0.;
-                self.snow.update(hermes.city(), &self.vehicles);
+                self.snow_events.extend(self.snow.update(
+                    hermes.city(),
+                    &self.vehicles,
+                    self.player_vehicle.0,
+                ));
             }
         }
         if self.player_position().z < -40. {
@@ -546,8 +579,9 @@ impl DynamicWorld {
     pub(crate) fn pedestrian_instances(&self) -> impl Iterator<Item = crowd::Instance<'_>> + '_ {
         self.pedestrian
             .iter()
-            .map(Pedestrian::instance)
+            .map(|player| player.instance(self.season))
             .chain(self.crowd.instances(self.player_position()))
+            .chain(self.service_passengers.instances())
     }
     #[cfg(test)]
     pub(crate) fn prepare_pedestrian_collision(&mut self) -> glam::Vec3 {

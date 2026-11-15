@@ -9,8 +9,11 @@ use super::{
     hud::{self, MenuItem, Overlay},
     scenery::Scenery,
 };
-use crate::dynamic_world::{Controls, DynamicWorld, SpawnPoint, WalkControls, METERS_PER_UNIT};
+use crate::dynamic_world::{
+    Controls, DynamicWorld, SpawnPoint, WalkControls, METERS_PER_UNIT, WALK_TURN_SPEED,
+};
 use crate::hermes::Hermes;
+use crate::kairos::{Kairos, MissionEvent};
 use glam::Vec3;
 use opencity::runtime::Mesh;
 #[cfg(not(target_arch = "wasm32"))]
@@ -27,11 +30,16 @@ use winit::{
     window::{Window, WindowId},
 };
 pub(super) const DT: f32 = 1. / 120.;
+const DEFAULT_CHASE_ZOOM: f32 = 0.45;
+const CAMERA_ORBIT_SENSITIVITY: f32 = 0.005;
+const CAMERA_PITCH_SENSITIVITY: f32 = 0.003;
+const CAMERA_RETURN_RATE: f32 = 1.0;
 const CURSOR_IDLE_DELAY: Duration = Duration::from_secs(2);
 #[cfg(not(target_arch = "wasm32"))]
 mod construction;
 mod focus;
 mod location;
+mod missions;
 #[cfg(not(target_arch = "wasm32"))]
 mod reload;
 mod startup;
@@ -73,6 +81,7 @@ struct Game {
     #[cfg(target_arch = "wasm32")]
     proxy: winit::event_loop::EventLoopProxy<GameEvent>,
     hermes: Hermes,
+    kairos: Kairos,
     world: DynamicWorld,
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
@@ -107,6 +116,19 @@ struct Game {
     frame_rate: FrameRate,
 }
 impl Game {
+    fn move_camera_with_cursor(&mut self, point: [f32; 2]) {
+        if !self.overlay.paused() {
+            if let Some(previous) = self.cursor {
+                self.orbit = (self.orbit - (point[0] - previous[0]) * CAMERA_ORBIT_SENSITIVITY)
+                    .clamp(-std::f32::consts::PI, std::f32::consts::PI);
+                self.camera_pitch = (self.camera_pitch
+                    + (point[1] - previous[1]) * CAMERA_PITCH_SENSITIVITY)
+                    .clamp(-0.3, 1.);
+            }
+        }
+        self.cursor = Some(point);
+    }
+
     fn show_cursor(&mut self) {
         self.cursor_hide_at = None;
         if self.cursor_hidden {
@@ -248,6 +270,8 @@ impl Game {
     ) -> Result<Self, String> {
         let world = DynamicWorld::with_start(&hermes, start)?;
         let p = world.player_position() / METERS_PER_UNIT;
+        let yaw = world.player_yaw();
+        let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
         Ok(Self {
             #[cfg(not(target_arch = "wasm32"))]
             live_reload: None,
@@ -261,6 +285,16 @@ impl Game {
             #[cfg(target_arch = "wasm32")]
             proxy,
             hermes,
+            kairos: {
+                #[cfg(test)]
+                {
+                    Kairos::test_session()
+                }
+                #[cfg(not(test))]
+                {
+                    Kairos::load()
+                }
+            },
             world,
             window: None,
             renderer: None,
@@ -275,8 +309,8 @@ impl Game {
             game_time: 0.,
             accumulator: 0.,
             mesh_center: [p.x, p.y],
-            eye: p - Vec3::new(0.16, 0., -0.08),
-            zoom: 1.,
+            eye: p - forward * (0.15 * DEFAULT_CHASE_ZOOM) + Vec3::Z * (0.075 * DEFAULT_CHASE_ZOOM),
+            zoom: DEFAULT_CHASE_ZOOM,
             orbit: 0.,
             camera_pitch: 0.,
             dragging: false,
@@ -322,32 +356,44 @@ impl Game {
         self.game_time += elapsed;
         let f = glam::Vec2::new(self.world.player().yaw.cos(), self.world.player().yaw.sin());
         let speed = self.world.player().velocity.truncate().dot(f);
-        let (input, walk) = movement_controls(&self.keys, speed);
+        let (input, keyboard_walk) = movement_controls(&self.keys, speed);
         while self.accumulator >= DT {
+            let mut walk = keyboard_walk;
+            if !self.world.is_driving() && walk.turn == 0. {
+                let step_turn = self
+                    .orbit
+                    .clamp(-WALK_TURN_SPEED * DT, WALK_TURN_SPEED * DT);
+                walk.turn = step_turn / (WALK_TURN_SPEED * DT);
+                self.orbit -= step_turn;
+            }
             self.world.step(&self.hermes, input, walk, DT);
             self.accumulator -= DT;
+        }
+        if self.world.take_service_finished() {
+            self.kairos.service_finished();
+            self.refresh_mission_route();
+            self.kairos.save_now();
+        }
+        let cleared = self.world.take_snow_events();
+        if !cleared.is_empty()
+            && self.kairos.active_id() == Some(crate::kairos::MissionId::Snowplow)
+        {
+            self.kairos.event(MissionEvent::SnowCleared(cleared));
+            #[cfg(target_arch = "wasm32")]
+            self.kairos.save_now();
         }
     }
     fn apply_palette_action(&mut self, action: PaletteAction) {
         match action {
+            PaletteAction::SelectMission(id) => self.activate_mission(id),
+            PaletteAction::AbandonMission => self.abandon_mission(),
             PaletteAction::SwitchVehicle(model) => {
                 if self.world.switch_vehicle(model) {
                     self.finish_location_change();
                 }
             }
             PaletteAction::Season(season) => {
-                self.world.set_season(&self.hermes, season);
-                if let Some(renderer) = &mut self.renderer {
-                    renderer.season = season;
-                }
-                self.scene_dirty = true;
-                if let Some(window) = &self.window {
-                    window.set_title(match season {
-                        crate::season::Season::Winter => "MTL Jobines · winter",
-                        crate::season::Season::Summer => "MTL Jobines · summer",
-                    });
-                    window.request_redraw();
-                }
+                self.change_season(season);
             }
             #[cfg(not(target_arch = "wasm32"))]
             PaletteAction::BuildBuildings
@@ -422,6 +468,7 @@ impl Game {
             self.route_revision = self.hermes.route_revision();
         }
         if !paused
+            && self.world.is_driving()
             && !self.dragging
             && self
                 .world
@@ -429,8 +476,8 @@ impl Game {
                 .distance_squared(previous_position)
                 > 0.000001
         {
-            self.orbit *= (-elapsed * 2.5).exp();
-            self.camera_pitch *= (-elapsed * 2.5).exp();
+            self.orbit *= (-elapsed * CAMERA_RETURN_RATE).exp();
+            self.camera_pitch *= (-elapsed * CAMERA_RETURN_RATE).exp();
         }
         let heading = self.world.player_yaw() + self.orbit;
         let forward = Vec3::new(heading.cos(), heading.sin(), 0.);
@@ -567,6 +614,8 @@ impl Game {
                         &mut self.sound_settings,
                         renderer.view_projection(eye, look),
                         self.hermes.city(),
+                        &self.kairos,
+                        !self.world.is_driving(),
                     );
                     #[cfg(not(target_arch = "wasm32"))]
                     if palette_action == Some(PaletteAction::BugReport) {
@@ -651,6 +700,7 @@ impl Game {
 }
 impl ApplicationHandler<GameEvent> for Game {
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        self.kairos.save_now();
         let started = Instant::now();
         if let Some(window) = &self.window {
             window.set_visible(false);
@@ -663,6 +713,7 @@ impl ApplicationHandler<GameEvent> for Game {
         let _ = started;
     }
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+        self.kairos.save_now();
         self.audio.silence();
         self.sound_eye = None;
         if self.overlay != Overlay::Start {
@@ -670,6 +721,7 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        self.kairos.save_if_due();
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_map_reload(Instant::now());
         if self.simulation_paused() {
@@ -771,6 +823,20 @@ impl ApplicationHandler<GameEvent> for Game {
             }
             let consumed = palette.event(window, &event);
             let open = palette.is_open();
+            let phone_shortcut = matches!(&event, WindowEvent::KeyboardInput { event, .. }
+                if event.physical_key == PhysicalKey::Code(KeyCode::KeyP)
+                    && event.state == ElementState::Pressed && !event.repeat
+                    && !palette.shortcut() && !open && !self.world.is_driving()
+                    && self.overlay == Overlay::Driving);
+            if phone_shortcut {
+                palette.open_job_feed();
+                self.keys.clear();
+                self.dragging = false;
+                self.accumulator = 0.;
+                self.show_cursor();
+                self.window.as_ref().unwrap().request_redraw();
+                return;
+            }
             let shortcut = matches!(&event, WindowEvent::KeyboardInput { event, .. }
                 if event.physical_key == PhysicalKey::Code(KeyCode::KeyP)
                     && event.state == ElementState::Pressed && !event.repeat && palette.shortcut());
@@ -800,6 +866,9 @@ impl ApplicationHandler<GameEvent> for Game {
                         | WindowEvent::CursorMoved { .. }
                         | WindowEvent::Touch(_)
                 ) {
+                    if let WindowEvent::CursorMoved { position, .. } = &event {
+                        self.cursor = Some([position.x as f32, position.y as f32]);
+                    }
                     self.show_cursor();
                     self.window.as_ref().unwrap().request_redraw();
                     return;
@@ -819,6 +888,7 @@ impl ApplicationHandler<GameEvent> for Game {
         }
         match event {
             WindowEvent::CloseRequested => {
+                self.kairos.save_now();
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => {
@@ -833,6 +903,7 @@ impl ApplicationHandler<GameEvent> for Game {
                 }
             }
             WindowEvent::Focused(false) => {
+                self.kairos.save_now();
                 self.window_focus_lost();
             }
             WindowEvent::Occluded(occluded) => {
@@ -899,11 +970,6 @@ impl ApplicationHandler<GameEvent> for Game {
                         self.keys.insert(key);
                         if !event.repeat {
                             match key {
-                                KeyCode::KeyR => {
-                                    self.world.reset_player(&self.hermes);
-                                    self.orbit = 0.;
-                                    self.camera_pitch = 0.;
-                                }
                                 KeyCode::KeyF => {
                                     if self.world.toggle_vehicle(&self.hermes) {
                                         self.orbit = 0.;
@@ -911,6 +977,7 @@ impl ApplicationHandler<GameEvent> for Game {
                                         self.hood = false;
                                     }
                                 }
+                                KeyCode::KeyE => self.try_service(),
                                 KeyCode::Tab => self.hood = !self.hood,
                                 KeyCode::BracketLeft | KeyCode::BracketRight => {
                                     if let Some(renderer) = &mut self.renderer {
@@ -1030,16 +1097,7 @@ impl ApplicationHandler<GameEvent> for Game {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_activity(Instant::now());
-                if self.dragging {
-                    if let Some(x) = self.cursor {
-                        self.orbit = (self.orbit - (position.x as f32 - x[0]) * 0.008)
-                            .clamp(-std::f32::consts::PI, std::f32::consts::PI);
-                        self.camera_pitch = (self.camera_pitch
-                            + (position.y as f32 - x[1]) * 0.005)
-                            .clamp(-0.3, 1.);
-                    }
-                }
-                self.cursor = Some([position.x as f32, position.y as f32]);
+                self.move_camera_with_cursor([position.x as f32, position.y as f32]);
                 if matches!(self.overlay, Overlay::Start | Overlay::Menu) {
                     if let Some(window) = &self.window {
                         let size = window.inner_size();
