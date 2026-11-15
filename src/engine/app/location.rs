@@ -36,6 +36,7 @@ impl Game {
         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
         self.eye =
             p - forward * (0.15 * DEFAULT_CHASE_ZOOM) + Vec3::Z * (0.075 * DEFAULT_CHASE_ZOOM);
+        self.camera_anchor = p;
         self.hermes.update_navigation(p.to_array());
         self.scene_dirty = true;
         self.set_overlay(Overlay::Driving);

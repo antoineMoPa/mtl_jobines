@@ -1,12 +1,15 @@
 use super::*;
 use crate::kairos::{MissionId, SiteId};
 
+const LARGE_VEHICLE_CHASE_ZOOM: f32 = 0.9;
+
 impl Game {
     pub(super) fn abandon_mission(&mut self) {
         let winter = self.kairos.active_id() == Some(MissionId::Snowplow);
         self.kairos.abandon();
         self.world.clear_service_passengers();
         self.hermes.clear_destination();
+        self.hermes.clear_taxi_run();
         if winter {
             self.change_season(crate::season::Season::Summer);
         }
@@ -25,6 +28,7 @@ impl Game {
             self.kairos.abandon();
             self.world.clear_service_passengers();
             self.hermes.clear_destination();
+            self.hermes.clear_taxi_run();
         }
         self.world.set_season(&self.hermes, season);
         if let Some(renderer) = &mut self.renderer {
@@ -32,15 +36,18 @@ impl Game {
         }
         self.scene_dirty = true;
         if let Some(window) = &self.window {
-            window.set_title(match season {
-                crate::season::Season::Winter => "MTL Jobines · winter",
-                crate::season::Season::Summer => "MTL Jobines · summer",
-            });
             window.request_redraw();
         }
     }
 
     pub(super) fn activate_mission(&mut self, id: MissionId) {
+        if id == MissionId::Taxi {
+            let player = self.world.player_position() / METERS_PER_UNIT;
+            if !self.hermes.choose_taxi_run(player) {
+                eprintln!("Taxi route unavailable on the current road network");
+                return;
+            }
+        }
         let required: &[(u32, SiteId)] = match id {
             MissionId::Taxi => &[(1, SiteId::TaxiPickup)],
             MissionId::Bus => &[
@@ -81,13 +88,44 @@ impl Game {
             eprintln!("Mission vehicle unavailable: {}", id.vehicle_id());
             return;
         };
-        self.kairos.accept(id);
+        if id == MissionId::Bus {
+            let stop = self.hermes.mission_site(SiteId::BusStop1).unwrap();
+            let previous = self.world.player_model_id().and_then(|research_id| {
+                crate::dynamic_world::catalog::definitions()
+                    .iter()
+                    .position(|definition| definition.config.research_id == research_id)
+            });
+            self.world.switch_vehicle(model);
+            if let Err(error) = self.world.respawn_near_within(&self.hermes, stop, 9.) {
+                if let Some(previous) = previous {
+                    self.world.switch_vehicle(previous);
+                }
+                eprintln!("Bus start unavailable: {error}");
+                return;
+            }
+            self.finish_location_change();
+            self.zoom = LARGE_VEHICLE_CHASE_ZOOM;
+        }
+        let continuing_snow =
+            id == MissionId::Snowplow && self.kairos.active_id() == Some(MissionId::Snowplow);
+        if !continuing_snow {
+            self.kairos.accept(id);
+        }
         self.world.clear_service_passengers();
         for (index, (actor_id, point)) in passengers.into_iter().enumerate() {
             self.world
                 .spawn_service_passenger(actor_id, point + Vec3::X * (index as f32 * 0.6));
         }
-        self.world.switch_vehicle(model);
+        if id != MissionId::Bus {
+            self.world.switch_vehicle(model);
+        }
+        if id == MissionId::Snowplow {
+            self.finish_location_change();
+            self.zoom = LARGE_VEHICLE_CHASE_ZOOM;
+        }
+        if id != MissionId::Taxi {
+            self.hermes.clear_taxi_run();
+        }
         self.change_season(id.season());
         self.refresh_mission_route();
         self.keys.clear();
@@ -134,11 +172,36 @@ impl Game {
         let Some(sidewalk) = self.hermes.mission_waiting_point(site) else {
             return;
         };
-        if self.world.begin_service(plan.board, plan.alight, sidewalk) {
+        if self
+            .world
+            .begin_service(plan.board, plan.alight, sidewalk, id == MissionId::Bus)
+        {
+            if id == MissionId::Taxi && site == SiteId::TaxiDropoff {
+                self.kairos
+                    .event(crate::kairos::MissionEvent::PassengerAlighted);
+                self.kairos.save_now();
+                self.hermes.clear_destination();
+            }
             self.scene_dirty = true;
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
         }
+    }
+
+    pub(super) fn start_next_taxi_run(&mut self) {
+        let player = self.world.player_position() / METERS_PER_UNIT;
+        if !self.hermes.choose_taxi_run(player) {
+            eprintln!("Next taxi route unavailable on the current road network");
+            return;
+        }
+        let Some(waiting) = self.hermes.mission_waiting_point(SiteId::TaxiPickup) else {
+            return;
+        };
+        self.world.clear_service_passengers();
+        self.world.spawn_service_passenger(1, waiting);
+        self.kairos.accept(MissionId::Taxi);
+        self.refresh_mission_route();
+        self.scene_dirty = true;
     }
 }

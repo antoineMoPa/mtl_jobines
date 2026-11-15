@@ -1,6 +1,6 @@
 //! The game-native job feed, money display, and phone entry point.
 use super::hud::Overlay;
-use crate::kairos::{Kairos, MissionId};
+use crate::kairos::{Kairos, MissionId, MissionProgress};
 use egui::{Color32, RichText};
 
 const INK: Color32 = Color32::from_rgb(38, 62, 61);
@@ -29,6 +29,7 @@ pub(super) struct Portraits {
     taxi: egui::TextureHandle,
     bus: egui::TextureHandle,
     snowplow: egui::TextureHandle,
+    phone: egui::TextureHandle,
 }
 
 impl Portraits {
@@ -58,6 +59,24 @@ fn load_portrait(ctx: &egui::Context, label: &str, bytes: &[u8]) -> egui::Textur
     )
 }
 
+fn load_phone_icon(ctx: &egui::Context) -> egui::TextureHandle {
+    let mut reader =
+        png::Decoder::new(include_bytes!("../../assets/jobines/phone-button.png").as_slice())
+            .read_info()
+            .expect("phone icon PNG");
+    let mut pixels = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut pixels).expect("phone icon pixels");
+    assert_eq!(info.color_type, png::ColorType::Rgba);
+    ctx.load_texture(
+        "job phone icon",
+        egui::ColorImage::from_rgba_unmultiplied(
+            [info.width as usize, info.height as usize],
+            &pixels[..info.buffer_size()],
+        ),
+        egui::TextureOptions::LINEAR,
+    )
+}
+
 pub(super) fn load_portraits(ctx: &egui::Context) -> Portraits {
     Portraits {
         taxi: load_portrait(
@@ -75,6 +94,7 @@ pub(super) fn load_portraits(ctx: &egui::Context) -> Portraits {
             "job portrait snowplow",
             include_bytes!("../../assets/jobines/plow-portrait-01.png"),
         ),
+        phone: load_phone_icon(ctx),
     }
 }
 
@@ -118,11 +138,16 @@ pub(super) fn show(
                     .corner_radius(10)
                     .inner_margin(egui::Margin::symmetric(12, 7))
                     .show(ui, |ui| {
-                        let progress = kairos.progress().map_or(String::new(), |(done, total)| {
-                            format!(" · {done}/{total} m²")
-                        });
+                        let progress =
+                            kairos
+                                .progress()
+                                .map_or(String::new(), |progress| match progress {
+                                    MissionProgress::ClearedDistanceKm(km) => {
+                                        format!("  {km:.3} km")
+                                    }
+                                });
                         ui.label(
-                            RichText::new(format!("{} · {objective}{progress}", id.title()))
+                            RichText::new(format!("{}  {objective}{progress}", id.title()))
                                 .color(INK)
                                 .size(12.),
                         );
@@ -134,22 +159,15 @@ pub(super) fn show(
             .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-20., -PHONE_BOTTOM))
             .show(ctx, |ui| {
                 let (rect, response) =
-                    ui.allocate_exact_size(egui::vec2(44., 44.), egui::Sense::click());
-                let center = rect.center();
-                let painter = ui.painter();
-                painter.circle_filled(
-                    center,
-                    22.,
-                    if response.hovered() {
-                        Color32::from_rgb(35, 104, 88)
-                    } else {
-                        GREEN
-                    },
-                );
-                let phone = egui::Rect::from_center_size(center, egui::vec2(17., 26.));
-                painter.rect_filled(phone, 3., Color32::WHITE);
-                painter.rect_filled(phone.shrink2(egui::vec2(2., 3.)), 1., GREEN);
-                painter.circle_filled(center + egui::vec2(0., 10.), 1.4, Color32::WHITE);
+                    ui.allocate_exact_size(egui::vec2(88., 88.), egui::Sense::click());
+                if let Some(images) = portraits {
+                    ui.painter().image(
+                        images.phone.id(),
+                        rect,
+                        egui::Rect::from_min_max(egui::pos2(0., 0.), egui::pos2(1., 1.)),
+                        Color32::WHITE,
+                    );
+                }
                 if response.clicked() {
                     *open = true;
                 }
@@ -217,21 +235,21 @@ pub(super) fn show(
                 (
                     MissionId::Taxi,
                     "Cynthia Tremblay",
-                    "@cynthia_tremblay · construction civile",
+                    "@cynthia_tremblay  construction civile",
                     "Mon ami cherche quelqu'un pour conduire son taxi aujourd'hui. Ça te dit?",
                     "🚕",
                 ),
                 (
                     MissionId::Bus,
                     "Mike Vachon",
-                    "@mike_vachon · chauffeur d'autobus",
+                    "@mike_vachon  chauffeur d'autobus",
                     "On cherche du monde pour conduire l'autobus du quartier. Tu embarques?",
                     "🚌",
                 ),
                 (
                     MissionId::Snowplow,
                     "Yvan Tansiarge",
-                    "@yvan_tansiarge · déneigeur",
+                    "@yvan_tansiarge  déneigeur",
                     "La neige arrive! Une déneigeuse t'attend au garage.",
                     "❄",
                 ),

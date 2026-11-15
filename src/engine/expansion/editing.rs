@@ -111,7 +111,7 @@ impl Document {
                 .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)))
                 .map(|(_, _, s)| s);
             self.picker.message = if self.selected_road.is_some() {
-                "Road selected · Backspace removes · Esc clears selection".into()
+                "Road selected. Backspace removes; Esc clears selection".into()
             } else {
                 "Shift-click near an authored road to select it".into()
             };

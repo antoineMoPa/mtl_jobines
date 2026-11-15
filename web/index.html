@@ -9,20 +9,25 @@
     html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #18212d; color: #fff; font: 14px system-ui, sans-serif; }
     #game { display: block; width: 100% !important; height: 100% !important; outline: none; }
     #loading { position: fixed; inset: 0; display: grid; place-items: center; padding: 2rem; background: #18212d; text-align: center; }
+    #loading img { display: block; width: min(100%, 1328px); max-height: calc(100vh - 4rem); object-fit: contain; }
+    #loading-message { position: absolute; bottom: 1.5rem; margin: 0; }
     #loading[data-state="ready"] { display: none; }
-    #loading[data-state="error"] { color: #ffb8a0; }
+    #loading[data-state="error"] #loading-message { color: #ffb8a0; }
   </style>
 </head>
 <body>
   <canvas id="game" tabindex="0" aria-label="MTL Jobines driving game"></canvas>
-  <div id="loading" role="status">Loading MTL Jobines…</div>
+  <div id="loading" role="status" aria-live="polite">
+    <img src="./boot.png" alt="" aria-hidden="true">
+    <p id="loading-message">Loading…</p>
+  </div>
   <script type="module">
     const loading = document.getElementById('loading');
     const canvas = document.getElementById('game');
     function fail(error) {
       console.error(error);
       loading.dataset.state = 'error';
-      loading.textContent = `MTL Jobines could not start: ${error.message ?? error}`;
+      document.getElementById('loading-message').textContent = `Could not start: ${error.message ?? error}`;
     }
     window.addEventListener('error', event => fail(event.error ?? event.message));
     window.addEventListener('unhandledrejection', event => fail(event.reason));

@@ -219,7 +219,7 @@ impl Document {
             Ok(()) => {
                 self.projection = opencity::map::project(&self.program);
                 self.preview.start(self.program.clone());
-                self.picker.message = "Saved · drawing road surface; details follow.".into();
+                self.picker.message = "Saved. Drawing road surface; details follow.".into();
                 if let Some(target) = self.picker.take_follow_target() {
                     self.camera = Some(BuildCamera::at(target));
                 }

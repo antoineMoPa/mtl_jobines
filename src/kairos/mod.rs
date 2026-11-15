@@ -89,10 +89,14 @@ pub(crate) struct ServicePlan {
     pub(crate) alight: &'static [u32],
 }
 
+pub(crate) enum MissionProgress {
+    ClearedDistanceKm(f64),
+}
+
 pub(crate) trait Mission {
     fn id(&self) -> MissionId;
     fn objective(&self) -> &'static str;
-    fn progress(&self) -> Option<(u32, u32)> {
+    fn progress(&self) -> Option<MissionProgress> {
         None
     }
     fn target(&self) -> Option<SiteId>;
@@ -213,7 +217,7 @@ impl Kairos {
     pub(crate) fn objective(&self) -> Option<&'static str> {
         self.active.as_ref().map(|mission| mission.objective())
     }
-    pub(crate) fn progress(&self) -> Option<(u32, u32)> {
+    pub(crate) fn progress(&self) -> Option<MissionProgress> {
         self.active.as_ref().and_then(|mission| mission.progress())
     }
 
@@ -310,13 +314,20 @@ mod tests {
         assert_eq!(kairos.money_cents(), 1500);
         assert_eq!(kairos.completed(MissionId::Taxi), 1);
         kairos.accept(MissionId::Snowplow);
-        let cell = SnowCell {
-            x: 1,
+        let cells = (0..12)
+            .map(|x| SnowCell {
+                x,
+                y: 2,
+                height_bits: 0,
+            })
+            .collect();
+        kairos.event(MissionEvent::SnowCleared(cells));
+        kairos.event(MissionEvent::SnowCleared(vec![SnowCell {
+            x: 0,
             y: 2,
             height_bits: 0,
-        };
-        kairos.event(MissionEvent::SnowCleared(vec![cell, cell]));
-        assert_eq!(kairos.money_cents(), 1505);
+        }]));
+        assert_eq!(kairos.money_cents(), 1501);
     }
 
     #[test]
@@ -336,10 +347,10 @@ mod tests {
     }
 
     #[test]
-    fn snow_batch_stops_paying_at_completion() {
+    fn snow_batches_keep_paying_for_new_cells_without_a_finish_line() {
         let mut kairos = Kairos::test_session();
         kairos.accept(MissionId::Snowplow);
-        let cells = (0..1300)
+        let cells = (0..1200)
             .map(|x| SnowCell {
                 x,
                 y: 0,
@@ -347,7 +358,25 @@ mod tests {
             })
             .collect();
         kairos.event(MissionEvent::SnowCleared(cells));
-        assert_eq!(kairos.money_cents(), 6000);
-        assert_eq!(kairos.completed(MissionId::Snowplow), 1);
+        assert_eq!(kairos.money_cents(), 100);
+        assert_eq!(kairos.completed(MissionId::Snowplow), 0);
+        assert!(!kairos.is_complete());
+        kairos.event(MissionEvent::SnowCleared(vec![SnowCell {
+            x: 1200,
+            y: 0,
+            height_bits: 0,
+        }]));
+        assert_eq!(kairos.money_cents(), 100);
+        kairos.event(MissionEvent::SnowCleared(
+            (1201..1212)
+                .map(|x| SnowCell {
+                    x,
+                    y: 0,
+                    height_bits: 0,
+                })
+                .collect(),
+        ));
+        assert_eq!(kairos.money_cents(), 101);
+        assert!(!kairos.is_complete());
     }
 }

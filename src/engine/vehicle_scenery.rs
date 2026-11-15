@@ -1,6 +1,7 @@
 //! Immutable catalog geometry and small per-part instance buffers shared by both render passes.
 use super::render::{GpuMesh, Renderer};
 use crate::dynamic_world::{catalog, DynamicWorld};
+use glam::Mat4;
 #[cfg(test)]
 mod tests;
 struct Part {
@@ -31,6 +32,14 @@ impl VehicleScenery {
         }
     }
     pub fn update(&mut self, renderer: &Renderer, world: &DynamicWorld) {
+        self.update_with_player_pose(renderer, world, Mat4::IDENTITY);
+    }
+    pub fn update_with_player_pose(
+        &mut self,
+        renderer: &Renderer,
+        world: &DynamicWorld,
+        player_pose_delta: Mat4,
+    ) {
         self.pedestrians.update(renderer, world);
         if world.season() == crate::season::Season::Winter {
             let center = world.player_position() / crate::dynamic_world::METERS_PER_UNIT;
@@ -44,6 +53,11 @@ impl VehicleScenery {
         }
         for (model, transforms, opacity, headlights, player, paint) in world.vehicle_instances() {
             for (part, transform) in self.models[model].iter_mut().zip(transforms) {
+                let transform = if player {
+                    player_pose_delta * transform
+                } else {
+                    transform
+                };
                 let mut columns = transform.to_cols_array_2d();
                 // Affine W is spare: vehicle shaders use XYZ and carry W as coverage.
                 columns[3][3] = opacity;

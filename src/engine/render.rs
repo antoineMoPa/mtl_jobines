@@ -8,6 +8,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 mod culling;
 mod lod;
+mod mission_markers;
 mod snowfall;
 mod ssao;
 use culling::{Bounds, Frustum};
@@ -79,6 +80,7 @@ pub struct Renderer {
     contact_texture: super::contact_texture::ContactTexture,
     ssao: ssao::Ssao,
     snowfall: snowfall::Snowfall,
+    pub(super) mission_markers: mission_markers::MissionMarkers,
     pipeline: wgpu::RenderPipeline,
     opaque_pipeline: wgpu::RenderPipeline,
     graffiti_pipeline: wgpu::RenderPipeline,
@@ -537,6 +539,7 @@ impl Renderer {
         let color = color_target(&device, width, height, format);
         let ssao = ssao::Ssao::new(&device, width.max(1), height.max(1), format, &depth);
         let snowfall = snowfall::Snowfall::new(&device, format, &depth, &snow);
+        let mission_markers = mission_markers::MissionMarkers::new(&device, format);
         let hud = Hud::new(&device, format);
         #[cfg(not(target_arch = "wasm32"))]
         let gpu_profile = timestamp_features
@@ -569,6 +572,7 @@ impl Renderer {
             contact_texture,
             ssao,
             snowfall,
+            mission_markers,
             pipeline,
             opaque_pipeline,
             graffiti_pipeline,
@@ -894,6 +898,7 @@ impl Renderer {
         };
         self.queue
             .write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
+        self.mission_markers.set_view(&self.queue, view);
         self.local_lights.upload(
             &self.queue,
             if self.construction_span.is_some() {
@@ -1082,6 +1087,7 @@ impl Renderer {
                 draw.draw(&mut pass, draw.paint..draw.count, 0..1);
             }
             self.sky.draw(&mut pass, &self.camera_group);
+            self.mission_markers.draw(&mut pass);
         }
         let winter = self.season == crate::season::Season::Winter
             && self.winter_weather

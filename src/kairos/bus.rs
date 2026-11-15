@@ -12,9 +12,9 @@ impl Mission for BusMission {
 
     fn objective(&self) -> &'static str {
         match self.served {
-            0 => "Arrêt 1/3 · arrête-toi et appuie E",
-            1 => "Arrêt 2/3 · arrête-toi et appuie E",
-            2 => "Arrêt 3/3 · arrête-toi et appuie E",
+            0 => "Arrêt 1/3 — arrête-toi et appuie E",
+            1 => "Arrêt 2/3 — arrête-toi et appuie E",
+            2 => "Arrêt 3/3 — arrête-toi et appuie E",
             _ => "Ligne terminée",
         }
     }

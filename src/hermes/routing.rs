@@ -52,6 +52,17 @@ impl Default for Navigation {
     }
 }
 impl Router {
+    pub(super) fn road_point(&self, near: Vec3) -> Option<Vec3> {
+        let snap = self.snaps(near, true).first().copied()?;
+        (snap.point.distance(near) < 0.14).then_some(snap.point)
+    }
+
+    pub(super) fn can_route(&self, from: Vec3, to: Vec3) -> bool {
+        self.snaps(to, true)
+            .first()
+            .copied()
+            .is_some_and(|target| self.route(from, target).is_some())
+    }
     pub fn new(city: &City, program: &opencity::Program) -> Self {
         let mut graph = Self::default();
         let mut endpoints = Vec::new();
@@ -406,6 +417,12 @@ impl PartialOrd for State {
     }
 }
 impl Navigation {
+    pub fn select_road_point(&mut self, router: &Router, destination: Vec3, position: Vec3) {
+        self.target = router.snaps(destination, true).first().copied();
+        self.destination = self.target.map(|target| target.point.truncate().to_array());
+        self.last_position = None;
+        self.update(router, position);
+    }
     pub fn select(&mut self, router: &Router, destination: [f32; 2], position: Vec3) {
         self.target = router
             .snaps(Vec3::new(destination[0], destination[1], 0.), false)

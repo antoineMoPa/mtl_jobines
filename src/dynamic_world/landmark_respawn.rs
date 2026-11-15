@@ -112,6 +112,15 @@ impl DynamicWorld {
     }
 
     pub(crate) fn respawn_near(&mut self, hermes: &Hermes, point: [f32; 2]) -> Result<(), String> {
+        self.respawn_near_within(hermes, point, 500.)
+    }
+
+    pub(crate) fn respawn_near_within(
+        &mut self,
+        hermes: &Hermes,
+        point: [f32; 2],
+        max_distance: f32,
+    ) -> Result<(), String> {
         let center = Vec2::from_array(point) * METERS_PER_UNIT;
         let paths = hermes.traffic_paths();
         let margin = self.player().length() * 0.5 + 3.;
@@ -133,14 +142,14 @@ impl DynamicWorld {
                 }
                 along += delta.length();
             }
-            if closest.1 > 500f32.powi(2) {
+            if closest.1 > max_distance.powi(2) {
                 continue;
             }
             for offset in -100..=100 {
                 let distance = (closest.0 + offset as f32 * 5.).clamp(margin, path.length - margin);
                 let (position, direction) = path.sample(distance);
                 let error = center.distance_squared(position.truncate());
-                if error <= 500f32.powi(2) {
+                if error <= max_distance.powi(2) {
                     let priority = match path.speed {
                         SpeedClass::Local | SpeedClass::Arterial => 0,
                         _ => 1,
@@ -168,7 +177,7 @@ impl DynamicWorld {
             self.finish_respawn(hermes, vehicle, spawn);
             return Ok(());
         }
-        Err("No clear driving lane within 500 m of this landmark".into())
+        Err(format!("No clear driving lane within {max_distance} m"))
     }
 
     fn finish_respawn(&mut self, hermes: &Hermes, vehicle: Vehicle, spawn: SpawnPoint) {

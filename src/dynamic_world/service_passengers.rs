@@ -31,6 +31,7 @@ pub(super) struct ServicePassengers {
     active: bool,
     queued_board: Vec<u32>,
     door: Vec3,
+    bus: bool,
 }
 
 impl ServicePassengers {
@@ -40,6 +41,7 @@ impl ServicePassengers {
         self.finished = false;
         self.active = false;
         self.queued_board.clear();
+        self.bus = false;
     }
 
     pub(super) fn spawn(&mut self, id: u32, point: Vec3) {
@@ -66,6 +68,7 @@ impl ServicePassengers {
         alight: &[u32],
         vehicle: &Vehicle,
         sidewalk: Vec3,
+        bus: bool,
     ) -> bool {
         if self.active {
             return false;
@@ -94,6 +97,7 @@ impl ServicePassengers {
             + (side * (vehicle.width() * 0.5 + 0.25) - forward * (vehicle.length() * 0.15))
                 .extend(0.);
         self.door = door;
+        self.bus = bus;
         self.queued_board.extend_from_slice(board);
         self.active = true;
         for (index, id) in alight.iter().enumerate() {
@@ -107,7 +111,7 @@ impl ServicePassengers {
             actor.to = sidewalk + Vec3::X * (index as f32 * 0.7);
             actor.yaw = (actor.to.y - door.y).atan2(actor.to.x - door.x);
             actor.time = 0.;
-            actor.duration = door.distance(actor.to).clamp(1., 7.) / 1.4;
+            actor.duration = door.distance(actor.to).clamp(1., 7.) / if bus { 3.5 } else { 1.4 };
             actor.state = State::Alighting;
         }
         self.pending = alight.len();
@@ -129,7 +133,8 @@ impl ServicePassengers {
         actor.to = self.door;
         actor.yaw = (self.door.y - actor.position.y).atan2(self.door.x - actor.position.x);
         actor.time = 0.;
-        actor.duration = actor.position.distance(self.door).clamp(1., 9.) / 1.4;
+        actor.duration =
+            actor.position.distance(self.door).clamp(1., 9.) / if self.bus { 3.5 } else { 1.4 };
         actor.state = State::Boarding;
         self.pending = 1;
     }
@@ -158,6 +163,13 @@ impl ServicePassengers {
 
     pub(super) fn take_finished(&mut self) -> bool {
         std::mem::take(&mut self.finished)
+    }
+
+    pub(super) fn waiting_positions(&self) -> impl Iterator<Item = Vec3> + '_ {
+        self.actors
+            .iter()
+            .filter(|actor| actor.state == State::Waiting)
+            .map(|actor| actor.position)
     }
 
     pub(super) fn instances(&self) -> impl Iterator<Item = Instance<'_>> + '_ {
@@ -197,16 +209,19 @@ mod tests {
         let mut service = ServicePassengers::default();
         service.spawn(1, sidewalk);
         service.spawn(2, sidewalk + Vec3::X);
-        assert!(service.begin(&[1, 2], &[], &vehicle, sidewalk));
+        assert_eq!(service.waiting_positions().count(), 2);
+        assert!(service.begin(&[1, 2], &[], &vehicle, sidewalk, true));
         assert_eq!(service.actors[0].state, State::Boarding);
         assert_eq!(service.actors[1].state, State::Waiting);
+        assert_eq!(service.waiting_positions().count(), 1);
         for _ in 0..2500 {
             service.step(1. / 120.);
         }
         assert!(service.take_finished());
         assert!(!service.take_finished());
         assert_eq!(service.instances().count(), 0);
-        assert!(service.begin(&[], &[1, 2], &vehicle, sidewalk));
+        assert_eq!(service.waiting_positions().count(), 0);
+        assert!(service.begin(&[], &[1, 2], &vehicle, sidewalk, true));
         for _ in 0..1500 {
             service.step(1. / 120.);
         }

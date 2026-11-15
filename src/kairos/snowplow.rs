@@ -1,5 +1,9 @@
-use super::{Mission, MissionEvent, MissionId, ServicePlan, SiteId, SnowCell};
+use super::{Mission, MissionEvent, MissionId, MissionProgress, ServicePlan, SiteId, SnowCell};
 use std::collections::HashSet;
+
+// Each cleared cell covers 0.25 m². A 3 m swath gives 12,000 cells per km.
+const CELLS_PER_KILOMETER: f64 = 12_000.;
+const CELLS_PER_CENT: usize = 12;
 
 #[derive(Default)]
 pub(super) struct SnowplowMission {
@@ -12,15 +16,13 @@ impl Mission for SnowplowMission {
     }
 
     fn objective(&self) -> &'static str {
-        if self.complete() {
-            "Déneigement terminé"
-        } else {
-            "Déneige les rues"
-        }
+        "Déneige les rues"
     }
 
-    fn progress(&self) -> Option<(u32, u32)> {
-        Some(((self.cells.len() as u32 / 4).min(300), 300))
+    fn progress(&self) -> Option<MissionProgress> {
+        Some(MissionProgress::ClearedDistanceKm(
+            self.cells.len() as f64 / CELLS_PER_KILOMETER,
+        ))
     }
 
     fn target(&self) -> Option<SiteId> {
@@ -32,23 +34,17 @@ impl Mission for SnowplowMission {
     }
 
     fn event(&mut self, event: &MissionEvent) -> u64 {
-        if self.complete() {
-            return 0;
-        }
         let MissionEvent::SnowCleared(cells) = event else {
             return 0;
         };
         let before = self.cells.len();
         for cell in cells {
-            if self.cells.len() >= 1200 {
-                break;
-            }
             self.cells.insert(*cell);
         }
-        (self.cells.len() - before) as u64 * 5
+        (self.cells.len() / CELLS_PER_CENT - before / CELLS_PER_CENT) as u64
     }
 
     fn complete(&self) -> bool {
-        self.cells.len() >= 1200
+        false
     }
 }

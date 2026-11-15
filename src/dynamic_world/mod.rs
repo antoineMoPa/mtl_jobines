@@ -187,10 +187,16 @@ impl DynamicWorld {
     pub(crate) fn spawn_service_passenger(&mut self, id: u32, point: Vec3) {
         self.service_passengers.spawn(id, point);
     }
-    pub(crate) fn begin_service(&mut self, board: &[u32], alight: &[u32], sidewalk: Vec3) -> bool {
+    pub(crate) fn begin_service(
+        &mut self,
+        board: &[u32],
+        alight: &[u32],
+        sidewalk: Vec3,
+        bus: bool,
+    ) -> bool {
         let vehicle = &self.vehicles[self.player_vehicle.0];
         self.service_passengers
-            .begin(board, alight, vehicle, sidewalk)
+            .begin(board, alight, vehicle, sidewalk, bus)
     }
     pub(crate) fn take_service_finished(&mut self) -> bool {
         self.service_passengers.take_finished()
@@ -582,6 +588,9 @@ impl DynamicWorld {
             .map(|player| player.instance(self.season))
             .chain(self.crowd.instances(self.player_position()))
             .chain(self.service_passengers.instances())
+    }
+    pub(crate) fn waiting_service_passengers(&self) -> impl Iterator<Item = Vec3> + '_ {
+        self.service_passengers.waiting_positions()
     }
     #[cfg(test)]
     pub(crate) fn prepare_pedestrian_collision(&mut self) -> glam::Vec3 {

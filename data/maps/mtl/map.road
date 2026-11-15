@@ -4,9 +4,7 @@ water_level(0);
 
 player_start(1.1318498, -0.94828856, -80.17438820378175);
 
-# Jobine destinations; the game resolves nearby sidewalk waiting points.
-mission_taxi_pickup = map_point(1.8, -0.64);
-mission_taxi_dropoff = map_point(5.2, -0.54);
+# Bus stops; taxi stops are selected from the current road network at runtime.
 mission_bus_stop_1 = map_point(2.0, -0.63);
 mission_bus_stop_2 = map_point(3.5, -0.59);
 mission_bus_stop_3 = map_point(5.0, -0.54);

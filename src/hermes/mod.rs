@@ -14,6 +14,7 @@ mod mission_sites;
 mod orange_sign;
 mod street_bins;
 pub(crate) mod street_props;
+mod taxi_runs;
 
 mod route_signal;
 mod routing;
@@ -114,6 +115,8 @@ pub struct Hermes {
     authored_props: Vec<crate::props::Entry>,
     default_start: Option<crate::dynamic_world::SpawnPoint>,
     mission_sites: mission_sites::MissionSites,
+    taxi_run: Option<taxi_runs::TaxiRun>,
+    taxi_seed: u64,
     parked_vehicles: Vec<crate::dynamic_world::parked::ParkedVehicle>,
     city: Arc<City>,
     minimap: minimap::Minimap,
@@ -286,6 +289,10 @@ impl Hermes {
             authored_props,
             default_start: crate::dynamic_world::SpawnPoint::from_program(program)?,
             mission_sites: mission_sites::MissionSites::from_program(program),
+            taxi_run: None,
+            taxi_seed: web_time::SystemTime::now()
+                .duration_since(web_time::UNIX_EPOCH)
+                .map_or(1, |time| time.as_nanos() as u64 | 1),
             parked_vehicles: crate::dynamic_world::parked::ParkedVehicle::from_program(program)?,
             traffic_paths: Arc::new(traffic_paths::TrafficPaths::new(&city, program)),
             walking_paths: Arc::new(walking_paths::WalkingPaths::new(&city)),
@@ -305,9 +312,24 @@ impl Hermes {
         self.default_start
     }
     pub(crate) fn mission_site(&self, site: crate::kairos::SiteId) -> Option<[f32; 2]> {
-        self.mission_sites.get(site)
+        use crate::kairos::SiteId;
+        match site {
+            SiteId::TaxiPickup => self
+                .taxi_run
+                .map(|run| run.pickup.road.truncate().to_array()),
+            SiteId::TaxiDropoff => self
+                .taxi_run
+                .map(|run| run.dropoff.road.truncate().to_array()),
+            _ => self.mission_sites.get(site),
+        }
     }
     pub(crate) fn mission_waiting_point(&self, site: crate::kairos::SiteId) -> Option<glam::Vec3> {
+        use crate::kairos::SiteId;
+        match site {
+            SiteId::TaxiPickup => return self.taxi_run.map(|run| run.pickup.sidewalk),
+            SiteId::TaxiDropoff => return self.taxi_run.map(|run| run.dropoff.sidewalk),
+            _ => {}
+        }
         let point = self.mission_site(site)?;
         self.mission_sites.waiting_point(&self.walking_paths, point)
     }
@@ -316,6 +338,20 @@ impl Hermes {
         site: crate::kairos::SiteId,
         player_position: [f32; 3],
     ) -> bool {
+        use crate::kairos::SiteId;
+        if matches!(site, SiteId::TaxiPickup | SiteId::TaxiDropoff) {
+            let Some(run) = self.taxi_run else {
+                return false;
+            };
+            let road = if site == SiteId::TaxiPickup {
+                run.pickup.road
+            } else {
+                run.dropoff.road
+            };
+            self.navigation
+                .select_road_point(&self.router, road, player_position.into());
+            return self.navigation.status != RouteStatus::Unreachable;
+        }
         let Some(point) = self.mission_site(site) else {
             return false;
         };

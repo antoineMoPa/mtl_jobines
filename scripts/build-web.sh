@@ -21,6 +21,7 @@ mkdir -p "$dist_dir/pkg"
 wasm-bindgen "$repo_dir/target/wasm32-unknown-unknown/release/mtl_jobines.wasm" \
   --out-dir "$dist_dir/pkg" --target web --no-typescript
 cp "$repo_dir/web/index.html" "$dist_dir/index.html"
+cp "$repo_dir/web/boot.png" "$dist_dir/boot.png"
 touch "$dist_dir/.nojekyll"
 
 printf 'Web build ready: %s\n' "$dist_dir"

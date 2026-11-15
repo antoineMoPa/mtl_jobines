@@ -14,7 +14,7 @@ use crate::dynamic_world::{
 };
 use crate::hermes::Hermes;
 use crate::kairos::{Kairos, MissionEvent};
-use glam::Vec3;
+use glam::{Mat4, Quat, Vec3};
 use opencity::runtime::Mesh;
 #[cfg(not(target_arch = "wasm32"))]
 use opencity::runtime::Region;
@@ -40,6 +40,8 @@ mod construction;
 mod focus;
 mod location;
 mod missions;
+#[cfg(not(target_arch = "wasm32"))]
+mod native_startup;
 #[cfg(not(target_arch = "wasm32"))]
 mod reload;
 mod startup;
@@ -67,6 +69,8 @@ fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkCont
 enum GameEvent {
     #[cfg(target_arch = "wasm32")]
     RendererReady(Box<Result<Renderer, String>>),
+    #[cfg(not(target_arch = "wasm32"))]
+    MapLoaded,
 }
 struct Game {
     #[cfg(not(target_arch = "wasm32"))]
@@ -95,8 +99,12 @@ struct Game {
     last: Instant,
     game_time: f32,
     accumulator: f32,
+    previous_car_position: Vec3,
+    previous_car_orientation: Quat,
+    previous_car_yaw: f32,
     mesh_center: [f32; 2],
     eye: Vec3,
+    camera_anchor: Vec3,
     zoom: f32,
     orbit: f32,
     camera_pitch: f32,
@@ -272,6 +280,9 @@ impl Game {
         let p = world.player_position() / METERS_PER_UNIT;
         let yaw = world.player_yaw();
         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
+        let previous_car_position = world.player().position;
+        let previous_car_orientation = world.player().orientation();
+        let previous_car_yaw = world.player().yaw;
         Ok(Self {
             #[cfg(not(target_arch = "wasm32"))]
             live_reload: None,
@@ -308,8 +319,12 @@ impl Game {
             last: Instant::now(),
             game_time: 0.,
             accumulator: 0.,
+            previous_car_position,
+            previous_car_orientation,
+            previous_car_yaw,
             mesh_center: [p.x, p.y],
             eye: p - forward * (0.15 * DEFAULT_CHASE_ZOOM) + Vec3::Z * (0.075 * DEFAULT_CHASE_ZOOM),
+            camera_anchor: p,
             zoom: DEFAULT_CHASE_ZOOM,
             orbit: 0.,
             camera_pitch: 0.,
@@ -358,6 +373,9 @@ impl Game {
         let speed = self.world.player().velocity.truncate().dot(f);
         let (input, keyboard_walk) = movement_controls(&self.keys, speed);
         while self.accumulator >= DT {
+            self.previous_car_position = self.world.player().position;
+            self.previous_car_orientation = self.world.player().orientation();
+            self.previous_car_yaw = self.world.player().yaw;
             let mut walk = keyboard_walk;
             if !self.world.is_driving() && walk.turn == 0. {
                 let step_turn = self
@@ -371,7 +389,13 @@ impl Game {
         }
         if self.world.take_service_finished() {
             self.kairos.service_finished();
-            self.refresh_mission_route();
+            if self.kairos.active_id() == Some(crate::kairos::MissionId::Taxi)
+                && self.kairos.is_complete()
+            {
+                self.start_next_taxi_run();
+            } else {
+                self.refresh_mission_route();
+            }
             self.kairos.save_now();
         }
         let cleared = self.world.take_snow_events();
@@ -382,6 +406,25 @@ impl Game {
             #[cfg(target_arch = "wasm32")]
             self.kairos.save_now();
         }
+    }
+    fn player_render_pose(&self) -> (Vec3, Quat, f32) {
+        let car = self.world.player();
+        if !self.world.is_driving()
+            || self.simulation_paused()
+            || car.position.distance_squared(self.previous_car_position) > 4.
+        {
+            return (car.position, car.orientation(), car.yaw);
+        }
+        let alpha = (self.accumulator / DT).clamp(0., 1.);
+        let yaw_delta = (car.yaw - self.previous_car_yaw)
+            .sin()
+            .atan2((car.yaw - self.previous_car_yaw).cos());
+        (
+            self.previous_car_position.lerp(car.position, alpha),
+            self.previous_car_orientation
+                .slerp(car.orientation(), alpha),
+            self.previous_car_yaw + yaw_delta * alpha,
+        )
     }
     fn apply_palette_action(&mut self, action: PaletteAction) {
         match action {
@@ -415,9 +458,9 @@ impl Game {
                 }
                 if let Some(window) = &self.window {
                     window.set_title(match command {
-                        TimeCommand::Day => "MTL Jobines · day",
-                        TimeCommand::Night => "MTL Jobines · night",
-                        TimeCommand::Automatic => "MTL Jobines · automatic daylight",
+                        TimeCommand::Day => "MTL Jobines — day",
+                        TimeCommand::Night => "MTL Jobines — night",
+                        TimeCommand::Automatic => "MTL Jobines — automatic daylight",
                     });
                     window.request_redraw();
                 }
@@ -452,7 +495,12 @@ impl Game {
         let paused = self.simulation_paused();
         let refresh_scene = self.refresh_scene();
 
-        let p = self.world.player_position() / METERS_PER_UNIT;
+        let (render_position, render_orientation, render_yaw) = self.player_render_pose();
+        let p = if self.world.is_driving() {
+            render_position
+        } else {
+            self.world.player_position()
+        } / METERS_PER_UNIT;
         let build_camera = self
             .palette
             .as_ref()
@@ -479,7 +527,11 @@ impl Game {
             self.orbit *= (-elapsed * CAMERA_RETURN_RATE).exp();
             self.camera_pitch *= (-elapsed * CAMERA_RETURN_RATE).exp();
         }
-        let heading = self.world.player_yaw() + self.orbit;
+        let heading = if self.world.is_driving() {
+            render_yaw
+        } else {
+            self.world.player_yaw()
+        } + self.orbit;
         let forward = Vec3::new(heading.cos(), heading.sin(), 0.);
         let look = p + Vec3::new(0., 0., 0.014) + forward * 0.045;
         let target_eye = if self.hood && self.world.is_driving() {
@@ -489,8 +541,10 @@ impl Game {
                 + Vec3::Z * ((0.075 + 0.15 * self.camera_pitch.sin()) * self.zoom)
         };
         if !paused {
+            self.eye += p - self.camera_anchor;
             self.eye = self.eye.lerp(target_eye, 1. - (-elapsed * 6.).exp());
         }
+        self.camera_anchor = p;
         if refresh_scene {
             let terrain = self
                 .hermes
@@ -528,10 +582,19 @@ impl Game {
             self.world.write_moving_mesh(&mut self.dynamic_vertices);
             renderer.update_dynamic(car, &self.dynamic_vertices);
             self.prop_scenery.update(renderer, &self.world);
+            let car = self.world.player();
+            let player_pose_delta = Mat4::from_rotation_translation(
+                render_orientation,
+                render_position / METERS_PER_UNIT,
+            ) * Mat4::from_rotation_translation(
+                car.orientation(),
+                car.position / METERS_PER_UNIT,
+            )
+            .inverse();
             self.vehicle_scenery
                 .as_mut()
                 .unwrap()
-                .update(renderer, &self.world);
+                .update_with_player_pose(renderer, &self.world, player_pose_delta);
             self.scene_dirty = false;
         }
         if refresh_scene || self.mesh_center != center {
@@ -595,6 +658,9 @@ impl Game {
         meshes.push(car);
         meshes.extend(self.prop_scenery.visible_with_authored(authored_visible));
         meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());
+        renderer
+            .mission_markers
+            .update(&renderer.queue, self.world.waiting_service_passengers());
         let texture = renderer.surface.as_ref().unwrap().get_current_texture();
         let suboptimal = matches!(&texture, wgpu::CurrentSurfaceTexture::Suboptimal(_));
         let mut palette_action = None;
@@ -652,6 +718,8 @@ impl Game {
                 if self.first_frame {
                     eprintln!("Game ready: first frame presented");
                     self.first_frame = false;
+                    #[cfg(target_arch = "wasm32")]
+                    web_status(None);
                     #[cfg(not(target_arch = "wasm32"))]
                     if self.profile_shutdown {
                         event_loop.exit();
@@ -742,7 +810,6 @@ impl ApplicationHandler<GameEvent> for Game {
             GameEvent::RendererReady(result) => match *result {
                 Ok(renderer) => {
                     self.finish_startup(renderer);
-                    web_status(None);
                 }
                 Err(error) => {
                     web_status(Some(&format!("Could not start the game: {error}")));
@@ -997,7 +1064,7 @@ impl ApplicationHandler<GameEvent> for Game {
                                         renderer.sky_settings.solar_hour = None;
                                         if let Some(window) = &self.window {
                                             window.set_title(&format!(
-                                                "MTL Jobines · daylight {daylight:.1}"
+                                                "MTL Jobines — daylight {daylight:.1}"
                                             ));
                                         }
                                     }
@@ -1008,7 +1075,7 @@ impl ApplicationHandler<GameEvent> for Game {
                                         renderer.sky_settings.solar_hour = None;
                                     }
                                     if let Some(window) = &self.window {
-                                        window.set_title("MTL Jobines · automatic daylight");
+                                        window.set_title("MTL Jobines — automatic daylight");
                                     }
                                 }
                                 _ => {}
@@ -1147,8 +1214,20 @@ pub fn run() -> Result<(), String> {
     let path = option("--map").unwrap_or_else(|| {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road")
     });
+    if !args.iter().any(|arg| {
+        matches!(
+            arg.as_str(),
+            "--build-game-data" | "--replay-reports" | "--export-minimap" | "--smoke"
+        )
+    }) {
+        return native_startup::run(
+            path,
+            option("--game-data"),
+            start,
+            args.iter().any(|arg| arg == "--profile-shutdown"),
+        );
+    }
     let started = Instant::now();
-    let live_reload = reload::LiveReload::new(path.clone());
     eprintln!("Loading map: {}", path.display());
     let mut hermes = Hermes::load_with_game_data(&path, option("--game-data").as_deref())?;
     let city = hermes.city();
@@ -1224,38 +1303,7 @@ pub fn run() -> Result<(), String> {
             },
         );
     }
-    let event_loop = EventLoop::<GameEvent>::with_user_event()
-        .build()
-        .map_err(|e| e.to_string())?;
-    let mut game = Game::new_at(hermes, start)?;
-    game.live_reload = Some(live_reload);
-    game.profile_shutdown = args.iter().any(|a| a == "--profile-shutdown");
-    let result = event_loop.run_app(&mut game).map_err(|e| e.to_string());
-    let started = Instant::now();
-    let profile = game.profile_shutdown;
-    if profile {
-        macro_rules! release {
-            ($label:literal, $value:expr) => {{
-                let stage = Instant::now();
-                drop($value);
-                eprintln!(concat!("Shutdown ", $label, ": {:?}"), stage.elapsed());
-            }};
-        }
-        // Match declaration order to expose the existing destructor costs.
-        release!("audio", std::mem::take(&mut game.audio));
-        release!("window handle", game.window.take());
-        release!("renderer", game.renderer.take());
-        release!("scenery", game.scenery.take());
-        release!("props", std::mem::take(&mut game.prop_scenery));
-        release!("vehicles", game.vehicle_scenery.take());
-        release!("dynamic mesh", game.dynamic_mesh.take());
-        release!("palette", game.palette.take());
-    }
-    drop(game);
-    if profile {
-        eprintln!("Shutdown game resources: {:?}", started.elapsed());
-    }
-    result
+    unreachable!("normal startup is handled before loading the map")
 }
 
 #[cfg(target_arch = "wasm32")]

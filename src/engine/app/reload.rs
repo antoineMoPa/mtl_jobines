@@ -184,9 +184,9 @@ impl Game {
         }
         if let Some(window) = &self.window {
             window.set_title(if result.is_ok() {
-                "MTL Jobines · map reloaded"
+                "MTL Jobines — map reloaded"
             } else {
-                "MTL Jobines · map reload failed (see terminal)"
+                "MTL Jobines — map reload failed (see terminal)"
             });
             window.request_redraw();
         }
@@ -253,6 +253,10 @@ impl Game {
             0.,
         ) * 0.15
             + Vec3::Z * 0.075;
+        self.camera_anchor = p;
+        self.previous_car_position = self.world.player().position;
+        self.previous_car_orientation = self.world.player().orientation();
+        self.previous_car_yaw = self.world.player().yaw;
         self.route_revision = 0;
         self.keys.clear();
         self.dragging = false;

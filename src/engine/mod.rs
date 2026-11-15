@@ -1,6 +1,8 @@
 //! Native platform, frame coordination, cameras and GPU presentation.
 mod app;
 #[cfg(not(target_arch = "wasm32"))]
+mod boot;
+#[cfg(not(target_arch = "wasm32"))]
 mod bug_report;
 #[cfg(not(target_arch = "wasm32"))]
 mod buildings;

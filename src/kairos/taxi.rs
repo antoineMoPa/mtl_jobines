@@ -12,8 +12,8 @@ impl Mission for TaxiMission {
 
     fn objective(&self) -> &'static str {
         match self.stage {
-            0 => "Passager · arrête-toi et appuie E",
-            1 => "Destination · arrête-toi et appuie E",
+            0 => "Passager — arrête-toi et appuie E",
+            1 => "Destination — arrête-toi et appuie E",
             _ => "Course terminée",
         }
     }

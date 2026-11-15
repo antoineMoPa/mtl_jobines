@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn fast_car_render_pose_advances_between_physics_steps() {
+    let mut game = Game::new(Hermes::test_map());
+    game.set_overlay(Overlay::Driving);
+    let current = game.world.player().position;
+    game.previous_car_position = current - Vec3::X * 0.4;
+    game.accumulator = DT * 0.5;
+    let (position, orientation, yaw) = game.player_render_pose();
+    assert!((position.x - (current.x - 0.2)).abs() < 1e-5);
+    assert_eq!(position.y, current.y);
+    assert_eq!(orientation, game.world.player().orientation());
+    assert_eq!(yaw, game.world.player().yaw);
+}
+
+#[test]
 fn reported_close_chase_view_and_pointer_orbit() {
     let mut game = Game::new(Hermes::test_map());
     let player = game.world.player_position() / METERS_PER_UNIT;
