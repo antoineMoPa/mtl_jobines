@@ -160,6 +160,8 @@ impl Completed {
 #[derive(Serialize, Deserialize)]
 struct PlayerProgress {
     version: u32,
+    #[serde(default)]
+    intro_viewed: bool,
     money_cents: u64,
     completed: Completed,
     #[serde(default)]
@@ -170,6 +172,7 @@ impl Default for PlayerProgress {
     fn default() -> Self {
         Self {
             version: 1,
+            intro_viewed: false,
             money_cents: 0,
             completed: Completed::default(),
             facts: BTreeMap::new(),
@@ -198,6 +201,18 @@ impl Default for Kairos {
 }
 
 impl Kairos {
+    pub(crate) fn intro_viewed(&self) -> bool {
+        self.progress.intro_viewed
+    }
+
+    pub(crate) fn mark_intro_viewed(&mut self) {
+        if !self.progress.intro_viewed {
+            self.progress.intro_viewed = true;
+            self.dirty = true;
+        }
+        self.save_now();
+    }
+
     #[cfg(test)]
     pub(crate) fn test_session() -> Self {
         Self {
@@ -335,6 +350,27 @@ impl Kairos {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn intro_viewed_survives_save_and_old_saves_default_to_unseen() {
+        let progress =
+            save::decode(br#"{"version":1,"money_cents":2375,"completed":{"taxi":2}}"#).unwrap();
+        let mut kairos = Kairos {
+            progress,
+            ..Kairos::test_session()
+        };
+        assert!(!kairos.intro_viewed());
+        kairos.mark_intro_viewed();
+        assert!(kairos.dirty);
+        let bytes = serde_json::to_vec(&kairos.progress).unwrap();
+        let loaded = Kairos {
+            progress: save::decode(&bytes).unwrap(),
+            ..Kairos::test_session()
+        };
+        assert!(loaded.intro_viewed());
+        assert_eq!(loaded.money_cents(), 2375);
+        assert_eq!(loaded.completed(MissionId::Taxi), 2);
+    }
 
     #[test]
     fn mission_completion_and_payout_are_once_only() {

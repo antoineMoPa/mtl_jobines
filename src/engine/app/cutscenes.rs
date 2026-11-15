@@ -21,7 +21,7 @@ impl Game {
     }
     pub(super) fn start_playing(&mut self) {
         self.audio.user_gesture();
-        if !self.intro_played {
+        if !self.intro_played && !self.kairos.intro_viewed() {
             self.intro_played = true;
             if !self.begin_cutscene(Cue::GameIntro, AfterCutscene::Help) {
                 self.help_visible = true;
@@ -98,6 +98,7 @@ impl Game {
         if continue_game {
             match after {
                 Some(AfterCutscene::Help) => {
+                    self.kairos.mark_intro_viewed();
                     self.overlay = Overlay::Start;
                     self.help_visible = true;
                 }
@@ -148,6 +149,25 @@ impl Game {
 mod tests {
     use super::*;
     #[test]
+    fn intro_runs_once_and_can_still_be_replayed() {
+        let mut game = Game::new(Hermes::test_map());
+        game.start_playing();
+        assert!(game.fabula.active());
+        assert!(!game.kairos.intro_viewed());
+        game.finish_cutscene(true);
+        assert!(game.kairos.intro_viewed());
+
+        // A fresh app session has no in-memory playback flag.
+        game.intro_played = false;
+        game.help_visible = false;
+        game.start_playing();
+        assert!(!game.fabula.active());
+        assert_eq!(game.overlay, Overlay::Driving);
+        game.replay_intro();
+        assert!(game.fabula.active());
+    }
+
+    #[test]
     fn fabula_skip_restores_loaded_world_then_opens_help() {
         let mut game = Game::new(Hermes::test_map());
         let position = game.world.player_position();
@@ -190,6 +210,7 @@ mod tests {
         assert!(!game.cutscene_can_play());
         assert_eq!(game.overlay, Overlay::Driving);
         game.finish_cutscene(false);
+        assert!(!game.kairos.intro_viewed());
         assert!(!game.help_visible);
         assert!(game.after_cutscene.is_none());
     }

@@ -122,6 +122,20 @@ fn native_player_uses_shared_skin_and_extra_pose_slot() {
             )
             .unwrap();
         save(label, &png);
+        if label == "player-sprint" {
+            let yaw = world.player_yaw();
+            let side = Vec3::new(-yaw.sin(), yaw.cos(), 0.);
+            let side_png = renderer
+                .report_screenshot(
+                    &scenery.visible().collect::<Vec<_>>(),
+                    root + side * 0.030 + Vec3::Z * 0.012,
+                    root + Vec3::Z * 0.009,
+                    0.,
+                    hermes.minimap_view([root.x, root.y], yaw),
+                )
+                .unwrap();
+            save("player-sprint-side", &side_png);
+        }
         images.push(pixels(&png));
     }
     let changed = images[0]

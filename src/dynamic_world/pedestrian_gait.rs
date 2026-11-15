@@ -544,8 +544,8 @@ impl Gait {
         locals[self.rig.hips].translation.x += weight_shift * 0.040;
         locals[self.rig.hips].translation.y -= 0.020 + (2. * cycle).cos() * 0.012 * movement;
         locals[self.rig.hips].translation.y -= self.compression * 0.26 * self.rig.scale;
-        locals[self.rig.hips].rotation *= Quat::from_rotation_x(run * 0.12);
-        locals[self.rig.hips].translation.z += run * 0.035;
+        locals[self.rig.hips].rotation *= Quat::from_rotation_x(run * 0.25);
+        locals[self.rig.hips].translation.z += run * 0.065;
         locals[self.rig.hips].translation.y += run * 0.025 * (PI * self.phase).sin();
         let push = self.compression * 0.25 + self.jump_extension;
         let forward_lean = self.jump_motion.forward * push;
@@ -563,7 +563,7 @@ impl Gait {
             * Quat::from_rotation_x(
                 (self.acceleration.clamp(-10., 7.) * 0.025 + self.speed * 0.025) * 0.8
                     + self.compression * 0.14
-                    + run * 0.10,
+                    + run * 0.18,
             );
         locals[model.node("Spine")].rotation *=
             Quat::from_rotation_x(forward_lean * 0.12) * Quat::from_rotation_z(-side_lean * 0.10);
@@ -572,7 +572,8 @@ impl Gait {
         locals[model.node("Chest")].rotation *=
             Quat::from_rotation_y(self.jump_motion.turn * self.jump_extension * 0.10);
         locals[model.node("Neck")].rotation *=
-            Quat::from_rotation_z(lean * 0.5 - pelvis_roll * 0.2);
+            Quat::from_rotation_z(lean * 0.5 - pelvis_roll * 0.2)
+                * Quat::from_rotation_x(-run * 0.15);
         for (i, side) in ["L", "R"].iter().enumerate() {
             let sign = if i == 0 { 1. } else { -1. };
             let arm_phase = cycle - 0.16 + i as f32 * PI;

@@ -98,3 +98,32 @@ fn jump_tucks_at_apex_reaches_before_landing_and_blends_on_contact() {
     }
     assert!(gait.landing.is_none());
 }
+
+#[test]
+fn sustained_running_has_visible_forward_torso_lean() {
+    let model = &pedestrian_catalog::definitions()[pedestrian_catalog::PLAYER_SUMMER_MODEL];
+    let mut gait = Gait::new_player(model, Vec3::ZERO, 0., flat);
+    for frame in 1..=240 {
+        gait.set_running(true, 1. / 120.);
+        let position = Vec3::X * frame as f32 * 3.45 / 120.;
+        gait.advance(
+            model,
+            position,
+            0.,
+            3.45,
+            position + Vec3::X,
+            1. / 120.,
+            flat,
+        );
+        if frame > 120 {
+            let joints = model.joint_worlds(&gait.palette);
+            let torso = joints[model.joint("Neck")].w_axis.truncate()
+                - joints[model.joint("Hips")].w_axis.truncate();
+            assert!(
+                torso.z.atan2(torso.y) > 0.35,
+                "run torso too upright: {torso:?}"
+            );
+            assert!(gait.reach_error < 0.06);
+        }
+    }
+}
