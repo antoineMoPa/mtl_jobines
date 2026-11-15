@@ -14,7 +14,6 @@
 
 __pycache__/
 *.txt
-!/low_poly_car_to_replace.txt
 !/assets/fonts/OFL.txt
 
 research/**

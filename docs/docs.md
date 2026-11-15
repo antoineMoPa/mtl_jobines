@@ -14,7 +14,7 @@ cargo run --release
 
 Asset generation requires Georgia/Arial and produces ignored PNGs from committed SVGs; run it
 before native builds/tests. Web builds run it automatically. See [commerce
-artwork](assets/commerce/README.md).
+artwork](../assets/commerce/README.md).
 `make fmt` formats Rust; `make lint` checks formatting; `make hooks` enables pre-
 commit
 checks. Native development builds optimize map preparation while retaining debug assertions.
@@ -137,7 +137,8 @@ The native game watches the active `.road` file and its referenced elevation PNG
 paused. Save to reload terrain, scenery, collisions, navigation and the minimap in place. Invalid
 edits keep the current map and report the error in the terminal and window title; save a correction
 to retry. The player stays at their current position when supported, otherwise the authored spawn
-is used. The browser embeds its map at build time. See [map authoring](data/maps/mtl/README.md).
+is used. The browser embeds its map at build time. See the [authored
+map](../data/maps/mtl/map.road).
 Normal play spawns the player vehicle and moving traffic, without the parked catalog lineup.
 The sphere landmark lot also has twelve parked visitors in a circular arc facing the sphere,
 with the entrance forecourt and street access clear. Parked cars have their engines off,
@@ -239,6 +240,6 @@ refresh timings. These measure throughput, not window presentation latency.
 
 `opencity/` uses `game-runtime` with default features disabled. Main APIs: `City::load`, `query`,
 `surface_at`, `mesh`, `detail_objects`, `building_detail_parts`, `building_collision`.
-`City::components` retains explicit ports/movements. See [OpenCity docs](opencity/docs.md) and
-[game integration](opencity/docs/game-runtime.md) for queries, coordinates and shader contracts.
+`City::components` retains explicit ports/movements. See [OpenCity docs](../opencity/docs.md) and
+[game integration](../opencity/docs/game-runtime.md) for queries, coordinates and shader contracts.
 Publish OpenCity changes first, then update this repository's submodule pointer.
