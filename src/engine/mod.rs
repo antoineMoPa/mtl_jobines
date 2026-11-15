@@ -15,6 +15,7 @@ mod contact_texture;
 #[cfg(not(target_arch = "wasm32"))]
 mod expansion;
 mod fabula;
+mod foot_motion;
 mod frame_rate;
 mod gpu_profile;
 mod graffiti;

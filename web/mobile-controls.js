@@ -1,0 +1,161 @@
+// Approved mobile control icons, embedded so the web game needs no icon CDN.
+const icons = {
+  "map": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z M9 3v15 M15 6v15\"/></svg>",
+  "phone": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"6\" y=\"2.5\" width=\"12\" height=\"19\" rx=\"3\"/><path d=\"M10 6h4 M11 18h2\"/></svg>",
+  "menu": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"6\" y=\"4\" width=\"4\" height=\"16\" rx=\"1\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"14\" y=\"4\" width=\"4\" height=\"16\" rx=\"1\" fill=\"currentColor\" stroke=\"none\"/></svg>",
+  "forward": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 13 6-6 6 6 M12 7v13\"/></svg>",
+  "backward": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 11 6 6 6-6 M12 17V4\"/></svg>",
+  "left": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m11 6-6 6 6 6 M5 12h15\"/></svg>",
+  "right": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m13 6 6 6-6 6 M19 12H4\"/></svg>",
+  "run": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"15\" cy=\"4\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/><path d=\"m9 7 4-1 3 5 4 1 M13 7l-3 6 5 3 1 5 M10 13l-3 5H3 M9 7l-3 4H3\"/></svg>",
+  "jump": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"4\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/><path d=\"m5 5 4 4h6l4-4 M12 9v6 M7 19l5-4 5 4 M4 22h16\"/></svg>",
+  "pedal": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m10 4 7-1a2 2 0 0 1 2 2l1 10a2 2 0 0 1-2 2l-7 1a2 2 0 0 1-2-2L8 6a2 2 0 0 1 2-2Z M12 7l1 7 M16 6l1 7 M14 18v3H6\"/></svg>",
+  "brake": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"7\"/><path d=\"M3 5a11 11 0 0 0 0 14 M21 5a11 11 0 0 1 0 14 M11 16V8h2a2.5 2.5 0 0 1 0 5h-2\"/></svg>",
+  "enter": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M14 4h6v16h-6 M3 12h12 m-4-4 4 4-4 4\"/></svg>",
+  "exit": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10 4H4v16h6 M9 12h12 m-4-4 4 4-4 4\"/></svg>"
+};
+
+// CSS pixels, independent of device pixel ratio. Desktop-sized web views stay unchanged.
+const MOBILE_VIEW = '(max-width: 600px), (max-width: 1024px) and (max-height: 600px)';
+
+export function installMobileControls(api, canvas) {
+  const A = api.MobileAction;
+  const viewport = matchMedia(MOBILE_VIEW);
+  const root = document.createElement('div');
+  root.id = 'mobile-controls';
+  root.lang = 'fr';
+  root.hidden = true;
+  const button = (id, icon, label, extra = '') => `<button type="button" id="mobile-${id}" class="mobile-button ${extra}" aria-label="${label}">${icons[icon]}<span>${label}</span></button>`;
+  root.innerHTML = `
+    <nav class="mobile-utilities" aria-label="Jeu">
+      ${button('map', 'map', 'Carte')}
+      ${button('phone', 'phone', 'Tél.')}
+      ${button('menu', 'menu', 'Menu')}
+    </nav>
+    <div class="mobile-directions" role="group" aria-label="Déplacement">
+      ${button('forward', 'forward', 'Avancer', 'direction up')}
+      ${button('left', 'left', 'Tourner à gauche', 'direction left')}
+      ${button('backward', 'backward', 'Reculer', 'direction down')}
+      ${button('right', 'right', 'Tourner à droite', 'direction right')}
+    </div>
+    ${button('vehicle', 'enter', 'Monter', 'mobile-vehicle')}
+    <div class="mobile-actions" role="group" aria-label="Actions">
+      ${button('secondary', 'jump', 'Sauter')}
+      ${button('primary', 'run', 'Courir', 'primary')}
+    </div>
+    <output class="mobile-notice" role="status" aria-live="polite" hidden></output>`;
+  document.body.append(root);
+  const buttons = Object.fromEntries([...root.querySelectorAll('button')].map(b => [b.id.slice(7), b]));
+  const holds = new Map();
+  let state = 'hidden';
+  let noticeTimer;
+  const holdActions = {
+    walking: { forward: A.Forward, backward: A.Backward, left: A.Left, right: A.Right, secondary: A.Jump, primary: A.Run },
+    driving: { forward: A.Forward, backward: A.Backward, left: A.Left, right: A.Right, secondary: A.Jump, primary: A.Forward },
+  };
+  const available = () => viewport.matches && state !== 'hidden' && !document.hidden;
+  const actionHeld = action => [...holds.values()].some(hold => hold.action === action);
+  function release(id) {
+    const hold = holds.get(id);
+    if (!hold) return;
+    holds.delete(id);
+    if (!actionHeld(hold.action)) api.mobile_input(hold.action, false);
+    if (![...holds.values()].some(h => h.button === hold.button)) {
+      hold.button.classList.remove('pressed');
+      hold.button.setAttribute('aria-pressed', 'false');
+    }
+  }
+  function reset() {
+    for (const id of [...holds.keys()]) release(id);
+    api.mobile_reset();
+  }
+  function press(id, key, button) {
+    if (!available() || holds.has(id)) return;
+    const action = holdActions[state][key];
+    const alreadyHeld = actionHeld(action);
+    holds.set(id, { action, button });
+    button.classList.add('pressed');
+    button.setAttribute('aria-pressed', 'true');
+    if (!alreadyHeld) api.mobile_input(action, true);
+  }
+  for (const key of Object.keys(holdActions.walking)) {
+    const b = buttons[key];
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      canvas.focus({ preventScroll: true });
+      b.setPointerCapture(event.pointerId);
+      press(event.pointerId, key, b);
+    });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+      b.addEventListener(type, event => release(event.pointerId));
+    }
+    b.addEventListener('keydown', event => {
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      event.preventDefault(); event.stopPropagation();
+      press(`key:${key}:${event.key}`, key, b);
+    });
+    b.addEventListener('keyup', event => {
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      event.preventDefault(); event.stopPropagation();
+      release(`key:${key}:${event.key}`);
+    });
+    b.addEventListener('blur', () => {
+      for (const id of [...holds.keys()]) if (typeof id === 'string' && holds.get(id).button === b) release(id);
+    });
+  }
+  for (const [key, action] of Object.entries({ map: A.Map, phone: A.Phone, menu: A.Menu, vehicle: A.Vehicle })) {
+    buttons[key].addEventListener('pointerdown', event => event.preventDefault());
+    buttons[key].addEventListener('click', () => {
+      if (!available()) return;
+      reset();
+      canvas.focus({ preventScroll: true });
+      api.mobile_input(action, true);
+    });
+  }
+  buttons.phone.setAttribute('aria-label', 'Ouvrir le téléphone');
+  root.addEventListener('contextmenu', event => event.preventDefault());
+  const setButton = (button, icon, label) => {
+    button.innerHTML = `${icons[icon]}<span>${label}</span>`;
+    button.setAttribute('aria-label', label);
+  };
+  function render() {
+    const next = canvas.dataset.mobileMode || 'hidden';
+    if (next !== state) {
+      reset();
+      state = next;
+      const driving = state === 'driving';
+      root.dataset.mode = state;
+      setButton(buttons.primary, driving ? 'pedal' : 'run', driving ? 'Accélérer' : 'Courir');
+      setButton(buttons.secondary, driving ? 'brake' : 'jump', driving ? 'Frein à main' : 'Sauter');
+      setButton(buttons.vehicle, driving ? 'exit' : 'enter', driving ? 'Descendre' : 'Monter');
+      buttons.forward.setAttribute('aria-label', driving ? 'Accélérer' : 'Avancer');
+      buttons.backward.setAttribute('aria-label', driving ? 'Freiner / reculer' : 'Reculer');
+      buttons.phone.disabled = driving;
+      buttons.phone.title = driving ? 'Téléphone disponible à pied' : 'Ouvrir le téléphone';
+    }
+    root.hidden = !available();
+    const notice = canvas.dataset.mobileNotice;
+    if (notice) {
+      const output = root.querySelector('output');
+      output.textContent = notice;
+      output.hidden = false;
+      clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => { output.hidden = true; }, 2200);
+      canvas.removeAttribute('data-mobile-notice');
+    }
+  }
+  new MutationObserver(render).observe(canvas, { attributes: true, attributeFilter: ['data-mobile-mode', 'data-mobile-notice'] });
+  function configure() {
+    reset();
+    api.mobile_set_enabled(viewport.matches);
+    render();
+  }
+  viewport.addEventListener('change', configure);
+  window.addEventListener('resize', configure);
+  window.addEventListener('blur', reset);
+  window.addEventListener('pagehide', reset);
+  document.addEventListener('visibilitychange', () => { reset(); render(); });
+  configure();
+}

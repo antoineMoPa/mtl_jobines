@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#18212d">
   <title>MTL Jobines</title>
+  <link rel="stylesheet" href="./mobile-controls.css">
   <style>
     html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #18212d; color: #fff; font: 14px system-ui, sans-serif; }
-    #game { display: block; width: 100% !important; height: 100% !important; outline: none; }
+    #game { display: block; width: 100% !important; height: 100% !important; outline: none; touch-action: none; }
     #loading { position: fixed; inset: 0; display: grid; place-items: center; padding: 2rem; background: #18212d; text-align: center; }
     #loading img { display: block; width: min(80vw, 800px); max-height: 70vh; object-fit: contain; }
     #loading-message { position: absolute; bottom: 1.5rem; margin: 0; }
@@ -22,6 +23,7 @@
     <p id="loading-message">Loading…</p>
   </div>
   <script type="module">
+    import { installMobileControls } from './mobile-controls.js';
     const loading = document.getElementById('loading');
     const canvas = document.getElementById('game');
     function fail(error) {
@@ -35,7 +37,8 @@
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     try {
       if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over localhost or HTTPS.');
-      const { default: init, start, asset_paths, install_assets } = await import('./pkg/mtl_jobines.js');
+      const game = await import('./pkg/mtl_jobines.js');
+      const { default: init, start, asset_paths, install_assets } = game;
       await init();
       const paths = asset_paths().trim().split('\n');
       document.getElementById('loading-message').textContent = `Loading ${paths.length} game assets…`;
@@ -46,6 +49,7 @@
       }));
       install_assets(values);
       start();
+      installMobileControls(game, canvas);
     } catch (error) {
       fail(error);
     }

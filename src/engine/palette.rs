@@ -6,7 +6,8 @@ use crate::hermes::Landmark;
 use crate::kairos::{Kairos, MissionId};
 #[cfg(not(target_arch = "wasm32"))]
 use egui_winit::State as Input;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 #[path = "palette_web_input.rs"]
 mod web_input;
 use egui_command_palette::{Command, CommandPalette};
@@ -236,6 +237,7 @@ pub struct Palette {
     modifiers: winit::keyboard::ModifiersState,
     sky_open: bool,
     sound_open: bool,
+    foot_motion: super::foot_motion::FootMotionPanel,
     job_feed_open: bool,
     help_icon: egui::TextureHandle,
     pub(super) menu_clicked: Option<MenuItem>,
@@ -294,6 +296,7 @@ impl Palette {
             modifiers: Default::default(),
             sky_open: false,
             sound_open: false,
+            foot_motion: Default::default(),
             job_feed_open: false,
             help_icon,
             menu_clicked: None,
@@ -333,6 +336,7 @@ impl Palette {
             modifiers: Default::default(),
             sky_open: false,
             sound_open: false,
+            foot_motion: Default::default(),
             job_feed_open: false,
             help_icon,
             menu_clicked: None,
@@ -476,6 +480,9 @@ impl Palette {
         }
         false
     }
+    pub fn foot_motion_enabled(&self) -> bool {
+        self.foot_motion.enabled
+    }
     pub fn draw(
         &mut self,
         window: &Window,
@@ -490,6 +497,7 @@ impl Palette {
         game_overlay: Overlay,
         menu_selection: &mut MenuItem,
         cutscene: Option<&super::fabula::Playback>,
+        foot_motion: Option<crate::dynamic_world::pedestrian_gait::FootMotion>,
     ) -> Option<PaletteAction> {
         let mut selected = None;
         self.menu_clicked = None;
@@ -500,6 +508,8 @@ impl Palette {
                 self.cutscene_skip = super::fabula::show(ui.ctx(), playback);
                 return;
             }
+            self.foot_motion
+                .show(ui.ctx(), foot_motion, view_projection);
             selected = self.show_panels(
                 ui,
                 renderer,
@@ -529,7 +539,8 @@ impl Palette {
         );
         // Follow egui's immediate animation requests instead of polling while open.
         // Once widgets settle, input/lifecycle events wake the paused scene.
-        if self.is_open()
+        if (self.is_open()
+            || (super::app::mobile_enabled() && (game_overlay.paused() || *help_visible)))
             && output
                 .viewport_output
                 .values()

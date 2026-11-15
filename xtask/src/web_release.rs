@@ -13,6 +13,10 @@ const MAX_FILES: usize = 20_000;
 const REQUIRED: &[&str] = &[
     "index.html",
     "boot.png",
+    "mobile-controls.js",
+    "mobile-controls.css",
+    "assets/fonts/pt-sans-bold.ttf",
+    "assets/fonts/OFL.txt",
     "pkg/mtl_jobines.js",
     "pkg/mtl_jobines_bg.wasm",
 ];

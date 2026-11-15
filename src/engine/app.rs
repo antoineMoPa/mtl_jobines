@@ -41,6 +41,15 @@ mod cutscenes;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod cutscenes_preview;
 mod focus;
+#[cfg(any(target_arch = "wasm32", test))]
+mod mobile;
+
+pub(super) fn mobile_enabled() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    return mobile::enabled();
+    #[cfg(not(target_arch = "wasm32"))]
+    false
+}
 use cutscenes::AfterCutscene;
 mod location;
 mod missions;
@@ -72,6 +81,8 @@ fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkCont
 }
 enum GameEvent {
     #[cfg(target_arch = "wasm32")]
+    Mobile(mobile::Event),
+    #[cfg(target_arch = "wasm32")]
     RendererReady(Box<Result<Renderer, String>>),
     #[cfg(not(target_arch = "wasm32"))]
     MapLoaded,
@@ -100,6 +111,8 @@ struct Game {
     dynamic_vertices: Mesh,
     palette: Option<Palette>,
     keys: HashSet<KeyCode>,
+    #[cfg(target_arch = "wasm32")]
+    mobile: mobile::Input,
     last: Instant,
     game_time: f32,
     accumulator: f32,
@@ -231,6 +244,8 @@ impl Game {
         }
         self.menu_selection = MenuItem::Resume;
         self.keys.clear();
+        #[cfg(target_arch = "wasm32")]
+        self.mobile.clear();
         self.dragging = false;
         self.accumulator = 0.;
         self.last = Instant::now();
@@ -327,6 +342,8 @@ impl Game {
             dynamic_vertices: Mesh::default(),
             palette: None,
             keys: HashSet::new(),
+            #[cfg(target_arch = "wasm32")]
+            mobile: mobile::Input::default(),
             last: Instant::now(),
             game_time: 0.,
             accumulator: 0.,
@@ -389,7 +406,11 @@ impl Game {
         self.game_time += elapsed;
         let f = glam::Vec2::new(self.world.player().yaw.cos(), self.world.player().yaw.sin());
         let speed = self.world.player().velocity.truncate().dot(f);
+        #[cfg(not(target_arch = "wasm32"))]
         let (input, keyboard_walk) = movement_controls(&self.keys, speed);
+        #[cfg(target_arch = "wasm32")]
+        let (input, keyboard_walk) =
+            movement_controls(&self.mobile.with_keyboard(&self.keys), speed);
         while self.accumulator >= DT {
             self.previous_car_position = self.world.player().position;
             self.previous_car_orientation = self.world.player().orientation();
@@ -739,6 +760,10 @@ impl Game {
                         self.overlay,
                         &mut self.menu_selection,
                         self.fabula.playback.as_ref(),
+                        palette
+                            .foot_motion_enabled()
+                            .then(|| self.world.player_foot_motion())
+                            .flatten(),
                     );
                     menu_clicked = palette.menu_clicked.take();
                     skip_cutscene = palette.cutscene_skip;
@@ -886,6 +911,8 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        #[cfg(target_arch = "wasm32")]
+        self.sync_mobile_controls();
         self.kairos.save_if_due();
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_map_reload(Instant::now());
@@ -904,6 +931,7 @@ impl ApplicationHandler<GameEvent> for Game {
     #[cfg(target_arch = "wasm32")]
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: GameEvent) {
         match event {
+            GameEvent::Mobile(event) => self.mobile_event(event),
             GameEvent::RendererReady(result) => match *result {
                 Ok(renderer) => {
                     self.finish_startup(renderer);
@@ -964,6 +992,13 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        #[cfg(target_arch = "wasm32")]
+        if matches!(
+            event,
+            WindowEvent::Focused(false) | WindowEvent::Occluded(true) | WindowEvent::Resized(_)
+        ) {
+            self.mobile.clear();
+        }
         if self.fabula.active() {
             if let WindowEvent::KeyboardInput { event: key, .. } = &event {
                 if key.state == ElementState::Pressed
@@ -1150,6 +1185,8 @@ impl ApplicationHandler<GameEvent> for Game {
             }
         }
         match event {
+            #[cfg(target_arch = "wasm32")]
+            WindowEvent::Touch(touch) if mobile_enabled() => self.mobile_map_touch(touch),
             WindowEvent::CloseRequested => {
                 self.kairos.save_now();
                 event_loop.exit();
@@ -1334,7 +1371,9 @@ impl ApplicationHandler<GameEvent> for Game {
                     let size = window.inner_size();
                     let (w, h) = (size.width as f32, size.height as f32);
                     match self.overlay {
-                        Overlay::Driving if hud::minimap_contains(w, h, point) => {
+                        Overlay::Driving
+                            if !mobile_enabled() && hud::minimap_contains(w, h, point) =>
+                        {
                             self.set_overlay(Overlay::Map)
                         }
                         Overlay::Map
@@ -1507,6 +1546,7 @@ pub fn start_web() -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
     let proxy = event_loop.create_proxy();
+    mobile::connect(proxy.clone());
     event_loop.spawn_app(Game::new_at(hermes, start, proxy)?);
     Ok(())
 }

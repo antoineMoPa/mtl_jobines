@@ -119,13 +119,17 @@ pub(super) fn show(
         return None;
     }
     let money_top = 8.;
+    let mobile = super::app::mobile_enabled();
     egui::Area::new(egui::Id::new("job_money"))
         .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-20., money_top))
         .show(ctx, |ui| {
             let amount = format!("{}$", kairos.money_cents() / 100);
             let galley = ui.painter().layout_no_wrap(
                 amount,
-                egui::FontId::new(48., egui::FontFamily::Name(MONEY_FONT.into())),
+                egui::FontId::new(
+                    if mobile { 28. } else { 48. },
+                    egui::FontFamily::Name(MONEY_FONT.into()),
+                ),
                 Color32::PLACEHOLDER,
             );
             let (rect, _) =
@@ -143,17 +147,34 @@ pub(super) fn show(
         });
     if let Some(objective) = kairos.objective() {
         egui::Area::new(egui::Id::new("job_objective"))
-            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-20., money_top + 76.))
+            .anchor(
+                egui::Align2::RIGHT_TOP,
+                egui::vec2(-20., money_top + if mobile { 48. } else { 76. }),
+            )
             .show(ctx, |ui| {
                 egui::Frame::new()
                     .fill(HUD_PAPER)
-                    .stroke(egui::Stroke::new(7., Color32::BLACK))
-                    .corner_radius(24)
-                    .inner_margin(egui::Margin::symmetric(18, 14))
+                    .stroke(egui::Stroke::new(
+                        if mobile { 3. } else { 7. },
+                        Color32::BLACK,
+                    ))
+                    .corner_radius(if mobile { 12 } else { 24 })
+                    .inner_margin(if mobile {
+                        egui::Margin::same(8)
+                    } else {
+                        egui::Margin::symmetric(18, 14)
+                    })
                     .show(ui, |ui| {
-                        ui.set_max_width((ctx.content_rect().width() - 72.).clamp(120., 360.));
+                        ui.set_max_width(if mobile {
+                            (ctx.content_rect().width() - 110.).clamp(100., 190.)
+                        } else {
+                            (ctx.content_rect().width() - 72.).clamp(120., 360.)
+                        });
                         ui.label(RichText::new(objective.label()).color(Color32::BLACK).font(
-                            egui::FontId::new(24., egui::FontFamily::Name(MONEY_FONT.into())),
+                            egui::FontId::new(
+                                if mobile { 15. } else { 24. },
+                                egui::FontFamily::Name(MONEY_FONT.into()),
+                            ),
                         ));
                         if let Some(MissionProgress::ClearedDistanceKm(km)) = kairos.progress() {
                             ui.add_space(10.);
@@ -201,6 +222,12 @@ pub(super) fn show(
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
         .default_width((ctx.content_rect().width() - 36.).min(500.))
+        .max_height(if mobile {
+            (ctx.content_rect().height() - 48.).max(120.)
+        } else {
+            f32::INFINITY
+        })
+        .vscroll(mobile)
         .frame(
             egui::Frame::new()
                 .fill(Color32::from_rgb(246, 249, 247))
@@ -215,6 +242,9 @@ pub(super) fn show(
         )
         .show(ctx, |ui| {
             *ui.visuals_mut() = egui::Visuals::light();
+            if mobile {
+                ui.spacing_mut().interact_size.y = 44.;
+            }
             egui::Frame::new()
                 .fill(GREEN)
                 .corner_radius(10)
@@ -231,7 +261,12 @@ pub(super) fn show(
                             if ui
                                 .add(
                                     egui::Button::new(RichText::new("×").color(Color32::WHITE))
-                                        .fill(GREEN),
+                                        .fill(GREEN)
+                                        .min_size(if mobile {
+                                            egui::vec2(44., 44.)
+                                        } else {
+                                            egui::Vec2::ZERO
+                                        }),
                                 )
                                 .clicked()
                             {

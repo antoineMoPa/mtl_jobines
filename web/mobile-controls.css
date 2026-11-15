@@ -1,0 +1,120 @@
+@font-face {
+  font-family: JobinesControls;
+  src: url('./assets/fonts/pt-sans-bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+#mobile-controls {
+  --ink: #263e3d;
+  --paper: #f6f9f7;
+  --green: #317d6d;
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  color: var(--ink);
+  font: 700 15px JobinesControls, sans-serif;
+  display: none;
+}
+#mobile-controls[hidden], #mobile-controls [hidden] { display: none !important; }
+@media (max-width: 600px), (max-width: 1024px) and (max-height: 600px) {
+  #mobile-controls { display: block; }
+}
+#mobile-controls * { box-sizing: border-box; }
+#mobile-controls .mobile-button {
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 52px;
+  min-height: 52px;
+  padding: 5px 7px;
+  border: 3px solid var(--ink);
+  border-radius: 13px;
+  background: var(--paper);
+  box-shadow: 0 3px 0 #263e3d80;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+#mobile-controls .mobile-button span { font-size: 12px; line-height: 1.1; }
+#mobile-controls .icon { display: block; width: 28px; height: 28px; flex-shrink: 0; }
+#mobile-controls .mobile-button:focus-visible { outline: 3px solid #0048fe; outline-offset: 4px; }
+#mobile-controls .mobile-button.pressed,
+#mobile-controls .mobile-button:active { background: var(--green); color: var(--paper); box-shadow: none; transform: translateY(2px); }
+#mobile-controls .mobile-button:disabled { opacity: .55; cursor: default; }
+#mobile-controls .mobile-button.primary { background: var(--green); color: var(--paper); }
+#mobile-controls .mobile-button.primary.pressed { background: var(--ink); }
+#mobile-controls .mobile-utilities {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left));
+  top: max(14px, env(safe-area-inset-top));
+  display: flex;
+  gap: 8px;
+}
+#mobile-controls .mobile-utilities .mobile-button { width: 52px; height: 58px; }
+#mobile-controls .mobile-utilities .icon { width: 24px; height: 24px; }
+#mobile-controls .mobile-directions {
+  position: absolute;
+  left: max(20px, env(safe-area-inset-left));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(3, 54px);
+  grid-template-rows: repeat(2, 54px);
+  gap: 6px;
+}
+#mobile-controls .direction span { display: none; }
+#mobile-controls .direction .icon { width: 30px; height: 30px; }
+#mobile-controls .up { grid-column: 2; }
+#mobile-controls .left { grid-column: 1; grid-row: 2; }
+#mobile-controls .down { grid-column: 2; grid-row: 2; }
+#mobile-controls .right { grid-column: 3; grid-row: 2; }
+#mobile-controls .mobile-actions {
+  position: absolute;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+#mobile-controls .mobile-actions .mobile-button { width: 76px; height: 62px; }
+#mobile-controls .mobile-actions .icon { width: 30px; height: 30px; }
+#mobile-controls .mobile-actions .primary { width: 90px; height: 78px; }
+#mobile-controls .mobile-vehicle {
+  position: absolute;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: calc(max(24px, env(safe-area-inset-bottom)) + 96px);
+  min-width: 112px;
+  padding: 8px 15px;
+  flex-direction: row;
+  gap: 8px;
+}
+#mobile-controls .mobile-vehicle .icon { width: 25px; height: 25px; }
+#mobile-controls .mobile-notice {
+  position: absolute;
+  top: 35%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 85%;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--ink);
+  color: var(--paper);
+  text-align: center;
+}
+@media (orientation: portrait) {
+  #mobile-controls .mobile-utilities { flex-direction: column; }
+  #mobile-controls .mobile-directions { left: max(12px, env(safe-area-inset-left)); grid-template-columns: repeat(3, 48px); gap: 4px; }
+  #mobile-controls .direction { min-width: 48px; }
+  #mobile-controls .mobile-actions { right: max(12px, env(safe-area-inset-right)); flex-direction: column; gap: 6px; }
+  #mobile-controls .mobile-actions .mobile-button { width: 84px; height: 54px; }
+  #mobile-controls .mobile-actions .primary { height: 68px; }
+  #mobile-controls .mobile-vehicle { right: max(12px, env(safe-area-inset-right)); bottom: calc(max(24px, env(safe-area-inset-bottom)) + 150px); }
+}

@@ -259,6 +259,9 @@ impl DynamicWorld {
             }
         }
     }
+    pub(crate) fn player_foot_motion(&self) -> Option<pedestrian_gait::FootMotion> {
+        self.pedestrian.as_ref().map(Pedestrian::foot_motion)
+    }
     pub fn is_driving(&self) -> bool {
         self.pedestrian.is_none()
     }

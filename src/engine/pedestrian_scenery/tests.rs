@@ -122,6 +122,20 @@ fn native_player_uses_shared_skin_and_extra_pose_slot() {
             )
             .unwrap();
         save(label, &png);
+        if label == "player-idle" {
+            let yaw = world.player_yaw();
+            let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
+            let front = renderer
+                .report_screenshot(
+                    &scenery.visible().collect::<Vec<_>>(),
+                    root + forward * 0.026 + Vec3::Z * 0.018,
+                    root + Vec3::Z * 0.008,
+                    0.,
+                    hermes.minimap_view([root.x, root.y], yaw),
+                )
+                .unwrap();
+            save("player-feet-front", &front);
+        }
         if label == "player-sprint" {
             let yaw = world.player_yaw();
             let side = Vec3::new(-yaw.sin(), yaw.cos(), 0.);

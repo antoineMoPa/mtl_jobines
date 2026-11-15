@@ -11,10 +11,8 @@ use opencity::runtime::City;
 pub(super) const HALF_HEIGHT: f32 = 0.9;
 pub(super) const RADIUS: f32 = 0.4;
 const MODEL: usize = pedestrian_catalog::PLAYER_SUMMER_MODEL;
-const WALK_SPEED: f32 = 5.2;
-const RUN_SPEED: f32 = 15.6;
-const WALK_GAIT_SPEED: f32 = 5.2;
-const RUN_GAIT_SPEED: f32 = 3.45;
+const WALK_SPEED: f32 = 1.8;
+const RUN_SPEED: f32 = 3.45;
 const ACCELERATION: f32 = 24.;
 const BRAKING: f32 = 32.;
 const GRAVITY: f32 = 9.81;
@@ -169,6 +167,9 @@ impl Pedestrian {
                 (position.z + HALF_HEIGHT) / METERS_PER_UNIT,
             )
     }
+    pub(crate) fn foot_motion(&self) -> super::pedestrian_gait::FootMotion {
+        self.gait.foot_motion()
+    }
     pub fn step(
         &mut self,
         city: &City,
@@ -203,13 +204,6 @@ impl Pedestrian {
         self.speed += (target - self.speed).clamp(-BRAKING * dt, ACCELERATION * dt);
         self.gait
             .set_running(self.speed.abs() > WALK_SPEED * 1.05, dt);
-        let run_speed = ((self.speed.abs() - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)).clamp(0., 1.);
-        let gait_speed = WALK_GAIT_SPEED + (RUN_GAIT_SPEED - WALK_GAIT_SPEED) * run_speed;
-        let animation_scale = if self.speed.abs() > gait_speed {
-            gait_speed / self.speed.abs()
-        } else {
-            1.
-        };
         let turn = input.turn * TURN_SPEED * dt;
         let heading = self.yaw + turn * 0.5;
         self.yaw += turn;
@@ -231,14 +225,9 @@ impl Pedestrian {
                 continue;
             };
             let position = ground.point + Vec3::Z * HALF_HEIGHT;
-            let animation_position = ground.point
-                - (ground.point - (before - Vec3::Z * HALF_HEIGHT))
-                    .truncate()
-                    .extend(0.)
-                    * (1. - animation_scale);
             if Self::blocked(city, position)
                 || blocked(position)
-                || !self.gait.permits(animation_position)
+                || !self.gait.permits(ground.point)
             {
                 continue;
             }
@@ -307,14 +296,11 @@ impl Pedestrian {
                 |p| footing(city, p, false).filter(|g| !blocked(g.point + Vec3::Z * HALF_HEIGHT)),
             );
         } else {
-            // Keep the visual stride within the rig's reach at the player's boosted speeds.
-            self.gait
-                .carry((self.position - before).truncate().extend(0.) * (1. - animation_scale));
             self.gait.advance(
                 model,
                 foot,
                 self.yaw,
-                target.clamp(-gait_speed, gait_speed),
+                target,
                 foot + Vec3::new(self.yaw.cos(), self.yaw.sin(), 0.)
                     * if self.speed < 0. { -1. } else { 1. },
                 dt,
@@ -322,8 +308,16 @@ impl Pedestrian {
             );
         }
         // Animate only accepted travel. A wall or a prop cannot advance the body then roll it back.
-        self.speed = (self.position - before).truncate().length() / dt
-            * if self.speed < 0. { -1. } else { 1. };
+        let accepted = self.position - before;
+        // Ground travel already spends its distance budget on the curb's height.
+        // Dropping that vertical component here feeds a false slowdown into the
+        // next frame and can repeatedly strand the body at the sidewalk edge.
+        let distance = if landed || self.jump.is_airborne() {
+            accepted.truncate().length()
+        } else {
+            accepted.length()
+        };
+        self.speed = distance / dt * if self.speed < 0. { -1. } else { 1. };
     }
     pub(super) fn instance(&self, season: crate::season::Season) -> Instance<'_> {
         Instance {
@@ -491,6 +485,49 @@ mod tests {
         }
         assert!(distances[2] > distances[0] * 1.2);
         assert!(distances[3] > distances[1] * 1.2);
+    }
+    #[test]
+    fn player_contacts_stay_world_anchored_at_full_walk_and_run_speed() {
+        let city = open_ground();
+        for run in [false, true] {
+            for forward in [-1., 1.] {
+                let mut player = Pedestrian::new(&city, origin(&city), 0.);
+                let mut previous = player.foot_motion();
+                let mut contacts = 0;
+                let mut max_speed: f32 = 0.;
+                for _ in 0..480 {
+                    player.step(
+                        &city,
+                        WalkControls {
+                            forward,
+                            run,
+                            ..Default::default()
+                        },
+                        1. / 120.,
+                        |_| false,
+                    );
+                    let motion = player.foot_motion();
+                    max_speed = max_speed.max(motion.speed);
+                    for side in 0..2 {
+                        assert!(motion.ankles[side].is_finite());
+                        if previous.contact[side] && motion.contact[side] {
+                            contacts += 1;
+                            assert!(
+                                previous.anchors[side].distance(motion.anchors[side]) < 0.0001,
+                                "planted foot slid at run={run}, forward={forward}"
+                            );
+                        }
+                    }
+                    previous = motion;
+                }
+                assert!(contacts > 100);
+                let target = if run { RUN_SPEED } else { WALK_SPEED };
+                assert!(
+                    max_speed > target * 0.95,
+                    "gait blocked requested travel: {max_speed}"
+                );
+            }
+        }
     }
     #[test]
     fn external_blockers_prevent_body_and_foothold_travel() {
@@ -796,7 +833,7 @@ mod tests {
                 );
                 assert!(
                     player.gait.reach_error < 0.06,
-                    "sprint strained the rig: {}",
+                    "sprint strained the rig at frame={frame}, hz={hz}: {}",
                     player.gait.reach_error
                 );
             }
@@ -861,3 +898,7 @@ mod tests {
         assert!(player.position.truncate().length() > 1.);
     }
 }
+
+#[cfg(test)]
+#[path = "player_curb_tests.rs"]
+mod curb_tests;

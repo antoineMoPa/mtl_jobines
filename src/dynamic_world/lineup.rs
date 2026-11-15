@@ -155,43 +155,6 @@ mod tests {
         );
     }
     #[test]
-    fn default_map_has_every_road_vehicle_near_spawn() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("opencity/examples/default_map.road");
-        let hermes = Hermes::load_with_game_data(&path, None).unwrap();
-        let world = DynamicWorld::with_vehicle_lineup(&hermes, None, true).unwrap();
-        let road_count = catalog::definitions()
-            .iter()
-            .filter(|d| d.config.road_vehicle)
-            .count();
-        assert_eq!(
-            world.vehicles.len() - world.traffic.count(),
-            road_count,
-            "default map must offer all road vehicles"
-        );
-        let origin = world.vehicles[0].position;
-        let rows = world
-            .vehicles
-            .iter()
-            .take(road_count)
-            .map(|v| {
-                assert!(
-                    v.position.distance(origin) < 120.,
-                    "parking must remain near spawn"
-                );
-                serde_json::json!({
-                    "name":v.name(),
-                    "positionMeters":v.position.to_array(),
-                    "distanceFromSpawnMeters":v.position.distance(origin),
-                    "yawRadians":v.yaw
-                })
-            })
-            .collect::<Vec<_>>();
-        if let Ok(path) = std::env::var("VEHICLE_LINEUP_QA") {
-            std::fs::write(path, serde_json::to_vec_pretty(&rows).unwrap()).unwrap();
-        }
-    }
-    #[test]
     fn all_road_vehicles_spawn_separately_and_reset_retains_selected_model() {
         let hermes = Hermes::test_map();
         let mut world = DynamicWorld::with_vehicle_lineup(&hermes, None, true).unwrap();

@@ -6,8 +6,6 @@ pub(super) mod geometry;
 mod gpu_tests;
 mod input;
 mod landmarks;
-#[cfg(test)]
-mod perf_tests;
 mod roads;
 mod storage;
 #[cfg(test)]

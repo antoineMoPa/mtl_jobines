@@ -1124,7 +1124,7 @@ impl Renderer {
                 writes
             }),
         );
-        if !self.cinematic {
+        if !self.cinematic && (!super::app::mobile_enabled() || self.overlay == Overlay::Map) {
             self.hud.render(
                 &self.queue,
                 &mut encoder,

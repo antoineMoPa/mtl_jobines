@@ -24,6 +24,9 @@ wasm-bindgen "$repo_dir/target/wasm32-unknown-unknown/release/mtl_jobines.wasm" 
   --out-dir "$dist_dir/pkg" --target web --no-typescript
 cp "$repo_dir/web/index.html" "$dist_dir/index.html"
 cp "$repo_dir/web/boot.png" "$dist_dir/boot.png"
+cp "$repo_dir/web/mobile-controls.js" "$repo_dir/web/mobile-controls.css" "$dist_dir/"
+mkdir -p "$dist_dir/assets/fonts"
+cp "$repo_dir/assets/fonts/pt-sans-bold.ttf" "$repo_dir/assets/fonts/OFL.txt" "$dist_dir/assets/fonts/"
 while IFS= read -r asset; do
   mkdir -p "$dist_dir/$(dirname "$asset")"
   cp "$repo_dir/$asset" "$dist_dir/$asset"

@@ -173,34 +173,62 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
                 .inner_margin(egui::Margin::same(22))
                 .show(ui, |ui| {
                     ui.set_width(width - 44.);
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
-                        arrows(ui);
+                    if super::app::mobile_enabled() {
                         ui.label(
-                            RichText::new("Se déplacer")
+                            RichText::new("À vous la ville !")
                                 .color(INK)
-                                .font(egui::FontId::new(18., egui::FontFamily::Name(FONT.into()))),
+                                .font(egui::FontId::new(24., egui::FontFamily::Name(FONT.into()))),
                         );
-                    });
-                    ui.separator();
-                    ui.add_space(8.);
-                    control_row(ui, "F", "Entrer ou sortir du véhicule");
-                    ui.add_space(8.);
-                    ui.separator();
-                    ui.add_space(8.);
-                    control_row(ui, "P", "Ouvrir le téléphone");
-                    ui.add_space(8.);
-                    ui.separator();
-                    ui.add_space(16.);
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
-                        letter_key(ui, "?");
-                        ui.label(
-                            RichText::new("Retrouvez cette aide à tout moment.")
-                                .color(MUTED)
-                                .font(egui::FontId::new(15., egui::FontFamily::Name(FONT.into()))),
-                        );
-                    });
+                        ui.add_space(12.);
+                        for text in [
+                            "À gauche : maintenez les flèches pour vous déplacer.",
+                            "À droite : courir, sauter ou conduire.",
+                            "En haut : carte, téléphone et menu.",
+                        ] {
+                            ui.label(
+                                RichText::new(text).color(INK).font(egui::FontId::new(
+                                    17.,
+                                    egui::FontFamily::Name(FONT.into()),
+                                )),
+                            );
+                            ui.add_space(10.);
+                        }
+                    } else {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
+                            arrows(ui);
+                            ui.label(
+                                RichText::new("Se déplacer")
+                                    .color(INK)
+                                    .font(egui::FontId::new(
+                                        18.,
+                                        egui::FontFamily::Name(FONT.into()),
+                                    )),
+                            );
+                        });
+                        ui.separator();
+                        ui.add_space(8.);
+                        control_row(ui, "F", "Entrer ou sortir du véhicule");
+                        ui.add_space(8.);
+                        ui.separator();
+                        ui.add_space(8.);
+                        control_row(ui, "P", "Ouvrir le téléphone");
+                        ui.add_space(8.);
+                        ui.separator();
+                        ui.add_space(16.);
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
+                            letter_key(ui, "?");
+                            ui.label(
+                                RichText::new("Retrouvez cette aide à tout moment.")
+                                    .color(MUTED)
+                                    .font(egui::FontId::new(
+                                        15.,
+                                        egui::FontFamily::Name(FONT.into()),
+                                    )),
+                            );
+                        });
+                    }
                     ui.add_space(18.);
                     let label = if first_play { "JOUER" } else { "REPRENDRE" };
                     let (button, response) =

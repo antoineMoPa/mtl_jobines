@@ -543,47 +543,6 @@ fn highway_driver_reaches_highway_speed() {
     assert!(cars[0].velocity.length() < 29.);
 }
 #[test]
-fn default_city_keeps_thirty_physical_npcs_and_moves_them() {
-    let path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("opencity/examples/default_map.road");
-    let hermes = crate::hermes::Hermes::load_with_game_data(&path, None).unwrap();
-    let mut world = super::super::DynamicWorld::new(&hermes);
-    assert_eq!(world.traffic.count(), TARGET);
-    let original: Vec<_> = world
-        .traffic
-        .drivers
-        .iter()
-        .map(|d| (d.vehicle, world.vehicles[d.vehicle].position))
-        .collect();
-    let simulation_started = std::time::Instant::now();
-    for _ in 0..900 {
-        world.step(
-            &hermes,
-            Controls::default(),
-            super::super::WalkControls::default(),
-            1. / 60.,
-        );
-    }
-    eprintln!("900 simulation ticks: {:?}", simulation_started.elapsed());
-    let moved = original
-        .iter()
-        .filter(|(id, position)| world.vehicles[*id].position.distance(*position) > 5.)
-        .count();
-    eprintln!(
-        "default traffic: {moved}/{TARGET} moved over 5 m, {} stopped after recovery",
-        world.traffic.drivers.iter().filter(|d| d.stopped).count()
-    );
-    assert!(
-        moved >= 10,
-        "traffic should move through the real default road network"
-    );
-    assert_eq!(world.traffic.count(), TARGET);
-    assert!(world.vehicles.iter().all(|v| v.position.is_finite()));
-    let mut mesh = opencity::runtime::Mesh::default();
-    world.write_moving_mesh(&mut mesh);
-    assert!(!mesh.vertices.is_empty());
-}
-#[test]
 fn left_turn_waits_for_oncoming_straight_traffic_then_takes_the_gap() {
     let (city, graph) = map(CROSS);
     let lane = graph

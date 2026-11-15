@@ -127,3 +127,66 @@ fn sustained_running_has_visible_forward_torso_lean() {
         }
     }
 }
+
+#[test]
+fn rendered_player_feet_face_forward_in_both_outfits() {
+    let models = pedestrian_catalog::definitions();
+    let gait = Gait::new_player(
+        &models[pedestrian_catalog::PLAYER_SUMMER_MODEL],
+        Vec3::ZERO,
+        0.,
+        flat,
+    );
+    for index in [
+        pedestrian_catalog::PLAYER_SUMMER_MODEL,
+        pedestrian_catalog::PLAYER_WINTER_MODEL,
+    ] {
+        let model = &models[index];
+        for side in ["L", "R"] {
+            let foot = model.joint(&format!("Foot_{side}"));
+            let toe = model.joint(&format!("Toe_{side}"));
+            let points: Vec<Vec3> = model
+                .vertices
+                .iter()
+                .zip(&model.skin)
+                .filter_map(|(v, skin)| {
+                    let foot_weight: f32 = skin
+                        .joints
+                        .iter()
+                        .zip(skin.weights)
+                        .filter(|(j, _)| **j as usize == foot || **j as usize == toe)
+                        .map(|(_, w)| w)
+                        .sum();
+                    if v.position[1] >= 0.09 || foot_weight < 0.5 {
+                        return None;
+                    }
+                    Some(
+                        skin.joints
+                            .iter()
+                            .zip(skin.weights)
+                            .fold(Vec3::ZERO, |p, (&j, w)| {
+                                p + gait.palette[j as usize]
+                                    .transform_point3(Vec3::from(v.position))
+                                    * w
+                            }),
+                    )
+                })
+                .collect();
+            assert!(points.len() > 20);
+            let center = points.iter().copied().sum::<Vec3>() / points.len() as f32;
+            let (mut xx, mut zz, mut xz) = (0., 0., 0.);
+            for p in points {
+                let d = p - center;
+                xx += d.x * d.x;
+                zz += d.z * d.z;
+                xz += d.x * d.z;
+            }
+            let heading = 0.5 * (2. * xz).atan2(zz - xx);
+            assert!(
+                heading.abs() < 6f32.to_radians(),
+                "outfit {index}, foot {side}: {} degrees",
+                heading.to_degrees()
+            );
+        }
+    }
+}
