@@ -304,11 +304,14 @@ impl Gait {
         self.palette = def.skin_from_worlds(&previous);
     }
     fn air_tuck(&self) -> f32 {
+        self.air_tuck_with_delay(0.)
+    }
+    fn air_tuck_with_delay(&self, delay: f32) -> f32 {
         self.air_time.map_or(0., |t| {
             let release = self
                 .air_velocity
                 .map_or_else(|| 1. - ease((t - 0.55) / 0.35), |v| ease((v + 4.5) / 3.0));
-            ease(t / 0.22) * release
+            ease((t - delay) / 0.22) * release
         })
     }
     pub(super) fn prepare_jump(
@@ -447,7 +450,9 @@ impl Gait {
         } else {
             1.
         };
-        let speed = to.distance(from) / dt * direction;
+        // Support-height changes at curbs must not inflate forward stride speed.
+        let travel = to - from;
+        let speed = Vec2::new(travel.x, travel.z).length() / dt * direction;
         let acceleration = ((speed - self.speed) / dt).clamp(-32., 32.);
         self.compression = 0.;
         self.jump_extension = 0.;
@@ -598,7 +603,6 @@ impl Gait {
         let mut locals = model.idle_locals(self.idle_time);
         let movement = self.movement;
         let run = self.running * movement;
-        let tuck = self.air_tuck();
         let forward = Vec3::new(self.yaw.sin(), 0., self.yaw.cos());
 
         // One continuous gait phase coordinates the whole body across both footfalls.
@@ -639,6 +643,8 @@ impl Gait {
             Quat::from_rotation_z(lean * 0.5 - pelvis_roll * 0.2)
                 * Quat::from_rotation_x(-run * 0.15);
         for (i, side) in ["L", "R"].iter().enumerate() {
+            // Let the left arm follow the right, but release both before landing.
+            let tuck = self.air_tuck_with_delay(if i == 0 { 0.06 } else { 0. });
             let sign = if i == 0 { 1. } else { -1. };
             let arm_phase = cycle - 0.16 + i as f32 * PI;
             let swing = -arm_phase.cos() * (35f32.to_radians() + self.running * 0.24) * movement;

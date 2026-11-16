@@ -232,9 +232,10 @@ impl Pedestrian {
             {
                 continue;
             }
-            // Spend travel climbing a curb, just as the sidewalk walkers do.
-            let travel = position - self.position;
-            self.position += travel * (delta.length() / travel.length().max(0.00001)).min(1.);
+            // A walkable step changes support height without consuming forward
+            // travel. Interpolating toward the raised point can leave the body
+            // on the old side of the curb, repeatedly climbing and dropping.
+            self.position = position;
         }
         let mut landed = false;
         if self.jump.is_airborne() {
@@ -310,14 +311,8 @@ impl Pedestrian {
         }
         // Animate only accepted travel. A wall or a prop cannot advance the body then roll it back.
         let accepted = self.position - before;
-        // Ground travel already spends its distance budget on the curb's height.
-        // Dropping that vertical component here feeds a false slowdown into the
-        // next frame and can repeatedly strand the body at the sidewalk edge.
-        let distance = if landed || self.jump.is_airborne() {
-            accepted.truncate().length()
-        } else {
-            accepted.length()
-        };
+        // Stepping up or down changes support height, not forward speed.
+        let distance = accepted.truncate().length();
         self.speed = distance / dt * if self.speed < 0. { -1. } else { 1. };
     }
     pub(super) fn instance(&self, season: crate::season::Season) -> Instance<'_> {

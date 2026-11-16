@@ -144,10 +144,16 @@ impl Scenery {
                 (!preview || !b.infrastructure)
                     && intersects(
                         b,
-                        span.map_or(8., |span| (span * aspect.max(1.) * 1.5).max(8.)),
+                        span.map_or(crate::performance::draw_radius(8.), |span| {
+                            (span * aspect.max(1.) * 1.5).max(8.)
+                        }),
                     )
             })
-            .chain(self.details.iter().filter(|b| intersects(b, 1.5)))
+            .chain(
+                self.details
+                    .iter()
+                    .filter(|b| intersects(b, crate::performance::draw_radius(1.5))),
+            )
             .flat_map(|b| &b.meshes)
             .chain(self.paint.visible())
             .collect()

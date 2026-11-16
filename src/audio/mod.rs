@@ -6,6 +6,8 @@ mod vehicle;
 pub(crate) use vehicle::VehicleSound;
 pub(crate) use vehicle::{EngineKind, HornKind};
 
+#[cfg(target_arch = "wasm32")]
+mod browser_cutscene;
 mod output;
 mod voice;
 pub(crate) use voice::VoiceClip;

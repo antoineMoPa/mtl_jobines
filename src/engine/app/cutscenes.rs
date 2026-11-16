@@ -182,7 +182,22 @@ mod tests {
         );
         game.after_cutscene = Some(AfterCutscene::Help);
         game.keys.insert(KeyCode::ArrowUp);
+        let vehicles: Vec<_> = game.world.vehicle_instances().collect();
+        let pedestrians: Vec<_> = game
+            .world
+            .pedestrian_instances()
+            .map(|actor| actor.transform)
+            .collect();
         game.simulate(10.);
+        assert_eq!(game.world.vehicle_instances().collect::<Vec<_>>(), vehicles);
+        assert_eq!(
+            game.world
+                .pedestrian_instances()
+                .map(|actor| actor.transform)
+                .collect::<Vec<_>>(),
+            pedestrians
+        );
+
         assert_eq!(game.world.player_position(), position);
         game.finish_cutscene(true);
         assert!(!game.fabula.active());

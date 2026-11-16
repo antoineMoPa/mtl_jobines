@@ -178,7 +178,7 @@ impl Traffic {
                 true
             }
         });
-        if self.drivers.len() >= TARGET {
+        if self.drivers.len() >= crate::performance::npc_budget(TARGET) {
             return;
         }
         let candidates: Vec<_> = self
@@ -216,7 +216,7 @@ impl Traffic {
             .map(|(id, _)| id)
             .collect();
         for _ in 0..TARGET * 30 {
-            if self.drivers.len() >= TARGET {
+            if self.drivers.len() >= crate::performance::npc_budget(TARGET) {
                 break;
             }
             let (path, distance) = candidates[self.random(candidates.len())];

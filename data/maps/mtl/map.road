@@ -375,35 +375,14 @@ junction_2 = map_point(0.6965, -3.4119);
 
 road_2 = cross_street(junction_2, 0.9251, -3.1693, 1.1537, -2.9267, junction_1);
 
-grade(road_2, 0.1420, 0.1020);
+grade(road_2, 0.1020, 0.1020);
 
 junction_3 = map_point(0.5914, -3.5234);
 
 road_3 = cross_street(junction_3, 0.6265, -3.4862, 0.6615, -3.4491, junction_2);
 
-grade(road_3, 0.1420, 0.1420);
-
-junction_4 = map_point(0.7218, -3.6463);
-
-road_4 = cross_street(junction_4, 0.6783, -3.6053, 0.6349, -3.5644, junction_3);
-
-grade(road_4, 0.1420, 0.1420);
-
-junction_5 = map_point(0.4610, -3.4005);
-
-road_5 = cross_street(junction_5, 0.5045, -3.4415, 0.5479, -3.4824, junction_3);
-
-grade(road_5, 0.1420, 0.1420);
-
-junction_6 = map_point(0.4685, -3.6538);
-
-road_6 = cross_street(junction_6, 0.5095, -3.6103, 0.5504, -3.5669, junction_3);
-
-grade(road_6, 0.1420, 0.1420);
-
-intersection4(junction_3, cross_street);
-
-elevation(junction_3, 0.1420);
+# Ground-level dead end at junction_3.
+grade(road_3, 0.1020, 0.1020);
 
 placed_building_3 = building(0.2775000, { material: glass, floor_height: 0.0315000, use: unspecified, family: curtain_wall, palette: sandstone, seed: 334 }, 0.8025994, -0.7510453, 0.4372306, -0.7618776, 0.4535920, -1.3137398, 0.8189608, -1.3029075);
 
@@ -990,3 +969,95 @@ courtyard_tree_12 = prop(tree_linden_2, 4.4055129, 10.4024866, { heading: 157, e
 placed_building_7 = building(0.2820000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: sandstone, glazing: smoke, section: piers, ground: retail, weathering: 0.65, seed: 334, setback: off, corners: stone, roof_units: 3 }, 1.3787738, 0.1154099, 1.5187124, 0.1195587, 1.5133783, 0.2994797, 1.3734397, 0.2953309);
 
 elevation(placed_building_7, 0.1010);
+
+placed_building_8 = building(0.3135000, { material: glass, floor_height: 0.0315000, use: unspecified, family: curtain_wall, palette: sandstone, glazing: smoke, section: piers, ground: retail, weathering: 0.65, seed: 334, setback: off, corners: stone, roof_units: 3 }, 0.9059052, 0.1019743, 1.3485125, 0.1019743, 1.3485125, 0.2764930, 0.9059052, 0.2764930);
+
+elevation(placed_building_8, 0.1010);
+
+
+placed_building_9 = building(0.3135000, { material: concrete, floor_height: 0.0315000, use: unspecified, family: concrete_frame, palette: chalk, glazing: smoke, section: piers, ground: retail, weathering: 0.65, seed: 351, setback: off, corners: stone, roof_units: 3 }, 0.3652072, 0.0899493, 0.8846363, 0.0899493, 0.8846363, 0.2806725, 0.3652072, 0.2806725);
+
+elevation(placed_building_9, 0.1010);
+
+
+placed_building_10 = building(0.2505000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: buff, glazing: smoke, section: piers, ground: retail, weathering: 0.65, seed: 368, setback: off, corners: stone, roof_units: 3 }, 1.3934934, 0.3840494, 1.5481052, 0.3840494, 1.5481052, 0.6450070, 1.3934934, 0.6450070);
+
+elevation(placed_building_10, 0.1010);
+
+
+
+
+placed_building_11 = building(0.0945000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: granite, glazing: silver, section: frame, ground: lobby, weathering: 0.35, seed: 334, setback: off, corners: stone, roof_units: 2 }, 1.7339805, 1.6896256, 2.1771748, 1.6896256, 2.1771748, 1.8710364, 1.7339805, 1.8710364);
+
+elevation(placed_building_11, 0.1010);
+
+
+
+
+
+
+
+
+
+
+
+placed_building_12 = building(0.1260000, { material: concrete, floor_height: 0.0315000, use: unspecified, family: mixed, palette: granite, glazing: teal, section: bands, ground: retail, weathering: 0.12, seed: 334, corners: glass, roof_units: 4 }, 2.9603071, 1.2315536, 3.4308424, 1.2315536, 3.4308424, 1.4611701, 2.9603071, 1.4611701);
+
+elevation(placed_building_12, 0.1317);
+
+
+
+
+
+
+
+
+placed_building_13 = building(0.1260000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: chalk, glazing: teal, section: bands, ground: retail, weathering: 0.12, seed: 351, corners: glass, roof_units: 4 }, 3.5050957, 1.2621588, 4.0705786, 1.2621588, 4.0705786, 1.4829724, 3.5050957, 1.4829724);
+
+elevation(placed_building_13, 0.1766);
+
+
+placed_building_14 = building(0.0945000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: buff, glazing: silver, section: frame, ground: lobby, weathering: 0.35, seed: 368, setback: off, corners: stone, roof_units: 2 }, 2.2396445, 1.7058802, 2.4663739, 1.7058802, 2.4663739, 1.9939871, 2.2396445, 1.9939871);
+
+elevation(placed_building_14, 0.1010);
+
+
+junction_4 = map_point(0.5510, 1.9269);
+
+road_4 = cross_street(junction_8, 1.1525, 1.5617, 0.7935, 1.6982, junction_4);
+
+grade(road_4, 0.1020, 0.1020);
+
+junction_5 = map_point(-0.1765, 2.6130);
+
+road_5 = cross_street(junction_4, 0.3085, 2.1556, 0.0660, 2.3843, junction_5);
+
+grade(road_5, 0.1020, 0.1020);
+
+junction_6 = map_point(-3.1593, 5.4260);
+
+road_6 = cross_street(junction_5, -1.1708, 3.5507, -2.1650, 4.4883, junction_6);
+
+grade(road_6, 0.1020, 0.1020);
+
+junction_40 = map_point(0.3293, 9.4646);
+
+road_41 = cross_street(junction_33, 0.9083, 9.8645, 0.5579, 9.7071, junction_40);
+
+grade(road_41, 0.1020, 0.1020);
+
+junction_41 = map_point(-3.1004, 5.8263);
+
+road_42 = cross_street(junction_40, -0.8139, 8.2518, -1.9572, 7.0391, junction_41);
+
+grade(road_42, 0.1020, 0.1020);
+
+road_43 = cross_street(junction_6, -3.2574, 5.5185, -3.1929, 5.7282, junction_41);
+
+grade(road_43, 0.1020, 0.1020);
+
+junction_42 = map_point(1.3607, 11.0315);
+
+road_44 = cross_street(junction_35, 1.3803, 10.3651, 1.3705, 10.6983, junction_42);
+
+grade(road_44, 0.1020, 0.1020);

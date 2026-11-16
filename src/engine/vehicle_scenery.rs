@@ -10,11 +10,13 @@ struct Part {
 }
 pub(super) struct VehicleScenery {
     models: Vec<Vec<Part>>,
+    cutscene_cached: bool,
     pedestrians: super::pedestrian_scenery::PedestrianScenery,
 }
 impl VehicleScenery {
     pub fn new(renderer: &Renderer) -> Self {
         Self {
+            cutscene_cached: false,
             pedestrians: super::pedestrian_scenery::PedestrianScenery::new(renderer),
             models: catalog::definitions()
                 .iter()
@@ -50,6 +52,10 @@ impl VehicleScenery {
         stage: Option<super::fabula::Stage<'_>>,
     ) {
         self.pedestrians.update_with_stage(renderer, world, stage);
+        if stage.is_some() && self.cutscene_cached {
+            return;
+        }
+        self.cutscene_cached = stage.is_some();
         if world.season() == crate::season::Season::Winter {
             let center = world.player_position() / crate::dynamic_world::METERS_PER_UNIT;
             renderer

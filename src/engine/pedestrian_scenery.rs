@@ -89,6 +89,7 @@ struct Model {
 pub(super) struct PedestrianScenery {
     models: Vec<Model>,
     poses: Vec<[[f32; 4]; 4]>,
+    frozen_poses: Vec<[Mat4; JOINT_LIMIT]>,
 }
 impl PedestrianScenery {
     pub fn new(renderer: &Renderer) -> Self {
@@ -101,6 +102,7 @@ impl PedestrianScenery {
                 })
                 .collect(),
             poses: Vec::with_capacity(POSE_CAPACITY),
+            frozen_poses: Vec::new(),
         }
     }
     pub fn update(&mut self, renderer: &Renderer, world: &DynamicWorld) {
@@ -112,6 +114,9 @@ impl PedestrianScenery {
         world: &DynamicWorld,
         stage: Option<super::fabula::Stage<'_>>,
     ) {
+        if stage.is_none() {
+            self.frozen_poses.clear();
+        }
         self.poses.clear();
         for model in &mut self.models {
             model.transforms.clear();
@@ -132,17 +137,24 @@ impl PedestrianScenery {
             columns[2][3] = self.poses.len() as f32;
             columns[3][3] = actor.opacity;
             self.models[actor.model].transforms.push(columns);
+            let world_pose = if stage.is_some() && index < self.frozen_poses.len() {
+                self.frozen_poses[index]
+            } else {
+                let pose = actor.pose.copied().unwrap_or_else(|| {
+                    pedestrian_catalog::definitions()[actor.model].pose(
+                        actor.idle_time,
+                        actor.walk_time,
+                        actor.movement,
+                    )
+                });
+                if stage.is_some() {
+                    self.frozen_poses.push(pose);
+                }
+                pose
+            };
             let pose = staged
                 .map(|c| c.pose.palette(actor.model, stage.unwrap().elapsed))
-                .unwrap_or_else(|| {
-                    actor.pose.copied().unwrap_or_else(|| {
-                        pedestrian_catalog::definitions()[actor.model].pose(
-                            actor.idle_time,
-                            actor.walk_time,
-                            actor.movement,
-                        )
-                    })
-                });
+                .unwrap_or(world_pose);
             self.poses.extend(pose.map(|m| m.to_cols_array_2d()));
         }
         if let Some(stage) = stage {

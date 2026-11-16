@@ -326,7 +326,7 @@ impl Crowd {
             return;
         }
         for _ in 0..CAPACITY * 24 {
-            if self.walkers.len() >= CAPACITY {
+            if self.walkers.len() >= crate::performance::npc_budget(CAPACITY) {
                 break;
             }
             let path = nearby[(random(&mut self.seed) * nearby.len() as f32) as usize];
@@ -469,7 +469,8 @@ impl Crowd {
                 self.walkers.retain(|walker| !walker.spawned_at_kiosk);
                 self.kiosk_spawned = false;
             } else if distance < KIOSK_SPAWN_RADIUS && !self.kiosk_spawned {
-                let room = (CAPACITY + KIOSK_CAPACITY).saturating_sub(self.walkers.len());
+                let room = (crate::performance::npc_budget(CAPACITY) + KIOSK_CAPACITY)
+                    .saturating_sub(self.walkers.len());
                 self.kiosk_actors = site.actors(city).into_iter().take(room).collect();
                 self.kiosk_spawned = true;
             }
@@ -809,8 +810,9 @@ impl Crowd {
             .iter()
             .filter_map(move |w| {
                 let distance = w.position.distance(center);
-                let opacity =
-                    ((DRAW_RADIUS - distance) / 15.).clamp(0., 1.) * (w.age / 0.6).clamp(0., 1.);
+                let opacity = ((crate::performance::draw_radius(DRAW_RADIUS) - distance) / 15.)
+                    .clamp(0., 1.)
+                    * (w.age / 0.6).clamp(0., 1.);
                 (opacity > 0.).then(|| Instance {
                     model: w.model,
                     transform: pedestrian_catalog::instance_transform(w.position, w.yaw),

@@ -12,6 +12,127 @@ fn key(key: egui::Key) -> egui::Event {
         modifiers: Default::default(),
     }
 }
+
+#[test]
+fn typing_floor_count_preserves_footprint_and_survives_reopen() {
+    let mut f = Fixture::new();
+    f.place();
+    let before = f.document.items[0].feature.clone();
+    let ctx = egui::Context::default();
+    let matrix = view(&f.document);
+    let mut frame = |events| {
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(matrix.viewport),
+                events,
+                ..Default::default()
+            },
+            |ui| f.document.show(ui, matrix.matrix, [900, 486], &f.city),
+        );
+        output.textures_delta.clear();
+        output
+    };
+    frame(vec![]);
+    let output = frame(vec![]);
+    fn collect_text<'a>(shape: &'a egui::Shape, text: &mut Vec<&'a egui::epaint::TextShape>) {
+        match shape {
+            egui::Shape::Text(t) => text.push(t),
+            egui::Shape::Vec(shapes) => {
+                for shape in shapes {
+                    collect_text(shape, text);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut text = Vec::new();
+    for shape in &output.shapes {
+        collect_text(&shape.shape, &mut text);
+    }
+    let label = text
+        .iter()
+        .find(|t| t.galley.text() == "Floors")
+        .unwrap()
+        .visual_bounding_rect();
+    let value = text
+        .iter()
+        .filter(|t| {
+            let rect = t.visual_bounding_rect();
+            rect.left() > label.right() && (rect.center().y - label.center().y).abs() < 5.
+        })
+        .min_by(|a, b| {
+            a.visual_bounding_rect()
+                .left()
+                .total_cmp(&b.visual_bounding_rect().left())
+        })
+        .unwrap();
+    let pos = value.visual_bounding_rect().center();
+    assert_eq!(
+        value.galley.text(),
+        format!(
+            "{:.0}",
+            before.height.unwrap() / before.building_style.unwrap().floor_height
+        )
+    );
+    frame(vec![egui::Event::PointerMoved(pos)]);
+    for pressed in [true, false] {
+        frame(vec![
+            egui::Event::PointerMoved(pos),
+            egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: Default::default(),
+            },
+        ]);
+    }
+    frame(vec![]);
+    assert!(
+        ctx.egui_wants_keyboard_input(),
+        "floor input did not gain focus at {pos:?}"
+    );
+    frame(vec![egui::Event::Text("7".into())]);
+    frame(vec![key(egui::Key::Enter)]);
+    frame(vec![]);
+    drop(frame);
+    assert!(f.document.error.is_empty(), "{}", f.document.error);
+    let reopened = Document::open(&f.path, Vec3::ZERO, 0.).unwrap();
+    let after = &reopened.items[0].feature;
+    assert_eq!(after.points, before.points);
+    assert_eq!(after.elevation, before.elevation);
+    assert!(
+        (after.height.unwrap() - 7. * before.building_style.unwrap().floor_height).abs() < 1e-6,
+        "expected seven floors, got height {:?}",
+        after.height
+    );
+}
+
+#[test]
+fn unbaked_picking_mesh_matches_render_geometry_for_all_building_families() {
+    let mut f = Fixture::new();
+    f.place();
+    let mut feature = f.document.items[0].feature.clone();
+    let mut shaded_vertices = 0;
+    for family in BuildingFamily::ALL {
+        feature.building_style.as_mut().unwrap().architecture.family = family;
+        let Some(recipe) = BuildingRecipe::from_feature(&feature) else {
+            continue;
+        };
+        let picking = recipe.picking_mesh();
+        let rendered = recipe.mesh();
+        assert_eq!(picking.vertices.len(), rendered.vertices.len());
+        for (a, b) in picking.vertices.iter().zip(&rendered.vertices) {
+            assert_eq!(a.position, b.position);
+            assert_eq!(a.normal, b.normal);
+            assert_eq!(a.surface, b.surface);
+            shaded_vertices += usize::from(a.color != b.color);
+        }
+    }
+    assert!(
+        shaded_vertices > 0,
+        "rendered meshes must retain their AO bake"
+    );
+}
 fn input(
     doc: &mut Document,
     city: &City,

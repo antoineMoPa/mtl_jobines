@@ -3,6 +3,7 @@ mod dynamic_world;
 mod engine;
 mod hermes;
 mod kairos;
+mod performance;
 mod props;
 mod season;
 mod web_assets;

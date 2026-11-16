@@ -88,6 +88,24 @@ impl VoiceClip {
             .collect();
         Ok(Self { frames })
     }
+    /// Full scene timeline, including voice delay and the silent tail.
+    #[cfg(any(target_arch = "wasm32", test))]
+    pub(super) fn scene_channel(
+        clip: Option<&Self>,
+        channel: usize,
+        start: f32,
+        duration: f32,
+        gain: f32,
+    ) -> Vec<f32> {
+        let mut samples = vec![0.; (duration * RATE as f32).ceil() as usize];
+        let first = (start * RATE as f32).round() as usize;
+        if let Some(clip) = clip {
+            for (sample, frame) in samples.iter_mut().skip(first).zip(&clip.frames) {
+                *sample = frame[channel] * gain.clamp(0., 1.);
+            }
+        }
+        samples
+    }
     pub fn duration(&self) -> f32 {
         self.frames.len() as f32 / RATE as f32
     }
@@ -185,6 +203,29 @@ impl<S: Source<Item = f32>> Source for Soundtrack<S> {
 mod tests {
     use super::*;
     #[test]
+    fn complete_scene_buffer_preserves_delay_stereo_gain_and_silent_tail() {
+        let clip = VoiceClip {
+            frames: vec![[0.8, -0.4]; 2],
+        };
+        for (channel, value) in [(0, 0.4), (1, -0.2)] {
+            assert_eq!(
+                VoiceClip::scene_channel(
+                    Some(&clip),
+                    channel,
+                    1. / RATE as f32,
+                    4. / RATE as f32,
+                    0.5
+                ),
+                vec![0., value, value, 0.]
+            );
+        }
+        assert_eq!(
+            VoiceClip::scene_channel(None, 0, 0., 4. / RATE as f32, 1.),
+            vec![0.; 4]
+        );
+    }
+    #[test]
+
     fn voice_clock_pause_skip_and_delay() {
         let bus = VoiceBus::default();
         let clip = Arc::new(VoiceClip {

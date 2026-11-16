@@ -29,3 +29,12 @@ Clean it up like we did for other medium poly models:
 - define vehicle parts and lights use claydash mcp or any tool you'd like work in the moontask
   folder or a temporary folder.
 - separate general body vertices to their own group  then include the glb + car in game
+
+# Compile at the end of your changes
+
+This is a large rust projects, multiple agents might be working.
+
+Change all of your files for your feature to batch compile rather than
+making small successive edits and compiles.
+
+Cargo errors have the benefit of showing all erros.

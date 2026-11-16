@@ -15,6 +15,8 @@ use std::{
 };
 
 pub(super) struct Backend {
+    #[cfg(target_arch = "wasm32")]
+    cutscene: std::cell::RefCell<Option<super::browser_cutscene::BrowserCutscene>>,
     bridge: Arc<Bridge>,
     voice: Arc<super::voice::VoiceBus>,
     stream: cpal::Stream,
@@ -70,6 +72,8 @@ impl Backend {
         #[cfg(target_arch = "wasm32")]
         let visibility = VisibilityGuard::new(&stream, bridge.clone(), playing.clone())?;
         Ok(Self {
+            #[cfg(target_arch = "wasm32")]
+            cutscene: Default::default(),
             bridge,
             voice,
             stream,
@@ -102,15 +106,60 @@ impl Backend {
         gain: f32,
     ) {
         self.silence();
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.cutscene.borrow_mut().take();
+            match super::browser_cutscene::BrowserCutscene::new(
+                &web_context(&self.stream),
+                clip.as_deref(),
+                start,
+                duration,
+                gain,
+            ) {
+                Ok(scene) => {
+                    *self.cutscene.borrow_mut() = Some(scene);
+                    self.voice.clear();
+                    return;
+                }
+                Err(error) => eprintln!("Could not buffer scene audio: {error:?}"),
+            }
+        }
         self.voice.load(clip, start, duration, gain);
     }
     pub fn cutscene_time(&self) -> Option<f32> {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(scene) = self.cutscene.borrow().as_ref() {
+            return Some(scene.time(&web_context(&self.stream)) as f32);
+        }
         self.playing.get().then(|| self.voice.time()).flatten()
     }
     pub fn cutscene_active(&self, active: bool) {
         #[cfg(target_arch = "wasm32")]
         let active = active && !self._visibility.document.hidden();
+        #[cfg(target_arch = "wasm32")]
+        if self.cutscene.borrow().is_some() {
+            {
+                let mut cutscene = self.cutscene.borrow_mut();
+                if let Err(error) = cutscene
+                    .as_mut()
+                    .unwrap()
+                    .set_playing(&web_context(&self.stream), active)
+                {
+                    eprintln!("Could not play scene audio: {error:?}");
+                }
+            }
+            // CPAL stays silent; the complete buffer is scheduled separately.
+            self.bridge.active.store(false, Ordering::Release);
+            if active && !self.playing.get() {
+                self.resume();
+            }
+            if !active {
+                self.silence();
+            }
+            return;
+        }
         self.voice.set_playing(active);
+
         if active {
             self.bridge.active.store(true, Ordering::Release);
             if !self.playing.get() {
@@ -121,6 +170,8 @@ impl Backend {
         }
     }
     pub fn stop_cutscene(&self) {
+        #[cfg(target_arch = "wasm32")]
+        self.cutscene.borrow_mut().take();
         self.silence();
         self.voice.clear();
     }
@@ -138,6 +189,10 @@ impl Backend {
         }
     }
     pub fn silence(&self) {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(scene) = self.cutscene.borrow_mut().as_mut() {
+            let _ = scene.set_playing(&web_context(&self.stream), false);
+        }
         self.voice.set_playing(false);
         self.bridge.active.store(false, Ordering::Release);
         if self.playing.get() {

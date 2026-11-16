@@ -41,7 +41,9 @@ impl Item {
         self.mesh = match &self.model {
             Some(model) => crate::hermes::external_models::place(model, &self.feature)?,
             None => BuildingRecipe::from_feature(&self.feature)
-                .map(|r| r.mesh())
+                // This mesh is only used for picking. The reload worker prepares
+                // the visible mesh and its AO; never duplicate that bake in UI input.
+                .map(|r| r.picking_mesh())
                 .unwrap_or_else(|| geometry::prism(&self.feature)),
         };
         Ok(())
@@ -185,7 +187,9 @@ impl Document {
         if !self.open {
             return 0.;
         }
-        let base = if self.selected.is_some() && width < 1050. {
+        let base = if self.selected.is_some() && width < 850. {
+            114.
+        } else if self.selected.is_some() && width < 1300. {
             78.
         } else {
             42.

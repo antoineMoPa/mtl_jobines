@@ -79,6 +79,68 @@ mod tests {
     use super::*;
     use crate::dynamic_world::{catalog, Controls};
     #[test]
+    fn rear_lenses_follow_render_pose_only_for_the_selected_player_vehicle() {
+        use super::super::{DynamicWorld, VehicleId};
+        use glam::Mat4;
+
+        let hermes = crate::hermes::Hermes::test_map();
+        let mut world = DynamicWorld::new(&hermes);
+        world.vehicles.truncate(1);
+        world.vehicles.push(Vehicle::spawn(hermes.city()));
+        world.player_vehicle = VehicleId(1);
+        for vehicle in &mut world.vehicles {
+            vehicle.set_catalog_model(Some(0));
+        }
+        let car = &mut world.vehicles[1];
+        car.yaw = 0.7;
+        car.pitch = 0.12;
+        car.body_lean = glam::Vec2::new(0.05, -0.03);
+        car.sound_running = true;
+        car.sound_controls.brake = true;
+        let physics_pose =
+            Mat4::from_rotation_translation(car.orientation(), car.position / METERS_PER_UNIT);
+        for alpha in [0., 0.25, 0.75, 1.] {
+            let car = world.player();
+            let render_pose = Mat4::from_rotation_translation(
+                (Quat::from_rotation_z(-0.08) * car.orientation()).slerp(car.orientation(), alpha),
+                (car.position - Vec3::new(0.4, 0.2, 0.1) * (1. - alpha)) / METERS_PER_UNIT,
+            );
+            let delta = render_pose * physics_pose.inverse();
+            let mut mesh = Mesh::default();
+            world.write_moving_mesh_with_player_pose(&mut mesh, delta);
+            let mut offset = 0;
+            for (index, vehicle) in world.vehicles.iter().enumerate() {
+                let definition = vehicle.definition().unwrap();
+                let lean = Quat::from_rotation_y(-vehicle.body_lean.x)
+                    * Quat::from_rotation_x(vehicle.body_lean.y);
+                let pose = if index == 1 {
+                    render_pose
+                } else {
+                    Mat4::from_rotation_translation(
+                        vehicle.orientation(),
+                        vehicle.position / METERS_PER_UNIT,
+                    )
+                };
+                for original in definition.rear_lenses() {
+                    let actual = &mesh.vertices[offset];
+                    let expected = pose.transform_point3(
+                        lean * Vec3::from_array(original.position) / METERS_PER_UNIT,
+                    );
+                    assert!(Vec3::from_array(actual.position).distance(expected) < 1e-5);
+                    let normal = pose.transform_vector3(lean * Vec3::from_array(original.normal));
+                    assert!(Vec3::from_array(actual.normal).distance(normal) < 1e-5);
+                    assert_eq!(
+                        actual.surface[3],
+                        original.surface[3] + if index == 1 { 65. } else { 0. }
+                    );
+                    offset += 1;
+                }
+            }
+            assert_eq!(mesh.vertices.len(), offset);
+        }
+    }
+
+    #[test]
     fn route_flashers_blink_on_the_selected_side_and_reset() {
         use crate::hermes::RouteSignal;
         let hermes = crate::hermes::Hermes::test_map();

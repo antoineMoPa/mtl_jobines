@@ -623,25 +623,25 @@ impl Game {
             }
         });
         self.sound_eye = if paused { None } else { Some(sound_eye) };
-        let mut sound_frame = self.world.sound_frame(
-            sound_eye,
-            look - self.eye,
-            sound_velocity,
-            self.sound_settings,
-        );
-        if let Some(car) = sound_frame.cars.iter_mut().find(|car| car.player) {
-            car.horn = horn;
-        }
         if !self.fabula.active() {
+            let mut sound_frame = self.world.sound_frame(
+                sound_eye,
+                look - self.eye,
+                sound_velocity,
+                self.sound_settings,
+            );
+            if let Some(car) = sound_frame.cars.iter_mut().find(|car| car.player) {
+                car.horn = horn;
+            }
             self.audio.update(sound_frame, !paused);
         }
         let stage = self.fabula.playback.as_ref().map(|p| p.stage());
-        let car = self.dynamic_mesh.as_mut().unwrap();
+        let moving_mesh = self.dynamic_mesh.as_mut().unwrap();
         if refresh_scene {
-            self.world.write_moving_mesh(&mut self.dynamic_vertices);
-            renderer.update_dynamic(car, &self.dynamic_vertices);
-            self.prop_scenery
-                .update_with_stage(renderer, &self.world, stage);
+            if stage.is_none() || self.scene_dirty {
+                self.prop_scenery
+                    .update_with_stage(renderer, &self.world, stage);
+            }
             let car = self.world.player();
             let player_pose_delta = Mat4::from_rotation_translation(
                 render_orientation,
@@ -651,6 +651,13 @@ impl Game {
                 car.position / METERS_PER_UNIT,
             )
             .inverse();
+            if stage.is_none() || self.scene_dirty {
+                self.world.write_moving_mesh_with_player_pose(
+                    &mut self.dynamic_vertices,
+                    player_pose_delta,
+                );
+                renderer.update_dynamic(moving_mesh, &self.dynamic_vertices);
+            }
             self.vehicle_scenery.as_mut().unwrap().update_with_stage(
                 renderer,
                 &self.world,
@@ -726,7 +733,7 @@ impl Game {
         );
         meshes.extend(surface_preview.iter().map(|mesh| mesh.as_ref()));
         meshes.extend(prop_preview.iter().flatten().map(|mesh| mesh.as_ref()));
-        meshes.push(car);
+        meshes.push(moving_mesh);
         meshes.extend(self.prop_scenery.visible_with_authored(authored_visible));
         meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());
         renderer

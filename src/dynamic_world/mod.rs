@@ -670,7 +670,14 @@ impl DynamicWorld {
     }
     /// Vehicle lamps, pedestrian and moving debris. Standing scenery uses cached batches.
     pub fn write_moving_mesh(&self, mesh: &mut Mesh) {
-        self.write_non_vehicle_actors(mesh);
+        self.write_moving_mesh_with_player_pose(mesh, glam::Mat4::IDENTITY);
+    }
+    pub(crate) fn write_moving_mesh_with_player_pose(
+        &self,
+        mesh: &mut Mesh,
+        player_pose_delta: glam::Mat4,
+    ) {
+        self.write_non_vehicle_actors_with_player_pose(mesh, player_pose_delta);
         self.props.append_moving(mesh, self.player_position());
     }
     pub(crate) fn standing_signal_batches(&self) -> impl Iterator<Item = SignalBatch> + '_ {
@@ -699,7 +706,8 @@ impl DynamicWorld {
             } else {
                 450.
             };
-        vehicle.position.distance_squared(self.player_position()) <= distance * distance
+        vehicle.position.distance_squared(self.player_position())
+            <= crate::performance::draw_radius(distance).powi(2)
     }
     pub(crate) fn vehicle_instances(
         &self,
@@ -721,11 +729,31 @@ impl DynamicWorld {
                 })
             })
     }
+    #[cfg(test)]
     fn write_non_vehicle_actors(&self, mesh: &mut Mesh) {
+        self.write_non_vehicle_actors_with_player_pose(mesh, glam::Mat4::IDENTITY);
+    }
+    fn write_non_vehicle_actors_with_player_pose(
+        &self,
+        mesh: &mut Mesh,
+        player_pose_delta: glam::Mat4,
+    ) {
         mesh.vertices.clear();
         for (index, vehicle) in self.vehicles.iter().enumerate() {
             if self.vehicle_in_render_range(index, vehicle) {
+                let start = mesh.vertices.len();
                 vehicle.append_lights(mesh);
+                if index == self.player_vehicle.0 {
+                    // Rear lenses share the body's interpolated render pose.
+                    for vertex in &mut mesh.vertices[start..] {
+                        vertex.position = player_pose_delta
+                            .transform_point3(Vec3::from_array(vertex.position))
+                            .to_array();
+                        vertex.normal = player_pose_delta
+                            .transform_vector3(Vec3::from_array(vertex.normal))
+                            .to_array();
+                    }
+                }
             }
         }
         self.traffic

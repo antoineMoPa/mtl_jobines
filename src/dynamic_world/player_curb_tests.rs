@@ -28,19 +28,25 @@ fn walk_and_run_cross_sidewalk_curbs_without_getting_stuck() {
     assert!((sidewalk.height - road.height) * METERS_PER_UNIT > 0.02);
     for run in [false, true] {
         for sign in [-1., 1.] {
-            for hz in [30, 60, 120] {
+            for (hz, angle) in [30, 60, 120]
+                .into_iter()
+                .flat_map(|hz| [0.0_f32, -0.6, 0.6].map(|angle| (hz, angle)))
+            {
                 let start = Vec3::new(
                     0.,
                     sign * sidewalk_y,
                     sidewalk.height * METERS_PER_UNIT + HALF_HEIGHT,
                 );
-                let mut player = Pedestrian::new(&city, start, -sign * std::f32::consts::FRAC_PI_2);
+                let mut player =
+                    Pedestrian::new(&city, start, -sign * std::f32::consts::FRAC_PI_2 + angle);
                 let mut stopped_frames = 0;
                 // Cover both curbs at the configured travel speed, plus settling time.
                 let speed = if run { RUN_SPEED } else { WALK_SPEED };
-                let frames = ((2. * sidewalk_y + 1.) / speed + 2.).ceil() as i32 * hz;
+                let frames =
+                    ((2. * sidewalk_y + 1.) / (speed * angle.cos()) + 2.).ceil() as i32 * hz;
                 for frame in 0..frames {
                     let before = player.position;
+                    let speed_before = player.speed;
                     player.step(
                         &city,
                         WalkControls {
@@ -51,6 +57,14 @@ fn walk_and_run_cross_sidewalk_curbs_without_getting_stuck() {
                         1. / hz as f32,
                         |_| false,
                     );
+                    if !run && speed_before > WALK_SPEED * 0.95 {
+                        assert!(
+                            (player.position - before).truncate().length()
+                                > WALK_SPEED / hz as f32 * 0.8,
+                            "curb interrupted walking: hz={hz}, sign={sign}, angle={angle}, before={before:?}, after={:?}",
+                            player.position
+                        );
+                    }
                     if frame > hz / 2 && (player.position - before).truncate().length() < 0.0001 {
                         stopped_frames += 1;
                     } else {

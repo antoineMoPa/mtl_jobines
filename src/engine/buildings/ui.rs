@@ -176,6 +176,28 @@ impl Document {
                                 self.error = error;
                             }
                         }
+                        let feature = &self.items[index].feature;
+                        let floor_height = feature.building_style.unwrap_or_default().floor_height;
+                        let mut floors = (feature.height.unwrap_or(floor_height) / floor_height)
+                            .round()
+                            .max(1.) as u32;
+                        ui.label("Floors");
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut floors)
+                                    .speed(0.1)
+                                    .range(1..=300),
+                            )
+                            .on_hover_text(format!(
+                                "Floor count; drag or click to type. {:.2} m per floor. Keeps the footprint unchanged.",
+                                floor_height * 100.
+                            ))
+                            .changed()
+                        {
+                            let mut feature = self.items[index].feature.clone();
+                            feature.height = Some(floors as f32 * floor_height);
+                            self.error = self.edit(city, index, feature).err().unwrap_or_default();
+                        }
                         let source_height = self.items[index]
                             .model
                             .as_ref()
