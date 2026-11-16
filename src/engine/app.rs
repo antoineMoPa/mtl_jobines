@@ -514,6 +514,8 @@ impl Game {
         if self.renderer.is_none() {
             return;
         }
+        let cutscene_waiting_for_gesture =
+            self.cutscene_can_play() && self.audio.cutscene_waiting_for_gesture();
         let now = Instant::now();
         if self.first_frame {
             self.first_frame_attempts += 1;
@@ -762,6 +764,7 @@ impl Game {
                         self.overlay,
                         &mut self.menu_selection,
                         self.fabula.playback.as_ref(),
+                        cutscene_waiting_for_gesture,
                         palette
                             .foot_motion_enabled()
                             .then(|| self.world.player_foot_motion())
@@ -1027,6 +1030,22 @@ impl ApplicationHandler<GameEvent> for Game {
         ) {
             self.stop_orbit_drag();
         }
+        // Unlock before cutscene/UI handlers consume input. Touch release is
+        // needed on browsers that do not grant activation on touch start.
+        let audio_gesture = match &event {
+            WindowEvent::KeyboardInput { event, .. } => {
+                event.state == ElementState::Pressed && !event.repeat
+            }
+            WindowEvent::MouseInput { .. } => true,
+            WindowEvent::Touch(touch) => matches!(
+                touch.phase,
+                winit::event::TouchPhase::Started | winit::event::TouchPhase::Ended
+            ),
+            _ => false,
+        };
+        if audio_gesture {
+            self.audio.user_gesture();
+        }
         if self.fabula.active() {
             if let WindowEvent::KeyboardInput { event: key, .. } = &event {
                 if key.state == ElementState::Pressed
@@ -1103,17 +1122,6 @@ impl ApplicationHandler<GameEvent> for Game {
             if self.help_visible {
                 return;
             }
-        }
-        let audio_gesture = match &event {
-            WindowEvent::KeyboardInput { event, .. } => {
-                event.state == ElementState::Pressed && !event.repeat
-            }
-            WindowEvent::MouseInput { state, .. } => *state == ElementState::Pressed,
-            WindowEvent::Touch(touch) => touch.phase == winit::event::TouchPhase::Started,
-            _ => false,
-        };
-        if audio_gesture {
-            self.audio.user_gesture();
         }
         if matches!(
             event,

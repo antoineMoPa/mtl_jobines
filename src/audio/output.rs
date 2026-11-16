@@ -126,6 +126,15 @@ impl Backend {
         }
         self.voice.load(clip, start, duration, gain);
     }
+    pub fn cutscene_waiting_for_gesture(&self) -> bool {
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.playing.get()
+                && web_context(&self.stream).state() == web_sys::AudioContextState::Suspended
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        false
+    }
     pub fn cutscene_time(&self) -> Option<f32> {
         #[cfg(target_arch = "wasm32")]
         if let Some(scene) = self.cutscene.borrow().as_ref() {

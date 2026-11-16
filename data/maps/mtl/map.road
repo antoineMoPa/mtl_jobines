@@ -3580,3 +3580,206 @@ elevation(placed_building_17, 0.1010);
 
 
 
+
+# 100 scattered traffic cones, inset 0.5 m from street curbs.
+# Individual props remain movable in the in-game editor.
+# cross_east
+scattered_cone_001 = prop(cone, 1.6265360, 0.2182193, { heading: 144, elevation: 0.1020000 });
+# cross_island_extension
+scattered_cone_002 = prop(cone, 1.5972419, 1.2063007, { heading: 110, elevation: 0.1020000 });
+# cross_west
+scattered_cone_003 = prop(cone, 1.7693733, -1.0564671, { heading: 18, elevation: 0.1020000 });
+# district_east_access
+scattered_cone_004 = prop(cone, 22.6457882, 12.3645630, { heading: 117, elevation: 0.1020010 });
+# district_existing_neighborhood
+scattered_cone_005 = prop(cone, 0.7869910, 11.2986364, { heading: 76, elevation: 0.1020010 });
+# district_hill_link_11
+scattered_cone_006 = prop(cone, 8.0432005, 3.7871120, { heading: 193, elevation: 0.1020009 });
+# district_hill_link_13
+scattered_cone_007 = prop(cone, 8.0432005, 4.2254467, { heading: 286, elevation: 0.1020009 });
+# district_hill_link_18
+scattered_cone_008 = prop(cone, 8.1482000, 5.1264696, { heading: 148, elevation: 0.1020009 });
+# district_hill_link_20
+scattered_cone_009 = prop(cone, 8.0432005, 5.6135082, { heading: 71, elevation: 0.1020009 });
+# district_hill_link_23
+scattered_cone_010 = prop(cone, 8.1482000, 6.1005483, { heading: 300, elevation: 0.1020009 });
+# district_hill_link_25
+scattered_cone_011 = prop(cone, 8.1482000, 6.5875864, { heading: 275, elevation: 0.1020009 });
+# district_hill_link_27
+scattered_cone_012 = prop(cone, 8.0432005, 6.9041619, { heading: 225, elevation: 0.1020009 });
+# district_hill_link_29
+scattered_cone_013 = prop(cone, 8.1482000, 7.3424973, { heading: 138, elevation: 0.1020009 });
+# district_hill_link_32
+scattered_cone_014 = prop(cone, 8.1482000, 7.8567996, { heading: 227, elevation: 0.1020010 });
+# district_hill_link_4
+scattered_cone_015 = prop(cone, 8.1482000, 2.4721065, { heading: 306, elevation: 0.1020009 });
+# district_hill_link_6
+scattered_cone_016 = prop(cone, 8.0432005, 2.8130338, { heading: 25, elevation: 0.1020009 });
+# district_hill_link_8
+scattered_cone_017 = prop(cone, 8.1482000, 3.2513692, { heading: 34, elevation: 0.1020009 });
+# district_neighborhood_link
+scattered_cone_018 = prop(cone, 4.6426001, 10.8341436, { heading: 319, elevation: 0.1020010 });
+# district_street_x_0_1
+scattered_cone_019 = prop(cone, 2.1161501, 10.9790001, { heading: 116, elevation: 0.1020010 });
+# district_street_x_0_1
+scattered_cone_020 = prop(cone, 2.7153001, 11.0839996, { heading: 217, elevation: 0.1020010 });
+# district_street_x_0_3
+scattered_cone_021 = prop(cone, 2.1161501, 14.4524984, { heading: 32, elevation: 0.1020010 });
+# district_street_x_0_3
+scattered_cone_022 = prop(cone, 3.4186502, 14.3474998, { heading: 50, elevation: 0.1020010 });
+# district_street_x_1_1
+scattered_cone_023 = prop(cone, 6.7939081, 10.9790001, { heading: 242, elevation: 0.1020010 });
+# district_street_x_1_2
+scattered_cone_024 = prop(cone, 7.3783860, 12.5974998, { heading: 227, elevation: 0.1020010 });
+# district_street_x_1_3
+scattered_cone_025 = prop(cone, 6.0765934, 14.3474998, { heading: 45, elevation: 0.1020010 });
+# district_street_x_2_1
+scattered_cone_026 = prop(cone, 9.6408319, 10.9790001, { heading: 196, elevation: 0.1020010 });
+# district_street_x_2_2
+scattered_cone_027 = prop(cone, 10.8455105, 12.5974989, { heading: 325, elevation: 0.1020010 });
+# district_street_x_2_2
+scattered_cone_028 = prop(cone, 12.2596989, 12.7024994, { heading: 174, elevation: 0.1020010 });
+# district_street_x_2_3
+scattered_cone_029 = prop(cone, 9.6408319, 14.4524994, { heading: 328, elevation: 0.1020010 });
+# district_street_x_2_3
+scattered_cone_030 = prop(cone, 12.2596989, 14.3474989, { heading: 210, elevation: 0.1020010 });
+# district_street_x_2_3
+scattered_cone_031 = prop(cone, 13.3858109, 14.3474998, { heading: 299, elevation: 0.1020010 });
+# district_street_x_3_0
+scattered_cone_032 = prop(cone, 18.7750015, 7.9475002, { heading: 330, elevation: 0.1020010 });
+# district_street_x_3_0
+scattered_cone_033 = prop(cone, 19.8500004, 7.9475002, { heading: 115, elevation: 0.1020010 });
+# district_street_x_3_1
+scattered_cone_034 = prop(cone, 18.7750015, 11.0839996, { heading: 62, elevation: 0.1020010 });
+# district_street_x_3_1
+scattered_cone_035 = prop(cone, 19.8500004, 11.0839996, { heading: 47, elevation: 0.1020010 });
+# district_street_x_3_2
+scattered_cone_036 = prop(cone, 16.2750015, 12.5974998, { heading: 124, elevation: 0.1020010 });
+# district_street_x_3_2
+scattered_cone_037 = prop(cone, 17.4250011, 12.5974989, { heading: 61, elevation: 0.1020010 });
+# district_street_x_3_3
+scattered_cone_038 = prop(cone, 17.4250011, 14.3474998, { heading: 333, elevation: 0.1020010 });
+# district_street_y_0_1
+scattered_cone_039 = prop(cone, 1.3082000, 11.4108353, { heading: 144, elevation: 0.1020010 });
+# district_street_y_0_2
+scattered_cone_040 = prop(cone, 1.4132001, 13.7437496, { heading: 162, elevation: 0.1020010 });
+# district_street_y_1_2
+scattered_cone_041 = prop(cone, 4.6426001, 13.0601559, { heading: 224, elevation: 0.1020010 });
+# district_street_y_2_2
+scattered_cone_042 = prop(cone, 8.0432005, 13.3609371, { heading: 289, elevation: 0.1020010 });
+# district_street_y_2_2
+scattered_cone_043 = prop(cone, 8.1482000, 13.7437496, { heading: 194, elevation: 0.1020010 });
+# district_street_y_3_1
+scattered_cone_044 = prop(cone, 14.7475004, 11.6890163, { heading: 113, elevation: 0.1020010 });
+# district_street_y_4_1
+scattered_cone_045 = prop(cone, 21.1474991, 12.3212414, { heading: 255, elevation: 0.1020010 });
+# district_street_y_4_1
+scattered_cone_046 = prop(cone, 21.2525024, 12.0430622, { heading: 2, elevation: 0.1020010 });
+# district_street_y_4_2
+scattered_cone_047 = prop(cone, 21.2525024, 14.0445309, { heading: 347, elevation: 0.1020010 });
+# district_west_access_1
+scattered_cone_048 = prop(cone, -7.6361570, 10.3996649, { heading: 94, elevation: 0.1020010 });
+# district_west_access_2
+scattered_cone_049 = prop(cone, -6.4954319, 14.1874456, { heading: 106, elevation: 0.1020010 });
+# district_west_feeder
+scattered_cone_050 = prop(cone, -1.0289062, 11.5524998, { heading: 151, elevation: 0.1020010 });
+# ring_east_1_cross_bridge
+scattered_cone_051 = prop(cone, 27.6625004, 12.0524998, { heading: 2, elevation: 0.1670010 });
+# ring_east_1_cross_left_ground
+scattered_cone_052 = prop(cone, 26.5150013, 11.9475002, { heading: 24, elevation: 0.1020010 });
+# ring_east_1_cross_right
+scattered_cone_053 = prop(cone, 28.5928116, 11.9475002, { heading: 57, elevation: 0.1284072 });
+# ring_north_1_cross_bridge
+scattered_cone_054 = prop(cone, 0.0525000, 24.0874996, { heading: 34, elevation: 0.1670010 });
+# ring_north_1_cross_left_ground
+scattered_cone_055 = prop(cone, 0.0525000, 25.2567997, { heading: 187, elevation: 0.1020010 });
+# ring_north_1_cross_right_ground
+scattered_cone_056 = prop(cone, -0.0525000, 22.7432003, { heading: 126, elevation: 0.1020010 });
+# ring_north_1_local_left_street
+scattered_cone_057 = prop(cone, -0.0525000, 25.5431995, { heading: 206, elevation: 0.1020010 });
+# ring_north_1_local_right_street
+scattered_cone_058 = prop(cone, 0.0525000, 21.3750000, { heading: 92, elevation: 0.1020010 });
+# ring_north_2_cross_bridge
+scattered_cone_059 = prop(cone, 13.9475002, 24.1968746, { heading: 47, elevation: 0.1670010 });
+# ring_north_2_cross_right
+scattered_cone_060 = prop(cone, 13.9475002, 23.3387489, { heading: 118, elevation: 0.1426260 });
+# ring_north_2_local_left_street
+scattered_cone_061 = prop(cone, 14.0525007, 25.5431995, { heading: 125, elevation: 0.1020010 });
+# ring_west_1_cross_bridge
+scattered_cone_062 = prop(cone, -12.0886793, 7.9475002, { heading: 72, elevation: 0.1670010 });
+# ring_west_1_cross_left
+scattered_cone_063 = prop(cone, -12.8171158, 7.9475002, { heading: 48, elevation: 0.1527822 });
+# ring_west_1_cross_left_ground
+scattered_cone_064 = prop(cone, -13.5205536, 8.0524998, { heading: 132, elevation: 0.1020010 });
+# ring_west_1_cross_right
+scattered_cone_065 = prop(cone, -11.6243038, 7.9475002, { heading: 38, elevation: 0.1426260 });
+# ring_west_1_local_right_street
+scattered_cone_066 = prop(cone, -10.5605526, 7.9475002, { heading: 351, elevation: 0.1020010 });
+# ring_west_2_cross_left
+scattered_cone_067 = prop(cone, -12.8171158, 16.4474983, { heading: 120, elevation: 0.1527822 });
+# ring_west_2_cross_left_ground
+scattered_cone_068 = prop(cone, -13.5423536, 16.4474983, { heading: 23, elevation: 0.1020010 });
+# ring_west_2_local_right_street
+scattered_cone_069 = prop(cone, -9.6605530, 16.5525017, { heading: 356, elevation: 0.1020010 });
+# road_1
+scattered_cone_070 = prop(cone, 1.7753563, -1.9780858, { heading: 107, elevation: 0.1020000 });
+# road_11
+scattered_cone_071 = prop(cone, 2.1995308, 1.5399666, { heading: 261, elevation: 0.1020000 });
+# road_12
+scattered_cone_072 = prop(cone, 3.1991308, 1.5693665, { heading: 157, elevation: 0.1345000 });
+# road_12
+scattered_cone_073 = prop(cone, 3.5708942, 1.6853461, { heading: 103, elevation: 0.1645000 });
+# road_13
+scattered_cone_074 = prop(cone, 4.0113058, 1.5932540, { heading: 268, elevation: 0.1951250 });
+# road_16
+scattered_cone_075 = prop(cone, 1.6684022, 2.3553932, { heading: 258, elevation: 0.1020000 });
+# road_16
+scattered_cone_076 = prop(cone, 1.6803460, 1.9493059, { heading: 4, elevation: 0.1020000 });
+# road_2
+scattered_cone_077 = prop(cone, 0.8847280, -3.2886982, { heading: 284, elevation: 0.1020000 });
+# road_20
+scattered_cone_078 = prop(cone, 5.0579925, 4.0549951, { heading: 32, elevation: 0.4020000 });
+# road_20
+scattered_cone_079 = prop(cone, 5.1357393, 4.4568567, { heading: 206, elevation: 0.4020000 });
+# road_21
+scattered_cone_080 = prop(cone, 4.9452314, 5.2028856, { heading: 185, elevation: 0.3695000 });
+# road_22
+scattered_cone_081 = prop(cone, 4.5421300, 6.0328789, { heading: 304, elevation: 0.3045000 });
+# road_25
+scattered_cone_082 = prop(cone, 4.6580539, 9.6028929, { heading: 103, elevation: 0.1020000 });
+# road_26
+scattered_cone_083 = prop(cone, 5.1296806, 1.6261415, { heading: 286, elevation: 0.2415006 });
+# road_26_part_10
+scattered_cone_084 = prop(cone, 5.8138189, 1.7513086, { heading: 288, elevation: 0.2302405 });
+# road_26_part_4
+scattered_cone_085 = prop(cone, 5.4108181, 1.6344103, { heading: 197, elevation: 0.2411964 });
+# road_27
+scattered_cone_086 = prop(cone, 6.1605186, 1.6564604, { heading: 45, elevation: 0.1927409 });
+# road_27_part_3
+scattered_cone_087 = prop(cone, 6.4073319, 1.7687650, { heading: 208, elevation: 0.1679240 });
+# road_27_part_5
+scattered_cone_088 = prop(cone, 6.7821813, 1.7797898, { heading: 1, elevation: 0.1352800 });
+# road_28
+scattered_cone_089 = prop(cone, 7.1601186, 1.6858603, { heading: 85, elevation: 0.1112709 });
+# road_28_part_6
+scattered_cone_090 = prop(cone, 7.5662055, 1.6978039, { heading: 91, elevation: 0.1020922 });
+# road_28_part_7
+scattered_cone_091 = prop(cone, 7.8130183, 1.8101085, { heading: 201, elevation: 0.1020009 });
+# road_29
+scattered_cone_092 = prop(cone, 8.5033312, 1.7253666, { heading: 229, elevation: 0.1020009 });
+# road_31
+scattered_cone_093 = prop(cone, 1.4823680, 5.1089606, { heading: 96, elevation: 0.1020000 });
+# road_34
+scattered_cone_094 = prop(cone, 1.5078920, 9.9346523, { heading: 279, elevation: 0.1020000 });
+# road_40
+scattered_cone_095 = prop(cone, 2.2286627, 9.8508320, { heading: 28, elevation: 0.1020000 });
+# road_41
+scattered_cone_096 = prop(cone, 0.6563730, 9.6525173, { heading: 334, elevation: 0.1020000 });
+# road_42
+scattered_cone_097 = prop(cone, -1.0258095, 7.9505239, { heading: 345, elevation: 0.1020000 });
+# road_42
+scattered_cone_098 = prop(cone, -0.4859338, 8.6763000, { heading: 68, elevation: 0.1020000 });
+# road_6
+scattered_cone_099 = prop(cone, -0.8883203, 3.2121353, { heading: 344, elevation: 0.1020000 });
+# service_south_segment
+scattered_cone_100 = prop(cone, -1.2620618, -0.0199093, { heading: 189, elevation: 0.1020000 });

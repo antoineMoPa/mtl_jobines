@@ -2,7 +2,11 @@ use super::Playback;
 use egui::{Align2, Color32, FontId, RichText};
 
 /// Returns true when Skip is clicked. The caller owns the next game action.
-pub(in crate::engine) fn show(ctx: &egui::Context, playback: &Playback) -> bool {
+pub(in crate::engine) fn show(
+    ctx: &egui::Context,
+    playback: &Playback,
+    waiting_for_gesture: bool,
+) -> bool {
     let bounds = ctx.content_rect();
     let bar = (bounds.height() * 0.075).min(64.);
     let painter = ctx.layer_painter(egui::LayerId::new(
@@ -18,6 +22,22 @@ pub(in crate::engine) fn show(ctx: &egui::Context, playback: &Playback) -> bool 
             0.,
             Color32::BLACK,
         );
+    }
+    if waiting_for_gesture {
+        egui::Area::new(egui::Id::new("cutscene_start"))
+            .order(egui::Order::Foreground)
+            .anchor(Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .show(ctx, |ui| {
+                // The window input handler resumes audio during the gesture;
+                // waiting until this UI frame would lose browser activation.
+                ui.add(
+                    egui::Button::new(
+                        RichText::new("Touchez ou cliquez pour démarrer").color(Color32::WHITE),
+                    )
+                    .fill(Color32::from_black_alpha(220))
+                    .min_size(egui::vec2(0., 48.)),
+                );
+            });
     }
     if let Some(text) = playback.subtitle() {
         egui::Area::new(egui::Id::new("cutscene_subtitle"))

@@ -505,6 +505,7 @@ impl Palette {
         game_overlay: Overlay,
         menu_selection: &mut MenuItem,
         cutscene: Option<&super::fabula::Playback>,
+        cutscene_waiting_for_gesture: bool,
         foot_motion: Option<crate::dynamic_world::pedestrian_gait::FootMotion>,
     ) -> Option<PaletteAction> {
         let mut selected = None;
@@ -513,7 +514,8 @@ impl Palette {
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(self.input.take_egui_input(window), |ui| {
             if let Some(playback) = cutscene {
-                self.cutscene_skip = super::fabula::show(ui.ctx(), playback);
+                self.cutscene_skip =
+                    super::fabula::show(ui.ctx(), playback, cutscene_waiting_for_gesture);
                 return;
             }
             self.foot_motion

@@ -211,6 +211,11 @@ impl Audio {
             backend.load_cutscene(clip, start, duration, gain);
         }
     }
+    pub fn cutscene_waiting_for_gesture(&self) -> bool {
+        self.backend
+            .as_ref()
+            .is_some_and(|backend| backend.cutscene_waiting_for_gesture())
+    }
     pub fn cutscene_time(&self) -> Option<f32> {
         self.backend.as_ref().and_then(|b| b.cutscene_time())
     }

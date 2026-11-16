@@ -59,7 +59,7 @@ fn fabula_opening_preview() {
                     ..Default::default()
                 },
                 |ui| {
-                    fabula::show(ui.ctx(), &playback);
+                    fabula::show(ui.ctx(), &playback, false);
                 },
             );
             textures.append(std::mem::take(&mut frame.textures_delta));
