@@ -27,6 +27,7 @@ impl Snowfall {
         format: wgpu::TextureFormat,
         depth: &wgpu::TextureView,
         snow: &Snow,
+        samples: u32,
     ) -> Self {
         let buffer_entry = |binding, visibility| wgpu::BindGroupLayoutEntry {
             binding,
@@ -63,7 +64,7 @@ impl Snowfall {
                 ty: wgpu::BindingType::Texture {
                     sample_type: wgpu::TextureSampleType::Depth,
                     view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: true,
+                    multisampled: samples > 1,
                 },
                 count: None,
             }],
@@ -95,7 +96,9 @@ impl Snowfall {
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("world snow billboards"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("snowfall.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                super::depth_shader(include_str!("snowfall.wgsl"), samples).into(),
+            ),
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("world snow"),

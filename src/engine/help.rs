@@ -286,6 +286,7 @@ pub(super) fn menu(
                             },
                         ),
                         (MenuItem::Map, "CARTE"),
+                        (MenuItem::Settings, "PARAMÈTRES"),
                         (MenuItem::Exit, "QUITTER"),
                     ] {
                         let (rect, response) = ui.allocate_exact_size(
@@ -377,7 +378,7 @@ mod tests {
         };
         frame(vec![]);
         let background = egui::pos2(10., 10.);
-        let map_button = egui::pos2(640., 395.);
+        let map_button = egui::pos2(640., 365.);
         for position in [background, map_button] {
             frame(vec![
                 egui::Event::PointerMoved(position),

@@ -111,6 +111,7 @@ fn native_lights_illuminate_ground_and_walls_with_direction_and_falloff() {
     );
     let mesh = r.upload(&mesh);
     let nav = MinimapView {
+        texture_region: [0., 0., 1., 1.],
         uv_center: [0.5; 2],
         uv_span: 1.,
         heading: 0.,

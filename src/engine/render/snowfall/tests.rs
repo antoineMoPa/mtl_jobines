@@ -1,12 +1,18 @@
 #[test]
 fn world_snow_shader_validates() {
-    let module = naga::front::wgsl::parse_str(include_str!("../snowfall.wgsl")).unwrap();
-    naga::valid::Validator::new(
-        naga::valid::ValidationFlags::all(),
-        naga::valid::Capabilities::all(),
-    )
-    .validate(&module)
-    .unwrap();
+    for samples in [1, 4] {
+        let module = naga::front::wgsl::parse_str(&crate::engine::render::depth_shader(
+            include_str!("../snowfall.wgsl"),
+            samples,
+        ))
+        .unwrap();
+        naga::valid::Validator::new(
+            naga::valid::ValidationFlags::all(),
+            naga::valid::Capabilities::all(),
+        )
+        .validate(&module)
+        .unwrap();
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -252,9 +258,15 @@ mod native {
             ..Default::default()
         }))
         .unwrap();
-        let depth = depth(&device, 1280, 800, "snow timing depth", false);
+        let depth = depth(&device, 1280, 800, "snow timing depth", 1);
         let snow = Snow::new(&device, &queue);
-        let field = Snowfall::new(&device, wgpu::TextureFormat::Rgba8UnormSrgb, &depth, &snow);
+        let field = Snowfall::new(
+            &device,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            &depth,
+            &snow,
+            1,
+        );
         let eye = Vec3::new(0., 0., 0.017);
         let matrix = Mat4::perspective_rh(58_f32.to_radians(), 1.6, 0.003, 10.)
             * Mat4::look_at_rh(eye, eye + Vec3::Y, Vec3::Z);

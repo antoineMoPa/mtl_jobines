@@ -277,7 +277,7 @@ impl Hermes {
     ) -> Result<Self, String> {
         let (minimap, prepared) = match data {
             Some(data) => (
-                minimap::Minimap::from_pixels(&city, data.atlas),
+                minimap::Minimap::from_pixels(&city, data.atlas)?,
                 Some((data.world, data.details)),
             ),
             None => (minimap::Minimap::new(&city)?, None),
@@ -479,6 +479,13 @@ impl Hermes {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn minimap_svg(&self) -> String {
         self.city.minimap_svg().expect("loaded map SVG")
+    }
+    pub fn update_minimap_view(
+        &mut self,
+        point: [f32; 2],
+        full_map: Option<([f32; 2], f32)>,
+    ) -> Option<&[u8]> {
+        self.minimap.update_view(point, full_map)
     }
     pub fn update_minimap(&mut self, point: [f32; 2]) -> Option<&[u8]> {
         self.minimap.update(point)

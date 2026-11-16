@@ -23,6 +23,7 @@ fn target(r: &Renderer) -> wgpu::Texture {
 }
 fn navigation() -> MinimapView {
     MinimapView {
+        texture_region: [0., 0., 1., 1.],
         uv_center: [0.5; 2],
         uv_span: 1.,
         heading: 0.,
@@ -207,5 +208,35 @@ fn native_report_camera_ao_comparison() {
                 "report-36-before.png"
             },
         );
+    }
+}
+
+#[test]
+#[ignore = "requires a native GPU adapter"]
+fn antialiasing_switch_preserves_scene_and_depth_effects() {
+    let mut r = pollster::block_on(Renderer::new(None, 128, 96)).unwrap();
+    let mut mesh = Mesh::default();
+    mesh.quad(
+        [[-1., -1., 0.], [1., -1., 0.], [1., 1., 0.], [-1., 1., 0.]],
+        [0.5; 3],
+        SurfaceKind::Prop,
+    );
+    let world = r.upload(&mesh);
+    for (enabled, width) in [(false, 128), (true, 144), (false, 160)] {
+        r.set_antialiasing(enabled);
+        r.resize(width, 96);
+        r.season = crate::season::Season::Winter;
+        let texture = target(&r);
+        r.render(
+            &texture.create_view(&Default::default()),
+            &[&world],
+            Vec3::new(-0.2, -0.3, 0.2),
+            Vec3::ZERO,
+            0.,
+            navigation(),
+        );
+        let pixels = r.rgba_pixels(&texture).unwrap();
+        assert_eq!(pixels.len(), (width * 96 * 4) as usize);
+        assert!(pixels.chunks_exact(4).any(|p| p[0] > 10));
     }
 }

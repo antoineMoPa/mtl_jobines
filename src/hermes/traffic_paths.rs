@@ -5,6 +5,9 @@ use opencity::{runtime::City, RoadDirection, RoadElementKind, RoadRole};
 use std::collections::HashMap;
 #[path = "signal_placement.rs"]
 mod signal_placement;
+#[cfg(test)]
+#[path = "traffic_path_tests.rs"]
+mod tests;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SpeedClass {
@@ -122,6 +125,8 @@ impl TrafficPaths {
     }
     pub fn new(city: &City, program: &opencity::Program) -> Self {
         let mut graph = Self::default();
+        let projection = opencity::map::project(program);
+        let profiles = opencity::road_profiles::road_profiles(program, &projection);
         let attachments: Vec<_> = city
             .roads
             .iter()
@@ -132,7 +137,38 @@ impl TrafficPaths {
                     .map(|attachment| (name.clone(), attachment))
             })
             .collect();
+        // A lane attachment at a parent's endpoint shares that endpoint's topology.
+        // Interior attachments remain lane-specific, and unrelated named crossings
+        // retain distinct references.
+        let endpoint_reference = |reference: Option<String>| {
+            let Some((_, (parent, _, t))) = attachments
+                .iter()
+                .find(|(name, _)| Some(name) == reference.as_ref())
+            else {
+                return reference;
+            };
+            let Some(road) = city
+                .roads
+                .iter()
+                .find(|r| r.segment.name.as_ref() == Some(parent))
+            else {
+                return reference;
+            };
+            if *t == 0. {
+                road.segment.start_ref.clone().or(reference)
+            } else if *t == 1. {
+                road.segment.end_ref.clone().or(reference)
+            } else {
+                reference
+            }
+        };
         for road in &city.roads {
+            let profile_index = projection
+                .segments
+                .iter()
+                .position(|s| s.source == road.segment.source)
+                .expect("runtime road belongs to the map projection");
+            let profile = &profiles[profile_index];
             let lanes: Vec<_> = road
                 .definition
                 .elements
@@ -188,15 +224,23 @@ impl TrafficPaths {
                         let mut points: Vec<_> = (0..=steps)
                             .filter_map(|i| {
                                 let t = cut[0] + (cut[1] - cut[0]) * i as f32 / steps as f32;
-                                let p = opencity::map::element_position(
-                                    &road.segment,
+                                let (widths, origin) = opencity::road_profiles::section_widths(
                                     &road.definition,
-                                    lane,
+                                    profile,
                                     t,
-                                )?;
+                                );
+                                let offset = origin
+                                    + widths[..lane].iter().sum::<f32>()
+                                    + widths.get(lane)? / 2.;
+                                let p = road.segment.point_at(t);
+                                let tangent = road.segment.tangent_at(t);
+                                let heading = tangent.y.atan2(tangent.x);
                                 Some(
-                                    Vec3::new(p.x, p.y, road.segment.height_at(t))
-                                        * METERS_PER_UNIT,
+                                    Vec3::new(
+                                        p.x + heading.sin() * offset,
+                                        p.y - heading.cos() * offset,
+                                        road.segment.height_at(t),
+                                    ) * METERS_PER_UNIT,
                                 )
                             })
                             .collect();
@@ -227,8 +271,9 @@ impl TrafficPaths {
                                 })
                         };
                         graph.paths[id].start_ref =
-                            reference(if forward { cut[0] } else { cut[1] });
-                        graph.paths[id].end_ref = reference(if forward { cut[1] } else { cut[0] });
+                            endpoint_reference(reference(if forward { cut[0] } else { cut[1] }));
+                        graph.paths[id].end_ref =
+                            endpoint_reference(reference(if forward { cut[1] } else { cut[0] }));
                     }
                 }
             }

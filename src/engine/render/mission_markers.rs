@@ -16,7 +16,7 @@ pub(in crate::engine) struct MissionMarkers {
 }
 
 impl MissionMarkers {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, samples: u32) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("mission marker camera"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -88,7 +88,7 @@ impl MissionMarkers {
                 bias: Default::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 4,
+                count: samples,
                 ..Default::default()
             },
             multiview_mask: None,

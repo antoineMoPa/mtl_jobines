@@ -38,16 +38,24 @@
     try {
       if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over localhost or HTTPS.');
       const game = await import('./pkg/mtl_jobines.js');
-      const { default: init, start, asset_paths, install_assets } = game;
+      const { default: init, start, asset_paths, install_asset, install_assets, discard_pending_assets } = game;
       await init();
       const paths = asset_paths().trim().split('\n');
       document.getElementById('loading-message').textContent = `Loading ${paths.length} game assets…`;
-      const values = await Promise.all(paths.map(async path => {
-        const response = await fetch(`./${path}`);
-        if (!response.ok) throw new Error(`Could not load ${path}: HTTP ${response.status}`);
-        return new Uint8Array(await response.arrayBuffer());
-      }));
-      install_assets(values);
+      try {
+        for (const [index, path] of paths.entries()) {
+          document.getElementById('loading-message').textContent = `Loading game assets… ${index + 1}/${paths.length}`;
+          const response = await fetch(`./${path}`);
+          if (!response.ok) throw new Error(`Could not load ${path}: HTTP ${response.status}`);
+          install_asset(path, new Uint8Array(await response.arrayBuffer()));
+        }
+        install_assets();
+      } catch (error) {
+        discard_pending_assets();
+        throw error;
+      }
+      document.getElementById('loading-message').textContent = 'Preparing the city…';
+      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
       start();
       installMobileControls(game, canvas);
     } catch (error) {

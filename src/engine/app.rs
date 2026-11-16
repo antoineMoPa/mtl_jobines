@@ -659,12 +659,14 @@ impl Game {
             );
             self.scene_dirty = false;
         }
-        if refresh_scene || self.mesh_center != center {
-            if let Some(pixels) = self.hermes.update_minimap(center) {
-                renderer.update_minimap(pixels);
-            }
-            self.mesh_center = center;
+        let raster_view = (self.overlay == Overlay::Map).then(|| {
+            self.full_map
+                .raster_view(renderer.config.width as f32, renderer.config.height as f32)
+        });
+        if let Some(pixels) = self.hermes.update_minimap_view(center, raster_view) {
+            renderer.update_minimap(pixels);
         }
+        self.mesh_center = center;
         let mut navigation = self.hermes.minimap_view(center, self.world.player_yaw());
         if build_camera.is_some() {
             navigation.player_uv = self
@@ -854,6 +856,11 @@ impl Game {
         match menu_clicked {
             Some(MenuItem::Resume) => self.start_playing(),
             Some(MenuItem::Map) => self.set_overlay(Overlay::Map),
+            Some(MenuItem::Settings) => {
+                if let Some(palette) = &mut self.palette {
+                    palette.settings_open = true;
+                }
+            }
             Some(MenuItem::Exit) => self.exit_game(event_loop),
             None => {}
         }
@@ -1292,6 +1299,11 @@ impl ApplicationHandler<GameEvent> for Game {
                         }
                         match self.menu_key(key, event.state, event.repeat) {
                             Some(MenuItem::Map) => self.set_overlay(Overlay::Map),
+                            Some(MenuItem::Settings) => {
+                                if let Some(palette) = &mut self.palette {
+                                    palette.settings_open = true;
+                                }
+                            }
                             Some(MenuItem::Exit) => self.exit_game(event_loop),
                             Some(MenuItem::Resume) => self.start_playing(),
                             None => {}

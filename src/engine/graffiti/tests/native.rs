@@ -7,6 +7,7 @@ use std::path::Path;
 
 fn navigation() -> MinimapView {
     MinimapView {
+        texture_region: [0., 0., 1., 1.],
         uv_center: [0.5; 2],
         uv_span: 1.,
         heading: 0.,

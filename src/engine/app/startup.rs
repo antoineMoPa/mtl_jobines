@@ -17,9 +17,6 @@ impl Game {
             "Scenery ready in {:?}; preparing map atlas...",
             started.elapsed()
         );
-        if let Some(pixels) = self.hermes.update_minimap(self.mesh_center) {
-            renderer.update_minimap(pixels);
-        }
         eprintln!("Startup caches ready in {:?}", started.elapsed());
         // A resize may have arrived while browser GPU initialization was pending.
         let size = self.window.as_ref().unwrap().inner_size();

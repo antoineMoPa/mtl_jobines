@@ -23,7 +23,7 @@ pub(super) struct Ssao {
     composite_pipeline: wgpu::RenderPipeline,
     format: wgpu::TextureFormat,
 }
-fn layout(device: &wgpu::Device, composite: bool) -> wgpu::BindGroupLayout {
+fn layout(device: &wgpu::Device, composite: bool, samples: u32) -> wgpu::BindGroupLayout {
     let mut entries = vec![
         wgpu::BindGroupLayoutEntry {
             binding: 0,
@@ -41,7 +41,7 @@ fn layout(device: &wgpu::Device, composite: bool) -> wgpu::BindGroupLayout {
             ty: wgpu::BindingType::Texture {
                 sample_type: wgpu::TextureSampleType::Depth,
                 view_dimension: wgpu::TextureViewDimension::D2,
-                multisampled: true,
+                multisampled: samples > 1,
             },
             count: None,
         },
@@ -95,12 +95,15 @@ impl Ssao {
         height: u32,
         format: wgpu::TextureFormat,
         depth: &wgpu::TextureView,
+        samples: u32,
     ) -> Self {
-        let ao_layout = layout(device, false);
-        let composite_layout = layout(device, true);
+        let ao_layout = layout(device, false, samples);
+        let composite_layout = layout(device, true, samples);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("screen-space ambient occlusion"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("ssao.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                super::depth_shader(include_str!("ssao.wgsl"), samples).into(),
+            ),
         });
         let pipeline = |entry: &str, bind: &wgpu::BindGroupLayout, format| {
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

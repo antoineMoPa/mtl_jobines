@@ -1,4 +1,4 @@
-struct Hud { rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, full_map:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, vehicle:vec4<f32>, vehicle_letters:array<vec4<u32>,12> };
+struct Hud { texture_region:vec4<f32>, rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, full_map:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, vehicle:vec4<f32>, vehicle_letters:array<vec4<u32>,12> };
 @group(0) @binding(0) var chart:texture_2d<f32>;
 @group(0) @binding(1) var filtering:sampler;
 @group(0) @binding(2) var<uniform> hud:Hud;
@@ -163,7 +163,7 @@ fn map_to_atlas_offset(offset:vec2<f32>)->vec2<f32> {
     return vec2<f32>(offset.y,-offset.x);
 }
 fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32)->vec3<f32> {
-    var color=textureSampleLevel(chart,filtering,uv,0.0).rgb;
+    var color=textureSampleLevel(chart,filtering,(uv-hud.texture_region.xy)/hud.texture_region.zw,0.0).rgb;
     if any(uv<vec2<f32>(0.)) || any(uv>vec2<f32>(1.)) {color=vec3<f32>(0.008,0.048,0.091);}
     if hud.destination.z>0. {
         let distance=length((uv-hud.destination.xy)*atlas_pixels);

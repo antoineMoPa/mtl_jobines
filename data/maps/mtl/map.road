@@ -1255,3 +1255,839 @@ elevation(west_apartment_59, 0.102);
 
 west_apartment_60 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1614176, 9.6470000, 1.1578000, 9.7700000, 0.9728000, 9.7700000, 0.9764176, 9.6470000);
 elevation(west_apartment_60, 0.102);
+
+# Report 69: two-storey homes on both sides of roads 4, 5 and 6.
+# Street-facing fronts follow the curve; leave gardens, sidewalks and end bends clear.
+curve_home_4_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2129679, 1.4306266, 1.0956185, 1.4557085, 1.0632210, 1.3041322, 1.1805704, 1.2790504);
+elevation(curve_home_4_01_left, 0.1000009);
+
+curve_home_4_02_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.0276555, 1.8130084, 1.1413170, 1.7745239, 1.1958367, 1.9355443, 1.0821751, 1.9740288);
+elevation(curve_home_4_02_right, 0.1000009);
+
+curve_home_4_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.0386916, 1.4714264, 0.9250302, 1.5099109, 0.8705105, 1.3488905, 0.9841720, 1.3104060);
+elevation(curve_home_4_02_left, 0.1000009);
+
+curve_home_4_03_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.8989876, 1.8722509, 1.0075393, 1.8210987, 1.0863988, 1.9884491, 0.9778472, 2.0396013);
+elevation(curve_home_4_03_right, 0.1000009);
+
+curve_home_4_03_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.8711335, 1.5316278, 0.7625819, 1.5827800, 0.6837223, 1.4154296, 0.7922739, 1.3642774);
+elevation(curve_home_4_03_left, 0.1000009);
+
+curve_home_4_04_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.7783880, 1.9458857, 0.8802111, 1.8823872, 0.9622298, 2.0139089, 0.8604068, 2.0774074);
+elevation(curve_home_4_04_right, 0.1000009);
+
+curve_home_4_04_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.7108820, 1.6108589, 0.6090589, 1.6743574, 0.5270401, 1.5428358, 0.6288632, 1.4793373);
+elevation(curve_home_4_04_left, 0.1000009);
+
+curve_home_5_01_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.5440304, 2.1534128, 0.6313215, 2.0710702, 0.7376804, 2.1838214, 0.6503893, 2.2661638);
+elevation(curve_home_5_01_right, 0.1000009);
+
+curve_home_5_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.4117421, 1.8382939, 0.3244510, 1.9206363, 0.2180922, 1.8078852, 0.3053833, 1.7255428);
+elevation(curve_home_5_01_left, 0.1000009);
+
+curve_home_5_02_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.4275862, 2.2632070, 0.5149004, 2.1808891, 0.6315173, 2.3045843, 0.5442030, 2.3869021);
+elevation(curve_home_5_02_right, 0.1000009);
+
+curve_home_5_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.2953863, 1.9480511, 0.2080720, 2.0303688, 0.0914552, 1.9066737, 0.1787694, 1.8243558);
+elevation(curve_home_5_02_left, 0.1000009);
+
+curve_home_5_03_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.3111877, 2.3729823, 0.3985012, 2.2906635, 0.5254092, 2.4252717, 0.4380957, 2.5075905);
+elevation(curve_home_5_03_right, 0.1000009);
+
+curve_home_5_03_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.1789846, 2.0578277, 0.0916712, 2.1401465, -0.0352367, 2.0055382, 0.0520767, 1.9232196);
+elevation(curve_home_5_03_left, 0.1000009);
+
+curve_home_5_04_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.1947943, 2.4827554, 0.2821043, 2.4004333, 0.3884373, 2.5132089, 0.3011272, 2.5955310);
+elevation(curve_home_5_04_right, 0.1000009);
+
+curve_home_5_04_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.0625782, 2.1676066, -0.0247318, 2.2499287, -0.1310648, 2.1371531, -0.0437547, 2.0548310);
+elevation(curve_home_5_04_left, 0.1000009);
+
+curve_home_5_05_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.0783670, 2.5925431, 0.1656913, 2.5102358, 0.2822930, 2.6339452, 0.1949687, 2.7162526);
+elevation(curve_home_5_05_right, 0.1000009);
+
+curve_home_5_05_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.0537944, 2.2773709, -0.1411187, 2.3596783, -0.2577205, 2.2359688, -0.1703961, 2.1536615);
+elevation(curve_home_5_05_left, 0.1000009);
+
+curve_home_6_01_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.1834555, 2.8394876, -0.0961545, 2.7571559, 0.0101908, 2.8699198, -0.0771101, 2.9522514);
+elevation(curve_home_6_01_right, 0.1000009);
+
+curve_home_6_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.3157062, 2.5243535, -0.4030071, 2.6066852, -0.5093524, 2.4939213, -0.4220515, 2.4115896);
+elevation(curve_home_6_01_left, 0.1000009);
+
+curve_home_6_02_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.2997951, 2.9492009, -0.2124902, 2.8668730, -0.0958592, 2.9905550, -0.1831641, 3.0728829);
+elevation(curve_home_6_02_right, 0.1000009);
+
+curve_home_6_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.4320309, 2.6340601, -0.5193358, 2.7163880, -0.6359668, 2.5927060, -0.5486619, 2.5103781);
+elevation(curve_home_6_02_left, 0.1000009);
+
+curve_home_6_03_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.4161107, 3.0589032, -0.3288140, 2.9765668, -0.2018787, 3.1111493, -0.2891754, 3.1934857);
+elevation(curve_home_6_03_right, 0.1000009);
+
+curve_home_6_03_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.5483779, 2.7437758, -0.6356745, 2.8261123, -0.7626098, 2.6915298, -0.6753132, 2.6091933);
+elevation(curve_home_6_03_left, 0.1000009);
+
+curve_home_6_04_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.5324455, 3.1686139, -0.4451467, 3.0862799, -0.3387985, 3.1990409, -0.4260974, 3.2813749);
+elevation(curve_home_6_04_right, 0.1000009);
+
+curve_home_6_04_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.6647042, 2.8534827, -0.7520031, 2.9358168, -0.8583512, 2.8230557, -0.7710524, 2.7407217);
+elevation(curve_home_6_04_left, 0.1000009);
+
+curve_home_6_05_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.6487771, 3.2783220, -0.5614774, 3.1959889, -0.4448387, 3.3196635, -0.5321383, 3.4019966);
+elevation(curve_home_6_05_right, 0.1000009);
+
+curve_home_6_05_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.7810325, 2.9631894, -0.8683322, 3.0455225, -0.9849709, 2.9218478, -0.8976712, 2.8395147);
+elevation(curve_home_6_05_left, 0.1000009);
+
+curve_home_6_06_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.7665977, 3.3894353, -0.6792980, 3.3071022, -0.5523677, 3.4416893, -0.6396674, 3.5240223);
+elevation(curve_home_6_06_right, 0.1000009);
+
+curve_home_6_06_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.8988532, 3.0743027, -0.9861529, 3.1566358, -1.1130832, 3.0220487, -1.0257835, 2.9397156);
+elevation(curve_home_6_06_left, 0.1000009);
+
+curve_home_6_07_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.8829472, 3.4991510, -0.7956368, 3.4168289, -0.6893043, 3.5296049, -0.7766147, 3.6119270);
+elevation(curve_home_6_07_right, 0.1000009);
+
+curve_home_6_07_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.0151618, 3.1840012, -1.1024722, 3.2663233, -1.2088046, 3.1535473, -1.1214942, 3.0712252);
+elevation(curve_home_6_07_left, 0.1000009);
+
+curve_home_6_08_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.9992670, 3.6088538, -0.9119612, 3.5265269, -0.7953317, 3.6502104, -0.8826375, 3.7325373);
+elevation(curve_home_6_08_right, 0.1000009);
+
+curve_home_6_08_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.1314989, 3.2937112, -1.2188047, 3.3760381, -1.3354342, 3.2523546, -1.2481284, 3.1700277);
+elevation(curve_home_6_08_left, 0.1000009);
+
+curve_home_6_09_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.1155844, 3.7185550, -1.0282841, 3.6362224, -0.9013548, 3.7708106, -0.9886551, 3.8531432);
+elevation(curve_home_6_09_right, 0.1000009);
+
+curve_home_6_09_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.2478375, 3.4034214, -1.3351378, 3.4857540, -1.4620671, 3.3511658, -1.3747668, 3.2688332);
+elevation(curve_home_6_09_left, 0.1000009);
+
+curve_home_6_10_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.2319225, 3.8282650, -1.1446167, 3.7459381, -1.0382781, 3.8587081, -1.1255839, 3.9410350);
+elevation(curve_home_6_10_right, 0.1000009);
+
+curve_home_6_10_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.3641545, 3.5131223, -1.4514602, 3.5954492, -1.5577989, 3.4826791, -1.4704931, 3.4003522);
+elevation(curve_home_6_10_left, 0.1000009);
+
+curve_home_6_11_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.3482436, 3.9379678, -1.2609411, 3.8556376, -1.1443064, 3.9793158, -1.2316089, 4.0616460);
+elevation(curve_home_6_11_right, 0.1000009);
+
+curve_home_6_11_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.4804887, 3.6228309, -1.5677911, 3.7051611, -1.6844258, 3.5814829, -1.5971234, 3.4991527);
+elevation(curve_home_6_11_left, 0.1000009);
+
+curve_home_6_12_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.4645603, 4.0476680, -1.3772633, 3.9653318, -1.2503283, 4.0999146, -1.3376253, 4.1822510);
+elevation(curve_home_6_12_right, 0.1000009);
+
+curve_home_6_12_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.5968266, 3.7325399, -1.6841235, 3.8148763, -1.8110585, 3.6802936, -1.7237616, 3.5979571);
+elevation(curve_home_6_12_left, 0.1000009);
+
+curve_home_6_13_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.5808883, 4.1573734, -1.4935911, 4.0750375, -1.3872406, 4.1877966, -1.4745378, 4.2701325);
+elevation(curve_home_6_13_right, 0.1000009);
+
+curve_home_6_13_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.7131531, 3.8422446, -1.8004503, 3.9245806, -1.9068007, 3.8118217, -1.8195035, 3.7294858);
+elevation(curve_home_6_13_left, 0.1000009);
+
+curve_home_6_14_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.6972153, 4.2670784, -1.6099181, 4.1847420, -1.4932755, 4.3084130, -1.5805727, 4.3907495);
+elevation(curve_home_6_14_right, 0.1000009);
+
+curve_home_6_14_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.8294809, 3.9519498, -1.9167781, 4.0342865, -2.0334206, 3.9106154, -1.9461235, 3.8282790);
+elevation(curve_home_6_14_left, 0.1000009);
+
+curve_home_6_15_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.8135557, 4.3767891, -1.7262516, 4.2944603, -1.5993283, 4.4290543, -1.6866324, 4.5113831);
+elevation(curve_home_6_15_right, 0.1000009);
+
+curve_home_6_15_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.9457946, 4.0616493, -2.0330987, 4.1439781, -2.1600220, 4.0093842, -2.0727179, 3.9270556);
+elevation(curve_home_6_15_left, 0.1000009);
+
+curve_home_6_16_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.9298763, 4.4864917, -1.8425760, 4.4041591, -1.7362299, 4.5169220, -1.8235302, 4.5992546);
+elevation(curve_home_6_16_right, 0.1000009);
+
+curve_home_6_16_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.0621295, 4.1713576, -2.1494298, 4.2536902, -2.2557759, 4.1409273, -2.1684756, 4.0585947);
+elevation(curve_home_6_16_left, 0.1000009);
+
+curve_home_6_17_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.0461977, 4.5961943, -1.9589006, 4.5138578, -1.8422580, 4.6375289, -1.9295549, 4.7198653);
+elevation(curve_home_6_17_right, 0.1000009);
+
+curve_home_6_17_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.1784632, 4.2810659, -2.2657602, 4.3634024, -2.3824029, 4.2397313, -2.2951059, 4.1573949);
+elevation(curve_home_6_17_left, 0.1000009);
+
+curve_home_6_18_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.1625390, 4.7059059, -2.0752349, 4.6235771, -1.9483116, 4.7581711, -2.0356157, 4.8404999);
+elevation(curve_home_6_18_right, 0.1000009);
+
+curve_home_6_18_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.2947779, 4.3907661, -2.3820820, 4.4730949, -2.5090053, 4.3385010, -2.4217012, 4.2561722);
+elevation(curve_home_6_18_left, 0.1000009);
+
+curve_home_6_19_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.2788472, 4.8156033, -2.1915536, 4.7332640, -2.0851984, 4.8460183, -2.1724920, 4.9283576);
+elevation(curve_home_6_19_right, 0.1000009);
+
+curve_home_6_19_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.4111257, 4.5004807, -2.4984193, 4.5828199, -2.6047745, 4.4700656, -2.5174809, 4.3877263);
+elevation(curve_home_6_19_left, 0.1000009);
+
+curve_home_6_20_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.3951759, 4.9253097, -2.3078823, 4.8429704, -2.1912348, 4.9666367, -2.2785285, 5.0489759);
+elevation(curve_home_6_20_right, 0.1000009);
+
+curve_home_6_20_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.5274544, 4.6101871, -2.6147480, 4.6925263, -2.7313955, 4.5688601, -2.6441019, 4.4865208);
+elevation(curve_home_6_20_left, 0.1000009);
+
+curve_home_6_21_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.5115380, 5.0350308, -2.4242272, 4.9527097, -2.2973154, 5.0873141, -2.3846262, 5.1696353);
+elevation(curve_home_6_21_right, 0.1000009);
+
+curve_home_6_21_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.6437507, 4.7198806, -2.7310615, 4.8022017, -2.8579733, 4.6675973, -2.7706625, 4.5852761);
+elevation(curve_home_6_21_left, 0.1000009);
+
+curve_home_6_22_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.6278617, 5.1447353, -2.5405538, 5.0624104, -2.4342177, 5.1751828, -2.5215256, 5.2575078);
+elevation(curve_home_6_22_right, 0.1000009);
+
+curve_home_6_22_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.7600863, 4.8295898, -2.8473942, 4.9119148, -2.9537303, 4.7991424, -2.8664224, 4.7168174);
+elevation(curve_home_6_22_left, 0.1000009);
+
+curve_home_6_23_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.7441916, 5.2544432, -2.6568842, 5.1721182, -2.5402567, 5.2958035, -2.6275642, 5.3781285);
+elevation(curve_home_6_23_right, 0.1000009);
+
+curve_home_6_23_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.8764176, 4.9392986, -2.9637251, 5.0216236, -3.0803525, 4.8979383, -2.9930451, 4.8156133);
+elevation(curve_home_6_23_left, 0.1000009);
+
+curve_home_6_24_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.8604896, 5.3641386, -2.7731993, 5.2817955, -2.6462533, 5.4163675, -2.7335436, 5.4987106);
+elevation(curve_home_6_24_right, 0.1000009);
+
+curve_home_6_24_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.9927819, 5.0490217, -3.0800722, 5.1313648, -3.2070181, 4.9967928, -3.1197278, 4.9144497);
+elevation(curve_home_6_24_left, 0.1000009);
+
+# Report 70: OpenCity road_library/cloverleaf.road, rotated to the interstate.
+# Preserve all eight ramp chains and deck grades; replace the west stub with
+# directional three-lane connections to the eastern climb crest.
+road east_clover_exit_ramp:
+    verge carlane verge;
+    direction forward;
+    role ramp;
+end
+
+road east_clover_interstate_three_lane:
+    verge carlane carlane carlane middle carlane carlane carlane verge;
+    role highway;
+end
+
+road east_clover_interstate_core:
+    verge carlane carlane carlane middle carlane carlane carlane verge;
+    role highway;
+end
+
+road east_clover_ramp_mouth:
+    verge carlane verge;
+    direction forward;
+    role merge;
+end
+
+east_clover_ew_w52 = map_point(10.805638691, -0.029792372);
+
+east_clover_ew_w4 = map_point(12.005111599, 0.005770862);
+
+east_clover_ew_w33 = map_point(12.704804128, 0.026516081);
+
+east_clover_ew_w26 = map_point(13.404496658, 0.047261301);
+
+east_clover_ew_w19 = map_point(14.104189187, 0.068006521);
+
+east_clover_ew_w12 = map_point(14.803881717, 0.088751741);
+
+east_clover_ew_w06 = map_point(15.403618171, 0.106533358);
+
+east_clover_ew_center = map_point(16.003354625, 0.124314975);
+
+east_clover_ns_center = map_point(16.003354625, 0.124314975);
+
+east_clover_ew_e12 = map_point(17.202827532, 0.159878209);
+
+east_clover_ew_e06 = map_point(16.603091079, 0.142096592);
+
+east_clover_ew_e19 = map_point(17.902520062, 0.180623428);
+
+east_clover_ew_e26 = map_point(18.602212591, 0.201368648);
+
+east_clover_ew_e33 = map_point(19.301905121, 0.222113868);
+
+east_clover_ew_e4 = map_point(20.001597650, 0.242859088);
+
+east_clover_ew_e45 = map_point(20.501378029, 0.257677102);
+
+east_clover_ew_e9 = map_point(24.999401433, 0.391039229);
+
+east_clover_ns_s6 = map_point(16.181170794, -5.873049564);
+
+east_clover_ns_s4 = map_point(16.121898738, -3.873928051);
+
+east_clover_ns_s33 = map_point(16.101153518, -3.174235522);
+
+east_clover_ns_s26 = map_point(16.080408298, -2.474542992);
+
+east_clover_ns_s19 = map_point(16.059663078, -1.774850463);
+
+east_clover_ns_s12 = map_point(16.038917859, -1.075157933);
+
+east_clover_ns_s06 = map_point(16.021136242, -0.475421479);
+
+east_clover_ns_n12 = map_point(15.967791391, 1.323787882);
+
+east_clover_ns_n06 = map_point(15.985573008, 0.724051429);
+
+east_clover_ns_n19 = map_point(15.947046171, 2.023480412);
+
+east_clover_ns_n26 = map_point(15.926300951, 2.723172941);
+
+east_clover_ns_n33 = map_point(15.905555731, 3.422865471);
+
+east_clover_ns_n4 = map_point(15.884810512, 4.122558000);
+
+east_clover_ns_n6 = map_point(15.825538455, 6.121679513);
+
+east_clover_nw_outer = map_point(13.620305415, 1.204165178);
+
+east_clover_nw_crown = map_point(14.784215088, 2.439201320);
+
+east_clover_sw_outer = map_point(13.688468280, -1.094824562);
+
+east_clover_sw_crown = map_point(14.923504421, -2.258734236);
+
+east_clover_ne_outer = map_point(18.318240970, 1.343454511);
+
+east_clover_ne_crown = map_point(17.083204828, 2.507364185);
+
+east_clover_se_outer = map_point(18.386403835, -0.955535229);
+
+east_clover_se_crown = map_point(17.222494161, -2.190571370);
+
+east_clover_nw_loop_a_nw_loop_a_seam = map_point(14.381609977, 0.280621561);
+
+east_clover_nw_loop_c_nw_loop_c_merge_seam = map_point(15.751240686, 1.733950341);
+
+east_clover_nw_connector_nw_connector_seam = map_point(15.583661887, 2.942114649);
+
+east_clover_nw_connector_nw_connector_merge_seam = map_point(13.165639539, 0.376327065);
+
+east_clover_nw_connector_mid = map_point(14.652533845, 1.397341180);
+
+east_clover_sw_loop_a_sw_loop_a_seam = map_point(15.847048038, -1.497429673);
+
+east_clover_sw_loop_c_sw_loop_c_merge_seam = map_point(14.393719259, -0.127798964);
+
+east_clover_sw_connector_sw_connector_seam = map_point(13.185554950, -0.295377764);
+
+east_clover_sw_connector_sw_connector_merge_seam = map_point(15.751342535, -2.713400111);
+
+east_clover_sw_connector_mid = map_point(14.730328419, -1.226505805);
+
+east_clover_ne_loop_a_ne_loop_a_seam = map_point(16.159661211, 1.746059622);
+
+east_clover_ne_loop_c_ne_loop_c_merge_seam = map_point(17.612989991, 0.376428913);
+
+east_clover_ne_connector_ne_connector_seam = map_point(18.821154299, 0.544007713);
+
+east_clover_ne_connector_ne_connector_merge_seam = map_point(16.255366715, 2.962030060);
+
+east_clover_ne_connector_mid = map_point(17.276380830, 1.475135755);
+
+east_clover_se_loop_a_se_loop_a_seam = map_point(17.625099272, -0.031991612);
+
+east_clover_se_loop_c_se_loop_c_merge_seam = map_point(16.255468563, -1.485320392);
+
+east_clover_se_connector_se_connector_seam = map_point(16.423047363, -2.693484700);
+
+east_clover_se_connector_se_connector_merge_seam = map_point(18.841069710, -0.127697116);
+
+east_clover_se_connector_mid = map_point(17.354175405, -1.148711231);
+
+east_clover_nw_exit = lane_point(east_clover_i_ew_03, 1, 1.0000);
+
+east_clover_nw_merge = lane_point(east_clover_i_ns_04, 1, 1.0000);
+
+east_clover_sw_merge = lane_point(east_clover_i_ew_03, 7, 1.0000);
+
+east_clover_sw_exit = lane_point(east_clover_i_ns_02, 1, 1.0000);
+
+east_clover_ne_merge = lane_point(east_clover_i_ew_05, 1, 1.0000);
+
+east_clover_ne_exit = lane_point(east_clover_i_ns_04, 7, 1.0000);
+
+east_clover_se_exit = lane_point(east_clover_i_ew_05, 7, 1.0000);
+
+east_clover_se_merge = lane_point(east_clover_i_ns_02, 7, 1.0000);
+
+east_clover_nw_direct_exit = lane_point(east_clover_i_ns_05, 1, 1.0000);
+
+east_clover_nw_direct_merge = lane_point(east_clover_i_ew_03a, 1, 0.0000);
+
+east_clover_ne_direct_exit = lane_point(east_clover_i_ew_07, 1, 0.0000);
+
+east_clover_ne_direct_merge = lane_point(east_clover_i_ns_05, 7, 1.0000);
+
+east_clover_sw_direct_exit = lane_point(east_clover_i_ew_03a, 7, 0.0000);
+
+east_clover_sw_direct_merge = lane_point(east_clover_i_ns_02a, 1, 0.0000);
+
+east_clover_se_direct_exit = lane_point(east_clover_i_ns_02a, 7, 0.0000);
+
+east_clover_se_direct_merge = lane_point(east_clover_i_ew_07, 7, 0.0000);
+
+east_clover_i_ew_02 = east_clover_interstate_three_lane(east_clover_ew_w52, 11.205462994, -0.017937961, 11.605287296, -0.006083550, east_clover_ew_w4);
+
+east_clover_i_ew_03a = east_clover_interstate_core(east_clover_ew_w4, 12.238309123, 0.012684947, 12.471606604, 0.019601996, east_clover_ew_w33);
+
+east_clover_i_ew_03b = east_clover_interstate_core(east_clover_ew_w33, 12.938001653, 0.033430167, 13.171299133, 0.040347216, east_clover_ew_w26);
+
+east_clover_i_ew_03c = east_clover_interstate_core(east_clover_ew_w26, 13.637694182, 0.054175387, 13.870991663, 0.061092436, east_clover_ew_w19);
+
+east_clover_i_ew_03 = east_clover_interstate_core(east_clover_ew_w19, 14.337386712, 0.074920606, 14.570684192, 0.081837655, east_clover_ew_w12);
+
+east_clover_i_ew_04a = east_clover_interstate_core(east_clover_ew_w12, 15.003793868, 0.094678946, 15.203706020, 0.100606152, east_clover_ew_w06);
+
+east_clover_i_ew_04 = east_clover_interstate_core(east_clover_ew_w06, 15.603530322, 0.112460563, 15.803442473, 0.118387769, east_clover_ew_center);
+
+east_clover_i_ew_05a = east_clover_interstate_core(east_clover_ew_center, 16.203266776, 0.130242180, 16.403178927, 0.136169386, east_clover_ew_e06);
+
+east_clover_i_ew_05 = east_clover_interstate_core(east_clover_ew_e06, 16.803003230, 0.148023797, 17.002915381, 0.153951003, east_clover_ew_e12);
+
+east_clover_i_ew_06a = east_clover_interstate_core(east_clover_ew_e12, 17.436025057, 0.166792294, 17.669322537, 0.173709343, east_clover_ew_e19);
+
+east_clover_i_ew_06b = east_clover_interstate_core(east_clover_ew_e19, 18.135717586, 0.187537514, 18.369015067, 0.194454563, east_clover_ew_e26);
+
+east_clover_i_ew_06c = east_clover_interstate_core(east_clover_ew_e26, 18.835410116, 0.208282734, 19.068707596, 0.215199783, east_clover_ew_e33);
+
+east_clover_i_ew_06 = east_clover_interstate_core(east_clover_ew_e33, 19.535102645, 0.229027953, 19.768400126, 0.235945002, east_clover_ew_e4);
+
+east_clover_i_ew_07 = east_clover_interstate_core(east_clover_ew_e4, 20.168224429, 0.247799414, 20.334751251, 0.252736776, east_clover_ew_e45);
+
+east_clover_i_ew_08 = east_clover_interstate_three_lane(east_clover_ew_e45, 22.000719163, 0.302131144, 23.500060298, 0.346585187, east_clover_ew_e9);
+
+east_clover_i_ns_01 = east_clover_interstate_three_lane(east_clover_ns_s6, 16.161412454, -5.206642408, 16.141657078, -4.540335207, east_clover_ns_s4);
+
+east_clover_i_ns_02a = east_clover_interstate_core(east_clover_ns_s4, 16.114984652, -3.640730527, 16.108067603, -3.407433046, east_clover_ns_s33);
+
+east_clover_i_ns_02b = east_clover_interstate_core(east_clover_ns_s33, 16.094239433, -2.941037997, 16.087322384, -2.707740517, east_clover_ns_s26);
+
+east_clover_i_ns_02c = east_clover_interstate_core(east_clover_ns_s26, 16.073494213, -2.241345468, 16.066577164, -2.008047987, east_clover_ns_s19);
+
+east_clover_i_ns_02 = east_clover_interstate_core(east_clover_ns_s19, 16.052748993, -1.541652938, 16.045831944, -1.308355458, east_clover_ns_s12);
+
+east_clover_i_ns_03a = east_clover_interstate_core(east_clover_ns_s12, 16.032990653, -0.875245782, 16.027063447, -0.675333631, east_clover_ns_s06);
+
+east_clover_i_ns_03 = east_clover_interstate_core(east_clover_ns_s06, 16.015209036, -0.275509328, 16.009281830, -0.075597177, east_clover_ns_center);
+
+east_clover_i_ns_04a = east_clover_interstate_core(east_clover_ns_center, 15.997427419, 0.324227126, 15.991500213, 0.524139277, east_clover_ns_n06);
+
+east_clover_i_ns_04 = east_clover_interstate_core(east_clover_ns_n06, 15.979645802, 0.923963580, 15.973718596, 1.123875731, east_clover_ns_n12);
+
+east_clover_i_ns_05a = east_clover_interstate_core(east_clover_ns_n12, 15.960877305, 1.556985407, 15.953960256, 1.790282887, east_clover_ns_n19);
+
+east_clover_i_ns_05b = east_clover_interstate_core(east_clover_ns_n19, 15.940132086, 2.256677936, 15.933215037, 2.489975417, east_clover_ns_n26);
+
+east_clover_i_ns_05c = east_clover_interstate_core(east_clover_ns_n26, 15.919386866, 2.956370466, 15.912469817, 3.189667946, east_clover_ns_n33);
+
+east_clover_i_ns_05 = east_clover_interstate_core(east_clover_ns_n33, 15.898641646, 3.656062995, 15.891724597, 3.889360476, east_clover_ns_n4);
+
+east_clover_i_ns_06 = east_clover_interstate_three_lane(east_clover_ns_n4, 15.865052172, 4.788965157, 15.845296795, 5.455272357, east_clover_ns_n6);
+
+east_clover_nw_loop_a_mouth = east_clover_ramp_mouth(east_clover_nw_exit, 14.656240464, 0.209429247, 14.514049600, 0.244130517, east_clover_nw_loop_a_nw_loop_a_seam);
+
+east_clover_nw_loop_a = east_clover_exit_ramp(east_clover_nw_loop_a_nw_loop_a_seam, 13.962108138, 0.395939846, 13.635396080, 0.695188841, east_clover_nw_outer);
+
+east_clover_nw_loop_b = east_clover_exit_ramp(east_clover_nw_outer, 13.599560195, 1.903857708, 14.084522559, 2.418456100, east_clover_nw_crown);
+
+east_clover_nw_loop_c = east_clover_exit_ramp(east_clover_nw_crown, 15.293191426, 2.454291985, 15.611271153, 2.145883139, east_clover_nw_loop_c_nw_loop_c_merge_seam);
+
+east_clover_nw_loop_c_merge = east_clover_ramp_mouth(east_clover_nw_loop_c_nw_loop_c_merge_seam, 15.795514151, 1.603905309, 15.838578708, 1.464020128, east_clover_nw_merge);
+
+east_clover_sw_loop_a_mouth = east_clover_ramp_mouth(east_clover_sw_exit, 15.918240352, -1.222799186, 15.883539082, -1.364990050, east_clover_sw_loop_a_sw_loop_a_seam);
+
+east_clover_sw_loop_a = east_clover_exit_ramp(east_clover_sw_loop_a_sw_loop_a_seam, 15.731729754, -1.916931512, 15.432480758, -2.243643570, east_clover_sw_crown);
+
+east_clover_sw_loop_b = east_clover_exit_ramp(east_clover_sw_crown, 14.223811892, -2.279479455, 13.709213499, -1.794517091, east_clover_sw_outer);
+
+east_clover_sw_loop_c = east_clover_exit_ramp(east_clover_sw_outer, 13.673377614, -0.585848225, 13.981786461, -0.267768497, east_clover_sw_loop_c_sw_loop_c_merge_seam);
+
+east_clover_sw_loop_c_merge = east_clover_ramp_mouth(east_clover_sw_loop_c_sw_loop_c_merge_seam, 14.523764290, -0.083525499, 14.663649472, -0.040460942, east_clover_sw_merge);
+
+east_clover_ne_loop_a_mouth = east_clover_ramp_mouth(east_clover_ne_exit, 16.088468897, 1.471429135, 16.123170167, 1.613619999, east_clover_ne_loop_a_ne_loop_a_seam);
+
+east_clover_ne_loop_a = east_clover_exit_ramp(east_clover_ne_loop_a_ne_loop_a_seam, 16.274979496, 2.165561461, 16.574228491, 2.492273519, east_clover_ne_crown);
+
+east_clover_ne_loop_b = east_clover_exit_ramp(east_clover_ne_crown, 17.782897358, 2.528109405, 18.297495750, 2.043147041, east_clover_ne_outer);
+
+east_clover_ne_loop_c = east_clover_exit_ramp(east_clover_ne_outer, 18.333331635, 0.834478174, 18.024922789, 0.516398446, east_clover_ne_loop_c_ne_loop_c_merge_seam);
+
+east_clover_ne_loop_c_merge = east_clover_ramp_mouth(east_clover_ne_loop_c_ne_loop_c_merge_seam, 17.482944959, 0.332155448, 17.343059778, 0.289090891, east_clover_ne_merge);
+
+east_clover_se_loop_a_mouth = east_clover_ramp_mouth(east_clover_se_exit, 17.350468785, 0.039200702, 17.492659649, 0.004499432, east_clover_se_loop_a_se_loop_a_seam);
+
+east_clover_se_loop_a = east_clover_exit_ramp(east_clover_se_loop_a_se_loop_a_seam, 18.044601111, -0.147309896, 18.371313169, -0.446558892, east_clover_se_outer);
+
+east_clover_se_loop_b = east_clover_exit_ramp(east_clover_se_outer, 18.407149055, -1.655227758, 17.922186691, -2.169826151, east_clover_se_crown);
+
+east_clover_se_loop_c = east_clover_exit_ramp(east_clover_se_crown, 16.713517824, -2.205662036, 16.395438096, -1.897253189, east_clover_se_loop_c_se_loop_c_merge_seam);
+
+east_clover_se_loop_c_merge = east_clover_ramp_mouth(east_clover_se_loop_c_se_loop_c_merge_seam, 16.211195098, -1.355275360, 16.168130541, -1.215390178, east_clover_se_merge);
+
+east_clover_nw_connector_mouth = east_clover_ramp_mouth(east_clover_nw_direct_exit, 15.771719828, 3.719029194, 15.708459003, 3.321979993, east_clover_nw_connector_nw_connector_seam);
+
+east_clover_nw_connector = east_clover_exit_ramp(east_clover_nw_connector_nw_connector_seam, 15.396466212, 2.372316633, 15.070813884, 1.841182294, east_clover_nw_connector_mid);
+
+east_clover_nw_connector_down = east_clover_exit_ramp(east_clover_nw_connector_mid, 14.234253806, 0.953500067, 13.723346056, 0.596952179, east_clover_nw_connector_nw_connector_merge_seam);
+
+east_clover_nw_connector_merge = east_clover_ramp_mouth(east_clover_nw_connector_nw_connector_merge_seam, 12.793835195, 0.229243655, 12.401231398, 0.142570367, east_clover_nw_direct_merge);
+
+east_clover_ne_connector_mouth = east_clover_ramp_mouth(east_clover_ne_direct_exit, 19.598068844, 0.355949771, 19.201019643, 0.419210597, east_clover_ne_connector_ne_connector_seam);
+
+east_clover_ne_connector = east_clover_exit_ramp(east_clover_ne_connector_ne_connector_seam, 18.251356283, 0.731203387, 17.720221944, 1.056855716, east_clover_ne_connector_mid);
+
+east_clover_ne_connector_down = east_clover_exit_ramp(east_clover_ne_connector_mid, 16.832539717, 1.893415794, 16.475991829, 2.404323543, east_clover_ne_connector_ne_connector_merge_seam);
+
+east_clover_ne_connector_merge = east_clover_ramp_mouth(east_clover_ne_connector_ne_connector_merge_seam, 16.108283305, 3.333834405, 16.021610017, 3.726438201, east_clover_ne_direct_merge);
+
+east_clover_sw_connector_mouth = east_clover_ramp_mouth(east_clover_sw_direct_exit, 12.408640405, -0.107319822, 12.805689606, -0.170580647, east_clover_sw_connector_sw_connector_seam);
+
+east_clover_sw_connector = east_clover_exit_ramp(east_clover_sw_connector_sw_connector_seam, 13.755352967, -0.482573438, 14.286487306, -0.808225766, east_clover_sw_connector_mid);
+
+east_clover_sw_connector_down = east_clover_exit_ramp(east_clover_sw_connector_mid, 15.174169532, -1.644785844, 15.530717420, -2.155693594, east_clover_sw_connector_sw_connector_merge_seam);
+
+east_clover_sw_connector_merge = east_clover_ramp_mouth(east_clover_sw_connector_sw_connector_merge_seam, 15.898425944, -3.085204455, 15.985099232, -3.477808252, east_clover_sw_direct_merge);
+
+east_clover_se_connector_mouth = east_clover_ramp_mouth(east_clover_se_direct_exit, 16.234989421, -3.470399245, 16.298250247, -3.073350044, east_clover_se_connector_se_connector_seam);
+
+east_clover_se_connector = east_clover_exit_ramp(east_clover_se_connector_se_connector_seam, 16.610243037, -2.123686683, 16.935895366, -1.592552344, east_clover_se_connector_mid);
+
+east_clover_se_connector_down = east_clover_exit_ramp(east_clover_se_connector_mid, 17.772455444, -0.704870118, 18.283363193, -0.348322230, east_clover_se_connector_se_connector_merge_seam);
+
+east_clover_se_connector_merge = east_clover_ramp_mouth(east_clover_se_connector_se_connector_merge_seam, 19.212874055, 0.019386294, 19.605477851, 0.106059582, east_clover_se_direct_merge);
+
+grade(east_clover_i_ns_02a, 0.102001000, 0.177001000);
+
+grade(east_clover_i_ns_02b, 0.177001000, 0.252001000);
+
+grade(east_clover_i_ns_02c, 0.252001000, 0.327001000);
+
+grade(east_clover_i_ns_02, 0.327001000, 0.402001000);
+
+elevation(east_clover_i_ns_03a, 0.402001000);
+
+elevation(east_clover_i_ns_03, 0.402001000);
+
+elevation(east_clover_i_ns_04a, 0.402001000);
+
+elevation(east_clover_i_ns_04, 0.402001000);
+
+grade(east_clover_i_ns_05a, 0.402001000, 0.327001000);
+
+grade(east_clover_i_ns_05b, 0.327001000, 0.252001000);
+
+grade(east_clover_i_ns_05c, 0.252001000, 0.177001000);
+
+grade(east_clover_i_ns_05, 0.177001000, 0.102001000);
+
+grade(east_clover_nw_loop_c, 0.102001000, 0.352001000);
+
+grade(east_clover_nw_loop_c_merge, 0.352001000, 0.402001000);
+
+grade(east_clover_sw_loop_a_mouth, 0.402001000, 0.352001000);
+
+grade(east_clover_sw_loop_a, 0.352001000, 0.102001000);
+
+grade(east_clover_ne_loop_a_mouth, 0.402001000, 0.352001000);
+
+grade(east_clover_ne_loop_a, 0.352001000, 0.102001000);
+
+grade(east_clover_se_loop_c, 0.102001000, 0.352001000);
+
+grade(east_clover_se_loop_c_merge, 0.352001000, 0.402001000);
+
+grade(east_clover_nw_connector_mouth, 0.102001000, 0.228001000);
+
+grade(east_clover_nw_connector, 0.228001000, 0.752001000);
+
+grade(east_clover_nw_connector_down, 0.752001000, 0.102001000);
+
+grade(east_clover_sw_connector, 0.102001000, 0.752001000);
+
+grade(east_clover_sw_connector_down, 0.752001000, 0.228001000);
+
+grade(east_clover_sw_connector_merge, 0.228001000, 0.102001000);
+
+grade(east_clover_ne_connector, 0.102001000, 0.752001000);
+
+grade(east_clover_ne_connector_down, 0.752001000, 0.228001000);
+
+grade(east_clover_ne_connector_merge, 0.228001000, 0.102001000);
+
+grade(east_clover_se_connector_mouth, 0.102001000, 0.228001000);
+
+grade(east_clover_se_connector, 0.228001000, 0.752001000);
+
+grade(east_clover_se_connector_down, 0.752001000, 0.102001000);
+elevation(east_clover_i_ew_02, 0.102001);
+elevation(east_clover_i_ew_03a, 0.102001);
+elevation(east_clover_i_ew_03b, 0.102001);
+elevation(east_clover_i_ew_03c, 0.102001);
+elevation(east_clover_i_ew_03, 0.102001);
+elevation(east_clover_i_ew_04a, 0.102001);
+elevation(east_clover_i_ew_04, 0.102001);
+elevation(east_clover_i_ew_05a, 0.102001);
+elevation(east_clover_i_ew_05, 0.102001);
+elevation(east_clover_i_ew_06a, 0.102001);
+elevation(east_clover_i_ew_06b, 0.102001);
+elevation(east_clover_i_ew_06c, 0.102001);
+elevation(east_clover_i_ew_06, 0.102001);
+elevation(east_clover_i_ew_07, 0.102001);
+elevation(east_clover_i_ew_08, 0.102001);
+elevation(east_clover_i_ns_01, 0.102001);
+elevation(east_clover_i_ns_06, 0.102001);
+elevation(east_clover_nw_loop_a_mouth, 0.102001);
+elevation(east_clover_nw_loop_a, 0.102001);
+elevation(east_clover_nw_loop_b, 0.102001);
+elevation(east_clover_sw_loop_b, 0.102001);
+elevation(east_clover_sw_loop_c, 0.102001);
+elevation(east_clover_sw_loop_c_merge, 0.102001);
+elevation(east_clover_ne_loop_b, 0.102001);
+elevation(east_clover_ne_loop_c, 0.102001);
+elevation(east_clover_ne_loop_c_merge, 0.102001);
+elevation(east_clover_se_loop_a_mouth, 0.102001);
+elevation(east_clover_se_loop_a, 0.102001);
+elevation(east_clover_se_loop_b, 0.102001);
+elevation(east_clover_nw_connector_merge, 0.102001);
+elevation(east_clover_ne_connector_mouth, 0.102001);
+elevation(east_clover_sw_connector_mouth, 0.102001);
+elevation(east_clover_se_connector_merge, 0.102001);
+
+road east_clover_approach:
+    carlane carlane carlane verge;
+    direction forward;
+    role highway;
+end
+
+east_clover_entry = lane_point(east_clover_i_ew_02, 5, 0);
+east_clover_exit = lane_point(east_clover_i_ew_02, 3, 0);
+east_clover_in = east_clover_approach(highway_north_east, 10.276170246, -0.190554327, 10.540792791, -0.072660182, east_clover_entry);
+grade(east_clover_in, 0.102001, 0.102001);
+east_clover_out = east_clover_approach(east_clover_exit, 10.538718269, -0.002690929, 10.267576248, 0.099318306, highway_south_east);
+grade(east_clover_out, 0.102001, 0.102001);
+
+# Report 69 extension: residential rows around the far bend and along roads 43, 42 and 41.
+# Street-facing fronts follow the curve; leave gardens, sidewalks and end bends clear.
+bend_home_43_01_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -3.0580075, 5.6014838, -3.0361664, 5.4834886, -2.8837554, 5.5116997, -2.9055965, 5.6296949);
+elevation(bend_home_43_01_right, 0.1000009);
+
+bend_home_43_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -3.3508217, 5.4252458, -3.3726628, 5.5432410, -3.5250738, 5.5150299, -3.5032327, 5.3970346);
+elevation(bend_home_43_01_left, 0.1000009);
+
+bend_home_43_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -3.3596160, 5.6633868, -3.3225367, 5.7775140, -3.4842174, 5.8300428, -3.5212967, 5.7159157);
+elevation(bend_home_43_02_left, 0.1000009);
+
+bend_home_42_01_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.8742156, 5.8330045, -2.9565134, 5.7456717, -2.8437083, 5.6393700, -2.7614105, 5.7267027);
+elevation(bend_home_42_01_right, 0.1000009);
+
+bend_home_42_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -3.1894011, 5.9651332, -3.1071033, 6.0524659, -3.2199085, 6.1587677, -3.3022063, 6.0714350);
+elevation(bend_home_42_01_left, 0.1000009);
+
+bend_home_42_02_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.7644694, 5.9494281, -2.8467700, 5.8620973, -2.7230520, 5.7455044, -2.6407514, 5.8328352);
+elevation(bend_home_42_02_right, 0.1000009);
+
+bend_home_42_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -3.0796511, 6.0815654, -2.9973505, 6.1688962, -3.1210685, 6.2854891, -3.2033691, 6.1981583);
+elevation(bend_home_42_02_left, 0.1000009);
+
+bend_home_42_03_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.6547208, 6.0658550, -2.7370214, 5.9785242, -2.6023872, 5.8516436, -2.5200865, 5.9389744);
+elevation(bend_home_42_03_right, 0.1000009);
+
+bend_home_42_03_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.9699025, 6.1979923, -2.8876019, 6.2853231, -3.0222361, 6.4122038, -3.1045368, 6.3248730);
+elevation(bend_home_42_03_left, 0.1000009);
+
+bend_home_42_04_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.5449896, 6.1822391, -2.6273136, 6.0949311, -2.5145407, 5.9885955, -2.4322166, 6.0759034);
+elevation(bend_home_42_04_right, 0.1000009);
+
+bend_home_42_04_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.8601356, 6.3144622, -2.7778115, 6.4017701, -2.8905845, 6.5081058, -2.9729085, 6.4207978);
+elevation(bend_home_42_04_left, 0.1000009);
+
+bend_home_42_05_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.4352310, 6.2986870, -2.5175436, 6.2113676, -2.3938413, 6.0947580, -2.3115287, 6.1820774);
+elevation(bend_home_42_05_right, 0.1000009);
+
+bend_home_42_05_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.7503951, 6.4308672, -2.6680825, 6.5181866, -2.7917848, 6.6347961, -2.8740973, 6.5474768);
+elevation(bend_home_42_05_left, 0.1000009);
+
+bend_home_42_06_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.3254948, 6.4150825, -2.4078245, 6.3277793, -2.2732327, 6.2008538, -2.1909029, 6.2881570);
+elevation(bend_home_42_06_right, 0.1000009);
+
+bend_home_42_06_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.6406322, 6.5473256, -2.5583024, 6.6346288, -2.6928942, 6.7615542, -2.7752240, 6.6742511);
+elevation(bend_home_42_06_left, 0.1000009);
+
+bend_home_42_07_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.2157245, 6.5315542, -2.2980280, 6.4442263, -2.1852300, 6.3379173, -2.1029265, 6.4252453);
+elevation(bend_home_42_07_right, 0.1000009);
+
+bend_home_42_07_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.5309014, 6.6637030, -2.4485979, 6.7510309, -2.5613959, 6.8573399, -2.6436994, 6.7700119);
+elevation(bend_home_42_07_left, 0.1000009);
+
+bend_home_42_08_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.1059718, 6.6479850, -2.1882730, 6.5606551, -2.0645554, 6.4440618, -1.9822543, 6.5313916);
+elevation(bend_home_42_08_right, 0.1000009);
+
+bend_home_42_08_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.4211531, 6.7801242, -2.3388519, 6.8674541, -2.4625695, 6.9840474, -2.5448706, 6.8967175);
+elevation(bend_home_42_08_left, 0.1000009);
+
+bend_home_42_09_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.9962363, 6.7643728, -2.0785575, 6.6770620, -1.9439530, 6.5501504, -1.8616319, 6.6374612);
+elevation(bend_home_42_09_right, 0.1000009);
+
+bend_home_42_09_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.3113871, 6.8965855, -2.2290659, 6.9838963, -2.3636703, 7.1108079, -2.4459915, 7.0234971);
+elevation(bend_home_42_09_left, 0.1000009);
+
+bend_home_42_10_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.8864679, 6.8808413, -1.9687657, 6.7935085, -1.8559607, 6.6872072, -1.7736629, 6.7745399);
+elevation(bend_home_42_10_right, 0.1000009);
+
+bend_home_42_10_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.2016535, 7.0129700, -2.1193557, 7.1003027, -2.2321608, 7.2066040, -2.3144586, 7.1192713);
+elevation(bend_home_42_10_left, 0.1000009);
+
+bend_home_42_11_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.7767315, 6.9972281, -1.8590496, 6.9099145, -1.7353548, 6.7932968, -1.6530367, 6.8806105);
+elevation(bend_home_42_11_right, 0.1000009);
+
+bend_home_42_11_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.0918865, 7.1294293, -2.0095685, 7.2167430, -2.1332631, 7.3333607, -2.2155812, 7.2460470);
+elevation(bend_home_42_11_left, 0.1000009);
+
+bend_home_42_12_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.6669661, 7.1136875, -1.7492656, 7.0263557, -1.6146295, 6.8994770, -1.5323300, 6.9868088);
+elevation(bend_home_42_12_right, 0.1000009);
+
+bend_home_42_12_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.9821495, 7.2458210, -1.8998500, 7.3331528, -2.0344861, 7.4600315, -2.1167855, 7.3726997);
+elevation(bend_home_42_12_left, 0.1000009);
+
+bend_home_42_13_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.5572282, 7.2300763, -1.6395468, 7.1427627, -1.5267668, 7.0364347, -1.4444482, 7.1237483);
+elevation(bend_home_42_13_right, 0.1000009);
+
+bend_home_42_13_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.8723830, 7.3622785, -1.7900645, 7.4495921, -1.9028444, 7.5559201, -1.9851630, 7.4686065);
+elevation(bend_home_42_13_left, 0.1000009);
+
+bend_home_42_14_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.4474634, 7.3465323, -1.5297645, 7.2592025, -1.4060469, 7.1426091, -1.3237457, 7.2299390);
+elevation(bend_home_42_14_right, 0.1000009);
+
+bend_home_42_14_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.7626446, 7.4786716, -1.6803435, 7.5660014, -1.8040612, 7.6825948, -1.8863623, 7.5952649);
+elevation(bend_home_42_14_left, 0.1000009);
+
+bend_home_42_15_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.3377310, 7.4629097, -1.4200579, 7.3756037, -1.2854617, 7.2486830, -1.2031348, 7.3359890);
+elevation(bend_home_42_15_right, 0.1000009);
+
+bend_home_42_15_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.6528729, 7.5951424, -1.5705460, 7.6824484, -1.7051423, 7.8093691, -1.7874691, 7.7220631);
+elevation(bend_home_42_15_left, 0.1000009);
+
+bend_home_42_16_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.2279637, 7.5793700, -1.3102705, 7.4920449, -1.1974761, 7.3857317, -1.1151693, 7.4730568);
+elevation(bend_home_42_16_right, 0.1000009);
+
+bend_home_42_16_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.5431364, 7.7115293, -1.4608295, 7.7988544, -1.5736239, 7.9051676, -1.6559308, 7.8178425);
+elevation(bend_home_42_16_left, 0.1000009);
+
+bend_home_42_17_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.1182172, 7.6957808, -1.2005312, 7.6084633, -1.0768310, 7.4918523, -0.9945170, 7.5791698);
+elevation(bend_home_42_17_right, 0.1000009);
+
+bend_home_42_17_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.4333789, 7.8279676, -1.3510649, 7.9152851, -1.4747652, 8.0318966, -1.5570792, 7.9445786);
+elevation(bend_home_42_17_left, 0.1000009);
+
+bend_home_42_18_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.0084695, 7.8121943, -1.0907892, 7.7248816, -0.9561825, 7.5979724, -0.8738627, 7.6852851);
+elevation(bend_home_42_18_right, 0.1000009);
+
+bend_home_42_18_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.3236226, 7.9444013, -1.2413028, 8.0317135, -1.3759096, 8.1586237, -1.4582293, 8.0713110);
+elevation(bend_home_42_18_left, 0.1000009);
+
+bend_home_42_19_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.8987175, 7.9286180, -0.9810372, 7.8413053, -0.8682586, 7.7349758, -0.7859389, 7.8222885);
+elevation(bend_home_42_19_right, 0.1000009);
+
+bend_home_42_19_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.2138705, 8.0608244, -1.1315508, 8.1481371, -1.2443293, 8.2544670, -1.3266491, 8.1671543);
+elevation(bend_home_42_19_left, 0.1000009);
+
+bend_home_42_20_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.7889698, 8.0450344, -0.8712944, 7.9577274, -0.7476083, 7.8411007, -0.6652837, 7.9284077);
+elevation(bend_home_42_20_right, 0.1000009);
+
+bend_home_42_20_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.1041151, 8.1772594, -1.0217905, 8.2645664, -1.1454766, 8.3811932, -1.2278012, 8.2938862);
+elevation(bend_home_42_20_left, 0.1000009);
+
+bend_home_42_21_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.6792002, 8.1615019, -0.7615013, 8.0741720, -0.6268674, 7.9472909, -0.5445664, 8.0346212);
+elevation(bend_home_42_21_right, 0.1000009);
+
+bend_home_42_21_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.9943814, 8.2936411, -0.9120803, 8.3809710, -1.0467142, 8.5078516, -1.1290152, 8.4205217);
+elevation(bend_home_42_21_left, 0.1000009);
+
+bend_home_42_22_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.5694668, 8.2778826, -0.6517915, 8.1905756, -0.5390189, 8.0842390, -0.4566942, 8.1715460);
+elevation(bend_home_42_22_right, 0.1000009);
+
+bend_home_42_22_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.8846122, 8.4101076, -0.8022876, 8.4974146, -0.9150602, 8.6037512, -0.9973848, 8.5164442);
+elevation(bend_home_42_22_left, 0.1000009);
+
+bend_home_42_23_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.4597064, 8.3943291, -0.5420189, 8.3070107, -0.4183165, 8.1904011, -0.3360041, 8.2777195);
+elevation(bend_home_42_23_right, 0.1000009);
+
+bend_home_42_23_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.7748703, 8.5265102, -0.6925578, 8.6138287, -0.8162602, 8.7304382, -0.8985726, 8.6431198);
+elevation(bend_home_42_23_left, 0.1000009);
+
+bend_home_42_24_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.3499560, 8.5107536, -0.4322692, 8.4234352, -0.2976531, 8.2965355, -0.2153399, 8.3838539);
+elevation(bend_home_42_24_right, 0.1000009);
+
+bend_home_42_24_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.6651188, 8.6429367, -0.5828056, 8.7302551, -0.7174217, 8.8571548, -0.7997350, 8.7698364);
+elevation(bend_home_42_24_left, 0.1000009);
+
+bend_home_42_25_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.2402138, 8.6271582, -0.3225380, 8.5398493, -0.2097650, 8.4335136, -0.1274407, 8.5208225);
+elevation(bend_home_42_25_right, 0.1000009);
+
+bend_home_42_25_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.5553598, 8.7593813, -0.4730355, 8.8466902, -0.5858086, 8.9530258, -0.6681329, 8.8657169);
+elevation(bend_home_42_25_left, 0.1000009);
+
+bend_home_42_26_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.1304543, 8.7436066, -0.2127664, 8.6562862, -0.0890636, 8.5396776, -0.0067515, 8.6269979);
+elevation(bend_home_42_26_right, 0.1000009);
+
+bend_home_42_26_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.4456188, 8.8757858, -0.3633068, 8.9631062, -0.4870096, 9.0797148, -0.5693216, 8.9923944);
+elevation(bend_home_42_26_left, 0.1000009);
+
+bend_home_42_27_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.0206978, 8.8600492, -0.1030012, 8.7727213, 0.0316294, 8.6458368, 0.1139327, 8.7331648);
+elevation(bend_home_42_27_right, 0.1000009);
+
+bend_home_42_27_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.3358756, 8.9921961, -0.2535723, 9.0795240, -0.3882028, 9.2064085, -0.4705061, 9.1190805);
+elevation(bend_home_42_27_left, 0.1000009);
+
+bend_home_42_28_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.0890430, 8.9764547, 0.0067285, 8.8891382, 0.1195134, 8.7828150, 0.2018279, 8.8701315);
+elevation(bend_home_42_28_right, 0.1000009);
+
+bend_home_42_28_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.2261177, 9.1086435, -0.1438032, 9.1959600, -0.2565881, 9.3022833, -0.3389026, 9.2149668);
+elevation(bend_home_42_28_left, 0.1000009);
+
+bend_home_42_29_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.1987944, 9.0928869, 0.1164831, 9.0055666, 0.2401870, 8.8889589, 0.3224983, 8.9762793);
+elevation(bend_home_42_29_right, 0.1000009);
+
+bend_home_42_29_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.1163712, 9.2250643, -0.0340599, 9.3123846, -0.1577637, 9.4289923, -0.2400750, 9.3416719);
+elevation(bend_home_42_29_left, 0.1000009);
+
+bend_home_42_30_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.3085427, 9.2093153, 0.2262312, 9.1219950, 0.3608498, 8.9950981, 0.4431613, 9.0824184);
+elevation(bend_home_42_30_right, 0.1000009);
+
+bend_home_42_30_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.0066226, 9.3414927, 0.0756889, 9.4288130, -0.0589297, 9.5557098, -0.1412412, 9.4683895);
+elevation(bend_home_42_30_left, 0.1000009);
+
+bend_home_42_31_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.4182908, 9.3257437, 0.3359795, 9.2384233, 0.4487683, 9.1321049, 0.5310796, 9.2194252);
+elevation(bend_home_42_31_right, 0.1000009);
+
+bend_home_42_31_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.1031252, 9.4579210, 0.1854365, 9.5452414, 0.0726477, 9.6515598, -0.0096637, 9.5642395);
+elevation(bend_home_42_31_left, 0.1000009);
+
+bend_home_41_01_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.5523241, 9.4549837, 0.4627990, 9.3750753, 0.5660134, 9.2594385, 0.6555384, 9.3393469);
+elevation(bend_home_41_01_right, 0.1000009);
+
+bend_home_41_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.2497113, 9.6138086, 0.3392363, 9.6937170, 0.2360220, 9.8093538, 0.1464969, 9.7294455);
+elevation(bend_home_41_01_left, 0.1000009);
+
+bend_home_41_02_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.6673019, 9.5359459, 0.5686349, 9.4676456, 0.6653923, 9.3278675, 0.7640594, 9.3961678);
+elevation(bend_home_41_02_right, 0.1000009);
+
+bend_home_41_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.3865031, 9.7307587, 0.4851701, 9.7990589, 0.3884127, 9.9388371, 0.2897456, 9.8705368);
+elevation(bend_home_41_02_left, 0.1000009);
+
+bend_home_41_03_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.7917286, 9.6032124, 0.6857456, 9.5469303, 0.7725129, 9.3835402, 0.8784959, 9.4398222);
+elevation(bend_home_41_03_right, 0.1000009);
+
+bend_home_41_03_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.5356617, 9.8295517, 0.6416447, 9.8858337, 0.5548774, 10.0492239, 0.4488944, 9.9929419);
+elevation(bend_home_41_03_left, 0.1000009);
+
+bend_home_41_04_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.9232036, 9.6560926, 0.8115204, 9.6121969, 0.8682191, 9.4679394, 0.9799023, 9.5118351);
+elevation(bend_home_41_04_right, 0.1000009);
+
+bend_home_41_04_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.6944650, 9.9100199, 0.8061482, 9.9539156, 0.7494496, 10.0981731, 0.6377663, 10.0542774);
+elevation(bend_home_41_04_left, 0.1000009);
+
+bend_home_41_05_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.8617250, 9.9720802, 0.9777412, 10.0027447, 0.9343011, 10.1671009, 0.8182850, 10.1364365);
+elevation(bend_home_41_05_left, 0.1000009);

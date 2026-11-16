@@ -147,6 +147,7 @@ mod tests {
     fn report_screenshot_renders_and_reads_back_a_real_gpu_target() {
         let renderer = pollster::block_on(Renderer::new(None, 65, 40)).unwrap();
         let navigation = MinimapView {
+            texture_region: [0., 0., 1., 1.],
             uv_center: [0.5; 2],
             uv_span: 1.,
             heading: 0.,

@@ -16,7 +16,7 @@ macro_rules! web_asset {
 
 #[cfg(target_arch = "wasm32")]
 mod browser {
-    use std::{collections::HashMap, sync::OnceLock};
+    use std::{cell::RefCell, collections::HashMap, sync::OnceLock};
     use wasm_bindgen::prelude::*;
 
     static ASSETS: OnceLock<HashMap<String, Vec<u8>>> = OnceLock::new();
@@ -27,28 +27,55 @@ mod browser {
         PATHS.to_owned()
     }
 
+    thread_local! {
+        static PENDING: RefCell<HashMap<String, Vec<u8>>> = RefCell::new(HashMap::new());
+    }
+
+    /// Transfer each response before fetching the next, avoiding a JS copy of the whole catalog.
     #[wasm_bindgen]
-    pub fn install_assets(values: js_sys::Array) -> Result<(), JsValue> {
-        if values.length() as usize != PATHS.lines().count() {
-            return Err(JsValue::from_str(
-                "Web asset count does not match the build",
-            ));
+    pub fn install_asset(path: String, value: js_sys::Uint8Array) -> Result<(), JsValue> {
+        if ASSETS.get().is_some() || !PATHS.lines().any(|expected| expected == path) {
+            return Err(JsValue::from_str("Unexpected web asset"));
         }
-        let mut assets = HashMap::with_capacity(values.length() as usize);
-        let mut opencity_assets = HashMap::new();
-        for (path, value) in PATHS.lines().zip(values.iter()) {
-            let bytes = js_sys::Uint8Array::new(&value).to_vec();
-            if path.starts_with("opencity/") {
-                opencity_assets.insert(path.to_owned(), bytes);
-            } else {
-                assets.insert(path.to_owned(), bytes);
+        PENDING.with(|pending| {
+            let mut pending = pending.borrow_mut();
+            if pending.contains_key(&path) {
+                return Err(JsValue::from_str("Duplicate web asset"));
             }
-        }
-        opencity::web_assets::install(opencity_assets)
-            .map_err(|error| JsValue::from_str(&error))?;
-        ASSETS
-            .set(assets)
-            .map_err(|_| JsValue::from_str("Web assets were already installed"))
+            pending.insert(path, value.to_vec());
+            Ok(())
+        })
+    }
+
+    #[wasm_bindgen]
+    pub fn discard_pending_assets() {
+        PENDING.with(|pending| pending.borrow_mut().clear());
+    }
+
+    #[wasm_bindgen]
+    pub fn install_assets() -> Result<(), JsValue> {
+        PENDING.with(|pending| {
+            let mut pending = pending.borrow_mut();
+            if pending.len() != PATHS.lines().count() {
+                return Err(JsValue::from_str(
+                    "Web asset count does not match the build",
+                ));
+            }
+            let mut assets = HashMap::new();
+            let mut opencity_assets = HashMap::new();
+            for (path, bytes) in pending.drain() {
+                if path.starts_with("opencity/") {
+                    opencity_assets.insert(path, bytes);
+                } else {
+                    assets.insert(path, bytes);
+                }
+            }
+            opencity::web_assets::install(opencity_assets)
+                .map_err(|error| JsValue::from_str(&error))?;
+            ASSETS
+                .set(assets)
+                .map_err(|_| JsValue::from_str("Web assets were already installed"))
+        })
     }
 
     pub fn get(path: &str) -> &'static [u8] {

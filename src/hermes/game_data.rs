@@ -17,7 +17,7 @@ use std::{
     path::{Path, PathBuf},
 };
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data, test))]
-const MAGIC: &[u8; 16] = b"MTL-GAME-DATA001";
+const MAGIC: &[u8; 16] = b"MTL-GAME-DATA002";
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data, test))]
 const MAX_VERTICES: usize = 20_000_000;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data, test))]

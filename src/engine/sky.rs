@@ -39,6 +39,8 @@ impl BakeKey {
 pub struct Sky {
     pub environment: opencity::runtime::surface_materials::EnvironmentMap,
     background: wgpu::RenderPipeline,
+    background_layout: wgpu::PipelineLayout,
+    format: wgpu::TextureFormat,
     panorama: wgpu::BindGroup,
     last_bake: Cell<Option<BakeKey>>,
     updates: Cell<u64>,
@@ -49,13 +51,10 @@ impl Sky {
         queue: &wgpu::Queue,
         camera_layout: &wgpu::BindGroupLayout,
         format: wgpu::TextureFormat,
+        samples: u32,
     ) -> Self {
         let environment = opencity::runtime::surface_materials::EnvironmentMap::new(device);
         let (panorama_layout, panorama) = panorama::create(device, queue);
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("sky background"),
-            source: wgpu::ShaderSource::Wgsl(background_source().into()),
-        });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("sky background"),
             bind_group_layouts: &[
@@ -65,7 +64,28 @@ impl Sky {
             ],
             immediate_size: 0,
         });
-        let background = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let background = Self::background_pipeline(device, &layout, format, samples);
+        Self {
+            environment,
+            background,
+            background_layout: layout,
+            format,
+            panorama,
+            last_bake: Cell::new(None),
+            updates: Cell::new(0),
+        }
+    }
+    fn background_pipeline(
+        device: &wgpu::Device,
+        layout: &wgpu::PipelineLayout,
+        format: wgpu::TextureFormat,
+        samples: u32,
+    ) -> wgpu::RenderPipeline {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("sky background"),
+            source: wgpu::ShaderSource::Wgsl(background_source().into()),
+        });
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("sky background"),
             layout: Some(&layout),
             vertex: wgpu::VertexState {
@@ -93,19 +113,16 @@ impl Sky {
                 bias: Default::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 4,
+                count: samples,
                 ..Default::default()
             },
             multiview_mask: None,
             cache: None,
-        });
-        Self {
-            environment,
-            background,
-            panorama,
-            last_bake: Cell::new(None),
-            updates: Cell::new(0),
-        }
+        })
+    }
+    pub fn set_samples(&mut self, device: &wgpu::Device, samples: u32) {
+        self.background =
+            Self::background_pipeline(device, &self.background_layout, self.format, samples);
     }
     pub fn update(
         &self,

@@ -24,6 +24,7 @@ pub enum MenuItem {
     #[default]
     Resume,
     Map,
+    Settings,
     Exit,
 }
 impl MenuItem {
@@ -31,13 +32,15 @@ impl MenuItem {
         match self {
             Self::Resume => Self::Exit,
             Self::Map => Self::Resume,
-            Self::Exit => Self::Map,
+            Self::Exit => Self::Settings,
+            Self::Settings => Self::Map,
         }
     }
     pub fn other(self) -> Self {
         match self {
             Self::Resume => Self::Map,
-            Self::Map => Self::Exit,
+            Self::Map => Self::Settings,
+            Self::Settings => Self::Exit,
             Self::Exit => Self::Resume,
         }
     }
@@ -87,6 +90,10 @@ impl Default for FullMapView {
     }
 }
 impl FullMapView {
+    pub fn raster_view(&self, width: f32, height: f32) -> ([f32; 2], f32) {
+        let [_, _, w, h] = full_map_rect(width, height);
+        (self.center, w.max(h) / w.min(h).max(1.) / self.zoom)
+    }
     pub fn reset_zoom(&mut self) {
         *self = Self {
             selection: self.selection,
@@ -138,6 +145,7 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 struct Uniform {
+    texture_region: [f32; 4],
     rect: [f32; 4],
     screen: [f32; 4],
     map: [f32; 4],
@@ -397,6 +405,7 @@ impl Hud {
             }
         }
         let data = Uniform {
+            texture_region: view.texture_region,
             full_map: [
                 full_map.center[0],
                 full_map.center[1],
@@ -435,7 +444,8 @@ impl Hud {
                 match menu_selection {
                     MenuItem::Resume => 0.,
                     MenuItem::Map => 1.,
-                    MenuItem::Exit => 2.,
+                    MenuItem::Settings => 2.,
+                    MenuItem::Exit => 3.,
                 },
                 0.,
             ],
