@@ -509,15 +509,20 @@ impl Gait {
                 + ((0.53 * self.rig.scale).powi(2) - lateral.length_squared())
                     .max(0.)
                     .sqrt();
-            let support_time = available / desired_speed.abs().max(self.speed.abs()).max(0.35);
+            let planning_speed = desired_speed.abs().max(self.speed.abs()).max(0.35);
+            // The old 90 ms floor capped cadence and stranded fast players at
+            // their support foot's reach limit. Keep the same travel allowance
+            // as speed rises, rather than carrying planted feet with the body.
+            let minimum_duration = 0.09 * (3.45 / planning_speed).min(1.);
+            let support_time = available / planning_speed;
             // Shorten turning steps: the outside hip travels farther than the root.
             let turn_stride = 1. / (1. + self.turn_rate.abs() * 0.35);
             self.duration =
                 ((self.step_length + self.running * 0.12) * self.rig.scale * turn_stride
-                    / desired_speed.abs().max(self.speed.abs()).max(0.35))
-                .min(support_time.max(0.09))
-                .min(0.30 / self.turn_rate.abs().max(0.01))
-                .clamp(0.09, 0.75);
+                    / planning_speed)
+                    .min(support_time.max(minimum_duration))
+                    .min(0.30 / self.turn_rate.abs().max(0.01))
+                    .clamp(minimum_duration, 0.75);
             let mut p = self.position;
             let mut yaw = self.yaw;
             let mut speed = self.speed;

@@ -12,7 +12,8 @@ pub(super) const HALF_HEIGHT: f32 = 0.9;
 pub(super) const RADIUS: f32 = 0.4;
 const MODEL: usize = pedestrian_catalog::PLAYER_SUMMER_MODEL;
 const WALK_SPEED: f32 = 1.8;
-const RUN_SPEED: f32 = 3.45;
+// Arcade sprint: 2.5x the original run, with cadence following actual travel.
+const RUN_SPEED: f32 = 3.45 * 2.5;
 const ACCELERATION: f32 = 24.;
 const BRAKING: f32 = 32.;
 const GRAVITY: f32 = 9.81;
@@ -495,6 +496,7 @@ mod tests {
                 let mut previous = player.foot_motion();
                 let mut contacts = 0;
                 let mut max_speed: f32 = 0.;
+                let mut flight_frames = 0;
                 for _ in 0..480 {
                     player.step(
                         &city,
@@ -508,6 +510,9 @@ mod tests {
                     );
                     let motion = player.foot_motion();
                     max_speed = max_speed.max(motion.speed);
+                    if !motion.contact[0] && !motion.contact[1] {
+                        flight_frames += 1;
+                    }
                     for side in 0..2 {
                         assert!(motion.ankles[side].is_finite());
                         if previous.contact[side] && motion.contact[side] {
@@ -521,6 +526,13 @@ mod tests {
                     previous = motion;
                 }
                 assert!(contacts > 100);
+                if run {
+                    assert!(flight_frames > 20, "fast run lost its flight phase");
+                    assert!(
+                        previous.cadence > 450.,
+                        "run cadence did not follow travel speed"
+                    );
+                }
                 let target = if run { RUN_SPEED } else { WALK_SPEED };
                 assert!(
                     max_speed > target * 0.95,
