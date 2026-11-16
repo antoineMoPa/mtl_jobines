@@ -159,7 +159,7 @@ mod browser {
                                 }
                                 self.keys.clear();
                                 self.mobile.clear();
-                                self.dragging = false;
+                                self.stop_orbit_drag();
                                 self.accumulator = 0.;
                                 self.audio.silence();
                                 self.show_cursor();

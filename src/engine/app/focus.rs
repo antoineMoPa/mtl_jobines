@@ -6,7 +6,7 @@ impl Game {
         self.sound_eye = None;
         if self.fabula.active() {
             self.keys.clear();
-            self.dragging = false;
+            self.stop_orbit_drag();
             self.show_cursor();
             return;
         }
@@ -19,7 +19,7 @@ impl Game {
         {
             document.cancel_interaction();
             self.keys.clear();
-            self.dragging = false;
+            self.stop_orbit_drag();
             self.show_cursor();
             return;
         }
@@ -34,7 +34,7 @@ impl Game {
         {
             document.cancel_interaction();
             self.keys.clear();
-            self.dragging = false;
+            self.stop_orbit_drag();
             self.show_cursor();
             return;
         }

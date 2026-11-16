@@ -479,6 +479,11 @@ impl Gait {
             let amount = (speed.abs() / desired_speed.abs().max(0.35)).min(1.);
             self.movement += (amount - self.movement).clamp(-h * 3., h * 3.);
             self.tick(def, desired_speed, game_to_motion(aim), h, &sample);
+            // A rejected landing can end tick before a step advances. Swivel
+            // planted feet even then, so a blocked pivot cannot twist an ankle.
+            for foot in &mut self.feet {
+                foot.yaw = self.yaw + angle_delta(self.yaw, foot.yaw).clamp(-0.4, 0.4);
+            }
         }
         self.update_pose(def);
     }
@@ -587,10 +592,6 @@ impl Gait {
             let support = &mut self.feet[1 - self.swing];
             support.position.y = support.target.y
                 + self.running * self.rig.scale * 0.07 * ease((self.phase - 0.68) / 0.32);
-        }
-        // Let planted feet swivel before the body can wind the ankle around its old heading.
-        for foot in &mut self.feet {
-            foot.yaw = self.yaw + angle_delta(self.yaw, foot.yaw).clamp(-0.4, 0.4);
         }
         if self.phase >= 1. {
             self.steps += 1;

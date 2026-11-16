@@ -190,3 +190,35 @@ fn rendered_player_feet_face_forward_in_both_outfits() {
         }
     }
 }
+
+#[test]
+fn blocked_pivot_keeps_both_feet_facing_with_the_body() {
+    let model = &pedestrian_catalog::definitions()[pedestrian_catalog::PLAYER_SUMMER_MODEL];
+    for turn in [-2.62, 2.62] {
+        let mut gait = Gait::new_player(model, Vec3::ZERO, 0., flat);
+        let anchors = gait.feet.map(|foot| foot.position);
+        // No landing sample is available at an edge or on rejected terrain.
+        // Turning must still swivel the shoes without moving their anchors.
+        for frame in 1..=360 {
+            let yaw = frame as f32 * turn / 120.;
+            gait.advance(
+                model,
+                Vec3::ZERO,
+                yaw,
+                0.,
+                Vec3::new(yaw.cos(), yaw.sin(), 0.),
+                1. / 120.,
+                |_| None,
+            );
+            for (side, foot) in gait.feet.iter().enumerate() {
+                assert_eq!(foot.position, anchors[side]);
+                assert!(
+                    angle_delta(yaw, foot.yaw).abs() <= 0.401,
+                    "blocked turn {turn}, frame {frame}, foot {side}: heading {}",
+                    angle_delta(yaw, foot.yaw)
+                );
+            }
+            assert!(gait.palette.iter().all(|matrix| matrix.is_finite()));
+        }
+    }
+}

@@ -21,7 +21,7 @@ impl Game {
                 Err(error) => eprintln!("Could not open Props: {error}"),
             }
             self.keys.clear();
-            self.dragging = false;
+            self.stop_orbit_drag();
             self.scene_dirty = true;
             if let Some(window) = &self.window {
                 window.request_redraw();
@@ -45,7 +45,7 @@ impl Game {
                 Err(error) => eprintln!("Could not open Buildings: {error}"),
             }
             self.keys.clear();
-            self.dragging = false;
+            self.stop_orbit_drag();
             self.scene_dirty = true;
             if let Some(window) = &self.window {
                 window.request_redraw();

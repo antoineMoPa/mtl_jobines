@@ -60,7 +60,7 @@ impl Game {
         }
         self.help_visible = false;
         self.keys.clear();
-        self.dragging = false;
+        self.stop_orbit_drag();
         self.accumulator = 0.;
         self.sound_eye = None;
         self.last = Instant::now();
@@ -86,7 +86,7 @@ impl Game {
         self.fabula.clear();
         self.scene_dirty = true;
         self.keys.clear();
-        self.dragging = false;
+        self.stop_orbit_drag();
         self.cursor = None;
         self.accumulator = 0.;
         self.last = Instant::now();

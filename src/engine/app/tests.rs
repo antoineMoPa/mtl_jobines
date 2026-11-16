@@ -26,7 +26,15 @@ fn reported_close_chase_view_and_pointer_orbit() {
     game.set_overlay(Overlay::Driving);
     game.move_camera_with_cursor([100., 100.]);
     assert_eq!(game.orbit, 0.);
-    game.move_camera_with_cursor([140., 140.]);
+    game.move_camera_with_cursor([110., 100.]);
+    assert_eq!(game.orbit, 0., "hovering must not orbit");
+    game.begin_orbit_drag([110., 100.]);
+    game.move_camera_with_cursor([112., 100.]);
+    assert!(!game.dragging, "a click has a small movement tolerance");
+    assert_eq!(game.orbit, 0.);
+    game.move_camera_with_cursor([120., 100.]);
+    assert!(game.dragging);
+    game.move_camera_with_cursor([160., 140.]);
     assert!((game.orbit + 0.2).abs() < 0.0001);
     assert!((game.camera_pitch - 0.12).abs() < 0.0001);
 
@@ -36,7 +44,52 @@ fn reported_close_chase_view_and_pointer_orbit() {
     assert!((game.camera_pitch - 0.12).abs() < 0.0001);
     game.set_overlay(Overlay::Driving);
     game.move_camera_with_cursor([210., 200.]);
+    assert!((game.orbit + 0.2).abs() < 0.0001);
+    assert!(
+        game.orbit_drag.is_none(),
+        "opening the map cancels the drag"
+    );
+
+    game.begin_orbit_drag([210., 200.]);
+    game.orbit_motion([10., 0.]);
+    game.orbit_motion([10., 0.]);
     assert!((game.orbit + 0.25).abs() < 0.0001);
+    game.stop_orbit_drag();
+    game.move_camera_with_cursor([300., 300.]);
+    assert!((game.orbit + 0.25).abs() < 0.0001);
+
+    game.begin_orbit_drag([300., 300.]);
+    game.orbit_motion([10., 0.]);
+    game.orbit_motion([2000., 0.]);
+    let expected = (-0.25_f32 - 10. + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU)
+        - std::f32::consts::PI;
+    assert!((game.orbit - expected).abs() < 0.0001);
+    game.window_focus_lost();
+    assert!(game.orbit_drag.is_none());
+    assert!(!game.dragging);
+}
+
+#[test]
+fn captured_orbit_ignores_absolute_cursor_events_and_restores_click_position() {
+    let mut game = Game::new(Hermes::test_map());
+    game.set_overlay(Overlay::Driving);
+    game.move_camera_with_cursor([100., 100.]);
+    game.begin_orbit_drag([100., 100.]);
+    // Exercise captured event routing without requiring a native window in CI.
+    game.orbit_drag.as_mut().unwrap().captured = true;
+    game.cursor_hidden = true;
+    game.orbit_motion([10., 0.]);
+    game.orbit_motion([40., 40.]);
+    game.move_camera_with_cursor([900., 900.]);
+    assert!((game.orbit + 0.2).abs() < 0.0001);
+    assert!((game.camera_pitch - 0.12).abs() < 0.0001);
+    game.cursor_activity(Instant::now());
+    assert!(game.cursor_hidden);
+    game.stop_orbit_drag();
+    assert_eq!(game.cursor, Some([100., 100.]));
+    assert!(!game.cursor_hidden);
+    game.orbit_motion([40., 40.]);
+    assert!((game.orbit + 0.2).abs() < 0.0001);
 }
 
 #[test]

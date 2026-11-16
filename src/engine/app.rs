@@ -24,7 +24,7 @@ use std::{collections::HashSet, sync::Arc};
 use web_time::{Duration, Instant};
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
+    event::{DeviceEvent, DeviceId, ElementState, MouseButton, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, KeyCode, PhysicalKey},
     window::{Window, WindowId},
@@ -35,6 +35,7 @@ const CAMERA_ORBIT_SENSITIVITY: f32 = 0.005;
 const CAMERA_PITCH_SENSITIVITY: f32 = 0.003;
 const CAMERA_RETURN_RATE: f32 = 1.0;
 const CURSOR_IDLE_DELAY: Duration = Duration::from_secs(2);
+mod camera_input;
 #[cfg(not(target_arch = "wasm32"))]
 mod construction;
 mod cutscenes;
@@ -126,6 +127,7 @@ struct Game {
     orbit: f32,
     camera_pitch: f32,
     dragging: bool,
+    orbit_drag: Option<camera_input::OrbitDrag>,
     cursor: Option<[f32; 2]>,
     cursor_hide_at: Option<Instant>,
     cursor_hidden: bool,
@@ -146,19 +148,6 @@ struct Game {
     frame_rate: FrameRate,
 }
 impl Game {
-    fn move_camera_with_cursor(&mut self, point: [f32; 2]) {
-        if !self.overlay.paused() {
-            if let Some(previous) = self.cursor {
-                self.orbit = (self.orbit - (point[0] - previous[0]) * CAMERA_ORBIT_SENSITIVITY)
-                    .clamp(-std::f32::consts::PI, std::f32::consts::PI);
-                self.camera_pitch = (self.camera_pitch
-                    + (point[1] - previous[1]) * CAMERA_PITCH_SENSITIVITY)
-                    .clamp(-0.3, 1.);
-            }
-        }
-        self.cursor = Some(point);
-    }
-
     fn show_cursor(&mut self) {
         self.cursor_hide_at = None;
         if self.cursor_hidden {
@@ -170,6 +159,9 @@ impl Game {
     }
 
     fn cursor_activity(&mut self, now: Instant) {
+        if self.orbit_drag.as_ref().is_some_and(|drag| drag.captured) {
+            return;
+        }
         self.show_cursor();
         self.cursor_hide_at = Some(now + CURSOR_IDLE_DELAY);
     }
@@ -246,7 +238,7 @@ impl Game {
         self.keys.clear();
         #[cfg(target_arch = "wasm32")]
         self.mobile.clear();
-        self.dragging = false;
+        self.stop_orbit_drag();
         self.accumulator = 0.;
         self.last = Instant::now();
         self.frame_rate = FrameRate::default();
@@ -357,6 +349,7 @@ impl Game {
             orbit: 0.,
             camera_pitch: 0.,
             dragging: false,
+            orbit_drag: None,
             cursor: None,
             cursor_hide_at: None,
             cursor_hidden: false,
@@ -870,7 +863,7 @@ impl Game {
         if self.help_visible {
             self.audio.silence();
             self.keys.clear();
-            self.dragging = false;
+            self.stop_orbit_drag();
             self.accumulator = 0.;
             self.cursor_hide_at = None;
             self.cursor_hidden = false;
@@ -892,7 +885,16 @@ impl Game {
     }
 }
 impl ApplicationHandler<GameEvent> for Game {
+    fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
+        if self.orbit_drag.as_ref().is_some_and(|drag| drag.captured) {
+            if let DeviceEvent::MouseMotion { delta } = event {
+                self.orbit_motion([delta.0 as f32, delta.1 as f32]);
+            }
+        }
+    }
+
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        self.stop_orbit_drag();
         if self.fabula.active() {
             self.finish_cutscene(false);
         }
@@ -1006,6 +1008,18 @@ impl ApplicationHandler<GameEvent> for Game {
         ) {
             self.mobile.clear();
         }
+        // Release before UI handlers can consume the button-up event.
+        if matches!(
+            event,
+            WindowEvent::MouseInput {
+                state: ElementState::Released,
+                button: MouseButton::Left,
+                ..
+            } | WindowEvent::Focused(false)
+                | WindowEvent::Occluded(true)
+        ) {
+            self.stop_orbit_drag();
+        }
         if self.fabula.active() {
             if let WindowEvent::KeyboardInput { event: key, .. } = &event {
                 if key.state == ElementState::Pressed
@@ -1069,7 +1083,7 @@ impl ApplicationHandler<GameEvent> for Game {
                 {
                     self.help_visible = true;
                     self.keys.clear();
-                    self.dragging = false;
+                    self.stop_orbit_drag();
                     self.accumulator = 0.;
                     self.audio.silence();
                     self.show_cursor();
@@ -1136,7 +1150,7 @@ impl ApplicationHandler<GameEvent> for Game {
             if phone_shortcut {
                 palette.open_job_feed();
                 self.keys.clear();
-                self.dragging = false;
+                self.stop_orbit_drag();
                 self.accumulator = 0.;
                 self.show_cursor();
                 self.window.as_ref().unwrap().request_redraw();
@@ -1154,7 +1168,7 @@ impl ApplicationHandler<GameEvent> for Game {
                     palette.menu.open();
                 }
                 self.keys.clear();
-                self.dragging = false;
+                self.stop_orbit_drag();
                 self.accumulator = 0.;
                 self.show_cursor();
                 self.window.as_ref().unwrap().request_redraw();
@@ -1174,6 +1188,7 @@ impl ApplicationHandler<GameEvent> for Game {
                     if let WindowEvent::CursorMoved { position, .. } = &event {
                         self.cursor = Some([position.x as f32, position.y as f32]);
                     }
+                    self.stop_orbit_drag();
                     self.show_cursor();
                     self.window.as_ref().unwrap().request_redraw();
                     return;
@@ -1236,10 +1251,12 @@ impl ApplicationHandler<GameEvent> for Game {
                 }
             }
             WindowEvent::CursorEntered { .. } => self.cursor_activity(Instant::now()),
+            WindowEvent::CursorLeft { .. }
+                if self.orbit_drag.as_ref().is_some_and(|drag| drag.captured) => {}
             WindowEvent::CursorLeft { .. } => {
                 self.show_cursor();
                 self.cursor = None;
-                self.dragging = false;
+                self.stop_orbit_drag();
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(key) = event.physical_key {
@@ -1365,8 +1382,6 @@ impl ApplicationHandler<GameEvent> for Game {
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
-                } else {
-                    self.dragging = state == ElementState::Pressed && !self.overlay.paused();
                 }
             }
             WindowEvent::MouseInput {
@@ -1392,6 +1407,7 @@ impl ApplicationHandler<GameEvent> for Game {
                         Overlay::Map => {
                             self.select_map_point(w, h, point);
                         }
+                        Overlay::Driving if !mobile_enabled() => self.begin_orbit_drag(point),
                         _ => {}
                     }
                 }

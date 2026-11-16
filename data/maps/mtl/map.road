@@ -1061,3 +1061,197 @@ junction_42 = map_point(1.3607, 11.0315);
 road_44 = cross_street(junction_35, 1.3803, 10.3651, 1.3705, 10.6983, junction_42);
 
 grade(road_44, 0.1020, 0.1020);
+
+placed_building_15 = building(0.0630000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: granite, glazing: silver, section: frame, ground: lobby, weathering: 0.35, seed: 334, setback: off, corners: stone, roof_units: 2 }, 1.3600031, 1.2815491, 1.4945369, 1.2815491, 1.4945369, 1.4138184, 1.3600031, 1.4138184);
+
+elevation(placed_building_15, 0.1010);
+
+
+
+
+
+
+
+
+
+# Report 68: two-storey Montreal apartments along the west side, junction_7 to junction_32.
+# Fronts follow the street, behind the tree verge and front gardens; both corners stay open.
+west_apartment_01 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3922118, 1.8000000, 1.3885941, 1.9230000, 1.2335941, 1.9230000, 1.2372118, 1.8000000);
+elevation(west_apartment_01, 0.102);
+
+west_apartment_02 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3883000, 1.9330000, 1.3846824, 2.0560000, 1.2146824, 2.0560000, 1.2183000, 1.9330000);
+elevation(west_apartment_02, 0.102);
+
+west_apartment_03 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3843882, 2.0660000, 1.3807706, 2.1890000, 1.1957706, 2.1890000, 1.1993882, 2.0660000);
+elevation(west_apartment_03, 0.102);
+
+west_apartment_04 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3804765, 2.1990000, 1.3768588, 2.3220000, 1.2218588, 2.3220000, 1.2254765, 2.1990000);
+elevation(west_apartment_04, 0.102);
+
+west_apartment_05 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3765647, 2.3320000, 1.3729471, 2.4550000, 1.2029471, 2.4550000, 1.2065647, 2.3320000);
+elevation(west_apartment_05, 0.102);
+
+west_apartment_06 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3726529, 2.4650000, 1.3690353, 2.5880000, 1.1840353, 2.5880000, 1.1876529, 2.4650000);
+elevation(west_apartment_06, 0.102);
+
+west_apartment_07 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3687412, 2.5980000, 1.3651235, 2.7210000, 1.2101235, 2.7210000, 1.2137412, 2.5980000);
+elevation(west_apartment_07, 0.102);
+
+west_apartment_08 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3648294, 2.7310000, 1.3612118, 2.8540000, 1.1912118, 2.8540000, 1.1948294, 2.7310000);
+elevation(west_apartment_08, 0.102);
+
+west_apartment_09 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3609176, 2.8640000, 1.3573000, 2.9870000, 1.1723000, 2.9870000, 1.1759176, 2.8640000);
+elevation(west_apartment_09, 0.102);
+
+west_apartment_10 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3570059, 2.9970000, 1.3533882, 3.1200000, 1.1983882, 3.1200000, 1.2020059, 2.9970000);
+elevation(west_apartment_10, 0.102);
+
+west_apartment_11 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3530941, 3.1300000, 1.3494765, 3.2530000, 1.1794765, 3.2530000, 1.1830941, 3.1300000);
+elevation(west_apartment_11, 0.102);
+
+west_apartment_12 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3491824, 3.2630000, 1.3455647, 3.3860000, 1.1605647, 3.3860000, 1.1641824, 3.2630000);
+elevation(west_apartment_12, 0.102);
+
+west_apartment_13 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3452706, 3.3960000, 1.3416529, 3.5190000, 1.1866529, 3.5190000, 1.1902706, 3.3960000);
+elevation(west_apartment_13, 0.102);
+
+west_apartment_14 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3413588, 3.5290000, 1.3377412, 3.6520000, 1.1677412, 3.6520000, 1.1713588, 3.5290000);
+elevation(west_apartment_14, 0.102);
+
+west_apartment_15 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3374471, 3.6620000, 1.3338294, 3.7850000, 1.1488294, 3.7850000, 1.1524471, 3.6620000);
+elevation(west_apartment_15, 0.102);
+
+west_apartment_16 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3335353, 3.7950000, 1.3299176, 3.9180000, 1.1749176, 3.9180000, 1.1785353, 3.7950000);
+elevation(west_apartment_16, 0.102);
+
+west_apartment_17 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3296235, 3.9280000, 1.3260059, 4.0510000, 1.1560059, 4.0510000, 1.1596235, 3.9280000);
+elevation(west_apartment_17, 0.102);
+
+west_apartment_18 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3257118, 4.0610000, 1.3220941, 4.1840000, 1.1370941, 4.1840000, 1.1407118, 4.0610000);
+elevation(west_apartment_18, 0.102);
+
+west_apartment_19 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3218000, 4.1940000, 1.3181824, 4.3170000, 1.1631824, 4.3170000, 1.1668000, 4.1940000);
+elevation(west_apartment_19, 0.102);
+
+west_apartment_20 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3178882, 4.3270000, 1.3142706, 4.4500000, 1.1442706, 4.4500000, 1.1478882, 4.3270000);
+elevation(west_apartment_20, 0.102);
+
+west_apartment_21 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3139765, 4.4600000, 1.3103588, 4.5830000, 1.1253588, 4.5830000, 1.1289765, 4.4600000);
+elevation(west_apartment_21, 0.102);
+
+west_apartment_22 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3100647, 4.5930000, 1.3064471, 4.7160000, 1.1514471, 4.7160000, 1.1550647, 4.5930000);
+elevation(west_apartment_22, 0.102);
+
+west_apartment_23 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3061529, 4.7260000, 1.3025353, 4.8490000, 1.1325353, 4.8490000, 1.1361529, 4.7260000);
+elevation(west_apartment_23, 0.102);
+
+west_apartment_24 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.3022412, 4.8590000, 1.2986235, 4.9820000, 1.1136235, 4.9820000, 1.1172412, 4.8590000);
+elevation(west_apartment_24, 0.102);
+
+west_apartment_25 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2983294, 4.9920000, 1.2947118, 5.1150000, 1.1397118, 5.1150000, 1.1433294, 4.9920000);
+elevation(west_apartment_25, 0.102);
+
+west_apartment_26 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2944176, 5.1250000, 1.2908000, 5.2480000, 1.1208000, 5.2480000, 1.1244176, 5.1250000);
+elevation(west_apartment_26, 0.102);
+
+west_apartment_27 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2905059, 5.2580000, 1.2868882, 5.3810000, 1.1018882, 5.3810000, 1.1055059, 5.2580000);
+elevation(west_apartment_27, 0.102);
+
+west_apartment_28 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2865941, 5.3910000, 1.2829765, 5.5140000, 1.1279765, 5.5140000, 1.1315941, 5.3910000);
+elevation(west_apartment_28, 0.102);
+
+west_apartment_29 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2826824, 5.5240000, 1.2790647, 5.6470000, 1.1090647, 5.6470000, 1.1126824, 5.5240000);
+elevation(west_apartment_29, 0.102);
+
+west_apartment_30 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2787706, 5.6570000, 1.2751529, 5.7800000, 1.0901529, 5.7800000, 1.0937706, 5.6570000);
+elevation(west_apartment_30, 0.102);
+
+west_apartment_31 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2748588, 5.7900000, 1.2712412, 5.9130000, 1.1162412, 5.9130000, 1.1198588, 5.7900000);
+elevation(west_apartment_31, 0.102);
+
+west_apartment_32 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2709471, 5.9230000, 1.2673294, 6.0460000, 1.0973294, 6.0460000, 1.1009471, 5.9230000);
+elevation(west_apartment_32, 0.102);
+
+west_apartment_33 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2670353, 6.0560000, 1.2634176, 6.1790000, 1.0784176, 6.1790000, 1.0820353, 6.0560000);
+elevation(west_apartment_33, 0.102);
+
+west_apartment_34 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2631235, 6.1890000, 1.2595059, 6.3120000, 1.1045059, 6.3120000, 1.1081235, 6.1890000);
+elevation(west_apartment_34, 0.102);
+
+west_apartment_35 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2592118, 6.3220000, 1.2555941, 6.4450000, 1.0855941, 6.4450000, 1.0892118, 6.3220000);
+elevation(west_apartment_35, 0.102);
+
+west_apartment_36 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2553000, 6.4550000, 1.2516824, 6.5780000, 1.0666824, 6.5780000, 1.0703000, 6.4550000);
+elevation(west_apartment_36, 0.102);
+
+west_apartment_37 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2513882, 6.5880000, 1.2477706, 6.7110000, 1.0927706, 6.7110000, 1.0963882, 6.5880000);
+elevation(west_apartment_37, 0.102);
+
+west_apartment_38 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2474765, 6.7210000, 1.2438588, 6.8440000, 1.0738588, 6.8440000, 1.0774765, 6.7210000);
+elevation(west_apartment_38, 0.102);
+
+west_apartment_39 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2435647, 6.8540000, 1.2399471, 6.9770000, 1.0549471, 6.9770000, 1.0585647, 6.8540000);
+elevation(west_apartment_39, 0.102);
+
+west_apartment_40 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2396529, 6.9870000, 1.2360353, 7.1100000, 1.0810353, 7.1100000, 1.0846529, 6.9870000);
+elevation(west_apartment_40, 0.102);
+
+west_apartment_41 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2357412, 7.1200000, 1.2321235, 7.2430000, 1.0621235, 7.2430000, 1.0657412, 7.1200000);
+elevation(west_apartment_41, 0.102);
+
+west_apartment_42 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2318294, 7.2530000, 1.2282118, 7.3760000, 1.0432118, 7.3760000, 1.0468294, 7.2530000);
+elevation(west_apartment_42, 0.102);
+
+west_apartment_43 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2279176, 7.3860000, 1.2243000, 7.5090000, 1.0693000, 7.5090000, 1.0729176, 7.3860000);
+elevation(west_apartment_43, 0.102);
+
+west_apartment_44 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2240059, 7.5190000, 1.2203882, 7.6420000, 1.0503882, 7.6420000, 1.0540059, 7.5190000);
+elevation(west_apartment_44, 0.102);
+
+west_apartment_45 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2200941, 7.6520000, 1.2164765, 7.7750000, 1.0314765, 7.7750000, 1.0350941, 7.6520000);
+elevation(west_apartment_45, 0.102);
+
+west_apartment_46 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2161824, 7.7850000, 1.2125647, 7.9080000, 1.0575647, 7.9080000, 1.0611824, 7.7850000);
+elevation(west_apartment_46, 0.102);
+
+west_apartment_47 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2122706, 7.9180000, 1.2086529, 8.0410000, 1.0386529, 8.0410000, 1.0422706, 7.9180000);
+elevation(west_apartment_47, 0.102);
+
+west_apartment_48 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2083588, 8.0510000, 1.2047412, 8.1740000, 1.0197412, 8.1740000, 1.0233588, 8.0510000);
+elevation(west_apartment_48, 0.102);
+
+west_apartment_49 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2044471, 8.1840000, 1.2008294, 8.3070000, 1.0458294, 8.3070000, 1.0494471, 8.1840000);
+elevation(west_apartment_49, 0.102);
+
+west_apartment_50 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2005353, 8.3170000, 1.1969176, 8.4400000, 1.0269176, 8.4400000, 1.0305353, 8.3170000);
+elevation(west_apartment_50, 0.102);
+
+west_apartment_51 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1966235, 8.4500000, 1.1930059, 8.5730000, 1.0080059, 8.5730000, 1.0116235, 8.4500000);
+elevation(west_apartment_51, 0.102);
+
+west_apartment_52 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1927118, 8.5830000, 1.1890941, 8.7060000, 1.0340941, 8.7060000, 1.0377118, 8.5830000);
+elevation(west_apartment_52, 0.102);
+
+west_apartment_53 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1888000, 8.7160000, 1.1851824, 8.8390000, 1.0151824, 8.8390000, 1.0188000, 8.7160000);
+elevation(west_apartment_53, 0.102);
+
+west_apartment_54 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1848882, 8.8490000, 1.1812706, 8.9720000, 0.9962706, 8.9720000, 0.9998882, 8.8490000);
+elevation(west_apartment_54, 0.102);
+
+west_apartment_55 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1809765, 8.9820000, 1.1773588, 9.1050000, 1.0223588, 9.1050000, 1.0259765, 8.9820000);
+elevation(west_apartment_55, 0.102);
+
+west_apartment_56 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1770647, 9.1150000, 1.1734471, 9.2380000, 1.0034471, 9.2380000, 1.0070647, 9.1150000);
+elevation(west_apartment_56, 0.102);
+
+west_apartment_57 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1731529, 9.2480000, 1.1695353, 9.3710000, 0.9845353, 9.3710000, 0.9881529, 9.2480000);
+elevation(west_apartment_57, 0.102);
+
+west_apartment_58 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1692412, 9.3810000, 1.1656235, 9.5040000, 1.0106235, 9.5040000, 1.0142412, 9.3810000);
+elevation(west_apartment_58, 0.102);
+
+west_apartment_59 = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1653294, 9.5140000, 1.1617118, 9.6370000, 0.9917118, 9.6370000, 0.9953294, 9.5140000);
+elevation(west_apartment_59, 0.102);
+
+west_apartment_60 = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.1614176, 9.6470000, 1.1578000, 9.7700000, 0.9728000, 9.7700000, 0.9764176, 9.6470000);
+elevation(west_apartment_60, 0.102);

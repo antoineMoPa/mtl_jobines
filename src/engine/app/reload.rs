@@ -262,7 +262,7 @@ impl Game {
         self.previous_car_yaw = self.world.player().yaw;
         self.route_revision = 0;
         self.keys.clear();
-        self.dragging = false;
+        self.stop_orbit_drag();
         self.accumulator = 0.;
         self.last = Instant::now();
         self.scene_dirty = true;

@@ -69,6 +69,13 @@ pub(super) fn run(
 }
 
 impl ApplicationHandler<GameEvent> for NativeApp {
+    fn device_event(&mut self, event_loop: &ActiveEventLoop, id: DeviceId, event: DeviceEvent) {
+        // Captured camera input arrives as device motion, not cursor positions.
+        if let Some(game) = &mut self.game {
+            game.device_event(event_loop, id, event);
+        }
+    }
+
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(game) = &mut self.game {
             game.resumed(event_loop);
