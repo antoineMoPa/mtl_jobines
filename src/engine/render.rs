@@ -777,6 +777,12 @@ impl Renderer {
     pub fn update_route(&mut self, points: &[[f32; 2]]) {
         self.hud.update_route(&self.device, points);
     }
+    pub fn update_vector_map(
+        &mut self,
+        city: &std::sync::Arc<opencity::runtime::City>,
+    ) -> Result<(), String> {
+        self.hud.update_vectors(&self.device, &self.queue, city)
+    }
     pub fn update_minimap(&mut self, pixels: &[u8]) {
         self.hud.update(&self.queue, pixels);
     }

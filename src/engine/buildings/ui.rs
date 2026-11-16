@@ -231,7 +231,8 @@ impl Document {
                             let mut angle = edge.y.atan2(edge.x).to_degrees();
                             ui.label("Angle");
                             if ui
-                                .add(egui::DragValue::new(&mut angle).speed(1.).suffix("°"))
+                                .add(egui::DragValue::new(&mut angle).speed(5.).suffix("°"))
+                                .on_hover_text("Drag to rotate; hold Shift for precision or click to type an angle.")
                                 .changed()
                                 && angle.is_finite()
                             {
@@ -268,6 +269,13 @@ impl Document {
                         }
                         if ui.button(".glb").clicked() {
                             self.importing = true;
+                        }
+                        if ui
+                            .button("Delete")
+                            .on_hover_text("Backspace / Delete")
+                            .clicked()
+                        {
+                            self.error = self.delete(index).err().unwrap_or_default();
                         }
                     }
                     if ui.button("Done").clicked() {

@@ -1,3 +1,4 @@
+mod vector;
 use crate::hermes::MinimapView;
 use crate::hermes::TEXTURE_SIZE;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -162,6 +163,10 @@ pub struct Hud {
     group: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
     ready: bool,
+    vector_city: Option<std::sync::Arc<opencity::runtime::City>>,
+    vector_pipeline: wgpu::RenderPipeline,
+    vector_buffer: wgpu::Buffer,
+    vector_count: u32,
     route_pipeline: wgpu::RenderPipeline,
     route_buffer: wgpu::Buffer,
     route_count: u32,
@@ -277,6 +282,35 @@ impl Hud {
             multiview_mask: None,
             cache: None,
         });
+        let vector_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Hermes vector map"),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_map"),
+                compilation_options: Default::default(),
+                buffers: &[Some(wgpu::VertexBufferLayout {
+                    array_stride: 20,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0=>Float32x2,1=>Float32x3],
+                })],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_map"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: Default::default(),
+            depth_stencil: None,
+            multisample: Default::default(),
+            multiview_mask: None,
+            cache: None,
+        });
         let route_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Hermes route"),
             layout: Some(&layout),
@@ -312,7 +346,17 @@ impl Hud {
             usage: wgpu::BufferUsages::VERTEX,
             mapped_at_creation: false,
         });
+        let vector_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("empty vector map"),
+            size: 20,
+            usage: wgpu::BufferUsages::VERTEX,
+            mapped_at_creation: false,
+        });
         Self {
+            vector_city: None,
+            vector_pipeline,
+            vector_buffer,
+            vector_count: 0,
             texture,
             uniform,
             group,
@@ -322,6 +366,33 @@ impl Hud {
             route_buffer,
             route_count: 0,
         }
+    }
+    pub fn update_vectors(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        city: &std::sync::Arc<opencity::runtime::City>,
+    ) -> Result<(), String> {
+        if self
+            .vector_city
+            .as_ref()
+            .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, city))
+        {
+            return Ok(());
+        }
+        use wgpu::util::DeviceExt;
+        let (vertices, background) = vector::build(city)?;
+        self.update(queue, &background);
+        self.vector_count = vertices.len() as u32;
+        if !vertices.is_empty() {
+            self.vector_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("navigation vector geometry"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        }
+        self.vector_city = Some(city.clone());
+        Ok(())
     }
     pub fn update_route(&mut self, device: &wgpu::Device, points: &[[f32; 2]]) {
         use wgpu::util::DeviceExt;
@@ -352,6 +423,8 @@ impl Hud {
         }
     }
     pub fn update(&mut self, queue: &wgpu::Queue, pixels: &[u8]) {
+        self.vector_city = None;
+        self.vector_count = 0;
         assert_eq!(
             pixels.len(),
             TEXTURE_SIZE as usize * TEXTURE_SIZE as usize * 4
@@ -405,7 +478,11 @@ impl Hud {
             }
         }
         let data = Uniform {
-            texture_region: view.texture_region,
+            texture_region: if self.vector_city.is_some() {
+                [0., 0., 1., 1.]
+            } else {
+                view.texture_region
+            },
             full_map: [
                 full_map.center[0],
                 full_map.center[1],
@@ -472,6 +549,11 @@ impl Hud {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.group, &[]);
         pass.draw(0..if overlay == Overlay::Driving { 18 } else { 6 }, 0..1);
+        if matches!(overlay, Overlay::Driving | Overlay::Map) && self.vector_count > 0 {
+            pass.set_pipeline(&self.vector_pipeline);
+            pass.set_vertex_buffer(0, self.vector_buffer.slice(..));
+            pass.draw(0..self.vector_count, 0..1);
+        }
         if matches!(overlay, Overlay::Driving | Overlay::Map) && self.route_count > 0 {
             pass.set_pipeline(&self.route_pipeline);
             pass.set_vertex_buffer(0, self.route_buffer.slice(..));

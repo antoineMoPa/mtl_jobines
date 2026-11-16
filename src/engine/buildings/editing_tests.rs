@@ -188,6 +188,37 @@ fn saved_buildings_can_be_selected_after_toolbar_focus_and_deleted() {
         .is_empty());
 }
 #[test]
+fn delete_shortcuts_work_while_a_toolbar_button_has_focus() {
+    for shortcut in [egui::Key::Backspace, egui::Key::Delete] {
+        let mut f = Fixture::new();
+        f.place();
+        let ctx = egui::Context::default();
+        let matrix = view(&f.document);
+        for events in [vec![], vec![key(shortcut)]] {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(matrix.viewport),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    ui.button("Build").request_focus();
+                    assert!(ctx.egui_wants_keyboard_input());
+                    f.document.interaction(&ctx, &f.city, matrix, &[]);
+                },
+            );
+            output.textures_delta.clear();
+        }
+        assert!(f.document.items.is_empty(), "{}", f.document.error);
+        assert!(f.document.selected.is_none());
+        assert!(Document::open(&f.path, Vec3::ZERO, 0.)
+            .unwrap()
+            .items
+            .is_empty());
+    }
+}
+
+#[test]
 fn backspace_during_text_entry_keeps_the_selected_building() {
     let mut f = Fixture::new();
     f.place();

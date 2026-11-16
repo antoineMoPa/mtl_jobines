@@ -2,6 +2,9 @@
 use super::hud::{MenuItem, Overlay};
 use egui::{Color32, RichText, Stroke};
 
+mod settings;
+pub(super) use settings::show as settings;
+
 const INK: Color32 = Color32::from_rgb(38, 62, 61);
 const MUTED: Color32 = Color32::from_rgb(101, 126, 121);
 const GREEN: Color32 = Color32::from_rgb(49, 125, 109);
@@ -146,6 +149,14 @@ fn control_row(ui: &mut egui::Ui, key: &str, label: &str) {
     });
 }
 
+fn card_frame() -> egui::Frame {
+    egui::Frame::new()
+        .fill(PAPER)
+        .stroke(Stroke::new(4., INK))
+        .corner_radius(18)
+        .inner_margin(egui::Margin::same(22))
+}
+
 fn shade(ctx: &egui::Context) {
     ctx.layer_painter(egui::LayerId::new(
         egui::Order::Middle,
@@ -166,93 +177,81 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
         .show(ctx, |ui| {
             let width = (bounds.width() - 32.).min(510.).max(250.);
-            egui::Frame::new()
-                .fill(PAPER)
-                .stroke(Stroke::new(4., INK))
-                .corner_radius(18)
-                .inner_margin(egui::Margin::same(22))
-                .show(ui, |ui| {
-                    ui.set_width(width - 44.);
-                    if super::app::mobile_enabled() {
+            card_frame().show(ui, |ui| {
+                ui.set_width(width - 44.);
+                if super::app::mobile_enabled() {
+                    ui.label(
+                        RichText::new("À vous la ville !")
+                            .color(INK)
+                            .font(egui::FontId::new(24., egui::FontFamily::Name(FONT.into()))),
+                    );
+                    ui.add_space(12.);
+                    for text in [
+                        "À gauche : maintenez les flèches pour vous déplacer.",
+                        "À droite : courir, sauter ou conduire.",
+                        "En haut : carte, téléphone et menu.",
+                    ] {
                         ui.label(
-                            RichText::new("À vous la ville !")
+                            RichText::new(text)
                                 .color(INK)
-                                .font(egui::FontId::new(24., egui::FontFamily::Name(FONT.into()))),
+                                .font(egui::FontId::new(17., egui::FontFamily::Name(FONT.into()))),
                         );
-                        ui.add_space(12.);
-                        for text in [
-                            "À gauche : maintenez les flèches pour vous déplacer.",
-                            "À droite : courir, sauter ou conduire.",
-                            "En haut : carte, téléphone et menu.",
-                        ] {
-                            ui.label(
-                                RichText::new(text).color(INK).font(egui::FontId::new(
-                                    17.,
-                                    egui::FontFamily::Name(FONT.into()),
-                                )),
-                            );
-                            ui.add_space(10.);
-                        }
+                        ui.add_space(10.);
+                    }
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
+                        arrows(ui);
+                        ui.label(
+                            RichText::new("Se déplacer")
+                                .color(INK)
+                                .font(egui::FontId::new(18., egui::FontFamily::Name(FONT.into()))),
+                        );
+                    });
+                    ui.separator();
+                    ui.add_space(8.);
+                    control_row(ui, "F", "Entrer ou sortir du véhicule");
+                    ui.add_space(8.);
+                    ui.separator();
+                    ui.add_space(8.);
+                    control_row(ui, "P", "Ouvrir le téléphone");
+                    ui.add_space(8.);
+                    ui.separator();
+                    ui.add_space(16.);
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
+                        letter_key(ui, "?");
+                        ui.label(
+                            RichText::new("Retrouvez cette aide à tout moment.")
+                                .color(MUTED)
+                                .font(egui::FontId::new(15., egui::FontFamily::Name(FONT.into()))),
+                        );
+                    });
+                }
+                ui.add_space(18.);
+                let label = if first_play { "JOUER" } else { "REPRENDRE" };
+                let (button, response) =
+                    ui.allocate_exact_size(egui::vec2(width - 44., 56.), egui::Sense::click());
+                ui.painter().rect_filled(
+                    button,
+                    10.,
+                    if response.hovered() {
+                        Color32::from_rgb(62, 147, 129)
                     } else {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
-                            arrows(ui);
-                            ui.label(
-                                RichText::new("Se déplacer")
-                                    .color(INK)
-                                    .font(egui::FontId::new(
-                                        18.,
-                                        egui::FontFamily::Name(FONT.into()),
-                                    )),
-                            );
-                        });
-                        ui.separator();
-                        ui.add_space(8.);
-                        control_row(ui, "F", "Entrer ou sortir du véhicule");
-                        ui.add_space(8.);
-                        ui.separator();
-                        ui.add_space(8.);
-                        control_row(ui, "P", "Ouvrir le téléphone");
-                        ui.add_space(8.);
-                        ui.separator();
-                        ui.add_space(16.);
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
-                            letter_key(ui, "?");
-                            ui.label(
-                                RichText::new("Retrouvez cette aide à tout moment.")
-                                    .color(MUTED)
-                                    .font(egui::FontId::new(
-                                        15.,
-                                        egui::FontFamily::Name(FONT.into()),
-                                    )),
-                            );
-                        });
-                    }
-                    ui.add_space(18.);
-                    let label = if first_play { "JOUER" } else { "REPRENDRE" };
-                    let (button, response) =
-                        ui.allocate_exact_size(egui::vec2(width - 44., 56.), egui::Sense::click());
-                    ui.painter().rect_filled(
-                        button,
-                        10.,
-                        if response.hovered() {
-                            Color32::from_rgb(62, 147, 129)
-                        } else {
-                            GREEN
-                        },
-                    );
-                    ui.painter().text(
-                        button.center(),
-                        egui::Align2::CENTER_CENTER,
-                        label,
-                        egui::FontId::new(22., egui::FontFamily::Name(FONT.into())),
-                        Color32::WHITE,
-                    );
-                    if response.clicked() {
-                        *open = false;
-                    }
-                });
+                        GREEN
+                    },
+                );
+                ui.painter().text(
+                    button.center(),
+                    egui::Align2::CENTER_CENTER,
+                    label,
+                    egui::FontId::new(22., egui::FontFamily::Name(FONT.into())),
+                    Color32::WHITE,
+                );
+                if response.clicked() {
+                    *open = false;
+                }
+            });
         });
 }
 
@@ -269,58 +268,51 @@ pub(super) fn menu(
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
         .show(ctx, |ui| {
             let width = (bounds.width() - 32.).min(360.).max(250.);
-            egui::Frame::new()
-                .fill(PAPER)
-                .stroke(Stroke::new(4., INK))
-                .corner_radius(18)
-                .inner_margin(egui::Margin::same(22))
-                .show(ui, |ui| {
-                    ui.set_width(width - 44.);
-                    for (item, label) in [
-                        (
-                            MenuItem::Resume,
-                            if overlay == Overlay::Start {
-                                "JOUER"
-                            } else {
-                                "REPRENDRE"
-                            },
-                        ),
-                        (MenuItem::Map, "CARTE"),
-                        (MenuItem::Settings, "PARAMÈTRES"),
-                        (MenuItem::Exit, "QUITTER"),
-                    ] {
-                        let (rect, response) = ui.allocate_exact_size(
-                            egui::vec2(width - 44., 52.),
-                            egui::Sense::click(),
-                        );
-                        if response.hovered() {
-                            *selection = item;
-                        }
-                        let active = *selection == item || response.hovered();
-                        ui.painter().rect_filled(
-                            rect,
-                            10.,
-                            if active { GREEN } else { Color32::WHITE },
-                        );
-                        ui.painter().rect_stroke(
-                            rect,
-                            10.,
-                            Stroke::new(2., INK),
-                            egui::StrokeKind::Inside,
-                        );
-                        ui.painter().text(
-                            rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            label,
-                            egui::FontId::new(22., egui::FontFamily::Name(FONT.into())),
-                            if active { Color32::WHITE } else { INK },
-                        );
-                        if response.clicked() {
-                            clicked = Some(item);
-                        }
-                        ui.add_space(10.);
+            card_frame().show(ui, |ui| {
+                ui.set_width(width - 44.);
+                for (item, label) in [
+                    (
+                        MenuItem::Resume,
+                        if overlay == Overlay::Start {
+                            "JOUER"
+                        } else {
+                            "REPRENDRE"
+                        },
+                    ),
+                    (MenuItem::Map, "CARTE"),
+                    (MenuItem::Settings, "PARAMÈTRES"),
+                    (MenuItem::Exit, "QUITTER"),
+                ] {
+                    let (rect, response) =
+                        ui.allocate_exact_size(egui::vec2(width - 44., 52.), egui::Sense::click());
+                    if response.hovered() {
+                        *selection = item;
                     }
-                });
+                    let active = *selection == item || response.hovered();
+                    ui.painter().rect_filled(
+                        rect,
+                        10.,
+                        if active { GREEN } else { Color32::WHITE },
+                    );
+                    ui.painter().rect_stroke(
+                        rect,
+                        10.,
+                        Stroke::new(2., INK),
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.painter().text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        label,
+                        egui::FontId::new(22., egui::FontFamily::Name(FONT.into())),
+                        if active { Color32::WHITE } else { INK },
+                    );
+                    if response.clicked() {
+                        clicked = Some(item);
+                    }
+                    ui.add_space(10.);
+                }
+            });
         });
     clicked
 }

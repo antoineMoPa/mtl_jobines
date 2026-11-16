@@ -1946,6 +1946,7 @@ dependencies = [
  "bytemuck",
  "console_error_panic_hook",
  "cpal 0.15.3",
+ "earcutr",
  "egui",
  "egui-winit",
  "egui_command_palette",

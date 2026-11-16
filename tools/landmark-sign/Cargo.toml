@@ -1,0 +1,11 @@
+[package]
+name = "landmark-sign"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+ttf-parser = "0.25"
+earcutr = "0.5"

@@ -111,6 +111,7 @@ pub(super) fn box_local(
         mesh.vertices.push(v);
     }
 }
+#[cfg(test)]
 pub(super) fn build(city: &City) -> Mesh {
     parts(city).0
 }
@@ -185,10 +186,11 @@ fn roof_skin(
     }
     mesh
 }
+#[cfg(test)]
 pub(crate) fn prop_groups(city: &City) -> Vec<Vec<Mesh>> {
     parts(city).1
 }
-fn parts(city: &City) -> (Mesh, Vec<Vec<Mesh>>) {
+pub(super) fn parts(city: &City) -> (Mesh, Vec<Vec<Mesh>>) {
     let mut mesh = Mesh::default();
     let mut props = Vec::new();
     for (_, feature) in city.query(Region::WholeMap).buildings {

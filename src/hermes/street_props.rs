@@ -1,20 +1,29 @@
 //! Approved offline-workbench GLBs, placed by the shared sidewalk feature layout.
+#[cfg(test)]
 use super::external_models;
 use crate::props::{Kind, Part, Placement};
 use glam::Vec3;
-use opencity::runtime::{City, Mesh, Region, StreetFeatureKind};
+#[cfg(test)]
+use opencity::runtime::Mesh;
+use opencity::runtime::{City, Region, StreetFeatureKind};
+#[cfg(test)]
 use std::sync::OnceLock;
 
+#[cfg(test)]
 const BENCH: &[u8] = include_bytes!("../../data/props/bench.glb");
+#[cfg(test)]
 const BIN: &[u8] = include_bytes!("../../data/props/bin.glb");
+#[cfg(test)]
 const LAMP: &[u8] = include_bytes!("../../data/props/lamp.glb");
 
+#[cfg(test)]
 #[derive(Clone, Copy)]
 enum Model {
     Bench,
     Lamp,
     Bin,
 }
+#[cfg(test)]
 impl Model {
     fn index(self) -> usize {
         match self {
@@ -52,6 +61,7 @@ impl Model {
     }
 }
 
+#[cfg(test)]
 fn placed(model: Model, position: [f32; 3], heading: f32) -> Vec<Mesh> {
     let (sin, cos) = heading.sin_cos();
     let mut lower = Mesh::default();
@@ -100,40 +110,38 @@ pub(super) fn groups(city: &City) -> Vec<Vec<Mesh>> {
     );
     groups
 }
+// Keep one local mesh per model; placements carry only transforms. Collision hulls
+// are still installed by Props near the player and broken assemblies retain their IDs.
+fn automatic_parts(kind: Kind, position: [f32; 3], heading: f32) -> Vec<Part> {
+    let mut parts = Placement {
+        kind,
+        position: Vec3::from_array(position),
+        heading: heading.to_degrees(),
+    }
+    .parts();
+    for part in &mut parts {
+        part.automatic = true;
+    }
+    parts
+}
 pub(super) fn parts(city: &City) -> Vec<Vec<Part>> {
     let features = city.street_features(Region::WholeMap);
     let bins = super::street_bins::placements(city, &features);
     let mut groups: Vec<_> = features
         .into_iter()
-        .map(|feature| match feature.kind {
-            StreetFeatureKind::Tree => {
-                let mut parts = Placement {
-                    kind: Kind::street_tree(feature.position),
-                    position: Vec3::from_array(feature.position),
-                    heading: feature.heading.to_degrees(),
-                }
-                .parts();
-                for part in &mut parts {
-                    part.automatic = true;
-                }
-                parts
-            }
-            kind => placed(
-                Model::from_feature(kind).expect("bench or lamp"),
-                feature.position,
-                feature.heading,
-            )
-            .into_iter()
-            .map(Part::baked)
-            .collect(),
+        .map(|feature| {
+            let kind = match feature.kind {
+                StreetFeatureKind::Tree => Kind::street_tree(feature.position),
+                StreetFeatureKind::Bench => Kind::Bench,
+                StreetFeatureKind::Lamp => Kind::Lamp,
+            };
+            automatic_parts(kind, feature.position, feature.heading)
         })
         .collect();
-    groups.extend(bins.into_iter().map(|bin| {
-        placed(Model::Bin, bin.position, bin.heading)
-            .into_iter()
-            .map(Part::baked)
-            .collect()
-    }));
+    groups.extend(
+        bins.into_iter()
+            .map(|bin| automatic_parts(Kind::TrashCan, bin.position, bin.heading)),
+    );
     groups
 }
 
@@ -141,6 +149,96 @@ pub(super) fn parts(city: &City) -> Vec<Vec<Part>> {
 mod tests {
     use super::*;
     use opencity::runtime::{StreetFeature, SurfaceKind};
+
+    #[test]
+    #[ignore = "manual current-map memory measurement"]
+    fn profile_current_map_street_storage() {
+        let started = std::time::Instant::now();
+        let hermes = crate::hermes::Hermes::load_with_game_data(
+            std::path::Path::new("data/maps/mtl/map.road"),
+            None,
+        )
+        .unwrap();
+        let map_ready = started.elapsed();
+        let groups = parts(hermes.city());
+        let mut allocations = std::collections::HashSet::new();
+        let mut logical_vertices = 0;
+        let mut resident_vertices = 0;
+        let mut placements = 0;
+        for part in groups
+            .iter()
+            .flatten()
+            .filter(|part| part.template.is_some_and(|(kind, _)| !kind.is_tree()))
+        {
+            placements += 1;
+            logical_vertices += part.mesh.vertices.len();
+            if allocations.insert(std::sync::Arc::as_ptr(&part.mesh)) {
+                resident_vertices += part.mesh.vertices.len();
+            }
+        }
+        let bytes = std::mem::size_of::<opencity::runtime::Vertex>();
+        eprintln!("STREET_STORAGE map_ms={} parts_ms={} parts={} unique_meshes={} old_vertex_bytes={} shared_vertex_bytes={}",
+            map_ready.as_millis(), (started.elapsed() - map_ready).as_millis(), placements,
+            allocations.len(), logical_vertices * bytes, resident_vertices * bytes);
+        assert!(resident_vertices < logical_vertices);
+    }
+
+    #[test]
+    fn shared_street_templates_preserve_placed_geometry_and_lamp_parts() {
+        for (model, kind) in [
+            (Model::Bench, Kind::Bench),
+            (Model::Lamp, Kind::Lamp),
+            (Model::Bin, Kind::TrashCan),
+        ] {
+            for heading in [0., 1.7, -2.4] {
+                let position = [2., -3., 0.2];
+                let legacy = placed(model, position, heading);
+                let parts = automatic_parts(kind, position, heading);
+                assert_eq!(legacy.len(), parts.len());
+                for (index, (expected, part)) in legacy.iter().zip(&parts).enumerate() {
+                    assert!(part.automatic);
+                    assert_eq!(part.template, Some((kind, index)));
+                    assert!(std::sync::Arc::ptr_eq(&part.mesh, &kind.parts()[index]));
+                    assert_eq!(expected.vertices.len(), part.mesh.vertices.len());
+                    for (a, b) in expected.vertices.iter().zip(&part.mesh.vertices) {
+                        let b = part.vertex(*b);
+                        for axis in 0..3 {
+                            assert!((a.position[axis] - b.position[axis]).abs() < 1e-6);
+                            assert!((a.normal[axis] - b.normal[axis]).abs() < 1e-5);
+                            assert!((a.color[axis] - b.color[axis]).abs() < 1e-6);
+                        }
+                        assert_eq!(a.surface[0], b.surface[0]);
+                        assert_eq!(a.surface[2..], b.surface[2..]);
+                        assert_eq!(b.surface[1], 1., "instance shader coverage");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn repeated_street_placements_share_mesh_allocations() {
+        let city = City::from_program(
+            &opencity::parse("road street: sidewalk carlane sidewalk; end street(-1,0,1,0);")
+                .unwrap(),
+            None,
+        )
+        .unwrap();
+        let parts = parts(&city);
+        let mut allocations = std::collections::HashSet::new();
+        let mut logical_vertices = 0;
+        let mut resident_vertices = 0;
+        for part in parts.iter().flatten() {
+            assert!(part.automatic);
+            assert!(part.template.is_some());
+            logical_vertices += part.mesh.vertices.len();
+            if allocations.insert(std::sync::Arc::as_ptr(&part.mesh)) {
+                resident_vertices += part.mesh.vertices.len();
+            }
+        }
+        assert_eq!(allocations.len(), 4, "bench, bin, lamp stem and lamp arm");
+        assert!(logical_vertices > resident_vertices * 4);
+    }
 
     #[test]
     fn automatic_trees_use_instanced_templates_for_per_tree_lod() {

@@ -163,7 +163,11 @@ fn map_to_atlas_offset(offset:vec2<f32>)->vec2<f32> {
     return vec2<f32>(offset.y,-offset.x);
 }
 fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32)->vec3<f32> {
-    var color=textureSampleLevel(chart,filtering,(uv-hud.texture_region.xy)/hud.texture_region.zw,0.0).rgb;
+    let base=textureSampleLevel(chart,filtering,(uv-hud.texture_region.xy)/hud.texture_region.zw,0.0).rgb;
+    return map_overlay(uv,pixels,forward,atlas_pixels,base);
+}
+fn map_overlay(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32, base:vec3<f32>)->vec3<f32> {
+    var color=base;
     if any(uv<vec2<f32>(0.)) || any(uv>vec2<f32>(1.)) {color=vec3<f32>(0.008,0.048,0.091);}
     if hud.destination.z>0. {
         let distance=length((uv-hud.destination.xy)*atlas_pixels);
@@ -277,4 +281,29 @@ fn route_screen(uv:vec2<f32>)->vec2<f32> {
     // Keep the destination and heading markers above the route.
     if length(p-route_screen(hud.map.zw))<14. || length(p-route_screen(hud.destination.xy))<10. {discard;}
     return vec4<f32>(0.05,0.65,1.,1.);
+}
+
+struct MapVertex { @builtin(position) position:vec4<f32>, @location(0) uv:vec2<f32>, @location(1) color:vec3<f32> };
+@vertex fn vs_map(@location(0) uv:vec2<f32>, @location(1) color:vec3<f32>)->MapVertex {
+    let p=route_screen(uv);
+    var out:MapVertex;
+    out.position=vec4<f32>(p.x/hud.screen.x*2.-1.,1.-p.y/hud.screen.y*2.,0.,1.);
+    out.uv=uv;out.color=color;return out;
+}
+@fragment fn fs_map(v:MapVertex)->@location(0) vec4<f32> {
+    let p=v.position.xy;
+    if hud.mode.x==2. {
+        if !inside(p,vec4<f32>(24.,84.,hud.screen.xy-vec2<f32>(48.,108.))) {discard;}
+        let span=min(hud.screen.x-48.,hud.screen.y-108.)*hud.full_map.z;
+        let forward=atlas_to_map_offset(vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w)));
+        return vec4<f32>(map_overlay(v.uv,p-route_screen(hud.map.zw),forward,span,v.color),1.);
+    }
+    let screen=hud.screen.xy;
+    let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));
+    let offset=p-vec2<f32>(16.+size*0.5,screen.y-size*0.5-16.);
+    if length(offset)>size*0.5-3. {discard;}
+    var color=map_overlay(v.uv,offset,vec2<f32>(0.,-1.),size/hud.screen.z,v.color);
+    let uv=offset/size+0.5;
+    if uv.x>0.375 && uv.x<0.625 && uv.y>0.88 && uv.y<0.89 {color=vec3<f32>(0.95);}
+    return vec4<f32>(color,1.);
 }

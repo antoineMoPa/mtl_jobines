@@ -257,6 +257,7 @@ pub(super) fn run(
     if let Some(pixels) = hermes.update_minimap([p.x, p.y]) {
         renderer.update_minimap(pixels);
     }
+    renderer.update_vector_map(hermes.city())?;
     // Exercise the route pipeline in the actual driving and expanded-map GPU snapshots.
     let target_uv = hermes
         .minimap_view([p.x + 4.2, p.y - 4.2], car.yaw)

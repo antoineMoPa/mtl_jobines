@@ -257,7 +257,7 @@ impl Document {
             kind: LandscapeKind::Building,
             name: None,
             points,
-            elevation: self.ground_height(city, location) + 0.001,
+            elevation: self.ground_height(city, location),
             height: Some(height),
             building_style: Some(style),
             building_use: opencity::BuildingUse::Unspecified,

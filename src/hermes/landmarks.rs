@@ -157,6 +157,57 @@ mod tests {
     use super::*;
 
     #[test]
+    fn flour_mill_has_red_lettering_on_white_panels_on_both_sides() {
+        let mesh = source_mesh("study_25").unwrap();
+        for side in [-1., 1.] {
+            let on_sign = |v: &&Vertex| v.position[2] > 2.08 && v.normal[1] * side > 0.99;
+            let white = mesh
+                .vertices
+                .iter()
+                .filter(on_sign)
+                .filter(|v| v.color.iter().all(|c| *c > 0.9))
+                .count();
+            let red = mesh
+                .vertices
+                .iter()
+                .filter(on_sign)
+                .filter(|v| v.color[0] > 0.6 && v.color[1] < 0.01 && v.color[2] < 0.01)
+                .count();
+            assert_eq!(white, 6, "missing white panel on side {side}");
+            assert!(red > 300, "missing lettering on side {side}");
+            for v in mesh
+                .vertices
+                .iter()
+                .filter(on_sign)
+                .filter(|v| v.color[0] > 0.9)
+            {
+                // The original black face sits at y=-0.385; the repair must cover it.
+                assert!(if side < 0. {
+                    v.position[1] < -0.385
+                } else {
+                    v.position[1] > -0.3225
+                });
+            }
+        }
+        for t in mesh
+            .vertices
+            .chunks_exact(3)
+            .filter(|t| t[0].color[0] > 0.6 && t[0].color[1] < 0.01)
+        {
+            let p = t
+                .iter()
+                .map(|v| glam::Vec3::from(v.position))
+                .collect::<Vec<_>>();
+            assert!(
+                (p[1] - p[0])
+                    .cross(p[2] - p[0])
+                    .dot(glam::Vec3::from(t[0].normal))
+                    >= 0.
+            );
+        }
+    }
+
+    #[test]
     fn station_model_fits_its_authored_site_without_blocking_the_forecourt() {
         let program = opencity::parse(concat!(
             "station=building(0.0759,\"models/fuel-station.glb\",{collision:none},",

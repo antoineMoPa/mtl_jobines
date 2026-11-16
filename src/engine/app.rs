@@ -661,12 +661,15 @@ impl Game {
             );
             self.scene_dirty = false;
         }
-        let raster_view = (self.overlay == Overlay::Map).then(|| {
-            self.full_map
-                .raster_view(renderer.config.width as f32, renderer.config.height as f32)
-        });
-        if let Some(pixels) = self.hermes.update_minimap_view(center, raster_view) {
-            renderer.update_minimap(pixels);
+        if let Err(error) = renderer.update_vector_map(self.hermes.city()) {
+            eprintln!("Vector map: {error}");
+            let view = (self.overlay == Overlay::Map).then(|| {
+                self.full_map
+                    .raster_view(renderer.config.width as f32, renderer.config.height as f32)
+            });
+            if let Some(pixels) = self.hermes.update_minimap_view(center, view) {
+                renderer.update_minimap(pixels);
+            }
         }
         self.mesh_center = center;
         let mut navigation = self.hermes.minimap_view(center, self.world.player_yaw());

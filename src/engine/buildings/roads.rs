@@ -222,7 +222,7 @@ impl Document {
             if (ground - road_height).abs() > 0.05 {
                 continue;
             }
-            let feature = super::input::blank(points, ground + 0.001);
+            let feature = super::input::blank(points, ground);
             if self.validate(city, &feature, None).is_ok()
                 && !result
                     .iter()
@@ -271,7 +271,7 @@ mod tests {
                 })
                 .fold(f32::INFINITY, f32::min);
             assert!((nearest_edge - SETBACK).abs() < 1e-6);
-            assert!(!roads.overlaps(&super::super::input::blank(points, elevation + 0.001)));
+            assert!(!roads.overlaps(&super::super::input::blank(points, elevation)));
             assert!(midpoint.dot(direction) >= WIDTH / 2. + SETBACK - 1e-5);
             assert!(midpoint.dot(direction) <= 2. - WIDTH / 2. - SETBACK + 1e-5);
         }
@@ -288,7 +288,7 @@ mod tests {
         let lots: Vec<_> = roads
             .suggestions(Vec2::splat(0.5), 2.)
             .into_iter()
-            .filter(|(p, z)| !roads.overlaps(&super::super::input::blank(p.clone(), z + 0.001)))
+            .filter(|(p, z)| !roads.overlaps(&super::super::input::blank(p.clone(), *z)))
             .collect();
         assert!(lots.len() > 5);
         let angles: Vec<_> = lots

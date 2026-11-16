@@ -14,6 +14,7 @@ resolver = "2"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
+earcutr = "0.5"
 egui = "0.36"
 egui_command_palette = { path = "opencity/crates/egui_command_palette" }
 flate2 = "1"

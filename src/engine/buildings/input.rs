@@ -53,15 +53,20 @@ impl Document {
             }
             return;
         }
-        let keyboard_free = !ctx.egui_wants_keyboard_input();
-        if let Some(index) = self.selected.filter(|_| keyboard_free) {
-            if ctx
-                .input(|i| i.key_pressed(egui::Key::Backspace) || i.key_pressed(egui::Key::Delete))
+        if let Some(index) = self.selected {
+            if !ctx.text_edit_focused()
+                && ctx.input_mut(|i| {
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::Backspace)
+                        || i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)
+                })
             {
                 self.error = self.delete(index).err().unwrap_or_default();
                 ctx.request_repaint();
                 return;
             }
+        }
+        let keyboard_free = !ctx.egui_wants_keyboard_input();
+        if let Some(index) = self.selected.filter(|_| keyboard_free) {
             let delta = ctx.input(|i| {
                 Vec2::new(
                     f32::from(i.key_pressed(egui::Key::ArrowRight))
@@ -210,7 +215,7 @@ impl Document {
                         let z = city
                             .surface_at(c.to_array(), ceiling)
                             .map_or(self.player.z, |s| s.height);
-                        self.draft = Some(blank(points, z + 0.001));
+                        self.draft = Some(blank(points, z));
                     }
                     if primary_released {
                         commit = Some(None);
@@ -238,7 +243,7 @@ impl Document {
                         let mut feature = geometry::translated(before, delta);
                         feature.elevation = city
                             .surface_at(center(&feature).to_array(), ceiling)
-                            .map_or(before.elevation, |surface| surface.height + 0.001);
+                            .map_or(before.elevation, |surface| surface.height);
                         self.draft = Some(feature);
                         ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
                     }

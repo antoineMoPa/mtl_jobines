@@ -150,9 +150,7 @@ fn capture(
     vehicles.update(renderer, world);
     let mut props = PropScenery::default();
     props.update(renderer, world);
-    if let Some(pixels) = hermes.update_minimap([p.x, p.y]) {
-        renderer.update_minimap(pixels);
-    }
+    renderer.update_vector_map(hermes.city())?;
     scenery.update_graffiti(renderer, [p.x, p.y]);
     let mut meshes = scenery.visible([p.x, p.y]);
     meshes.push(&car);

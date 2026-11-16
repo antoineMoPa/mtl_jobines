@@ -4,6 +4,7 @@ mod building_style;
 pub(crate) mod commerce_mesh;
 mod commerce_props;
 mod commercial;
+mod details;
 pub(crate) mod external_models;
 mod game_data;
 pub(crate) mod landmark_destinations;
@@ -124,6 +125,7 @@ pub struct Hermes {
     city: Arc<City>,
     minimap: minimap::Minimap,
     prepared: Option<(Mesh, Mesh)>,
+    details: details::Prepared,
     landmark_mesh: Mesh,
     external_mesh: Mesh,
     external_vertex_count: usize,
@@ -306,6 +308,7 @@ impl Hermes {
             city: Arc::new(city),
             minimap,
             prepared,
+            details: details::Prepared::default(),
             landmark_mesh,
             external_mesh: Mesh::default(),
             external_vertex_count: 0,
@@ -388,14 +391,7 @@ impl Hermes {
             .mesh_with_external_models(Region::WholeMap, 0.04)
             .expect("static map mesh");
         world.vertices.append(&mut self.landmark_mesh.vertices);
-        let (mut details, _) = self.city.building_detail_parts_matching(
-            Region::WholeMap,
-            &building_style::residential(),
-            detailed_frontage,
-        );
-        details
-            .vertices
-            .extend(commerce_mesh::build(&self.city).vertices);
+        let details = self.details.take_scenery(&self.city);
         eprintln!(
             "Prepared {} world vertices and {} detail vertices",
             world.vertices.len(),
@@ -434,21 +430,7 @@ impl Hermes {
     }
     pub(crate) fn prop_parts(&self) -> Vec<Vec<crate::props::Part>> {
         let mut groups = street_props::parts(&self.city);
-        let (_, frontage) = self.city.building_detail_parts_matching(
-            Region::WholeMap,
-            &building_style::residential(),
-            detailed_frontage,
-        );
-        groups.extend(
-            frontage
-                .into_iter()
-                .map(|mesh| vec![crate::props::Part::baked(mesh)]),
-        );
-        groups.extend(
-            commerce_mesh::prop_groups(&self.city)
-                .into_iter()
-                .map(|group| group.into_iter().map(crate::props::Part::baked).collect()),
-        );
+        groups.extend(self.details.take_props(&self.city, self.prepared.is_none()));
         groups.extend(orange_sign::parts(&self.city));
         for entry in &self.authored_props {
             if let Ok(placements) = entry.placements(&self.city) {

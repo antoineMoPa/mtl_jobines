@@ -29,22 +29,8 @@ impl Palette {
         let ctx = ui.ctx().clone();
         if self.settings_open {
             let mut enabled = renderer.antialiasing();
-            let mut close = ui.input(|i| i.key_pressed(egui::Key::Escape));
-            egui::Window::new("Paramètres")
-                .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-                .collapsible(false)
-                .resizable(false)
-                .show(&ctx, |ui| {
-                    ui.heading("Graphismes");
-                    ui.checkbox(&mut enabled, "Anticrénelage 4× (MSAA)");
-                    ui.label("Désactivé par défaut pour réduire la mémoire utilisée.");
-                    ui.label("Les changements s’appliquent immédiatement.");
-                    close |= ui.button("Retour").clicked();
-                });
+            super::super::help::settings(&ctx, &mut self.settings_open, &mut enabled);
             renderer.set_antialiasing(enabled);
-            if close {
-                self.settings_open = false;
-            }
             return None;
         }
         if *help_visible {
