@@ -16,6 +16,29 @@ fn highway_climbs_have_pavement_and_connected_lanes() {
     let city = City::from_program(&program, Some(&root)).unwrap();
     let router = Router::new(&city, &program);
     let traffic = TrafficPaths::new(&city, &program);
+    let projection = map::project(&program);
+    let geometry = opencity::road_geometry::RoadGeometry::compile(&program, &projection);
+    // Sample the compiled pavement: adjoining profiles can taper the shoulders
+    // and shift lane centres near the crest.
+    let point = |road: &opencity::runtime::Road, lane: usize, t: f32| {
+        let index = projection
+            .segments
+            .iter()
+            .position(|s| s.source == road.segment.source)
+            .unwrap();
+        let row = geometry
+            .cross_sections(index)
+            .iter()
+            .min_by(|a, b| (a.t - t).abs().total_cmp(&(b.t - t).abs()))
+            .unwrap();
+        let a = row.boundaries[lane];
+        let b = row.boundaries[lane + 1];
+        Vec3::new(
+            (a.point.x + b.point.x) / 2.,
+            (a.point.y + b.point.y) / 2.,
+            a.height,
+        )
+    };
 
     // The report location used to be grass inside an otherwise empty excavation.
     let reported = city.surface_at([-7.4590015, -0.41013375], 1.).unwrap();
@@ -45,10 +68,6 @@ fn highway_climbs_have_pavement_and_connected_lanes() {
             .map(|(i, _)| i)
             .collect();
         assert_eq!(lanes.len(), 3);
-        let point = |road: &opencity::runtime::Road, lane, t| {
-            let p = map::element_position(&road.segment, &road.definition, lane, t).unwrap();
-            Vec3::new(p.x, p.y, road.segment.height_at(t))
-        };
         for lane in lanes {
             assert_eq!(
                 climb.definition.lane_direction(lane),
@@ -111,7 +130,7 @@ fn highway_climbs_have_pavement_and_connected_lanes() {
             .find(|r| r.segment.name.as_deref() == Some(name))
             .unwrap();
         for lane in 1..=3 {
-            let p = map::element_position(&road.segment, &road.definition, lane, crest_t).unwrap();
+            let p = point(road, lane, crest_t);
             let pavement = road.segment.height_at(crest_t);
             let ground = elevation.original_height_at([p.x, p.y]).unwrap();
             assert!((pavement - ground - 0.002).abs() < 0.00001);

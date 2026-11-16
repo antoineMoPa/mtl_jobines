@@ -1,6 +1,10 @@
 //! Versioned, compressed CPU game data. GPU resources are recreated per device.
+#[cfg(not(target_arch = "wasm32"))]
+mod cache;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data, test))]
 use super::TEXTURE_SIZE;
+#[cfg(not(target_arch = "wasm32"))]
+pub use cache::maintain;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data, test))]
 use flate2::read::GzDecoder;
 #[cfg(not(target_arch = "wasm32"))]

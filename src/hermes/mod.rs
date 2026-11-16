@@ -217,6 +217,7 @@ impl Hermes {
             match GameData::read(&cache_path, key) {
                 Ok(value) => {
                     eprintln!("Using disk cache: {}", cache_path.display());
+                    game_data::maintain(&cache_path);
                     data = Some(value);
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -403,7 +404,10 @@ impl Hermes {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some((key, path)) = &self.cache {
             match game_data::write(path, *key, &world, &details, self.minimap.pixels()) {
-                Ok(()) => eprintln!("Saved disk cache: {}", path.display()),
+                Ok(()) => {
+                    eprintln!("Saved disk cache: {}", path.display());
+                    game_data::maintain(path);
+                }
                 Err(error) => {
                     eprintln!(
                         "Could not save disk cache ({error}); continuing with in-memory \

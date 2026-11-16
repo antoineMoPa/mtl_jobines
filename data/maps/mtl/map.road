@@ -1454,7 +1454,9 @@ curve_home_6_24_left = building(0.0630, { material: red_brick, floor_height: 0.0
 elevation(curve_home_6_24_left, 0.1000009);
 
 # Report 70: OpenCity road_library/cloverleaf.road, rotated to the interstate.
-# Preserve all eight ramp chains and deck grades; replace the west stub with
+# Preserve all eight ramp chains; use game-scale deck heights and rounded crests.
+# The crossing deck is 8 m above the approaches; connector crests are 13 m above them.
+# Replace the west stub with
 # directional three-lane connections to the eastern climb crest.
 road east_clover_exit_ramp:
     verge carlane verge;
@@ -1728,99 +1730,275 @@ east_clover_se_loop_c_merge = east_clover_ramp_mouth(east_clover_se_loop_c_se_lo
 
 east_clover_nw_connector_mouth = east_clover_ramp_mouth(east_clover_nw_direct_exit, 15.771719828, 3.719029194, 15.708459003, 3.321979993, east_clover_nw_connector_nw_connector_seam);
 
-east_clover_nw_connector = east_clover_exit_ramp(east_clover_nw_connector_nw_connector_seam, 15.396466212, 2.372316633, 15.070813884, 1.841182294, east_clover_nw_connector_mid);
+# Rounded vertical crest; exact subdivisions of the library's horizontal curve.
+east_clover_nw_connector_height_1 = map_point(15.507062912, 2.730347633);
+east_clover_nw_connector = east_clover_exit_ramp(east_clover_nw_connector_nw_connector_seam, 15.560262680, 2.870889902, 15.534699440, 2.800269127, east_clover_nw_connector_height_1);
+grade(east_clover_nw_connector, 0.135600999, 0.148968965);
+east_clover_nw_connector_height_2 = map_point(15.418021202, 2.522775650);
+east_clover_nw_connector_part_2 = east_clover_exit_ramp(east_clover_nw_connector_height_1, 15.479426384, 2.660426140, 15.449716568, 2.591203928, east_clover_nw_connector_height_2);
+grade(east_clover_nw_connector_part_2, 0.148968965, 0.164219752);
+east_clover_nw_connector_height_3 = map_point(15.317071915, 2.319967270);
+east_clover_nw_connector_part_3 = east_clover_exit_ramp(east_clover_nw_connector_height_2, 15.386325836, 2.454347372, 15.352645874, 2.386712551, east_clover_nw_connector_height_3);
+grade(east_clover_nw_connector_part_3, 0.164219752, 0.180223659);
+east_clover_nw_connector_height_4 = map_point(15.204754829, 2.122494221);
+east_clover_nw_connector_part_4 = east_clover_exit_ramp(east_clover_nw_connector_height_3, 15.281497955, 2.253221989, 15.244029045, 2.187366247, east_clover_nw_connector_height_4);
+grade(east_clover_nw_connector_part_4, 0.180223659, 0.195850998);
+east_clover_nw_connector_height_5 = map_point(15.081604004, 1.930924773);
+east_clover_nw_connector_part_5 = east_clover_exit_ramp(east_clover_nw_connector_height_4, 15.165480614, 2.057622194, 15.124399185, 1.993733883, east_clover_nw_connector_height_5);
+grade(east_clover_nw_connector_part_5, 0.195850998, 0.209972098);
+east_clover_nw_connector_height_6 = map_point(14.948160172, 1.745829582);
+east_clover_nw_connector_part_6 = east_clover_exit_ramp(east_clover_nw_connector_height_5, 15.038808823, 1.868115664, 14.994297981, 1.806385636, east_clover_nw_connector_height_6);
+grade(east_clover_nw_connector_part_6, 0.209972098, 0.221457258);
+east_clover_nw_connector_height_7 = map_point(14.804956436, 1.567778468);
+east_clover_nw_connector_part_7 = east_clover_exit_ramp(east_clover_nw_connector_height_6, 14.902022362, 1.685273528, 14.854257584, 1.625891566, east_clover_nw_connector_height_7);
+grade(east_clover_nw_connector_part_7, 0.221457258, 0.229176790);
+east_clover_nw_connector_part_8 = east_clover_exit_ramp(east_clover_nw_connector_height_7, 14.755655289, 1.509665370, 14.704818726, 1.452821255, east_clover_nw_connector_mid);
+grade(east_clover_nw_connector_part_8, 0.229176790, 0.232001007);
 
-east_clover_nw_connector_down = east_clover_exit_ramp(east_clover_nw_connector_mid, 14.234253806, 0.953500067, 13.723346056, 0.596952179, east_clover_nw_connector_nw_connector_merge_seam);
+# Rounded vertical crest; exact subdivisions of the library's horizontal curve.
+east_clover_nw_connector_down_height_1 = map_point(14.491425514, 1.235087633);
+east_clover_nw_connector_down = east_clover_exit_ramp(east_clover_nw_connector_mid, 14.600248337, 1.341861010, 14.546515465, 1.287744880, east_clover_nw_connector_down_height_1);
+grade(east_clover_nw_connector_down, 0.232001007, 0.228192419);
+east_clover_nw_connector_down_height_2 = map_point(14.322172165, 1.081587672);
+east_clover_nw_connector_down_part_2 = east_clover_exit_ramp(east_clover_nw_connector_down_height_1, 14.436335564, 1.182430387, 14.379888535, 1.131232023, east_clover_nw_connector_down_height_2);
+grade(east_clover_nw_connector_down_part_2, 0.228192419, 0.217782259);
+east_clover_nw_connector_down_height_3 = map_point(14.145307541, 0.937411189);
+east_clover_nw_connector_down_part_3 = east_clover_exit_ramp(east_clover_nw_connector_down_height_2, 14.264455795, 1.031943321, 14.205471039, 0.983852744, east_clover_nw_connector_down_height_3);
+grade(east_clover_nw_connector_down_part_3, 0.217782259, 0.202293977);
+east_clover_nw_connector_down_height_4 = map_point(13.961371422, 0.803128183);
+east_clover_nw_connector_down_part_4 = east_clover_exit_ramp(east_clover_nw_connector_down_height_3, 14.085144043, 0.890969634, 14.023802757, 0.846176982, east_clover_nw_connector_down_height_4);
+grade(east_clover_nw_connector_down_part_4, 0.202293977, 0.183250993);
+east_clover_nw_connector_down_height_5 = map_point(13.770898819, 0.679308295);
+east_clover_nw_connector_down_part_5 = east_clover_exit_ramp(east_clover_nw_connector_down_height_4, 13.898940086, 0.760079384, 13.835418701, 0.718774378, east_clover_nw_connector_down_height_5);
+grade(east_clover_nw_connector_down_part_5, 0.183250993, 0.162176788);
+east_clover_nw_connector_down_height_6 = map_point(13.574428558, 0.566521585);
+east_clover_nw_connector_down_part_6 = east_clover_exit_ramp(east_clover_nw_connector_down_height_5, 13.706378937, 0.639842212, 13.640858650, 0.602214992, east_clover_nw_connector_down_height_6);
+grade(east_clover_nw_connector_down_part_6, 0.162176788, 0.140594751);
+east_clover_nw_connector_down_height_7 = map_point(13.372495651, 0.465337902);
+east_clover_nw_connector_down_part_7 = east_clover_exit_ramp(east_clover_nw_connector_down_height_6, 13.507998466, 0.530828178, 13.440656662, 0.497068644, east_clover_nw_connector_down_height_7);
+grade(east_clover_nw_connector_down_part_7, 0.140594751, 0.120028339);
+east_clover_nw_connector_down_part_8 = east_clover_exit_ramp(east_clover_nw_connector_down_height_7, 13.304334641, 0.433607161, 13.235353470, 0.403905213, east_clover_nw_connector_nw_connector_merge_seam);
+grade(east_clover_nw_connector_down_part_8, 0.120028339, 0.102000996);
 
 east_clover_nw_connector_merge = east_clover_ramp_mouth(east_clover_nw_connector_nw_connector_merge_seam, 12.793835195, 0.229243655, 12.401231398, 0.142570367, east_clover_nw_direct_merge);
 
 east_clover_ne_connector_mouth = east_clover_ramp_mouth(east_clover_ne_direct_exit, 19.598068844, 0.355949771, 19.201019643, 0.419210597, east_clover_ne_connector_ne_connector_seam);
 
-east_clover_ne_connector = east_clover_exit_ramp(east_clover_ne_connector_ne_connector_seam, 18.251356283, 0.731203387, 17.720221944, 1.056855716, east_clover_ne_connector_mid);
+# Rounded vertical crest; exact subdivisions of the library's horizontal curve.
+east_clover_ne_connector_height_1 = map_point(18.609388351, 0.620606720);
+east_clover_ne_connector = east_clover_exit_ramp(east_clover_ne_connector_ne_connector_seam, 18.749929428, 0.567407191, 18.679309845, 0.592970014, east_clover_ne_connector_height_1);
+grade(east_clover_ne_connector, 0.102000996, 0.120028339);
+east_clover_ne_connector_height_2 = map_point(18.401813507, 0.709648967);
+east_clover_ne_connector_part_2 = east_clover_exit_ramp(east_clover_ne_connector_height_1, 18.539466858, 0.648243427, 18.470241547, 0.677954018, east_clover_ne_connector_height_2);
+grade(east_clover_ne_connector_part_2, 0.120028339, 0.140594751);
+east_clover_ne_connector_height_3 = map_point(18.199007034, 0.810597539);
+east_clover_ne_connector_part_3 = east_clover_exit_ramp(east_clover_ne_connector_height_2, 18.333385468, 0.741343915, 18.265752792, 0.775023341, east_clover_ne_connector_height_3);
+grade(east_clover_ne_connector_part_3, 0.140594751, 0.162176788);
+east_clover_ne_connector_height_4 = map_point(18.001533508, 0.922915101);
+east_clover_ne_connector_part_4 = east_clover_exit_ramp(east_clover_ne_connector_height_3, 18.132261276, 0.846171737, 18.066406250, 0.883640707, east_clover_ne_connector_height_4);
+grade(east_clover_ne_connector_part_4, 0.162176788, 0.183250993);
+east_clover_ne_connector_height_5 = map_point(17.809965134, 1.046064734);
+east_clover_ne_connector_part_5 = east_clover_exit_ramp(east_clover_ne_connector_height_4, 17.936660767, 0.962189496, 17.872774124, 1.003269196, east_clover_ne_connector_height_5);
+grade(east_clover_ne_connector_part_5, 0.183250993, 0.202293962);
+east_clover_ne_connector_height_6 = map_point(17.624870300, 1.179509521);
+east_clover_ne_connector_part_6 = east_clover_exit_ramp(east_clover_ne_connector_height_5, 17.747156143, 1.088860273, 17.685426712, 1.133371830, east_clover_ne_connector_height_6);
+grade(east_clover_ne_connector_part_6, 0.202293962, 0.217782259);
+east_clover_ne_connector_height_7 = map_point(17.446817398, 1.322712183);
+east_clover_ne_connector_part_7 = east_clover_exit_ramp(east_clover_ne_connector_height_6, 17.564313889, 1.225647211, 17.504930496, 1.273411274, east_clover_ne_connector_height_7);
+grade(east_clover_ne_connector_part_7, 0.217782259, 0.228192419);
+east_clover_ne_connector_part_8 = east_clover_exit_ramp(east_clover_ne_connector_height_7, 17.388704300, 1.372013092, 17.331861496, 1.422850847, east_clover_ne_connector_mid);
+grade(east_clover_ne_connector_part_8, 0.228192419, 0.232001007);
 
-east_clover_ne_connector_down = east_clover_exit_ramp(east_clover_ne_connector_mid, 16.832539717, 1.893415794, 16.475991829, 2.404323543, east_clover_ne_connector_ne_connector_merge_seam);
+# Rounded vertical crest; exact subdivisions of the library's horizontal curve.
+east_clover_ne_connector_down_height_1 = map_point(17.114126205, 1.636243224);
+east_clover_ne_connector_down = east_clover_exit_ramp(east_clover_ne_connector_mid, 17.220901489, 1.527420759, 17.166784286, 1.581153154, east_clover_ne_connector_down_height_1);
+grade(east_clover_ne_connector_down, 0.232001007, 0.229176790);
+east_clover_ne_connector_down_height_2 = map_point(16.960628510, 1.805497527);
+east_clover_ne_connector_down_part_2 = east_clover_exit_ramp(east_clover_ne_connector_down_height_1, 17.061468124, 1.691333294, 17.010272980, 1.747781277, east_clover_ne_connector_down_height_2);
+grade(east_clover_ne_connector_down_part_2, 0.229176790, 0.221457258);
+east_clover_ne_connector_down_height_3 = map_point(16.816450119, 1.982361317);
+east_clover_ne_connector_down_part_3 = east_clover_exit_ramp(east_clover_ne_connector_down_height_2, 16.910984039, 1.863213778, 16.862892151, 1.922198057, east_clover_ne_connector_down_height_3);
+grade(east_clover_ne_connector_down_part_3, 0.221457258, 0.209972098);
+east_clover_ne_connector_down_height_4 = map_point(16.682168961, 2.166297913);
+east_clover_ne_connector_down_part_4 = east_clover_exit_ramp(east_clover_ne_connector_down_height_3, 16.770008087, 2.042524576, 16.725217819, 2.103866577, east_clover_ne_connector_down_height_4);
+grade(east_clover_ne_connector_down_part_4, 0.209972098, 0.195850998);
+east_clover_ne_connector_down_height_5 = map_point(16.558349609, 2.356770277);
+east_clover_ne_connector_down_part_5 = east_clover_exit_ramp(east_clover_ne_connector_down_height_4, 16.639120102, 2.228729248, 16.597816467, 2.292249918, east_clover_ne_connector_down_height_5);
+grade(east_clover_ne_connector_down_part_5, 0.195850998, 0.180223659);
+east_clover_ne_connector_down_height_6 = map_point(16.445562363, 2.553241014);
+east_clover_ne_connector_down_part_6 = east_clover_exit_ramp(east_clover_ne_connector_down_height_5, 16.518882751, 2.421290636, 16.481256485, 2.486810684, east_clover_ne_connector_down_height_6);
+grade(east_clover_ne_connector_down_part_6, 0.180223659, 0.164219752);
+east_clover_ne_connector_down_height_7 = map_point(16.344377518, 2.755173445);
+east_clover_ne_connector_down_part_7 = east_clover_exit_ramp(east_clover_ne_connector_down_height_6, 16.409868240, 2.619671345, 16.376108170, 2.687012196, east_clover_ne_connector_down_height_7);
+grade(east_clover_ne_connector_down_part_7, 0.164219752, 0.148968965);
+east_clover_ne_connector_down_part_8 = east_clover_exit_ramp(east_clover_ne_connector_down_height_7, 16.312646866, 2.823334694, 16.282945633, 2.892316818, east_clover_ne_connector_ne_connector_merge_seam);
+grade(east_clover_ne_connector_down_part_8, 0.148968965, 0.135600999);
 
 east_clover_ne_connector_merge = east_clover_ramp_mouth(east_clover_ne_connector_ne_connector_merge_seam, 16.108283305, 3.333834405, 16.021610017, 3.726438201, east_clover_ne_direct_merge);
 
 east_clover_sw_connector_mouth = east_clover_ramp_mouth(east_clover_sw_direct_exit, 12.408640405, -0.107319822, 12.805689606, -0.170580647, east_clover_sw_connector_sw_connector_seam);
 
-east_clover_sw_connector = east_clover_exit_ramp(east_clover_sw_connector_sw_connector_seam, 13.755352967, -0.482573438, 14.286487306, -0.808225766, east_clover_sw_connector_mid);
+# Rounded vertical crest; exact subdivisions of the library's horizontal curve.
+east_clover_sw_connector_height_1 = map_point(13.397320747, -0.371976793);
+east_clover_sw_connector = east_clover_exit_ramp(east_clover_sw_connector_sw_connector_seam, 13.256779671, -0.318777233, 13.327399254, -0.344340086, east_clover_sw_connector_height_1);
+grade(east_clover_sw_connector, 0.102000996, 0.120028339);
+east_clover_sw_connector_height_2 = map_point(13.604894638, -0.461019039);
+east_clover_sw_connector_part_2 = east_clover_exit_ramp(east_clover_sw_connector_height_1, 13.467242241, -0.399613500, 13.536466599, -0.429324090, east_clover_sw_connector_height_2);
+grade(east_clover_sw_connector_part_2, 0.120028339, 0.140594751);
+east_clover_sw_connector_height_3 = map_point(13.807701111, -0.561967552);
+east_clover_sw_connector_part_3 = east_clover_exit_ramp(east_clover_sw_connector_height_2, 13.673322678, -0.492713988, 13.740956306, -0.526393354, east_clover_sw_connector_height_3);
+grade(east_clover_sw_connector_part_3, 0.140594751, 0.162176788);
+east_clover_sw_connector_height_4 = map_point(14.005176544, -0.674285114);
+east_clover_sw_connector_part_4 = east_clover_exit_ramp(east_clover_sw_connector_height_3, 13.874445915, -0.597541749, 13.940304756, -0.635010719, east_clover_sw_connector_height_4);
+grade(east_clover_sw_connector_part_4, 0.162176788, 0.183250993);
+east_clover_sw_connector_height_5 = map_point(14.196744919, -0.797434807);
+east_clover_sw_connector_part_5 = east_clover_exit_ramp(east_clover_sw_connector_height_4, 14.070048332, -0.713559508, 14.133935928, -0.754639268, east_clover_sw_connector_height_5);
+grade(east_clover_sw_connector_part_5, 0.183250993, 0.202293962);
+east_clover_sw_connector_height_6 = map_point(14.381839752, -0.930879474);
+east_clover_sw_connector_part_6 = east_clover_exit_ramp(east_clover_sw_connector_height_5, 14.259553909, -0.840230346, 14.321283340, -0.884741724, east_clover_sw_connector_height_6);
+grade(east_clover_sw_connector_part_6, 0.202293962, 0.217782259);
+east_clover_sw_connector_height_7 = map_point(14.559891701, -1.074082136);
+east_clover_sw_connector_part_7 = east_clover_exit_ramp(east_clover_sw_connector_height_6, 14.442396164, -0.977017224, 14.501778603, -1.024781227, east_clover_sw_connector_height_7);
+grade(east_clover_sw_connector_part_7, 0.217782259, 0.228192419);
+east_clover_sw_connector_part_8 = east_clover_exit_ramp(east_clover_sw_connector_height_7, 14.618004799, -1.123383045, 14.674848557, -1.174220800, east_clover_sw_connector_mid);
+grade(east_clover_sw_connector_part_8, 0.228192419, 0.232001007);
 
-east_clover_sw_connector_down = east_clover_exit_ramp(east_clover_sw_connector_mid, 15.174169532, -1.644785844, 15.530717420, -2.155693594, east_clover_sw_connector_sw_connector_merge_seam);
+# Rounded vertical crest; exact subdivisions of the library's horizontal curve.
+east_clover_sw_connector_down_height_1 = map_point(14.892582893, -1.387613177);
+east_clover_sw_connector_down = east_clover_exit_ramp(east_clover_sw_connector_mid, 14.785808563, -1.278790712, 14.839925766, -1.332523108, east_clover_sw_connector_down_height_1);
+grade(east_clover_sw_connector_down, 0.232001007, 0.229176790);
+east_clover_sw_connector_down_height_2 = map_point(15.046081543, -1.556867480);
+east_clover_sw_connector_down_part_2 = east_clover_exit_ramp(east_clover_sw_connector_down_height_1, 14.945240021, -1.442703247, 14.996437073, -1.499151230, east_clover_sw_connector_down_height_2);
+grade(east_clover_sw_connector_down_part_2, 0.229176790, 0.221457258);
+east_clover_sw_connector_down_height_3 = map_point(15.190258980, -1.733731270);
+east_clover_sw_connector_down_part_3 = east_clover_exit_ramp(east_clover_sw_connector_down_height_2, 15.095726013, -1.614583731, 15.143816948, -1.673568010, east_clover_sw_connector_down_height_3);
+grade(east_clover_sw_connector_down_part_3, 0.221457258, 0.209972098);
+east_clover_sw_connector_down_height_4 = map_point(15.324541092, -1.917667985);
+east_clover_sw_connector_down_part_4 = east_clover_exit_ramp(east_clover_sw_connector_down_height_3, 15.236701012, -1.793894529, 15.281492233, -1.855236650, east_clover_sw_connector_down_height_4);
+grade(east_clover_sw_connector_down_part_4, 0.209972098, 0.195850998);
+east_clover_sw_connector_down_height_5 = map_point(15.448362350, -2.108140230);
+east_clover_sw_connector_down_part_5 = east_clover_exit_ramp(east_clover_sw_connector_down_height_4, 15.367589951, -1.980099320, 15.408896446, -2.043619871, east_clover_sw_connector_down_height_5);
+grade(east_clover_sw_connector_down_part_5, 0.195850998, 0.180223659);
+east_clover_sw_connector_down_height_6 = map_point(15.561147690, -2.304611206);
+east_clover_sw_connector_down_part_6 = east_clover_exit_ramp(east_clover_sw_connector_down_height_5, 15.487828255, -2.172660589, 15.525454521, -2.238180876, east_clover_sw_connector_down_height_6);
+grade(east_clover_sw_connector_down_part_6, 0.180223659, 0.164219752);
+east_clover_sw_connector_down_height_7 = map_point(15.662332535, -2.506543398);
+east_clover_sw_connector_down_part_7 = east_clover_exit_ramp(east_clover_sw_connector_down_height_6, 15.596840858, -2.371041536, 15.630601883, -2.438382149, east_clover_sw_connector_down_height_7);
+grade(east_clover_sw_connector_down_part_7, 0.164219752, 0.148968965);
+east_clover_sw_connector_down_part_8 = east_clover_exit_ramp(east_clover_sw_connector_down_height_7, 15.694063187, -2.574704647, 15.723764420, -2.643686771, east_clover_sw_connector_sw_connector_merge_seam);
+grade(east_clover_sw_connector_down_part_8, 0.148968965, 0.135600999);
 
 east_clover_sw_connector_merge = east_clover_ramp_mouth(east_clover_sw_connector_sw_connector_merge_seam, 15.898425944, -3.085204455, 15.985099232, -3.477808252, east_clover_sw_direct_merge);
 
 east_clover_se_connector_mouth = east_clover_ramp_mouth(east_clover_se_direct_exit, 16.234989421, -3.470399245, 16.298250247, -3.073350044, east_clover_se_connector_se_connector_seam);
 
-east_clover_se_connector = east_clover_exit_ramp(east_clover_se_connector_se_connector_seam, 16.610243037, -2.123686683, 16.935895366, -1.592552344, east_clover_se_connector_mid);
+# Rounded vertical crest; exact subdivisions of the library's horizontal curve.
+east_clover_se_connector_height_1 = map_point(16.499647141, -2.481717825);
+east_clover_se_connector = east_clover_exit_ramp(east_clover_se_connector_se_connector_seam, 16.446447372, -2.622260094, 16.472009659, -2.551639318, east_clover_se_connector_height_1);
+grade(east_clover_se_connector, 0.135600999, 0.148968965);
+east_clover_se_connector_height_2 = map_point(16.588687897, -2.274145603);
+east_clover_se_connector_part_2 = east_clover_exit_ramp(east_clover_se_connector_height_1, 16.527284622, -2.411796331, 16.556993484, -2.342573881, east_clover_se_connector_height_2);
+grade(east_clover_se_connector_part_2, 0.148968965, 0.164219752);
+east_clover_se_connector_height_3 = map_point(16.689636230, -2.071337938);
+east_clover_se_connector_part_3 = east_clover_exit_ramp(east_clover_se_connector_height_2, 16.620382309, -2.205717325, 16.654062271, -2.138083220, east_clover_se_connector_height_3);
+grade(east_clover_se_connector_part_3, 0.164219752, 0.180223659);
+east_clover_se_connector_height_4 = map_point(16.801954269, -1.873864055);
+east_clover_se_connector_part_4 = east_clover_exit_ramp(east_clover_se_connector_height_3, 16.725210190, -2.004592657, 16.762680054, -1.938736200, east_clover_se_connector_height_4);
+grade(east_clover_se_connector_part_4, 0.180223659, 0.195850998);
+east_clover_se_connector_height_5 = map_point(16.925106049, -1.682294846);
+east_clover_se_connector_part_5 = east_clover_exit_ramp(east_clover_se_connector_height_4, 16.841228485, -1.808991909, 16.882310867, -1.745103955, east_clover_se_connector_height_5);
+grade(east_clover_se_connector_part_5, 0.195850998, 0.209972098);
+east_clover_se_connector_height_6 = map_point(17.058549881, -1.497199774);
+east_clover_se_connector_part_6 = east_clover_exit_ramp(east_clover_se_connector_height_5, 16.967901230, -1.619485736, 17.012413025, -1.557755828, east_clover_se_connector_height_6);
+grade(east_clover_se_connector_part_6, 0.209972098, 0.221457258);
+east_clover_se_connector_height_7 = map_point(17.201751709, -1.319148540);
+east_clover_se_connector_part_7 = east_clover_exit_ramp(east_clover_se_connector_height_6, 17.104686737, -1.436643720, 17.152450562, -1.377261639, east_clover_se_connector_height_7);
+grade(east_clover_se_connector_part_7, 0.221457258, 0.229176790);
+east_clover_se_connector_part_8 = east_clover_exit_ramp(east_clover_se_connector_height_7, 17.251052856, -1.261035442, 17.301891327, -1.204191327, east_clover_se_connector_mid);
+grade(east_clover_se_connector_part_8, 0.229176790, 0.232001007);
 
-east_clover_se_connector_down = east_clover_exit_ramp(east_clover_se_connector_mid, 17.772455444, -0.704870118, 18.283363193, -0.348322230, east_clover_se_connector_se_connector_merge_seam);
+# Rounded vertical crest; exact subdivisions of the library's horizontal curve.
+east_clover_se_connector_down_height_1 = map_point(17.515281677, -0.986457586);
+east_clover_se_connector_down = east_clover_exit_ramp(east_clover_se_connector_mid, 17.406459808, -1.093231082, 17.460191727, -1.039114833, east_clover_se_connector_down_height_1);
+grade(east_clover_se_connector_down, 0.232001007, 0.228192419);
+east_clover_se_connector_down_height_2 = map_point(17.684537888, -0.832957625);
+east_clover_se_connector_down_part_2 = east_clover_exit_ramp(east_clover_se_connector_down_height_1, 17.570371628, -0.933800340, 17.626821518, -0.882602036, east_clover_se_connector_down_height_2);
+grade(east_clover_se_connector_down_part_2, 0.228192419, 0.217782259);
+east_clover_se_connector_down_height_3 = map_point(17.861400604, -0.688781261);
+east_clover_se_connector_down_part_3 = east_clover_exit_ramp(east_clover_se_connector_down_height_2, 17.742254257, -0.783313215, 17.801237106, -0.735222816, east_clover_se_connector_down_height_3);
+grade(east_clover_se_connector_down_part_3, 0.217782259, 0.202293977);
+east_clover_se_connector_down_height_4 = map_point(18.045337677, -0.554498136);
+east_clover_se_connector_down_part_4 = east_clover_exit_ramp(east_clover_se_connector_down_height_3, 17.921564102, -0.642339706, 17.982906342, -0.597546935, east_clover_se_connector_down_height_4);
+grade(east_clover_se_connector_down_part_4, 0.202293977, 0.183250993);
+east_clover_se_connector_down_height_5 = map_point(18.235809326, -0.430678338);
+east_clover_se_connector_down_part_5 = east_clover_exit_ramp(east_clover_se_connector_down_height_4, 18.107769012, -0.511449337, 18.171289444, -0.470144421, east_clover_se_connector_down_height_5);
+grade(east_clover_se_connector_down_part_5, 0.183250993, 0.162176788);
+east_clover_se_connector_down_height_6 = map_point(18.432281494, -0.317891657);
+east_clover_se_connector_down_part_6 = east_clover_exit_ramp(east_clover_se_connector_down_height_5, 18.300329208, -0.391212255, 18.365850449, -0.353585064, east_clover_se_connector_down_height_6);
+grade(east_clover_se_connector_down_part_6, 0.162176788, 0.140594751);
+east_clover_se_connector_down_height_7 = map_point(18.634212494, -0.216707930);
+east_clover_se_connector_down_part_7 = east_clover_exit_ramp(east_clover_se_connector_down_height_6, 18.498712540, -0.282198250, 18.566051483, -0.248438686, east_clover_se_connector_down_height_7);
+grade(east_clover_se_connector_down_part_7, 0.140594751, 0.120028339);
+east_clover_se_connector_down_part_8 = east_clover_exit_ramp(east_clover_se_connector_down_height_7, 18.702373505, -0.184977174, 18.771356583, -0.155275255, east_clover_se_connector_se_connector_merge_seam);
+grade(east_clover_se_connector_down_part_8, 0.120028339, 0.102000996);
 
 east_clover_se_connector_merge = east_clover_ramp_mouth(east_clover_se_connector_se_connector_merge_seam, 19.212874055, 0.019386294, 19.605477851, 0.106059582, east_clover_se_direct_merge);
 
-grade(east_clover_i_ns_02a, 0.102001000, 0.177001000);
+grade(east_clover_i_ns_02a, 0.102001000, 0.122001000);
 
-grade(east_clover_i_ns_02b, 0.177001000, 0.252001000);
+grade(east_clover_i_ns_02b, 0.122001000, 0.142001000);
 
-grade(east_clover_i_ns_02c, 0.252001000, 0.327001000);
+grade(east_clover_i_ns_02c, 0.142001000, 0.162001000);
 
-grade(east_clover_i_ns_02, 0.327001000, 0.402001000);
+grade(east_clover_i_ns_02, 0.162001000, 0.182001000);
 
-elevation(east_clover_i_ns_03a, 0.402001000);
+elevation(east_clover_i_ns_03a, 0.182001000);
 
-elevation(east_clover_i_ns_03, 0.402001000);
+elevation(east_clover_i_ns_03, 0.182001000);
 
-elevation(east_clover_i_ns_04a, 0.402001000);
+elevation(east_clover_i_ns_04a, 0.182001000);
 
-elevation(east_clover_i_ns_04, 0.402001000);
+elevation(east_clover_i_ns_04, 0.182001000);
 
-grade(east_clover_i_ns_05a, 0.402001000, 0.327001000);
+grade(east_clover_i_ns_05a, 0.182001000, 0.162001000);
 
-grade(east_clover_i_ns_05b, 0.327001000, 0.252001000);
+grade(east_clover_i_ns_05b, 0.162001000, 0.142001000);
 
-grade(east_clover_i_ns_05c, 0.252001000, 0.177001000);
+grade(east_clover_i_ns_05c, 0.142001000, 0.122001000);
 
-grade(east_clover_i_ns_05, 0.177001000, 0.102001000);
+grade(east_clover_i_ns_05, 0.122001000, 0.102001000);
 
-grade(east_clover_nw_loop_c, 0.102001000, 0.352001000);
+grade(east_clover_nw_loop_c, 0.102001000, 0.167001000);
 
-grade(east_clover_nw_loop_c_merge, 0.352001000, 0.402001000);
+grade(east_clover_nw_loop_c_merge, 0.167001000, 0.182001000);
 
-grade(east_clover_sw_loop_a_mouth, 0.402001000, 0.352001000);
+grade(east_clover_sw_loop_a_mouth, 0.182001000, 0.167001000);
 
-grade(east_clover_sw_loop_a, 0.352001000, 0.102001000);
+grade(east_clover_sw_loop_a, 0.167001000, 0.102001000);
 
-grade(east_clover_ne_loop_a_mouth, 0.402001000, 0.352001000);
+grade(east_clover_ne_loop_a_mouth, 0.182001000, 0.167001000);
 
-grade(east_clover_ne_loop_a, 0.352001000, 0.102001000);
+grade(east_clover_ne_loop_a, 0.167001000, 0.102001000);
 
-grade(east_clover_se_loop_c, 0.102001000, 0.352001000);
+grade(east_clover_se_loop_c, 0.102001000, 0.167001000);
 
-grade(east_clover_se_loop_c_merge, 0.352001000, 0.402001000);
+grade(east_clover_se_loop_c_merge, 0.167001000, 0.182001000);
 
-grade(east_clover_nw_connector_mouth, 0.102001000, 0.228001000);
+grade(east_clover_nw_connector_mouth, 0.102001000, 0.135601000);
 
-grade(east_clover_nw_connector, 0.228001000, 0.752001000);
 
-grade(east_clover_nw_connector_down, 0.752001000, 0.102001000);
 
-grade(east_clover_sw_connector, 0.102001000, 0.752001000);
 
-grade(east_clover_sw_connector_down, 0.752001000, 0.228001000);
 
-grade(east_clover_sw_connector_merge, 0.228001000, 0.102001000);
+grade(east_clover_sw_connector_merge, 0.135601000, 0.102001000);
 
-grade(east_clover_ne_connector, 0.102001000, 0.752001000);
 
-grade(east_clover_ne_connector_down, 0.752001000, 0.228001000);
 
-grade(east_clover_ne_connector_merge, 0.228001000, 0.102001000);
+grade(east_clover_ne_connector_merge, 0.135601000, 0.102001000);
 
-grade(east_clover_se_connector_mouth, 0.102001000, 0.228001000);
+grade(east_clover_se_connector_mouth, 0.102001000, 0.135601000);
 
-grade(east_clover_se_connector, 0.228001000, 0.752001000);
 
-grade(east_clover_se_connector_down, 0.752001000, 0.102001000);
 elevation(east_clover_i_ew_02, 0.102001);
 elevation(east_clover_i_ew_03a, 0.102001);
 elevation(east_clover_i_ew_03b, 0.102001);
@@ -2091,3 +2269,12 @@ elevation(bend_home_41_04_left, 0.1000009);
 
 bend_home_41_05_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.8617250, 9.9720802, 0.9777412, 10.0027447, 0.9343011, 10.1671009, 0.8182850, 10.1364365);
 elevation(bend_home_41_05_left, 0.1000009);
+
+# Future city ring: a 300 m radius turn from eastbound to northbound.
+# The last shared endpoint is ready for the next stretch around the city.
+city_ring_north_bend_end = map_point(27.909175617, 3.478629583);
+city_ring_north_end = map_point(27.849903561, 5.477751096);
+city_ring_east_bend = east_clover_interstate_three_lane(east_clover_ew_e9, 26.655527919, 0.440141808, 27.958278197, 1.822503097, city_ring_north_bend_end);
+grade(city_ring_east_bend, 0.102001, 0.102001);
+city_ring_north_approach = east_clover_interstate_three_lane(city_ring_north_bend_end, 27.889418265, 4.145003421, 27.869660913, 4.811377258, city_ring_north_end);
+grade(city_ring_north_approach, 0.102001, 0.102001);
