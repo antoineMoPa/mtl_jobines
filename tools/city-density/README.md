@@ -58,3 +58,24 @@ courses, forests, woods, wetlands, cemeteries, recreation grounds and allotments
 stitched relation outer rings are supported. Relation interiors are conservatively reserved with
 their outer ring. The geometry represents source land use in the compressed game frame, rather
 than surveyed parcels. Attribution: OpenStreetMap contributors, ODbL.
+
+## Playable inner loop
+
+Use `inner-loop WORK_DIRECTORY` for the current compact Montreal map, with the same frozen
+input names. Copy `data/maps/mtl/green-spaces.road` alongside the map and elevation image.
+This explicit plan maps `cross_street` and `cycling_street` to residential frontage and
+block interiors, with 2–4 storey brick apartments and 6–20 storey mixed-use downtown buildings
+around Bonaventure. It stays inside the interstate ring and leaves the mountain footprint
+and the large Parc Jarry block west of Jean-Talon station clear. Existing buildings that
+intersect either reservation are removed, including named buildings inside authored blocks.
+Roads, terrain, props, and other buildings retain their authored geometry.
+
+Parking and pedestrian paving, station excavations/roofs, trees and other authored fixtures
+also reserve land. Every serialized new footprint is checked against those reservations,
+roads and buildings. The final inner-loop audit checks **all** buildings against both parks.
+Review the removed building names in `report.json` before installing the result. Keep source
+comments and concurrent map edits when transferring the approved building changes.
+
+The runtime cache has a 20 million vertex limit; check the generated scene before installing.
+This tool enables OpenCity's render-materials feature because current runtime tree texture
+support requires it. Set `CARGO_TARGET_DIR=target` to share the root workspace's build cache.
