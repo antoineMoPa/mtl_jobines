@@ -69,7 +69,7 @@ fn authored_metro_is_a_closed_underground_loop_with_walkable_stations_and_stairs
         for i in 0..=40 {
             let t = i as f32 / 40.;
             let h = 0.102 + (FLOOR_HEIGHT - 0.102) * t;
-            let point = station.point(-0.40 + t * 0.20, 0.06, h);
+            let point = station.point(-0.50 + t * 0.20, 0.06, h);
             let xy = point.truncate().to_array();
             let support = city.surface_at(xy, h + 0.0042).unwrap();
             assert!(
@@ -99,13 +99,31 @@ fn authored_metro_is_a_closed_underground_loop_with_walkable_stations_and_stairs
                 > TRACK_HEIGHT + 0.068,
             "station ceiling must be below the terrain"
         );
-        let roof = station.point(0., 0.06, 0.102);
+        let mut room = city
+            .mesh(
+                opencity::runtime::Region::radius(station.center.to_array(), 0.45).unwrap(),
+                0.04,
+            )
+            .unwrap();
+        map.open_portals(&mut room);
+        for direction in [-1., 1.] {
+            assert!(
+                !ray_blocked(
+                    &room,
+                    station.point(0., 0., TRACK_HEIGHT + 0.02),
+                    station.point(0.42 * direction, 0., TRACK_HEIGHT + 0.02)
+                ),
+                "{} tunnel portal {direction} is sealed",
+                station.id.title()
+            );
+        }
+        let roof = station.point(0., 0.06, 0.1015);
         assert!(
             (city
                 .surface_at(roof.truncate().to_array(), roof.z + 0.001)
                 .unwrap()
                 .height
-                - 0.102)
+                - 0.1015)
                 .abs()
                 < 0.001
         );
@@ -116,11 +134,39 @@ fn authored_metro_is_a_closed_underground_loop_with_walkable_stations_and_stairs
     assert!(
         layers
             .iter()
-            .any(|l| l.normal.chunks_exact(4).any(|p| p[0] < 110 || p[1] < 110)),
-        "brick normal texture must contain relief"
+            .any(|l| l.normal.chunks_exact(4).any(|p| p[0] < 123 || p[1] < 123)),
+        "concrete normal texture must contain relief"
     );
     let svg = navigation_svg(&city).unwrap();
     for text in ["metro-line", "Acadie", "Jean-Talon", "Bonaventure"] {
         assert!(svg.contains(text));
     }
+}
+
+fn ray_blocked(mesh: &opencity::runtime::Mesh, from: Vec3, to: Vec3) -> bool {
+    let ray = to - from;
+    mesh.vertices.chunks_exact(3).any(|triangle| {
+        let a = Vec3::from_array(triangle[0].position);
+        let b = Vec3::from_array(triangle[1].position);
+        let c = Vec3::from_array(triangle[2].position);
+        let e1 = b - a;
+        let e2 = c - a;
+        let p = ray.cross(e2);
+        let det = e1.dot(p);
+        if det.abs() < 1e-10 {
+            return false;
+        }
+        let t = from - a;
+        let u = t.dot(p) / det;
+        if !(0.0..=1.0).contains(&u) {
+            return false;
+        }
+        let q = t.cross(e1);
+        let v = ray.dot(q) / det;
+        if v < 0. || u + v > 1. {
+            return false;
+        }
+        let distance = e2.dot(q) / det;
+        distance > 0. && distance < 1.
+    })
 }

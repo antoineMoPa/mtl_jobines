@@ -142,7 +142,7 @@ impl MetroMap {
                 !self
                     .stations
                     .iter()
-                    .any(|s| s.center.distance(p.truncate()) < 0.24)
+                    .any(|s| s.center.distance(p.truncate()) < 0.34)
             })
     }
     pub fn scenery(
@@ -174,3 +174,52 @@ pub fn navigation_svg(city: &City) -> Result<String, String> {
 }
 #[cfg(test)]
 mod tests;
+
+impl MetroMap {
+    /// Retaining faces at an excavated station end must not seal its rail portal.
+    /// The tunnel shell supplies the jambs and ceiling beyond this opening.
+    pub fn open_portals(&self, mesh: &mut opencity::runtime::Mesh) {
+        let mut write = 0;
+        for read in (0..mesh.vertices.len()).step_by(3) {
+            let triangle = &mesh.vertices[read..read + 3];
+            let retaining = triangle
+                .iter()
+                .all(|v| v.surface[0] == opencity::runtime::SurfaceKind::Prop as u32 as f32)
+                && triangle[0].normal[2].abs() < 0.5;
+            let opening = retaining
+                && self.stations.iter().any(|s| {
+                    let local: [[f32; 3]; 3] = std::array::from_fn(|i| {
+                        let p = Vec3::from_array(triangle[i].position);
+                        let d = p.truncate() - s.center;
+                        [
+                            d.dot(s.forward),
+                            d.dot(Vec2::new(-s.forward.y, s.forward.x)),
+                            p.z,
+                        ]
+                    });
+                    let end = local.iter().all(|p| (p[0] - 0.32).abs() < 0.012)
+                        || local.iter().all(|p| (p[0] + 0.32).abs() < 0.012);
+                    let across_min = local.iter().map(|p| p[1]).fold(f32::INFINITY, f32::min);
+                    let across_max = local.iter().map(|p| p[1]).fold(f32::NEG_INFINITY, f32::max);
+                    end && across_min < 0.032
+                        && across_max > -0.032
+                        && local.iter().any(|p| p[2] < TRACK_HEIGHT + 0.065)
+                });
+            if !opening {
+                mesh.vertices.copy_within(read..read + 3, write);
+                write += 3;
+            }
+        }
+        mesh.vertices.truncate(write);
+    }
+    pub fn station_interior(&self, point: [f32; 3]) -> bool {
+        let p = Vec3::from_array(point);
+        p.z < TRACK_HEIGHT + 0.068
+            && self.stations.iter().any(|s| {
+                let d = p.truncate() - s.center;
+                d.dot(s.forward).abs() < 0.35
+                    && d.dot(Vec2::new(-s.forward.y, s.forward.x)) > -0.045
+                    && d.dot(Vec2::new(-s.forward.y, s.forward.x)) < 0.13
+            })
+    }
+}

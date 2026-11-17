@@ -84,7 +84,7 @@ struct VehicleTransform {
     }
     // Single-sample captures do not have alpha-to-coverage.
     let threshold=select(0.01,vehicle_alpha_threshold(v.clip.xy),VEHICLE_SAMPLE_COUNT==1u);
-    if v.surface.x<0.0 && material.surface.y<=threshold {discard;}
+    if material.surface.y<=threshold {discard;}
     if v.surface.x>=15.0 && v.surface.x<=29.0 {tree_lod_mask(v.clip.xy,v.surface.w);}
     if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v,uv_dx,uv_dy);}
     if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front,uv_dx,uv_dy,world_dx,world_dy,surface);}

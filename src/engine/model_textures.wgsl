@@ -17,7 +17,7 @@ fn model_surface(v:Output,front:bool,du:vec2<f32>,dv:vec2<f32>,dx:vec3<f32>,dy:v
         n=t*encoded.x+b*encoded.y+n*encoded.z;
         n/=max(length(n),0.000001);
     }
-    var shaded=v;shaded.color*=colour.rgb;shaded.surface.x=9.0;
+    var shaded=v;shaded.color*=colour.rgb;shaded.surface.x=7.0;
     var material=surface;material.normal=n;material.finish=vec3<f32>(detail.a,0.0,0.0);
     return shade_surface_lit(shaded,front,1.0,material,local_irradiance(v.world,n));
 }

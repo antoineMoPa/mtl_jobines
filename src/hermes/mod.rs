@@ -400,6 +400,7 @@ impl Hermes {
             .city
             .mesh_with_external_models(Region::WholeMap, 0.04)
             .expect("static map mesh");
+        metro::MetroMap::from_city(&self.city).open_portals(&mut world);
         world.vertices.append(&mut self.landmark_mesh.vertices);
         let details = self.details.take_scenery(&self.city);
         eprintln!(

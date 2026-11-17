@@ -11,7 +11,7 @@
       "value": {
         "VecSDFObject": [
           {
-            "uuid": "76567747-c198-4118-aacd-260af1c03b08",
+            "uuid": "bf41897e-b0a7-40de-b467-400d8b836e54",
             "transform": {
               "translation": [
                 0.0,
@@ -193,7 +193,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "57b3ec05-d0be-4b2a-8f90-d8de21a76774",
+            "uuid": "79d090c3-86d7-4ee3-aafc-49aff49eca82",
             "transform": {
               "translation": [
                 0.0,
@@ -375,11 +375,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "5ed41e47-7999-4688-ba1a-b8f14b0dca14",
+            "uuid": "6771d2fc-814d-41ff-90a8-06860754fa95",
             "transform": {
               "translation": [
                 0.0,
-                3.0225,
+                3.7935853,
                 0.0
               ],
               "rotation": [
@@ -423,7 +423,7 @@
               "BoxParams": {
                 "box_q": [
                   7.82,
-                  0.0325,
+                  0.04504582,
                   1.19
                 ],
                 "corner_radius": 0.0
@@ -557,11 +557,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "6caae10b-3c1a-434c-8948-2fef09349dc3",
+            "uuid": "5be3793a-2f9d-4813-a1a7-772e99c4e680",
             "transform": {
               "translation": [
                 0.0,
-                3.075,
+                3.8663516,
                 0.0
               ],
               "rotation": [
@@ -607,7 +607,7 @@
                   15.92,
                   2.54
                 ],
-                "thickness": 0.04,
+                "thickness": 0.055441007,
                 "cuts": [],
                 "bends": [],
                 "embosses": [],
@@ -617,14 +617,14 @@
                     0.0,
                     0.0,
                     0.0,
-                    0.15,
-                    0.15,
-                    0.15,
-                    0.15,
-                    0.15,
-                    0.15,
-                    0.15,
-                    0.15,
+                    0.20790379,
+                    0.20790379,
+                    0.20790379,
+                    0.20790379,
+                    0.20790379,
+                    0.20790379,
+                    0.20790379,
+                    0.20790379,
                     0.0,
                     0.0,
                     0.0,
@@ -764,11 +764,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "048189a6-a5e9-4cb4-909d-03fd7ee1aead",
+            "uuid": "476edacf-3288-46d7-b0cb-05194d747321",
             "transform": {
               "translation": [
                 -5.83,
-                1.205,
+                1.312122,
                 -1.27
               ],
               "rotation": [
@@ -812,7 +812,7 @@
               "BoxParams": {
                 "box_q": [
                   2.11,
-                  0.375,
+                  0.482122,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -946,11 +946,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8112bc9e-f025-4cbe-b601-66579d580994",
+            "uuid": "d13e569a-a87f-42a9-9af2-00e308e41886",
             "transform": {
               "translation": [
                 -5.83,
-                1.695,
+                1.9536369,
                 -1.27
               ],
               "rotation": [
@@ -994,7 +994,7 @@
               "BoxParams": {
                 "box_q": [
                   2.11,
-                  0.115,
+                  0.1593929,
                   0.04
                 ],
                 "corner_radius": 0.0
@@ -1128,11 +1128,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ea599f1a-76bf-45f3-b301-89447089a850",
+            "uuid": "6cca2959-7e38-476d-bf71-fab41f73f6c5",
             "transform": {
               "translation": [
                 -5.83,
-                2.92,
+                3.6515179,
                 -1.27
               ],
               "rotation": [
@@ -1176,7 +1176,7 @@
               "BoxParams": {
                 "box_q": [
                   2.11,
-                  0.13,
+                  0.18018328,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -1310,11 +1310,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "9da6e175-ce3b-440c-8715-0b918ac1e7cb",
+            "uuid": "793a98b3-bc6c-4d45-8f58-ca24cdd373d0",
             "transform": {
               "translation": [
                 -5.83,
-                1.3,
+                1.4061569,
                 -1.2125
               ],
               "rotation": [
@@ -1358,7 +1358,7 @@
               "BoxParams": {
                 "box_q": [
                   2.11,
-                  0.27,
+                  0.3742268,
                   0.0175
                 ],
                 "corner_radius": 0.0
@@ -1492,11 +1492,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "105553fc-b1c1-4127-8684-ca048916b830",
+            "uuid": "058169f8-7c28-46ce-8721-c3a2f285f8ab",
             "transform": {
               "translation": [
                 -7.88,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -1540,7 +1540,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -1674,11 +1674,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "680ef700-4b07-4a39-907e-78e94b46410e",
+            "uuid": "e4cc7f2e-7edf-48e1-90db-d269f24aa910",
             "transform": {
               "translation": [
                 -6.5933332,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -1722,7 +1722,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -1856,11 +1856,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "322b3556-b415-4fd6-a0a4-6183a682b0b4",
+            "uuid": "2cf6a809-aeda-4196-9b3d-782d110ac9b1",
             "transform": {
               "translation": [
                 -7.2366667,
-                1.8475,
+                2.1650057,
                 -1.27
               ],
               "rotation": [
@@ -1904,7 +1904,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -2038,11 +2038,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e988a3c7-f039-4ebb-91bb-fdaaaa83c9ad",
+            "uuid": "5774e590-edcb-4729-a0bc-ec06596b9d6a",
             "transform": {
               "translation": [
                 -7.2366667,
-                2.7625,
+                3.4332187,
                 -1.27
               ],
               "rotation": [
@@ -2086,7 +2086,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -2220,11 +2220,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "18b835bf-604e-4951-aa52-7c2043d2ef8e",
+            "uuid": "4a3c8a7d-f8aa-4d42-877a-04e1c67e848e",
             "transform": {
               "translation": [
                 -7.7975,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -2268,7 +2268,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -2402,11 +2402,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d94110a9-71f9-4859-be43-bc9719d2a653",
+            "uuid": "f9e3b78b-fb3d-4628-8cc2-0a9756321ff0",
             "transform": {
               "translation": [
                 -6.675833,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -2450,7 +2450,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -2584,11 +2584,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8a092f9b-a73d-4f79-adf6-6ce570472126",
+            "uuid": "d21794d8-f19e-484a-ba3c-f24a96a55575",
             "transform": {
               "translation": [
                 -7.2366667,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -2632,7 +2632,7 @@
               "BoxParams": {
                 "box_q": [
                   0.53833336,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -2766,11 +2766,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3d88a5df-f0f6-48d9-b7b2-84ae32261063",
+            "uuid": "6c31530e-032a-4f53-9b32-8d0df05a74c3",
             "transform": {
               "translation": [
                 -6.4733334,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -2814,7 +2814,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -2948,11 +2948,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "5a9b20f8-4dd7-4fa0-a0a1-6c934d4d32d4",
+            "uuid": "6b87f6ff-0116-4b0c-88b1-966db4e12180",
             "transform": {
               "translation": [
                 -5.1866665,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -2996,7 +2996,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -3130,11 +3130,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ed10696d-577e-42e8-b96c-cb9de1709be1",
+            "uuid": "6f0de1b2-77c9-444e-a690-085f86c64a7a",
             "transform": {
               "translation": [
                 -5.83,
-                1.8475,
+                2.1650057,
                 -1.27
               ],
               "rotation": [
@@ -3178,7 +3178,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -3312,11 +3312,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "7b021611-8062-4d14-a052-2c9aed275aa3",
+            "uuid": "fb78845b-eb5d-4771-88ae-55e110c0f96a",
             "transform": {
               "translation": [
                 -5.83,
-                2.7625,
+                3.4332187,
                 -1.27
               ],
               "rotation": [
@@ -3360,7 +3360,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -3494,11 +3494,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "34f96ced-1a53-47e3-8621-76ebfdddf307",
+            "uuid": "964f632e-a0f6-4d7d-9be3-a5d5d7bab15e",
             "transform": {
               "translation": [
                 -6.3908334,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -3542,7 +3542,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -3676,11 +3676,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ad92fd62-4321-4fc3-a989-6cc086d9424f",
+            "uuid": "025ad82d-d779-4ed3-85b6-de713e9dc1a1",
             "transform": {
               "translation": [
                 -5.2691665,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -3724,7 +3724,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -3858,11 +3858,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "cee2797e-4858-4316-a688-16cae71936d5",
+            "uuid": "518cf7c4-3e7c-4b03-8601-ef0229c30857",
             "transform": {
               "translation": [
                 -5.83,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -3906,7 +3906,7 @@
               "BoxParams": {
                 "box_q": [
                   0.53833336,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -4040,11 +4040,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "eba83838-9e97-4de0-afdf-21f805a185a0",
+            "uuid": "2bab9ea4-a0fb-44a8-b93e-383033ecaa01",
             "transform": {
               "translation": [
                 -5.0666666,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -4088,7 +4088,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -4222,11 +4222,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d55110af-795a-4c3e-abfb-dc7b191d3028",
+            "uuid": "846dc5da-1622-4801-a52f-fe18c15de4f7",
             "transform": {
               "translation": [
                 -3.78,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -4270,7 +4270,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -4404,11 +4404,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f77d4f0f-e0a7-4478-a47f-c7f27af78342",
+            "uuid": "d6764ae6-4c55-4837-98ed-bb5ea5aff0ef",
             "transform": {
               "translation": [
                 -4.423333,
-                1.8475,
+                2.1650057,
                 -1.27
               ],
               "rotation": [
@@ -4452,7 +4452,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -4586,11 +4586,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "88f92440-c0b4-4483-9c23-f9af76e0180c",
+            "uuid": "80d5705f-c4c1-48c6-a025-29597de260d1",
             "transform": {
               "translation": [
                 -4.423333,
-                2.7625,
+                3.4332187,
                 -1.27
               ],
               "rotation": [
@@ -4634,7 +4634,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -4768,11 +4768,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8482d85b-b623-4929-a684-22ef5353eb61",
+            "uuid": "00a7c9d5-b04c-4f82-a99e-25d046179b8e",
             "transform": {
               "translation": [
                 -4.9841666,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -4816,7 +4816,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -4950,11 +4950,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d70f1bd0-68f9-420c-9b5e-662364a77414",
+            "uuid": "fb434d15-e0d9-47ff-8734-c803d14439c4",
             "transform": {
               "translation": [
                 -3.8625,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -4998,7 +4998,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -5132,11 +5132,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "82187269-6bbb-4271-bdf0-35ad979df66e",
+            "uuid": "25a6d0f6-eb31-417d-a783-bb8dc24c870a",
             "transform": {
               "translation": [
                 -4.423333,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -5180,7 +5180,7 @@
               "BoxParams": {
                 "box_q": [
                   0.53833336,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -5314,11 +5314,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8e754c72-3f5c-4f76-b361-b630018bc43e",
+            "uuid": "d72c40ac-8ba0-4008-abc7-43af14a26d8f",
             "transform": {
               "translation": [
                 -5.83,
-                1.425,
+                1.5794101,
                 -0.97
               ],
               "rotation": [
@@ -5362,7 +5362,7 @@
               "BoxParams": {
                 "box_q": [
                   1.91,
-                  0.045,
+                  0.062371135,
                   0.22
                 ],
                 "corner_radius": 0.0
@@ -5496,11 +5496,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "6b9f9c66-bc99-4ada-abe1-5869f4186f87",
+            "uuid": "6e62964e-7632-4b7a-ab71-65ef79e76f09",
             "transform": {
               "translation": [
                 -5.83,
-                1.675,
+                1.9259164,
                 -1.15
               ],
               "rotation": [
@@ -5544,7 +5544,7 @@
               "BoxParams": {
                 "box_q": [
                   1.91,
-                  0.205,
+                  0.28413516,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -5678,11 +5678,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "67f906dd-7c71-4736-9b51-f510182a18f3",
+            "uuid": "08c10e08-aa56-472d-aafb-7f6ff0911264",
             "transform": {
               "translation": [
                 0.96,
-                1.205,
+                1.312122,
                 -1.27
               ],
               "rotation": [
@@ -5726,7 +5726,7 @@
               "BoxParams": {
                 "box_q": [
                   3.32,
-                  0.375,
+                  0.482122,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -5860,11 +5860,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "08f32708-71d5-4954-b69a-6a12cc661e4f",
+            "uuid": "a61da55b-4ef5-40ca-a1fa-d3d77079f178",
             "transform": {
               "translation": [
                 0.96,
-                1.695,
+                1.9536369,
                 -1.27
               ],
               "rotation": [
@@ -5908,7 +5908,7 @@
               "BoxParams": {
                 "box_q": [
                   3.32,
-                  0.115,
+                  0.1593929,
                   0.04
                 ],
                 "corner_radius": 0.0
@@ -6042,11 +6042,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "1c3adf37-408a-4fe7-a40d-beb50bb62514",
+            "uuid": "01f1faf1-2b6d-41ff-8349-7868a84b75f8",
             "transform": {
               "translation": [
                 0.96,
-                2.92,
+                3.6515179,
                 -1.27
               ],
               "rotation": [
@@ -6090,7 +6090,7 @@
               "BoxParams": {
                 "box_q": [
                   3.32,
-                  0.13,
+                  0.18018328,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -6224,11 +6224,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3fabf2a7-99ec-4fbb-b2e4-110b0564cd43",
+            "uuid": "d8f3dc39-d18e-4f8d-b924-80b833d4ad8b",
             "transform": {
               "translation": [
                 0.96,
-                1.3,
+                1.4061569,
                 -1.2125
               ],
               "rotation": [
@@ -6272,7 +6272,7 @@
               "BoxParams": {
                 "box_q": [
                   3.32,
-                  0.27,
+                  0.3742268,
                   0.0175
                 ],
                 "corner_radius": 0.0
@@ -6406,11 +6406,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e8c24b64-9f15-4384-b090-9891b878776e",
+            "uuid": "ed6b4656-553c-428a-82bb-998daa9ac0bd",
             "transform": {
               "translation": [
                 -2.3,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -6454,7 +6454,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -6588,11 +6588,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "078c62d0-97b4-4c22-9d57-fc88ddd64a63",
+            "uuid": "fd867710-41bc-4f71-aca7-1efbc69b9f9a",
             "transform": {
               "translation": [
                 -0.76,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -6636,7 +6636,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -6770,11 +6770,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "eeaa669b-87d7-4f17-ac9b-f64f7f488b0f",
+            "uuid": "ce060407-f82b-448f-81f4-438b3c72e4ad",
             "transform": {
               "translation": [
                 -1.53,
-                1.8475,
+                2.1650057,
                 -1.27
               ],
               "rotation": [
@@ -6818,7 +6818,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -6952,11 +6952,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "5bd41264-9f81-4cca-8e46-44cd164ebe08",
+            "uuid": "141faa3f-e756-40b8-b1ca-70c68e35bf44",
             "transform": {
               "translation": [
                 -1.53,
-                2.7625,
+                3.4332187,
                 -1.27
               ],
               "rotation": [
@@ -7000,7 +7000,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -7134,11 +7134,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "aee0169a-36c2-4b7c-8c20-c7ac961d38a6",
+            "uuid": "5dc8d336-37fe-46ea-a72b-88b78db80e67",
             "transform": {
               "translation": [
                 -2.2175,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -7182,7 +7182,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -7316,11 +7316,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c77d5819-6395-4b03-9b57-e3d238d3a4b1",
+            "uuid": "f67992d3-20c0-4c6e-9430-d3a5fec751ef",
             "transform": {
               "translation": [
                 -0.8425,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -7364,7 +7364,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -7498,11 +7498,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ca615db7-ef69-4e38-a0e4-1a552a77ade0",
+            "uuid": "6c590a93-4c78-4c2d-b6ba-0d668dc18351",
             "transform": {
               "translation": [
                 -1.53,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -7546,7 +7546,7 @@
               "BoxParams": {
                 "box_q": [
                   0.665,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -7680,11 +7680,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "b16325b2-490e-4aa8-9bbf-94728de119fc",
+            "uuid": "a2abb64d-ef15-418c-94c6-de49cf672d62",
             "transform": {
               "translation": [
                 -0.64,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -7728,7 +7728,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -7862,11 +7862,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "21e695c5-1eae-4c61-a142-57ccb1fabf34",
+            "uuid": "ba717fd9-133e-459b-8466-719160a4158f",
             "transform": {
               "translation": [
                 0.9,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -7910,7 +7910,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -8044,11 +8044,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "1f1169c0-a646-4642-b6f5-7338a9c3c9cb",
+            "uuid": "b844649f-746e-40ab-8ef6-20c674bf4df1",
             "transform": {
               "translation": [
                 0.13,
-                1.8475,
+                2.1650057,
                 -1.27
               ],
               "rotation": [
@@ -8092,7 +8092,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -8226,11 +8226,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8fe0d18d-c22d-485e-bf63-29714be0bd84",
+            "uuid": "18d74356-5c75-4915-944f-ff075713ea63",
             "transform": {
               "translation": [
                 0.13,
-                2.7625,
+                3.4332187,
                 -1.27
               ],
               "rotation": [
@@ -8274,7 +8274,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -8408,11 +8408,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "82abd243-903e-45e0-9777-ccd4a78763e6",
+            "uuid": "9f241799-3a52-47a8-8b31-007907ef17a8",
             "transform": {
               "translation": [
                 -0.5575,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -8456,7 +8456,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -8590,11 +8590,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "dcf8bbf0-b20a-4c1f-9365-395d40f3a4bc",
+            "uuid": "d9d92ab1-d9f9-41d9-b1ae-68e3c4535b3f",
             "transform": {
               "translation": [
                 0.8175,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -8638,7 +8638,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -8772,11 +8772,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "9dc6eff1-f0ad-4140-8a72-a1bca724e114",
+            "uuid": "b5a6af01-d4d6-425d-8730-6281c5d08881",
             "transform": {
               "translation": [
                 0.13,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -8820,7 +8820,7 @@
               "BoxParams": {
                 "box_q": [
                   0.665,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -8954,11 +8954,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0dba79ba-ec99-4ab8-a95b-ac91d93c3db3",
+            "uuid": "3303e3c5-0d7c-4150-8da4-a8600105700a",
             "transform": {
               "translation": [
                 1.02,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -9002,7 +9002,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -9136,11 +9136,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d2697b50-022a-4252-8d30-5cb1d117d5a3",
+            "uuid": "253f984b-fc9f-40c7-8d8c-618bdbd61913",
             "transform": {
               "translation": [
                 2.56,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -9184,7 +9184,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -9318,11 +9318,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e97ceeb0-00d1-456d-a6ea-1b0467f84640",
+            "uuid": "5d2ea1df-1cae-4207-9b23-da5137245a2f",
             "transform": {
               "translation": [
                 1.79,
-                1.8475,
+                2.1650057,
                 -1.27
               ],
               "rotation": [
@@ -9366,7 +9366,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -9500,11 +9500,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f1f4e9a2-d067-4b85-ad6e-994ca0221c57",
+            "uuid": "332bf1be-0611-4e43-b878-a8d85837c6ef",
             "transform": {
               "translation": [
                 1.79,
-                2.7625,
+                3.4332187,
                 -1.27
               ],
               "rotation": [
@@ -9548,7 +9548,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -9682,11 +9682,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0fb1595c-4a3f-4b4a-b25d-101fa3f87999",
+            "uuid": "ad831996-9aeb-4663-a4eb-b654f93cad4c",
             "transform": {
               "translation": [
                 1.1025,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -9730,7 +9730,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -9864,11 +9864,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a8648d34-2d25-4c12-aaf4-354a96f5a82e",
+            "uuid": "e2af0224-5437-43d6-b0de-a7003ebb2adc",
             "transform": {
               "translation": [
                 2.4775,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -9912,7 +9912,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -10046,11 +10046,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "70b2bdc8-8081-4f2c-b51f-389b719f04a8",
+            "uuid": "f291a596-786e-4ab7-9085-0e66b8504f16",
             "transform": {
               "translation": [
                 1.79,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -10094,7 +10094,7 @@
               "BoxParams": {
                 "box_q": [
                   0.665,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -10228,11 +10228,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e6def7ab-a043-4830-9291-1143d6863f29",
+            "uuid": "bca76e79-1797-45f7-a49f-c9158d031481",
             "transform": {
               "translation": [
                 2.68,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -10276,7 +10276,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -10410,11 +10410,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "73ea53d0-0f29-4286-9c51-f3d71cd81efb",
+            "uuid": "bbe7e160-06f7-4820-948e-0c374dafe753",
             "transform": {
               "translation": [
                 4.22,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -10458,7 +10458,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -10592,11 +10592,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "11699932-ae1f-4d19-a839-9181d45e9d9c",
+            "uuid": "60186ba6-68ce-4f6d-af5f-baaa366d8c6f",
             "transform": {
               "translation": [
                 3.45,
-                1.8475,
+                2.1650057,
                 -1.27
               ],
               "rotation": [
@@ -10640,7 +10640,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -10774,11 +10774,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c0535a3f-c1d2-46db-b7b2-3665f6ac5a0c",
+            "uuid": "ddf747c0-df46-4bf8-b7e3-955af29690f1",
             "transform": {
               "translation": [
                 3.45,
-                2.7625,
+                3.4332187,
                 -1.27
               ],
               "rotation": [
@@ -10822,7 +10822,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -10956,11 +10956,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0f410aa7-1d44-44ae-935b-fcd9fc896744",
+            "uuid": "50a3ee15-c971-4b52-8c7f-fe4bb819b789",
             "transform": {
               "translation": [
                 2.7625,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -11004,7 +11004,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -11138,11 +11138,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4b26bd8b-5444-4d2a-93a3-35434c17421b",
+            "uuid": "e1fce8b2-9fcc-4926-afc0-80bbe1827fbd",
             "transform": {
               "translation": [
                 4.1375,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -11186,7 +11186,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -11320,11 +11320,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "2beade7d-b3ad-4308-aa46-2b14a6eb1487",
+            "uuid": "6f581283-5137-4cf6-93f9-2adebbe1b09b",
             "transform": {
               "translation": [
                 3.45,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -11368,7 +11368,7 @@
               "BoxParams": {
                 "box_q": [
                   0.665,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -11502,11 +11502,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "1fc159fd-8d85-4b80-8b71-b2f2b9de3dca",
+            "uuid": "8f223ae7-5768-4b39-bf81-687950277500",
             "transform": {
               "translation": [
                 0.96,
-                1.425,
+                1.5794101,
                 -0.97
               ],
               "rotation": [
@@ -11550,7 +11550,7 @@
               "BoxParams": {
                 "box_q": [
                   3.12,
-                  0.045,
+                  0.062371135,
                   0.22
                 ],
                 "corner_radius": 0.0
@@ -11684,11 +11684,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d860bd23-4846-43c9-a229-4edc18ec7440",
+            "uuid": "d4d8011c-91a3-4c68-a123-448a4bced99d",
             "transform": {
               "translation": [
                 0.96,
-                1.675,
+                1.9259164,
                 -1.15
               ],
               "rotation": [
@@ -11732,7 +11732,7 @@
               "BoxParams": {
                 "box_q": [
                   3.12,
-                  0.205,
+                  0.28413516,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -11866,11 +11866,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4023d6a3-151f-4854-88f0-5ffe7fffbdc4",
+            "uuid": "d4cc3e26-b965-495c-86d8-07db6459cfa0",
             "transform": {
               "translation": [
                 6.79,
-                1.205,
+                1.312122,
                 -1.27
               ],
               "rotation": [
@@ -11914,7 +11914,7 @@
               "BoxParams": {
                 "box_q": [
                   1.15,
-                  0.375,
+                  0.482122,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -12048,11 +12048,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "97da618c-32f2-4e82-8d1f-26cff7a615e0",
+            "uuid": "95f37b87-6c25-4dd9-8ae0-25c37070b4c0",
             "transform": {
               "translation": [
                 6.79,
-                1.695,
+                1.9536369,
                 -1.27
               ],
               "rotation": [
@@ -12096,7 +12096,7 @@
               "BoxParams": {
                 "box_q": [
                   1.15,
-                  0.115,
+                  0.1593929,
                   0.04
                 ],
                 "corner_radius": 0.0
@@ -12230,11 +12230,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "1e41bdb8-4fb8-4bbb-a7ef-8afc59d9c797",
+            "uuid": "6b84ac37-0493-4be0-a4cd-e8041c0522dd",
             "transform": {
               "translation": [
                 6.79,
-                2.92,
+                3.6515179,
                 -1.27
               ],
               "rotation": [
@@ -12278,7 +12278,7 @@
               "BoxParams": {
                 "box_q": [
                   1.15,
-                  0.13,
+                  0.18018328,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -12412,11 +12412,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "67d1b6d0-bf42-403a-abe5-7aec9e3062df",
+            "uuid": "0d56e008-5abc-4593-9d7b-6818fc682613",
             "transform": {
               "translation": [
                 6.79,
-                1.3,
+                1.4061569,
                 -1.2125
               ],
               "rotation": [
@@ -12460,7 +12460,7 @@
               "BoxParams": {
                 "box_q": [
                   1.15,
-                  0.27,
+                  0.3742268,
                   0.0175
                 ],
                 "corner_radius": 0.0
@@ -12594,11 +12594,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8adb7c0c-6218-448f-b984-15c523f4b587",
+            "uuid": "8ff068b5-c6ce-4a33-92f8-87642e4fc8b1",
             "transform": {
               "translation": [
                 5.7,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -12642,7 +12642,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -12776,11 +12776,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "37a2a301-5685-4d0d-bfe4-2318cda1e879",
+            "uuid": "e84f54aa-b322-4a0b-b6c0-37c8cffe86c3",
             "transform": {
               "translation": [
                 7.88,
-                2.3,
+                2.7921822,
                 -1.27
               ],
               "rotation": [
@@ -12824,7 +12824,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -12958,11 +12958,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4ed5b831-3cd6-44e4-a88a-ddba6af9afe9",
+            "uuid": "c4823dee-7b37-4357-bd9f-d489c45b64b8",
             "transform": {
               "translation": [
                 6.79,
-                1.8475,
+                2.1650057,
                 -1.27
               ],
               "rotation": [
@@ -13006,7 +13006,7 @@
               "BoxParams": {
                 "box_q": [
                   1.03,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -13140,11 +13140,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8631af9e-e03f-4e76-abfc-ce8df3ec5853",
+            "uuid": "9569b8e9-f1fe-4ca0-baa7-5f2934b1390a",
             "transform": {
               "translation": [
                 6.79,
-                2.7625,
+                3.4332187,
                 -1.27
               ],
               "rotation": [
@@ -13188,7 +13188,7 @@
               "BoxParams": {
                 "box_q": [
                   1.03,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -13322,11 +13322,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3c9a9595-c8e2-43a1-8330-c71a6446441a",
+            "uuid": "7a799f5c-f87d-42f2-8322-76c9ad2741ad",
             "transform": {
               "translation": [
                 5.7825,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -13370,7 +13370,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -13504,11 +13504,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8621a275-8d28-4601-ba48-f90eed1149ad",
+            "uuid": "549ef748-2cb1-42a2-ab61-9df949aa4e52",
             "transform": {
               "translation": [
                 7.7975,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -13552,7 +13552,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -13686,11 +13686,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "1286d6d6-b3f2-40ea-98ef-09038c3cba26",
+            "uuid": "238e011c-af45-4ca1-9f7c-dd4bd1b93ca8",
             "transform": {
               "translation": [
                 6.79,
-                2.305,
+                2.7991123,
                 -1.27
               ],
               "rotation": [
@@ -13734,7 +13734,7 @@
               "BoxParams": {
                 "box_q": [
                   0.985,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -13868,11 +13868,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8ddbd28f-9a6c-4ab3-bcce-5af49380c5b8",
+            "uuid": "59795918-b3d2-4e85-a1be-81185e341f11",
             "transform": {
               "translation": [
                 6.79,
-                1.425,
+                1.5794101,
                 -0.97
               ],
               "rotation": [
@@ -13916,7 +13916,7 @@
               "BoxParams": {
                 "box_q": [
                   0.95,
-                  0.045,
+                  0.062371135,
                   0.22
                 ],
                 "corner_radius": 0.0
@@ -14050,11 +14050,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "b8b34ee0-a6ad-4ece-a2eb-009d22baf7d9",
+            "uuid": "382e535c-cdf9-4449-8ba6-dc7910ed5a1f",
             "transform": {
               "translation": [
                 6.79,
-                1.675,
+                1.9259164,
                 -1.15
               ],
               "rotation": [
@@ -14098,7 +14098,7 @@
               "BoxParams": {
                 "box_q": [
                   0.95,
-                  0.205,
+                  0.28413516,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -14232,11 +14232,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0db7dc9b-b36b-4624-9d04-f27b20b3d0fc",
+            "uuid": "45b68cd3-2da8-4be5-bc4b-5546065d9f7a",
             "transform": {
               "translation": [
                 4.96,
-                2.89,
+                3.609937,
                 -1.27
               ],
               "rotation": [
@@ -14280,7 +14280,7 @@
               "BoxParams": {
                 "box_q": [
                   0.68,
-                  0.16,
+                  0.22176403,
                   0.05
                 ],
                 "corner_radius": 0.0
@@ -14414,7 +14414,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "316fbc97-fda4-4e90-8eb0-11556827887d",
+            "uuid": "af3d1816-f325-44af-820a-10a5f383c68a",
             "transform": {
               "translation": [
                 4.96,
@@ -14596,11 +14596,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "dc67e758-b007-4780-8cfd-aa434d12926f",
+            "uuid": "5cf962e2-294e-40e0-9767-5454f827d6dc",
             "transform": {
               "translation": [
                 5.298,
-                1.3925,
+                1.5343642,
                 -1.27
               ],
               "rotation": [
@@ -14644,7 +14644,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.3675,
+                  0.50936425,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -14778,11 +14778,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "1e3ac358-4468-427f-976d-31cabc438268",
+            "uuid": "9d9d7861-4677-474a-8411-597ba5dfd33b",
             "transform": {
               "translation": [
                 5.298,
-                1.69,
+                1.9467068,
                 -1.27
               ],
               "rotation": [
@@ -14826,7 +14826,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.11,
+                  0.15246277,
                   0.031
                 ],
                 "corner_radius": 0.0
@@ -14960,11 +14960,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a75357b4-81bb-45eb-8384-389ed10d5d24",
+            "uuid": "7425141d-a1d8-4713-a6ae-2615342934f1",
             "transform": {
               "translation": [
                 5.298,
-                2.675,
+                3.3119416,
                 -1.27
               ],
               "rotation": [
@@ -15008,7 +15008,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.055,
+                  0.07623138,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -15142,11 +15142,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c4a5c855-b216-41b5-b61e-7dd289b50349",
+            "uuid": "e7d54884-1696-4d2e-afc1-c42d4b6d73eb",
             "transform": {
               "translation": [
                 4.9875,
-                2.19,
+                2.6397192,
                 -1.27
               ],
               "rotation": [
@@ -15190,7 +15190,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -15324,11 +15324,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d52c88b7-cf91-4dc9-81e7-0c2b5bea1556",
+            "uuid": "1053a39f-ec04-466b-a0f9-08062494f509",
             "transform": {
               "translation": [
                 5.6085,
-                2.19,
+                2.6397192,
                 -1.27
               ],
               "rotation": [
@@ -15372,7 +15372,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -15506,11 +15506,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0d98e055-f6cf-456c-bb1d-3bb11f5bc0d1",
+            "uuid": "246905b7-fc77-45f4-b9e1-8a6545da8cbd",
             "transform": {
               "translation": [
                 5.298,
-                2.21,
+                2.66744,
                 -1.27
               ],
               "rotation": [
@@ -15554,7 +15554,7 @@
               "BoxParams": {
                 "box_q": [
                   0.283,
-                  0.41,
+                  0.5682703,
                   0.008
                 ],
                 "corner_radius": 0.0
@@ -15688,11 +15688,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "b0318fba-557b-4639-a5b0-356a0fd7f8d5",
+            "uuid": "0b096bc6-3ca7-4d7e-b41a-0e3e8309b95f",
             "transform": {
               "translation": [
                 4.968,
-                1.8775,
+                2.2065866,
                 -1.27
               ],
               "rotation": [
@@ -15736,7 +15736,7 @@
               "BoxParams": {
                 "box_q": [
                   0.008,
-                  0.8525,
+                  1.1815865,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -15870,11 +15870,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "db273ea7-1445-41dc-a447-3ac8a3aa2647",
+            "uuid": "fc47e1eb-c875-4d13-ae0d-12e4a23539c4",
             "transform": {
               "translation": [
                 4.622,
-                1.3925,
+                1.5343642,
                 -1.27
               ],
               "rotation": [
@@ -15918,7 +15918,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.3675,
+                  0.50936425,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -16052,11 +16052,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "da2dbc94-4e01-4768-945c-6b419057a4a5",
+            "uuid": "0d87030a-5ffa-442b-9659-b202c3199e8f",
             "transform": {
               "translation": [
                 4.622,
-                1.69,
+                1.9467068,
                 -1.27
               ],
               "rotation": [
@@ -16100,7 +16100,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.11,
+                  0.15246277,
                   0.031
                 ],
                 "corner_radius": 0.0
@@ -16234,11 +16234,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "faf24ad8-68c1-4451-a82b-16e0128e6324",
+            "uuid": "1690c10e-fdca-40cc-a93d-45653bb1626c",
             "transform": {
               "translation": [
                 4.622,
-                2.675,
+                3.3119416,
                 -1.27
               ],
               "rotation": [
@@ -16282,7 +16282,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.055,
+                  0.07623138,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -16416,11 +16416,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "5fbd8a60-9b38-4826-8d48-4c66fd59e8ad",
+            "uuid": "1643c198-2ffd-4d4c-bb67-3a002228a2bd",
             "transform": {
               "translation": [
                 4.3115,
-                2.19,
+                2.6397192,
                 -1.27
               ],
               "rotation": [
@@ -16464,7 +16464,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -16598,11 +16598,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "b3734b44-2b1b-49a2-802f-c4543e6d09b6",
+            "uuid": "53a56ceb-05e4-4955-8c2a-8839bacb19f8",
             "transform": {
               "translation": [
                 4.9325,
-                2.19,
+                2.6397192,
                 -1.27
               ],
               "rotation": [
@@ -16646,7 +16646,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -16780,11 +16780,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "dec6c916-c368-4f68-bd3e-a1bac1aea085",
+            "uuid": "d2320276-88d5-4e0e-bfe5-a10b3ee25ace",
             "transform": {
               "translation": [
                 4.622,
-                2.21,
+                2.66744,
                 -1.27
               ],
               "rotation": [
@@ -16828,7 +16828,7 @@
               "BoxParams": {
                 "box_q": [
                   0.283,
-                  0.41,
+                  0.5682703,
                   0.008
                 ],
                 "corner_radius": 0.0
@@ -16962,11 +16962,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c7d1d893-b2c6-4b29-a3c9-e6ca7f49c018",
+            "uuid": "51dd3747-f751-41c4-b548-5f84e4b7be0d",
             "transform": {
               "translation": [
                 4.952,
-                1.8775,
+                2.2065866,
                 -1.27
               ],
               "rotation": [
@@ -17010,7 +17010,7 @@
               "BoxParams": {
                 "box_q": [
                   0.008,
-                  0.8525,
+                  1.1815865,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -17144,11 +17144,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d78ecf49-137a-4f61-919a-e659d91f780a",
+            "uuid": "259cefdf-6960-4922-b85a-65adc807d400",
             "transform": {
               "translation": [
                 4.11,
-                2.0,
+                2.3763745,
                 -0.82
               ],
               "rotation": [
@@ -17191,7 +17191,7 @@
             "params": {
               "CylinderParams": {
                 "radius": 0.017,
-                "half_height": 0.975
+                "half_height": 1.3513746
               }
             },
             "name": "grab_pole_left_front_-0.85",
@@ -17322,11 +17322,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "52a1f73d-c145-45ea-b9f1-e1223de5b7d9",
+            "uuid": "2b9b764d-7012-4511-9b88-e43e4e35b4bf",
             "transform": {
               "translation": [
                 5.81,
-                2.0,
+                2.3763745,
                 -0.82
               ],
               "rotation": [
@@ -17369,7 +17369,7 @@
             "params": {
               "CylinderParams": {
                 "radius": 0.017,
-                "half_height": 0.975
+                "half_height": 1.3513746
               }
             },
             "name": "grab_pole_left_front_0.85",
@@ -17500,11 +17500,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e5285b9e-2c92-4131-96a8-56a2d4ea76a4",
+            "uuid": "19104635-44b6-4042-adeb-1de1578393a8",
             "transform": {
               "translation": [
                 -3.04,
-                2.89,
+                3.609937,
                 -1.27
               ],
               "rotation": [
@@ -17548,7 +17548,7 @@
               "BoxParams": {
                 "box_q": [
                   0.68,
-                  0.16,
+                  0.22176403,
                   0.05
                 ],
                 "corner_radius": 0.0
@@ -17682,7 +17682,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "cb75e8fe-99ef-4c33-90b5-ff638a87da51",
+            "uuid": "6862c144-b268-4617-ae3c-7f4ea8bcafc1",
             "transform": {
               "translation": [
                 -3.04,
@@ -17864,11 +17864,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3b7db269-144c-4a43-a549-7c1af61378cd",
+            "uuid": "d3f6c31b-0f42-496a-828f-b1ead4e42046",
             "transform": {
               "translation": [
                 -2.702,
-                1.3925,
+                1.5343642,
                 -1.27
               ],
               "rotation": [
@@ -17912,7 +17912,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.3675,
+                  0.50936425,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -18046,11 +18046,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "9bf880b5-ea7b-47e4-95dd-28b7e5831d4f",
+            "uuid": "a31f1b85-1b7b-47b1-9ab5-9ca7813e736c",
             "transform": {
               "translation": [
                 -2.702,
-                1.69,
+                1.9467068,
                 -1.27
               ],
               "rotation": [
@@ -18094,7 +18094,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.11,
+                  0.15246277,
                   0.031
                 ],
                 "corner_radius": 0.0
@@ -18228,11 +18228,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "04ca506e-1c94-43d8-b814-750e63698d78",
+            "uuid": "32efbcc0-a0f9-457f-9c49-921bb731a664",
             "transform": {
               "translation": [
                 -2.702,
-                2.675,
+                3.3119416,
                 -1.27
               ],
               "rotation": [
@@ -18276,7 +18276,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.055,
+                  0.07623138,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -18410,11 +18410,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "399b9c37-e5a4-445d-9360-479a72033d79",
+            "uuid": "ad5df74a-a175-4090-a6ff-800d7c21124a",
             "transform": {
               "translation": [
                 -3.0125,
-                2.19,
+                2.6397192,
                 -1.27
               ],
               "rotation": [
@@ -18458,7 +18458,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -18592,11 +18592,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "9dfe3a28-fce4-4c2f-b778-1bda502b080e",
+            "uuid": "c957aaa5-f6d0-425d-83e0-6d4bc2812e3a",
             "transform": {
               "translation": [
                 -2.3915,
-                2.19,
+                2.6397192,
                 -1.27
               ],
               "rotation": [
@@ -18640,7 +18640,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -18774,11 +18774,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3e29bd73-280e-4f99-96c1-8d1db68bdc7a",
+            "uuid": "105440ab-4306-49f1-92b2-1d3c4d3d4787",
             "transform": {
               "translation": [
                 -2.702,
-                2.21,
+                2.66744,
                 -1.27
               ],
               "rotation": [
@@ -18822,7 +18822,7 @@
               "BoxParams": {
                 "box_q": [
                   0.283,
-                  0.41,
+                  0.5682703,
                   0.008
                 ],
                 "corner_radius": 0.0
@@ -18956,11 +18956,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a24e2f2c-991f-451c-aced-5363ef670146",
+            "uuid": "54d73474-57ca-4787-9c83-86403c349507",
             "transform": {
               "translation": [
                 -3.032,
-                1.8775,
+                2.2065866,
                 -1.27
               ],
               "rotation": [
@@ -19004,7 +19004,7 @@
               "BoxParams": {
                 "box_q": [
                   0.008,
-                  0.8525,
+                  1.1815865,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -19138,11 +19138,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "30f25cb1-d27d-442e-b5a3-7c92c3eb8969",
+            "uuid": "c7ca428c-4028-499d-ad41-997240c6952c",
             "transform": {
               "translation": [
                 -3.378,
-                1.3925,
+                1.5343642,
                 -1.27
               ],
               "rotation": [
@@ -19186,7 +19186,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.3675,
+                  0.50936425,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -19320,11 +19320,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "19fe9b0a-dbb6-4429-b443-b3c12ccc313a",
+            "uuid": "d8a7130a-dd47-4acc-a35f-fbd763943f58",
             "transform": {
               "translation": [
                 -3.378,
-                1.69,
+                1.9467068,
                 -1.27
               ],
               "rotation": [
@@ -19368,7 +19368,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.11,
+                  0.15246277,
                   0.031
                 ],
                 "corner_radius": 0.0
@@ -19502,11 +19502,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0245224c-a21d-4f84-b722-38d84bc249b3",
+            "uuid": "8e930cf8-52c0-45c2-958d-ee6ac08eae13",
             "transform": {
               "translation": [
                 -3.378,
-                2.675,
+                3.3119416,
                 -1.27
               ],
               "rotation": [
@@ -19550,7 +19550,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.055,
+                  0.07623138,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -19684,11 +19684,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "6caa590a-3558-4f49-9d25-d2627da0c2e8",
+            "uuid": "6b5704f9-1982-4a78-8eb0-07fa9890e62c",
             "transform": {
               "translation": [
                 -3.6885,
-                2.19,
+                2.6397192,
                 -1.27
               ],
               "rotation": [
@@ -19732,7 +19732,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -19866,11 +19866,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3e2a9154-162d-4964-9d3a-e73c5b298639",
+            "uuid": "58d2cf99-5513-4494-b3c9-cc0379ac1149",
             "transform": {
               "translation": [
                 -3.0675,
-                2.19,
+                2.6397192,
                 -1.27
               ],
               "rotation": [
@@ -19914,7 +19914,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -20048,11 +20048,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "85fe7f1d-9087-4f05-ae05-9b450bc3a945",
+            "uuid": "89224cc1-8ea9-4d57-ad01-9f2d93c53c96",
             "transform": {
               "translation": [
                 -3.378,
-                2.21,
+                2.66744,
                 -1.27
               ],
               "rotation": [
@@ -20096,7 +20096,7 @@
               "BoxParams": {
                 "box_q": [
                   0.283,
-                  0.41,
+                  0.5682703,
                   0.008
                 ],
                 "corner_radius": 0.0
@@ -20230,11 +20230,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4412088b-ca1a-48ba-91db-760475727ed9",
+            "uuid": "1e6f1d9d-8dec-480d-aec4-6951c672c87f",
             "transform": {
               "translation": [
                 -3.048,
-                1.8775,
+                2.2065866,
                 -1.27
               ],
               "rotation": [
@@ -20278,7 +20278,7 @@
               "BoxParams": {
                 "box_q": [
                   0.008,
-                  0.8525,
+                  1.1815865,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -20412,11 +20412,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "b6725aa6-0006-4826-b6fe-c1bb59493464",
+            "uuid": "fad1ab2c-ee7e-49f1-a452-7d300f4701fc",
             "transform": {
               "translation": [
                 -3.89,
-                2.0,
+                2.3763745,
                 -0.82
               ],
               "rotation": [
@@ -20459,7 +20459,7 @@
             "params": {
               "CylinderParams": {
                 "radius": 0.017,
-                "half_height": 0.975
+                "half_height": 1.3513746
               }
             },
             "name": "grab_pole_left_rear_-0.85",
@@ -20590,11 +20590,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a1d7ca6a-e4a4-4b90-bd00-28b9be72e78b",
+            "uuid": "6cb32941-33dd-4071-b91b-82fa235160a4",
             "transform": {
               "translation": [
                 -2.19,
-                2.0,
+                2.3763745,
                 -0.82
               ],
               "rotation": [
@@ -20637,7 +20637,7 @@
             "params": {
               "CylinderParams": {
                 "radius": 0.017,
-                "half_height": 0.975
+                "half_height": 1.3513746
               }
             },
             "name": "grab_pole_left_rear_0.85",
@@ -20768,11 +20768,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "7b11136c-dace-4aa7-aa0d-3a3cc04d0b28",
+            "uuid": "1510d0a0-a899-48f8-b4f6-368afb7e47d3",
             "transform": {
               "translation": [
                 0.0,
-                2.72,
+                3.3743126,
                 -0.85
               ],
               "rotation": [
@@ -20946,11 +20946,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c6c8610c-2d03-4e3a-99bf-f58ce4b36a34",
+            "uuid": "91c64eb4-619e-47d4-a692-3ee756eeacfb",
             "transform": {
               "translation": [
                 -5.83,
-                1.205,
+                1.312122,
                 1.27
               ],
               "rotation": [
@@ -20994,7 +20994,7 @@
               "BoxParams": {
                 "box_q": [
                   2.11,
-                  0.375,
+                  0.482122,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -21128,11 +21128,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c7ad6507-e2d6-4cab-9f16-1f18eb9c4d91",
+            "uuid": "e41f693e-3f2c-4731-b996-cd3ce5c8b9b3",
             "transform": {
               "translation": [
                 -5.83,
-                1.695,
+                1.9536369,
                 1.27
               ],
               "rotation": [
@@ -21176,7 +21176,7 @@
               "BoxParams": {
                 "box_q": [
                   2.11,
-                  0.115,
+                  0.1593929,
                   0.04
                 ],
                 "corner_radius": 0.0
@@ -21310,11 +21310,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d493e020-b137-4c5e-92d6-aa078a0ff6a0",
+            "uuid": "6a14c919-9154-4e85-8e86-187993fa313d",
             "transform": {
               "translation": [
                 -5.83,
-                2.92,
+                3.6515179,
                 1.27
               ],
               "rotation": [
@@ -21358,7 +21358,7 @@
               "BoxParams": {
                 "box_q": [
                   2.11,
-                  0.13,
+                  0.18018328,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -21492,11 +21492,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e12b5f15-be89-4e88-9968-b02526611168",
+            "uuid": "03fd9fb7-75e4-4684-a83f-8b890b12bed2",
             "transform": {
               "translation": [
                 -5.83,
-                1.3,
+                1.4061569,
                 1.2125
               ],
               "rotation": [
@@ -21540,7 +21540,7 @@
               "BoxParams": {
                 "box_q": [
                   2.11,
-                  0.27,
+                  0.3742268,
                   0.0175
                 ],
                 "corner_radius": 0.0
@@ -21674,11 +21674,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d561706a-0d12-4249-9181-f70da52e2d98",
+            "uuid": "4648fd36-39d2-4597-834e-2efa132d77f1",
             "transform": {
               "translation": [
                 -7.88,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -21722,7 +21722,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -21856,11 +21856,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "323552a2-d7c7-4ac6-ab66-9232fff6e333",
+            "uuid": "b9c43343-08ce-419f-b466-84ede425574d",
             "transform": {
               "translation": [
                 -6.5933332,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -21904,7 +21904,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -22038,11 +22038,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e8faebe2-76cd-40c5-84af-79d03bc4df60",
+            "uuid": "25577e62-f0d8-43b3-ade9-a0bf8a0253d1",
             "transform": {
               "translation": [
                 -7.2366667,
-                1.8475,
+                2.1650057,
                 1.27
               ],
               "rotation": [
@@ -22086,7 +22086,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -22220,11 +22220,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3c5a21c5-1fda-4c19-8332-179cf771f183",
+            "uuid": "2402d55e-39a6-4a6f-b2ce-8332df18de7a",
             "transform": {
               "translation": [
                 -7.2366667,
-                2.7625,
+                3.4332187,
                 1.27
               ],
               "rotation": [
@@ -22268,7 +22268,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -22402,11 +22402,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "6b319379-744f-4df2-8ca9-4a3ba5722724",
+            "uuid": "d6c3e20e-45e0-4c9b-af98-dcad4b4258cb",
             "transform": {
               "translation": [
                 -7.7975,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -22450,7 +22450,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -22584,11 +22584,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a4aa4c72-d5de-4809-9c30-1812351674f6",
+            "uuid": "046da7f4-5a32-408c-9f87-6ed25f43ba79",
             "transform": {
               "translation": [
                 -6.675833,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -22632,7 +22632,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -22766,11 +22766,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "cc94bbc8-8101-47e2-822a-835e8d29a38c",
+            "uuid": "b04e513d-e5fe-433b-b6e1-0b035589e074",
             "transform": {
               "translation": [
                 -7.2366667,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -22814,7 +22814,7 @@
               "BoxParams": {
                 "box_q": [
                   0.53833336,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -22948,11 +22948,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4ab4abf1-8b29-4d38-9576-37a60c18959c",
+            "uuid": "b1895f5b-95b2-41eb-8c77-4c981c7dc246",
             "transform": {
               "translation": [
                 -6.4733334,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -22996,7 +22996,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -23130,11 +23130,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "75dd8d75-f3b1-4562-b15a-cd5f568dd529",
+            "uuid": "64a750ef-eea1-40b3-8bfb-35bb013b9558",
             "transform": {
               "translation": [
                 -5.1866665,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -23178,7 +23178,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -23312,11 +23312,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "fa0a28b6-ab98-4c4d-bf9c-e54b007f665f",
+            "uuid": "b241b1e0-8619-4b2d-bea9-f1d1f6e53897",
             "transform": {
               "translation": [
                 -5.83,
-                1.8475,
+                2.1650057,
                 1.27
               ],
               "rotation": [
@@ -23360,7 +23360,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -23494,11 +23494,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "616e1123-22e1-4be3-a5f6-b7e171312589",
+            "uuid": "271139db-502b-4600-9b6c-b2e1a99337f0",
             "transform": {
               "translation": [
                 -5.83,
-                2.7625,
+                3.4332187,
                 1.27
               ],
               "rotation": [
@@ -23542,7 +23542,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -23676,11 +23676,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f80c5d7f-f66f-4d2f-95c0-04f8ed038f36",
+            "uuid": "68d8852f-44de-46cb-8c66-3b8ba0c64d8a",
             "transform": {
               "translation": [
                 -6.3908334,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -23724,7 +23724,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -23858,11 +23858,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ada1aee9-413e-4807-bb0c-a783e57e26d5",
+            "uuid": "167659d1-b91c-4f58-a195-0c71371cc421",
             "transform": {
               "translation": [
                 -5.2691665,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -23906,7 +23906,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -24040,11 +24040,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "12105072-38de-42e8-bd52-9380c11d4c1d",
+            "uuid": "8b00d84b-de03-442d-ab85-c4988be57be7",
             "transform": {
               "translation": [
                 -5.83,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -24088,7 +24088,7 @@
               "BoxParams": {
                 "box_q": [
                   0.53833336,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -24222,11 +24222,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "dd2ad073-b1ea-4e27-bafa-90eb051bd2b6",
+            "uuid": "1d67c7f7-14dd-4866-a03a-df57bb96d6cd",
             "transform": {
               "translation": [
                 -5.0666666,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -24270,7 +24270,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -24404,11 +24404,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "7bba09cf-1d71-490b-990f-098cca9aaa78",
+            "uuid": "058b5ccb-d8fa-4422-ba69-0b0083da5bfb",
             "transform": {
               "translation": [
                 -3.78,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -24452,7 +24452,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -24586,11 +24586,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "732e0854-aeea-4006-b4c3-a3507efc70b2",
+            "uuid": "2ed1e5f1-245f-4e1f-a437-49a083982cce",
             "transform": {
               "translation": [
                 -4.423333,
-                1.8475,
+                2.1650057,
                 1.27
               ],
               "rotation": [
@@ -24634,7 +24634,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -24768,11 +24768,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "50d83836-24a9-4daa-8ac8-4ec8da941c4c",
+            "uuid": "f98ab8e1-4276-4244-9120-ec19c0bb3797",
             "transform": {
               "translation": [
                 -4.423333,
-                2.7625,
+                3.4332187,
                 1.27
               ],
               "rotation": [
@@ -24816,7 +24816,7 @@
               "BoxParams": {
                 "box_q": [
                   0.5833333,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -24950,11 +24950,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3e82c709-7118-4b33-8791-f91a61c7e04d",
+            "uuid": "f135f5ab-acac-429e-bfa7-d3bded9fbef8",
             "transform": {
               "translation": [
                 -4.9841666,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -24998,7 +24998,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -25132,11 +25132,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "cfd61593-70fb-4ac7-8950-729765ca169a",
+            "uuid": "97f0b570-dc13-4513-9337-8fbe0e4e8c57",
             "transform": {
               "translation": [
                 -3.8625,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -25180,7 +25180,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -25314,11 +25314,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "b9d85f8d-2414-46bb-946c-391870f16047",
+            "uuid": "a50c1f53-07b0-446a-91d6-e1b17cc05f2c",
             "transform": {
               "translation": [
                 -4.423333,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -25362,7 +25362,7 @@
               "BoxParams": {
                 "box_q": [
                   0.53833336,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -25496,11 +25496,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "140171da-0913-40b4-8d16-912b20f958dd",
+            "uuid": "c7e65b90-3608-4643-9e7b-883d3ddcc288",
             "transform": {
               "translation": [
                 -5.83,
-                1.425,
+                1.5794101,
                 0.97
               ],
               "rotation": [
@@ -25544,7 +25544,7 @@
               "BoxParams": {
                 "box_q": [
                   1.91,
-                  0.045,
+                  0.062371135,
                   0.22
                 ],
                 "corner_radius": 0.0
@@ -25678,11 +25678,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "7299c5ab-7b70-4884-ae4d-3a2d04be916b",
+            "uuid": "9cabcc33-db92-48a8-bd7d-e4ae9aac706a",
             "transform": {
               "translation": [
                 -5.83,
-                1.675,
+                1.9259164,
                 1.15
               ],
               "rotation": [
@@ -25726,7 +25726,7 @@
               "BoxParams": {
                 "box_q": [
                   1.91,
-                  0.205,
+                  0.28413516,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -25860,11 +25860,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c627266a-995e-4e26-a4e6-773e8a8a39a2",
+            "uuid": "13cf71f6-2695-4f10-a45e-2ebbe68d6086",
             "transform": {
               "translation": [
                 0.96,
-                1.205,
+                1.312122,
                 1.27
               ],
               "rotation": [
@@ -25908,7 +25908,7 @@
               "BoxParams": {
                 "box_q": [
                   3.32,
-                  0.375,
+                  0.482122,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -26042,11 +26042,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "27455829-a8a2-4b40-b442-c510d500380b",
+            "uuid": "57be2d1b-1896-44e9-8e1e-8e3c75208be0",
             "transform": {
               "translation": [
                 0.96,
-                1.695,
+                1.9536369,
                 1.27
               ],
               "rotation": [
@@ -26090,7 +26090,7 @@
               "BoxParams": {
                 "box_q": [
                   3.32,
-                  0.115,
+                  0.1593929,
                   0.04
                 ],
                 "corner_radius": 0.0
@@ -26224,11 +26224,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3f30160d-662b-4e03-8368-fa60c58295e2",
+            "uuid": "8e339bc0-9a57-476d-8ea8-ae4f8779daa4",
             "transform": {
               "translation": [
                 0.96,
-                2.92,
+                3.6515179,
                 1.27
               ],
               "rotation": [
@@ -26272,7 +26272,7 @@
               "BoxParams": {
                 "box_q": [
                   3.32,
-                  0.13,
+                  0.18018328,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -26406,11 +26406,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e404e24f-bd77-4fad-9bb2-c13e90bad70d",
+            "uuid": "53c0b317-722d-416f-b8af-0bda38c9e369",
             "transform": {
               "translation": [
                 0.96,
-                1.3,
+                1.4061569,
                 1.2125
               ],
               "rotation": [
@@ -26454,7 +26454,7 @@
               "BoxParams": {
                 "box_q": [
                   3.32,
-                  0.27,
+                  0.3742268,
                   0.0175
                 ],
                 "corner_radius": 0.0
@@ -26588,11 +26588,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8613c09a-4f00-4d38-b370-8638097dbc8e",
+            "uuid": "abaab8ce-1cd0-49a0-bd18-2f1fb9540175",
             "transform": {
               "translation": [
                 -2.3,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -26636,7 +26636,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -26770,11 +26770,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "b6e92f97-e20e-4891-8588-5a074d03e205",
+            "uuid": "03669bcc-5dbc-4e91-b44b-c4f26ce2af6a",
             "transform": {
               "translation": [
                 -0.76,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -26818,7 +26818,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -26952,11 +26952,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "96a20bf2-5a8a-4170-9149-76eb6526c880",
+            "uuid": "91fd4f56-11fa-4d63-a16f-9929ed0ef73a",
             "transform": {
               "translation": [
                 -1.53,
-                1.8475,
+                2.1650057,
                 1.27
               ],
               "rotation": [
@@ -27000,7 +27000,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -27134,11 +27134,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ad25a05d-24e6-4fbf-8e9e-4e189dade62d",
+            "uuid": "172f6168-cc36-47fd-b408-166679b9ab04",
             "transform": {
               "translation": [
                 -1.53,
-                2.7625,
+                3.4332187,
                 1.27
               ],
               "rotation": [
@@ -27182,7 +27182,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -27316,11 +27316,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "af6b0f02-99c5-46b5-af9b-ff0802a1c2c8",
+            "uuid": "851fe066-8a25-4190-8c72-edeb93249cc6",
             "transform": {
               "translation": [
                 -2.2175,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -27364,7 +27364,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -27498,11 +27498,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4af33c76-d6d8-48c7-9ae3-d9a3c4e3b66a",
+            "uuid": "3ba13a79-e733-4cdb-a679-de34fd281b13",
             "transform": {
               "translation": [
                 -0.8425,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -27546,7 +27546,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -27680,11 +27680,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4ef860ea-cf31-4b2d-93f9-5a0112f42ae3",
+            "uuid": "a562304b-b648-444b-a49e-9a24281fa970",
             "transform": {
               "translation": [
                 -1.53,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -27728,7 +27728,7 @@
               "BoxParams": {
                 "box_q": [
                   0.665,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -27862,11 +27862,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "9793d07c-646b-4b59-be56-6ea863890e17",
+            "uuid": "4e5b7444-435b-4d3f-ac69-062d94a8317e",
             "transform": {
               "translation": [
                 -0.64,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -27910,7 +27910,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -28044,11 +28044,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "84030ddd-fc87-4050-8943-6a07a283f8cf",
+            "uuid": "075241d7-a09d-4ef3-8ba9-2a0bf44e8660",
             "transform": {
               "translation": [
                 0.9,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -28092,7 +28092,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -28226,11 +28226,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "16ebb0be-0648-408b-af14-170ba3f45830",
+            "uuid": "b5b64a6c-61ec-47ef-a99e-8edab1a7ac21",
             "transform": {
               "translation": [
                 0.13,
-                1.8475,
+                2.1650057,
                 1.27
               ],
               "rotation": [
@@ -28274,7 +28274,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -28408,11 +28408,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ba708b30-c119-4bfb-a54a-580843cd2496",
+            "uuid": "9af3913d-29c0-4c20-b48f-2496624a4a12",
             "transform": {
               "translation": [
                 0.13,
-                2.7625,
+                3.4332187,
                 1.27
               ],
               "rotation": [
@@ -28456,7 +28456,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -28590,11 +28590,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e5102605-535d-4340-bc3a-b8bab3514bf5",
+            "uuid": "8cf3d04f-2ca6-4532-8f56-ab407de0da3a",
             "transform": {
               "translation": [
                 -0.5575,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -28638,7 +28638,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -28772,11 +28772,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "fb8f8cac-beb0-4c32-b3c6-c11e5f4a0d10",
+            "uuid": "6bbf5994-b568-442c-8dbd-2b994ff78945",
             "transform": {
               "translation": [
                 0.8175,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -28820,7 +28820,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -28954,11 +28954,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "cb3c2b41-f5e4-49e7-b129-4a127d6a9aa8",
+            "uuid": "c4aba244-3b84-4f20-b9ab-e3c9760ec34a",
             "transform": {
               "translation": [
                 0.13,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -29002,7 +29002,7 @@
               "BoxParams": {
                 "box_q": [
                   0.665,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -29136,11 +29136,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "cf364291-f65e-449f-bbbd-5cc358f8df8b",
+            "uuid": "ddd50f64-de5c-4398-aa55-fac7e4ac178b",
             "transform": {
               "translation": [
                 1.02,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -29184,7 +29184,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -29318,11 +29318,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "abf39412-7bf2-482e-98fb-f5d0c0b8decd",
+            "uuid": "0182deed-6eb0-41cb-a735-06256896b9a8",
             "transform": {
               "translation": [
                 2.56,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -29366,7 +29366,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -29500,11 +29500,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "225dfe6d-e304-459b-b406-6b37992d9fe9",
+            "uuid": "3048c309-1bfe-4bea-ba64-0567a6211c97",
             "transform": {
               "translation": [
                 1.79,
-                1.8475,
+                2.1650057,
                 1.27
               ],
               "rotation": [
@@ -29548,7 +29548,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -29682,11 +29682,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ef53721d-16a4-4ddc-96f4-cb6a4cce7e8e",
+            "uuid": "ec53f9ff-0e32-4b73-8041-730b484b3f35",
             "transform": {
               "translation": [
                 1.79,
-                2.7625,
+                3.4332187,
                 1.27
               ],
               "rotation": [
@@ -29730,7 +29730,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -29864,11 +29864,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a0591bb0-e542-446f-97a1-ea39b9994166",
+            "uuid": "2b081ac6-e3fa-47a7-a830-6d56ab3ffa8b",
             "transform": {
               "translation": [
                 1.1025,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -29912,7 +29912,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -30046,11 +30046,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f1048b5f-3d83-4447-bd83-3f714dd04f0d",
+            "uuid": "6e692c6f-7016-48c6-b0e1-cb6dff8f876b",
             "transform": {
               "translation": [
                 2.4775,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -30094,7 +30094,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -30228,11 +30228,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3f6ea5f6-76c1-42c8-ab0b-c7414fa0bd7b",
+            "uuid": "d1fcbd7b-b53a-43ce-969c-9d0be19107c9",
             "transform": {
               "translation": [
                 1.79,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -30276,7 +30276,7 @@
               "BoxParams": {
                 "box_q": [
                   0.665,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -30410,11 +30410,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "9044f86a-b599-4118-817a-4b4ceb5227e5",
+            "uuid": "f8fdc3e2-58c8-484b-9f78-2f89f289df09",
             "transform": {
               "translation": [
                 2.68,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -30458,7 +30458,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -30592,11 +30592,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f48b0b87-18ef-4d22-8f75-8a8d2f37e6c0",
+            "uuid": "542c52a2-424e-498b-b398-de83461248e8",
             "transform": {
               "translation": [
                 4.22,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -30640,7 +30640,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -30774,11 +30774,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "533f219b-6205-40d9-a3a1-f1e667308752",
+            "uuid": "fed3a7de-71a8-449c-b3ea-59814924bf53",
             "transform": {
               "translation": [
                 3.45,
-                1.8475,
+                2.1650057,
                 1.27
               ],
               "rotation": [
@@ -30822,7 +30822,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -30956,11 +30956,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "9c1d30c9-cff8-41e5-90b7-3bb1cfea7fcc",
+            "uuid": "85ad2963-dff1-41ac-8a23-f5620cef9b3c",
             "transform": {
               "translation": [
                 3.45,
-                2.7625,
+                3.4332187,
                 1.27
               ],
               "rotation": [
@@ -31004,7 +31004,7 @@
               "BoxParams": {
                 "box_q": [
                   0.71,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -31138,11 +31138,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "072cf9de-f8e6-4ff3-89f0-71fba4aa4d95",
+            "uuid": "98e59ca2-c8e2-4c58-91dd-c0665be4b5e9",
             "transform": {
               "translation": [
                 2.7625,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -31186,7 +31186,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -31320,11 +31320,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "5177fef6-f78b-4ba7-a6a2-19c265261ea5",
+            "uuid": "752cb4b3-a801-47fd-a812-b73c4c6049b6",
             "transform": {
               "translation": [
                 4.1375,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -31368,7 +31368,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -31502,11 +31502,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "25587220-8009-4cd6-b3d7-5587aee76f27",
+            "uuid": "36f56c19-35cb-43d0-a1a2-ff3a3e05d07e",
             "transform": {
               "translation": [
                 3.45,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -31550,7 +31550,7 @@
               "BoxParams": {
                 "box_q": [
                   0.665,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -31684,11 +31684,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "fd5861d7-c0d2-4bba-b44a-29c6e15e592e",
+            "uuid": "82da2745-ff67-4bef-9477-b005b7cf935a",
             "transform": {
               "translation": [
                 0.96,
-                1.425,
+                1.5794101,
                 0.97
               ],
               "rotation": [
@@ -31732,7 +31732,7 @@
               "BoxParams": {
                 "box_q": [
                   3.12,
-                  0.045,
+                  0.062371135,
                   0.22
                 ],
                 "corner_radius": 0.0
@@ -31866,11 +31866,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "6f04a1f4-31d0-4826-8165-06ae384c6ff1",
+            "uuid": "b06eec48-7d71-4717-af2b-c8f40374a831",
             "transform": {
               "translation": [
                 0.96,
-                1.675,
+                1.9259164,
                 1.15
               ],
               "rotation": [
@@ -31914,7 +31914,7 @@
               "BoxParams": {
                 "box_q": [
                   3.12,
-                  0.205,
+                  0.28413516,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -32048,11 +32048,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "30564431-7cd3-4c4f-9dbf-ab55937d0dc9",
+            "uuid": "13105eb1-97ee-40f8-adb9-d983ae0e171f",
             "transform": {
               "translation": [
                 6.79,
-                1.205,
+                1.312122,
                 1.27
               ],
               "rotation": [
@@ -32096,7 +32096,7 @@
               "BoxParams": {
                 "box_q": [
                   1.15,
-                  0.375,
+                  0.482122,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -32230,11 +32230,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "288b7528-e3c5-4412-9ea5-84e54783a3e2",
+            "uuid": "cc747361-b814-44a7-b3cb-881153610482",
             "transform": {
               "translation": [
                 6.79,
-                1.695,
+                1.9536369,
                 1.27
               ],
               "rotation": [
@@ -32278,7 +32278,7 @@
               "BoxParams": {
                 "box_q": [
                   1.15,
-                  0.115,
+                  0.1593929,
                   0.04
                 ],
                 "corner_radius": 0.0
@@ -32412,11 +32412,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "bb6d4d2a-d6b8-48f3-b3f0-43ca6a4d8926",
+            "uuid": "18661139-5cf3-4d90-a1c5-baa40fb04985",
             "transform": {
               "translation": [
                 6.79,
-                2.92,
+                3.6515179,
                 1.27
               ],
               "rotation": [
@@ -32460,7 +32460,7 @@
               "BoxParams": {
                 "box_q": [
                   1.15,
-                  0.13,
+                  0.18018328,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -32594,11 +32594,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "048ee22c-15e6-477b-957e-6348c3d5aaaa",
+            "uuid": "3c55b3ca-7f49-44b2-a3d6-3d3383894ebd",
             "transform": {
               "translation": [
                 6.79,
-                1.3,
+                1.4061569,
                 1.2125
               ],
               "rotation": [
@@ -32642,7 +32642,7 @@
               "BoxParams": {
                 "box_q": [
                   1.15,
-                  0.27,
+                  0.3742268,
                   0.0175
                 ],
                 "corner_radius": 0.0
@@ -32776,11 +32776,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f5340925-b574-4ec6-9310-a62f4f113612",
+            "uuid": "af7b0692-0626-42ba-81b9-86c8afb5b372",
             "transform": {
               "translation": [
                 5.7,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -32824,7 +32824,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -32958,11 +32958,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8a916b19-383b-4d6e-a3be-938b5163d4b9",
+            "uuid": "141e7263-7b83-430f-af00-0ec4ab7eded9",
             "transform": {
               "translation": [
                 7.88,
-                2.3,
+                2.7921822,
                 1.27
               ],
               "rotation": [
@@ -33006,7 +33006,7 @@
               "BoxParams": {
                 "box_q": [
                   0.06,
-                  0.5,
+                  0.6930126,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -33140,11 +33140,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "6f209873-27eb-462f-8d51-7df6ce00f629",
+            "uuid": "0ea1eae0-e04c-4826-9e41-3156b99af2ad",
             "transform": {
               "translation": [
                 6.79,
-                1.8475,
+                2.1650057,
                 1.27
               ],
               "rotation": [
@@ -33188,7 +33188,7 @@
               "BoxParams": {
                 "box_q": [
                   1.03,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -33322,11 +33322,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0b2b3b06-e765-42ad-a66d-91d159e10186",
+            "uuid": "75bcef59-6d20-494e-b100-7dca01739784",
             "transform": {
               "translation": [
                 6.79,
-                2.7625,
+                3.4332187,
                 1.27
               ],
               "rotation": [
@@ -33370,7 +33370,7 @@
               "BoxParams": {
                 "box_q": [
                   1.03,
-                  0.0275,
+                  0.03811569,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -33504,11 +33504,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "369ca681-1610-40ba-ab8c-8fda04a425b2",
+            "uuid": "be50dd76-d30f-4420-ada6-537959b7ff4a",
             "transform": {
               "translation": [
                 5.7825,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -33552,7 +33552,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -33686,11 +33686,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "eea696b7-ad92-4c86-b1d6-3793bb8de7b7",
+            "uuid": "642fa59c-dc6b-4c91-ae8c-507b479dfca1",
             "transform": {
               "translation": [
                 7.7975,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -33734,7 +33734,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0225,
-                  0.43,
+                  0.59599084,
                   0.045
                 ],
                 "corner_radius": 0.0
@@ -33868,11 +33868,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d17660f2-c4b9-497e-905c-1474288d4e6c",
+            "uuid": "0ef7416a-c2b9-4e3e-a62c-790ea916150d",
             "transform": {
               "translation": [
                 6.79,
-                2.305,
+                2.7991123,
                 1.27
               ],
               "rotation": [
@@ -33916,7 +33916,7 @@
               "BoxParams": {
                 "box_q": [
                   0.985,
-                  0.43,
+                  0.59599084,
                   0.009
                 ],
                 "corner_radius": 0.0
@@ -34050,11 +34050,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3c67a51c-885c-4bd4-98b0-df624dc1f7eb",
+            "uuid": "9890d6ba-38df-4321-8f68-c72084a26a11",
             "transform": {
               "translation": [
                 6.79,
-                1.425,
+                1.5794101,
                 0.97
               ],
               "rotation": [
@@ -34098,7 +34098,7 @@
               "BoxParams": {
                 "box_q": [
                   0.95,
-                  0.045,
+                  0.062371135,
                   0.22
                 ],
                 "corner_radius": 0.0
@@ -34232,11 +34232,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8253868c-fc9e-4d7b-ab8e-5e43ae775b3a",
+            "uuid": "a2917dae-13e2-4347-bbe5-6e5d53e328b4",
             "transform": {
               "translation": [
                 6.79,
-                1.675,
+                1.9259164,
                 1.15
               ],
               "rotation": [
@@ -34280,7 +34280,7 @@
               "BoxParams": {
                 "box_q": [
                   0.95,
-                  0.205,
+                  0.28413516,
                   0.03
                 ],
                 "corner_radius": 0.0
@@ -34414,11 +34414,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "28e224fa-f8b3-4591-acc9-324bac615a02",
+            "uuid": "b293aea3-510f-4a01-b40b-f845c69ebe80",
             "transform": {
               "translation": [
                 4.96,
-                2.89,
+                3.609937,
                 1.27
               ],
               "rotation": [
@@ -34462,7 +34462,7 @@
               "BoxParams": {
                 "box_q": [
                   0.68,
-                  0.16,
+                  0.22176403,
                   0.05
                 ],
                 "corner_radius": 0.0
@@ -34596,7 +34596,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "aa4636ad-612a-4986-977c-5561acaca5f5",
+            "uuid": "f0adf179-f537-4191-9b47-1185c19f6f16",
             "transform": {
               "translation": [
                 4.96,
@@ -34778,11 +34778,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c513f4e6-ba46-4dfd-85de-62e1b5cfd810",
+            "uuid": "3e889b48-598c-4791-bbcd-4f721e185eac",
             "transform": {
               "translation": [
                 5.298,
-                1.3925,
+                1.5343642,
                 1.27
               ],
               "rotation": [
@@ -34826,7 +34826,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.3675,
+                  0.50936425,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -34960,11 +34960,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "5be451df-c5e3-472d-aadc-43f4085424ed",
+            "uuid": "96438b4b-ed73-4f5a-880d-621617386f60",
             "transform": {
               "translation": [
                 5.298,
-                1.69,
+                1.9467068,
                 1.27
               ],
               "rotation": [
@@ -35008,7 +35008,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.11,
+                  0.15246277,
                   0.031
                 ],
                 "corner_radius": 0.0
@@ -35142,11 +35142,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "bbb3fd32-706b-40d8-9a18-09d8b9d477af",
+            "uuid": "4f0d0968-0358-4b4d-bdb6-3d455316a616",
             "transform": {
               "translation": [
                 5.298,
-                2.675,
+                3.3119416,
                 1.27
               ],
               "rotation": [
@@ -35190,7 +35190,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.055,
+                  0.07623138,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -35324,11 +35324,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ee3c6136-4ce5-4683-8f4f-a41f208cc4e5",
+            "uuid": "b05f839e-636d-437c-a19c-a4f91bc3419c",
             "transform": {
               "translation": [
                 4.9875,
-                2.19,
+                2.6397192,
                 1.27
               ],
               "rotation": [
@@ -35372,7 +35372,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -35506,11 +35506,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "7eb6e8be-8418-4858-9b91-fd6590a8ca05",
+            "uuid": "97fe4cd4-4886-4fc5-bfda-8bb3c6b600c6",
             "transform": {
               "translation": [
                 5.6085,
-                2.19,
+                2.6397192,
                 1.27
               ],
               "rotation": [
@@ -35554,7 +35554,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -35688,11 +35688,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a31546c0-acfa-4c77-92d1-c028df01f4d5",
+            "uuid": "ff36ba67-49ca-4bf3-b5d0-64cd6919dde4",
             "transform": {
               "translation": [
                 5.298,
-                2.21,
+                2.66744,
                 1.27
               ],
               "rotation": [
@@ -35736,7 +35736,7 @@
               "BoxParams": {
                 "box_q": [
                   0.283,
-                  0.41,
+                  0.5682703,
                   0.008
                 ],
                 "corner_radius": 0.0
@@ -35870,11 +35870,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8356f97a-8e10-4022-be04-5866393f4f4e",
+            "uuid": "96750aa7-2027-41a2-ad6f-0e0ea55c998b",
             "transform": {
               "translation": [
                 4.968,
-                1.8775,
+                2.2065866,
                 1.27
               ],
               "rotation": [
@@ -35918,7 +35918,7 @@
               "BoxParams": {
                 "box_q": [
                   0.008,
-                  0.8525,
+                  1.1815865,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -36052,11 +36052,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e003175c-b7f3-4fa9-b51d-214c01171adf",
+            "uuid": "1f90ae44-7367-46b1-a47a-40b8bd612fb6",
             "transform": {
               "translation": [
                 4.622,
-                1.3925,
+                1.5343642,
                 1.27
               ],
               "rotation": [
@@ -36100,7 +36100,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.3675,
+                  0.50936425,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -36234,11 +36234,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f312b083-846d-40e0-a6f5-0eb1ee20e90a",
+            "uuid": "185d197a-ce68-4ea3-888e-e4f095fa3b4d",
             "transform": {
               "translation": [
                 4.622,
-                1.69,
+                1.9467068,
                 1.27
               ],
               "rotation": [
@@ -36282,7 +36282,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.11,
+                  0.15246277,
                   0.031
                 ],
                 "corner_radius": 0.0
@@ -36416,11 +36416,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "601e62b3-90d6-423d-9343-830fdd6139e6",
+            "uuid": "fa78bdf8-8744-4026-8cc8-23995c70428b",
             "transform": {
               "translation": [
                 4.622,
-                2.675,
+                3.3119416,
                 1.27
               ],
               "rotation": [
@@ -36464,7 +36464,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.055,
+                  0.07623138,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -36598,11 +36598,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a80a392f-05d5-4a41-b6f0-f6a270a26406",
+            "uuid": "7aff1ed8-f2be-4ec0-b0ae-c1b66ab5e132",
             "transform": {
               "translation": [
                 4.3115,
-                2.19,
+                2.6397192,
                 1.27
               ],
               "rotation": [
@@ -36646,7 +36646,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -36780,11 +36780,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "d2a9b836-f4c2-4522-abf1-952f66d26db1",
+            "uuid": "54628707-f493-402c-895f-76564f67f607",
             "transform": {
               "translation": [
                 4.9325,
-                2.19,
+                2.6397192,
                 1.27
               ],
               "rotation": [
@@ -36828,7 +36828,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -36962,11 +36962,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ec66a07d-d652-49bf-bc4a-4a17e1428e27",
+            "uuid": "fa133768-1473-4e71-9735-786e3dfb6cfa",
             "transform": {
               "translation": [
                 4.622,
-                2.21,
+                2.66744,
                 1.27
               ],
               "rotation": [
@@ -37010,7 +37010,7 @@
               "BoxParams": {
                 "box_q": [
                   0.283,
-                  0.41,
+                  0.5682703,
                   0.008
                 ],
                 "corner_radius": 0.0
@@ -37144,11 +37144,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c2411f43-5932-444d-8c32-01be890a41e1",
+            "uuid": "17e1dc21-ff20-40f8-8941-e75b275308f2",
             "transform": {
               "translation": [
                 4.952,
-                1.8775,
+                2.2065866,
                 1.27
               ],
               "rotation": [
@@ -37192,7 +37192,7 @@
               "BoxParams": {
                 "box_q": [
                   0.008,
-                  0.8525,
+                  1.1815865,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -37326,11 +37326,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a01fcc05-1085-47c7-88e0-19d432f1c190",
+            "uuid": "72e25f33-ea57-4145-b1a1-17517fd2923a",
             "transform": {
               "translation": [
                 4.11,
-                2.0,
+                2.3763745,
                 0.82
               ],
               "rotation": [
@@ -37373,7 +37373,7 @@
             "params": {
               "CylinderParams": {
                 "radius": 0.017,
-                "half_height": 0.975
+                "half_height": 1.3513746
               }
             },
             "name": "grab_pole_right_front_-0.85",
@@ -37504,11 +37504,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c93d99d8-7e3d-4b43-9ab9-d4eedb264bc6",
+            "uuid": "a7b369ba-6a74-43f6-9933-1cfde90cfe37",
             "transform": {
               "translation": [
                 5.81,
-                2.0,
+                2.3763745,
                 0.82
               ],
               "rotation": [
@@ -37551,7 +37551,7 @@
             "params": {
               "CylinderParams": {
                 "radius": 0.017,
-                "half_height": 0.975
+                "half_height": 1.3513746
               }
             },
             "name": "grab_pole_right_front_0.85",
@@ -37682,11 +37682,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "af0950f7-a4c7-45cf-a907-0b8a64a16216",
+            "uuid": "e950d74e-4fd3-4600-8821-4fc220ab7010",
             "transform": {
               "translation": [
                 -3.04,
-                2.89,
+                3.609937,
                 1.27
               ],
               "rotation": [
@@ -37730,7 +37730,7 @@
               "BoxParams": {
                 "box_q": [
                   0.68,
-                  0.16,
+                  0.22176403,
                   0.05
                 ],
                 "corner_radius": 0.0
@@ -37864,7 +37864,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "f58b98d7-0728-4f22-83c9-cdd250da1bc9",
+            "uuid": "b09cba8d-3368-4b63-a19e-0671dcc2b20e",
             "transform": {
               "translation": [
                 -3.04,
@@ -38046,11 +38046,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3e6bcf52-22b1-44e8-a28c-0d30aa074452",
+            "uuid": "1290166e-8b5e-4b5c-bb06-70ca54da297f",
             "transform": {
               "translation": [
                 -2.702,
-                1.3925,
+                1.5343642,
                 1.27
               ],
               "rotation": [
@@ -38094,7 +38094,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.3675,
+                  0.50936425,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -38228,11 +38228,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "5b29c201-4c6c-4362-bd17-b3ee74fb8b48",
+            "uuid": "1dab5701-c3d7-4062-a83a-9c059b8dce63",
             "transform": {
               "translation": [
                 -2.702,
-                1.69,
+                1.9467068,
                 1.27
               ],
               "rotation": [
@@ -38276,7 +38276,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.11,
+                  0.15246277,
                   0.031
                 ],
                 "corner_radius": 0.0
@@ -38410,11 +38410,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0362381a-8794-4807-a77a-d086128e5b3d",
+            "uuid": "b94ce81f-b4c1-43bb-ab0f-1a06c5130424",
             "transform": {
               "translation": [
                 -2.702,
-                2.675,
+                3.3119416,
                 1.27
               ],
               "rotation": [
@@ -38458,7 +38458,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.055,
+                  0.07623138,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -38592,11 +38592,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3a821f71-588d-498a-8114-fe638bdebb9d",
+            "uuid": "1ddf4bcc-6abb-4dae-add5-1cef7739da42",
             "transform": {
               "translation": [
                 -3.0125,
-                2.19,
+                2.6397192,
                 1.27
               ],
               "rotation": [
@@ -38640,7 +38640,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -38774,11 +38774,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a3825069-180e-46bf-b965-7bf98000225a",
+            "uuid": "626fb31e-3b02-4f3f-8a3b-799ac45e93ad",
             "transform": {
               "translation": [
                 -2.3915,
-                2.19,
+                2.6397192,
                 1.27
               ],
               "rotation": [
@@ -38822,7 +38822,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -38956,11 +38956,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "05db986b-3123-4e17-a0a0-82c00e05dc46",
+            "uuid": "0365db70-634e-432d-b4df-9054a412ecc6",
             "transform": {
               "translation": [
                 -2.702,
-                2.21,
+                2.66744,
                 1.27
               ],
               "rotation": [
@@ -39004,7 +39004,7 @@
               "BoxParams": {
                 "box_q": [
                   0.283,
-                  0.41,
+                  0.5682703,
                   0.008
                 ],
                 "corner_radius": 0.0
@@ -39138,11 +39138,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4149c5b7-2cc4-4d9d-b2b9-97f98af7cafa",
+            "uuid": "50439dd4-a226-43f5-8aed-703b57df4ace",
             "transform": {
               "translation": [
                 -3.032,
-                1.8775,
+                2.2065866,
                 1.27
               ],
               "rotation": [
@@ -39186,7 +39186,7 @@
               "BoxParams": {
                 "box_q": [
                   0.008,
-                  0.8525,
+                  1.1815865,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -39320,11 +39320,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4a7c881d-9e22-4f4b-a72c-481851738171",
+            "uuid": "ca2dcb58-bfdb-4050-9fad-0ead8d10a982",
             "transform": {
               "translation": [
                 -3.378,
-                1.3925,
+                1.5343642,
                 1.27
               ],
               "rotation": [
@@ -39368,7 +39368,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.3675,
+                  0.50936425,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -39502,11 +39502,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "046355c1-e80a-4b11-a9ab-ec0560e3c71b",
+            "uuid": "248e02d8-a898-4141-8eab-a718b2daef71",
             "transform": {
               "translation": [
                 -3.378,
-                1.69,
+                1.9467068,
                 1.27
               ],
               "rotation": [
@@ -39550,7 +39550,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.11,
+                  0.15246277,
                   0.031
                 ],
                 "corner_radius": 0.0
@@ -39684,11 +39684,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "31368764-d815-4d6c-a035-a81aeb5afdf6",
+            "uuid": "cad8487d-5a4e-4658-9bfe-d91ce5268a37",
             "transform": {
               "translation": [
                 -3.378,
-                2.675,
+                3.3119416,
                 1.27
               ],
               "rotation": [
@@ -39732,7 +39732,7 @@
               "BoxParams": {
                 "box_q": [
                   0.338,
-                  0.055,
+                  0.07623138,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -39866,11 +39866,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "9e7cbe0a-63cc-45df-a484-dc19cf149a3d",
+            "uuid": "986575d6-0a0a-4201-9aed-9f9f0e618685",
             "transform": {
               "translation": [
                 -3.6885,
-                2.19,
+                2.6397192,
                 1.27
               ],
               "rotation": [
@@ -39914,7 +39914,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -40048,11 +40048,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "5b5be0fe-9239-44bc-8455-28d79e29af51",
+            "uuid": "9242f211-5af0-4bc4-9930-75fd5abb77d5",
             "transform": {
               "translation": [
                 -3.0675,
-                2.19,
+                2.6397192,
                 1.27
               ],
               "rotation": [
@@ -40096,7 +40096,7 @@
               "BoxParams": {
                 "box_q": [
                   0.0275,
-                  0.43,
+                  0.59599084,
                   0.028
                 ],
                 "corner_radius": 0.0
@@ -40230,11 +40230,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8d68e8be-3c1d-423a-9bd7-d73e51753d70",
+            "uuid": "06e6a913-8e3a-4028-b443-429920158c18",
             "transform": {
               "translation": [
                 -3.378,
-                2.21,
+                2.66744,
                 1.27
               ],
               "rotation": [
@@ -40278,7 +40278,7 @@
               "BoxParams": {
                 "box_q": [
                   0.283,
-                  0.41,
+                  0.5682703,
                   0.008
                 ],
                 "corner_radius": 0.0
@@ -40412,11 +40412,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "7d27d858-1782-44da-85f7-26cbfde8faea",
+            "uuid": "675db7c3-b8f7-4221-a926-2ad89aada33d",
             "transform": {
               "translation": [
                 -3.048,
-                1.8775,
+                2.2065866,
                 1.27
               ],
               "rotation": [
@@ -40460,7 +40460,7 @@
               "BoxParams": {
                 "box_q": [
                   0.008,
-                  0.8525,
+                  1.1815865,
                   0.035
                 ],
                 "corner_radius": 0.0
@@ -40594,11 +40594,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "b2b756b3-a44a-4f11-be9d-979136271c51",
+            "uuid": "c3ca8c14-2169-4273-8fa6-8af0552469d5",
             "transform": {
               "translation": [
                 -3.89,
-                2.0,
+                2.3763745,
                 0.82
               ],
               "rotation": [
@@ -40641,7 +40641,7 @@
             "params": {
               "CylinderParams": {
                 "radius": 0.017,
-                "half_height": 0.975
+                "half_height": 1.3513746
               }
             },
             "name": "grab_pole_right_rear_-0.85",
@@ -40772,11 +40772,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "922e83b5-4cef-4f6c-9d51-d686a8a24594",
+            "uuid": "07e96a24-7b48-45e0-bb99-2f11bdc9f387",
             "transform": {
               "translation": [
                 -2.19,
-                2.0,
+                2.3763745,
                 0.82
               ],
               "rotation": [
@@ -40819,7 +40819,7 @@
             "params": {
               "CylinderParams": {
                 "radius": 0.017,
-                "half_height": 0.975
+                "half_height": 1.3513746
               }
             },
             "name": "grab_pole_right_rear_0.85",
@@ -40950,11 +40950,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8236ef77-1ccb-4df9-8a0b-017aba3b9ff4",
+            "uuid": "30029328-738d-4177-8b08-84148a1b7af9",
             "transform": {
               "translation": [
                 0.0,
-                2.72,
+                3.3743126,
                 0.85
               ],
               "rotation": [
@@ -41128,11 +41128,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "2066506d-dc1e-4278-a892-4b19130c1275",
+            "uuid": "aa880f61-d59b-4b87-99b5-9759476de9ad",
             "transform": {
               "translation": [
                 7.97,
-                1.15,
+                1.241681,
                 0.0
               ],
               "rotation": [
@@ -41176,7 +41176,7 @@
               "BoxParams": {
                 "box_q": [
                   0.04,
-                  0.35,
+                  0.441681,
                   1.27
                 ],
                 "corner_radius": 0.025
@@ -41310,11 +41310,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f75ec24b-de43-4d97-8036-fb505bd9c4ef",
+            "uuid": "58f15d35-6746-4d3d-9cd1-2933cfd057e8",
             "transform": {
               "translation": [
                 7.97,
-                1.65,
+                1.8912657,
                 0.0
               ],
               "rotation": [
@@ -41358,7 +41358,7 @@
               "BoxParams": {
                 "box_q": [
                   0.045,
-                  0.15,
+                  0.20790379,
                   1.27
                 ],
                 "corner_radius": 0.015
@@ -41492,11 +41492,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "57d534f9-4150-4d2f-8bb0-a5b480c39685",
+            "uuid": "5c02ed7d-6e27-45f6-983f-7bb4ab5957fa",
             "transform": {
               "translation": [
                 7.97,
-                2.95,
+                3.6930985,
                 0.0
               ],
               "rotation": [
@@ -41540,7 +41540,7 @@
               "BoxParams": {
                 "box_q": [
                   0.04,
-                  0.13,
+                  0.18018328,
                   1.27
                 ],
                 "corner_radius": 0.025
@@ -41674,11 +41674,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0a2cf4d0-28a2-42b9-b16f-88aca12c24cf",
+            "uuid": "b8efbb5e-cfb7-4f77-baf0-18d9eac981bd",
             "transform": {
               "translation": [
                 7.97,
-                2.31,
+                2.8060424,
                 -1.22
               ],
               "rotation": [
@@ -41722,7 +41722,7 @@
               "BoxParams": {
                 "box_q": [
                   0.04,
-                  0.51,
+                  0.7068729,
                   0.05
                 ],
                 "corner_radius": 0.025
@@ -41856,11 +41856,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "e0e484cf-7a3d-4955-9706-240f65983912",
+            "uuid": "94e8b372-d363-4ac1-88e4-47cde596cd33",
             "transform": {
               "translation": [
                 7.97,
-                2.31,
+                2.8060424,
                 1.22
               ],
               "rotation": [
@@ -41904,7 +41904,7 @@
               "BoxParams": {
                 "box_q": [
                   0.04,
-                  0.51,
+                  0.7068729,
                   0.05
                 ],
                 "corner_radius": 0.025
@@ -42038,11 +42038,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "87c8522d-c33b-4d8e-b43f-9cafa0203ebc",
+            "uuid": "3432ddf4-088f-4c10-aedf-79807c6d67dc",
             "transform": {
               "translation": [
                 7.97,
-                1.8375,
+                2.1511455,
                 0.0
               ],
               "rotation": [
@@ -42086,7 +42086,7 @@
               "BoxParams": {
                 "box_q": [
                   0.045,
-                  0.0225,
+                  0.031185567,
                   1.15
                 ],
                 "corner_radius": 0.015
@@ -42220,11 +42220,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "98468b7e-d16b-4908-a13d-7f727f0344cd",
+            "uuid": "c7ceae2b-fba2-4c66-95d7-16554ef98be4",
             "transform": {
               "translation": [
                 7.97,
-                2.7925,
+                3.4747996,
                 0.0
               ],
               "rotation": [
@@ -42268,7 +42268,7 @@
               "BoxParams": {
                 "box_q": [
                   0.045,
-                  0.0225,
+                  0.031185567,
                   1.15
                 ],
                 "corner_radius": 0.015
@@ -42402,11 +42402,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "7d6253d0-4fa0-425b-ba7a-6ff3597aef4f",
+            "uuid": "1ff6a398-cef9-493c-8792-d628ddeac284",
             "transform": {
               "translation": [
                 7.97,
-                2.315,
+                2.8129725,
                 -1.125
               ],
               "rotation": [
@@ -42450,7 +42450,7 @@
               "BoxParams": {
                 "box_q": [
                   0.045,
-                  0.455,
+                  0.63064146,
                   0.025
                 ],
                 "corner_radius": 0.015
@@ -42584,11 +42584,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "55a84aeb-d01f-40cc-bbda-822d435427cd",
+            "uuid": "7535937c-4767-4758-86ed-4d31b9f03c2b",
             "transform": {
               "translation": [
                 7.97,
-                2.315,
+                2.8129725,
                 1.125
               ],
               "rotation": [
@@ -42632,7 +42632,7 @@
               "BoxParams": {
                 "box_q": [
                   0.045,
-                  0.455,
+                  0.63064146,
                   0.025
                 ],
                 "corner_radius": 0.015
@@ -42766,11 +42766,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "956c9df0-c41b-4880-9f26-df854e2f2836",
+            "uuid": "c5d2565e-a1c6-4b1e-b781-9e10e0dd6c79",
             "transform": {
               "translation": [
                 7.97,
-                2.315,
+                2.8129725,
                 0.0
               ],
               "rotation": [
@@ -42814,7 +42814,7 @@
               "BoxParams": {
                 "box_q": [
                   0.05,
-                  0.455,
+                  0.63064146,
                   1.1
                 ],
                 "corner_radius": 0.03
@@ -42948,11 +42948,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "537046d4-fab5-4aa0-96b5-a73d7df955e7",
+            "uuid": "6295ddf6-d53f-4ba1-b6f2-b581e6ded4a2",
             "transform": {
               "translation": [
                 7.97,
-                2.9625,
+                3.7104237,
                 -0.085
               ],
               "rotation": [
@@ -42996,7 +42996,7 @@
               "BoxParams": {
                 "box_q": [
                   0.05,
-                  0.0725,
+                  0.10048683,
                   0.715
                 ],
                 "corner_radius": 0.01
@@ -43130,11 +43130,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f01b8352-98ff-4b39-9fba-cd8f5185f546",
+            "uuid": "3119664b-48a3-4ba5-ac20-29879f004349",
             "transform": {
               "translation": [
                 8.028,
-                2.92,
+                3.6515179,
                 -0.05
               ],
               "rotation": [
@@ -43177,7 +43177,7 @@
             "params": {
               "TextParams": {
                 "text": "ACADIE",
-                "size": 0.09,
+                "size": 0.12474227,
                 "half_depth": 0.002,
                 "tracking": 0.01,
                 "line_spacing": 1.1
@@ -43311,11 +43311,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f6f88ffb-f0b1-4dd6-92d7-621c62bd4add",
+            "uuid": "4611ea68-5244-4175-81cf-11b0d238764a",
             "transform": {
               "translation": [
                 7.97,
-                1.365,
+                1.4962486,
                 -0.92
               ],
               "rotation": [
@@ -43359,7 +43359,7 @@
               "BoxParams": {
                 "box_q": [
                   0.055,
-                  0.125,
+                  0.17325315,
                   0.22
                 ],
                 "corner_radius": 0.025
@@ -43493,11 +43493,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4931f204-f48b-4c32-a416-86e1ffbe58df",
+            "uuid": "0c009d23-cbe3-437b-9749-58976d28e011",
             "transform": {
               "translation": [
                 7.97,
-                1.365,
+                1.4962486,
                 -0.98
               ],
               "rotation": [
@@ -43541,7 +43541,7 @@
               "BoxParams": {
                 "box_q": [
                   0.065,
-                  0.065,
+                  0.09009164,
                   0.065
                 ],
                 "corner_radius": 0.04
@@ -43675,11 +43675,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "ba014778-106c-4bb2-919b-42cdbe43075a",
+            "uuid": "0be694f1-3311-41d5-9091-5df1a10f64a8",
             "transform": {
               "translation": [
                 7.97,
-                1.365,
+                1.4962486,
                 0.92
               ],
               "rotation": [
@@ -43723,7 +43723,7 @@
               "BoxParams": {
                 "box_q": [
                   0.055,
-                  0.125,
+                  0.17325315,
                   0.22
                 ],
                 "corner_radius": 0.025
@@ -43857,11 +43857,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "c6937bb7-95d5-4156-be02-e5f998117042",
+            "uuid": "ecb20fde-5d0d-4aeb-b348-6aef7d97d64b",
             "transform": {
               "translation": [
                 7.97,
-                1.365,
+                1.4962486,
                 0.86
               ],
               "rotation": [
@@ -43905,7 +43905,7 @@
               "BoxParams": {
                 "box_q": [
                   0.065,
-                  0.065,
+                  0.09009164,
                   0.065
                 ],
                 "corner_radius": 0.04
@@ -44039,7 +44039,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "e9dfc020-af33-4657-ab69-1116bdc1c173",
+            "uuid": "7c9625cc-e7f0-4bc6-8f8c-bbafc9eb59ad",
             "transform": {
               "translation": [
                 7.97,
@@ -44221,7 +44221,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "10d3f392-2c5a-4837-925a-9a115454e99b",
+            "uuid": "db023891-4fda-4e96-964a-43ecd3712382",
             "transform": {
               "translation": [
                 7.97,
@@ -44403,11 +44403,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "3021ada6-d4db-4179-9976-2e2c27c6c9e7",
+            "uuid": "90566231-c689-4342-bd47-e5dc344d5dcf",
             "transform": {
               "translation": [
                 -7.97,
-                1.15,
+                1.241681,
                 0.0
               ],
               "rotation": [
@@ -44451,7 +44451,7 @@
               "BoxParams": {
                 "box_q": [
                   0.04,
-                  0.35,
+                  0.441681,
                   1.27
                 ],
                 "corner_radius": 0.025
@@ -44585,11 +44585,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "4bd178cc-c75a-4c6d-b78b-1dd765179464",
+            "uuid": "68a8836a-c364-4ce4-aa8d-4ec7ca334e1e",
             "transform": {
               "translation": [
                 -7.97,
-                1.65,
+                1.8912657,
                 0.0
               ],
               "rotation": [
@@ -44633,7 +44633,7 @@
               "BoxParams": {
                 "box_q": [
                   0.045,
-                  0.15,
+                  0.20790379,
                   1.27
                 ],
                 "corner_radius": 0.015
@@ -44767,11 +44767,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "2042cdaa-2261-4a73-abd6-f520cc873198",
+            "uuid": "a9476213-df15-4b44-9771-bf0de2c70341",
             "transform": {
               "translation": [
                 -7.97,
-                2.95,
+                3.6930985,
                 0.0
               ],
               "rotation": [
@@ -44815,7 +44815,7 @@
               "BoxParams": {
                 "box_q": [
                   0.04,
-                  0.13,
+                  0.18018328,
                   1.27
                 ],
                 "corner_radius": 0.025
@@ -44949,11 +44949,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a9ee47f0-3423-4a3f-94d2-1823ef3b00c4",
+            "uuid": "9f2cb840-e83f-4a23-b8f1-89b4e5c1926f",
             "transform": {
               "translation": [
                 -7.97,
-                2.31,
+                2.8060424,
                 -1.22
               ],
               "rotation": [
@@ -44997,7 +44997,7 @@
               "BoxParams": {
                 "box_q": [
                   0.04,
-                  0.51,
+                  0.7068729,
                   0.05
                 ],
                 "corner_radius": 0.025
@@ -45131,11 +45131,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f77cd374-7b39-46cd-87be-642a21b4f6ea",
+            "uuid": "8aa69304-f2c7-4fcc-9658-49efdd62f599",
             "transform": {
               "translation": [
                 -7.97,
-                2.31,
+                2.8060424,
                 1.22
               ],
               "rotation": [
@@ -45179,7 +45179,7 @@
               "BoxParams": {
                 "box_q": [
                   0.04,
-                  0.51,
+                  0.7068729,
                   0.05
                 ],
                 "corner_radius": 0.025
@@ -45313,11 +45313,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "df9c3fe5-c87f-451e-8dfe-5bf63b1c4bbb",
+            "uuid": "b5f1ce34-a39e-4f7c-99ac-390f7200b4f5",
             "transform": {
               "translation": [
                 -7.97,
-                1.8375,
+                2.1511455,
                 0.0
               ],
               "rotation": [
@@ -45361,7 +45361,7 @@
               "BoxParams": {
                 "box_q": [
                   0.045,
-                  0.0225,
+                  0.031185567,
                   1.15
                 ],
                 "corner_radius": 0.015
@@ -45495,11 +45495,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "103016c1-25ae-412e-857d-f697227985c2",
+            "uuid": "be9daf3e-c6ed-44d7-91b5-b573c0117e3d",
             "transform": {
               "translation": [
                 -7.97,
-                2.7925,
+                3.4747996,
                 0.0
               ],
               "rotation": [
@@ -45543,7 +45543,7 @@
               "BoxParams": {
                 "box_q": [
                   0.045,
-                  0.0225,
+                  0.031185567,
                   1.15
                 ],
                 "corner_radius": 0.015
@@ -45677,11 +45677,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a6db7473-8038-4e9a-bf4a-44c69e689d9f",
+            "uuid": "1f7b2cd8-49c8-446f-938b-70be974396af",
             "transform": {
               "translation": [
                 -7.97,
-                2.315,
+                2.8129725,
                 -1.125
               ],
               "rotation": [
@@ -45725,7 +45725,7 @@
               "BoxParams": {
                 "box_q": [
                   0.045,
-                  0.455,
+                  0.63064146,
                   0.025
                 ],
                 "corner_radius": 0.015
@@ -45859,11 +45859,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "300a11a0-314d-41b0-8a6d-8f295a49c9f2",
+            "uuid": "bd95f149-4a14-40a8-ab3e-2f6b49549d33",
             "transform": {
               "translation": [
                 -7.97,
-                2.315,
+                2.8129725,
                 1.125
               ],
               "rotation": [
@@ -45907,7 +45907,7 @@
               "BoxParams": {
                 "box_q": [
                   0.045,
-                  0.455,
+                  0.63064146,
                   0.025
                 ],
                 "corner_radius": 0.015
@@ -46041,11 +46041,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "48b22158-b7d4-4748-8562-f1eacbb87501",
+            "uuid": "7f1b305f-33e2-4c96-b11e-90e7d763ace1",
             "transform": {
               "translation": [
                 -7.97,
-                2.315,
+                2.8129725,
                 0.0
               ],
               "rotation": [
@@ -46089,7 +46089,7 @@
               "BoxParams": {
                 "box_q": [
                   0.05,
-                  0.455,
+                  0.63064146,
                   1.1
                 ],
                 "corner_radius": 0.03
@@ -46223,11 +46223,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "8460a53b-0787-49b4-ada4-0dff959b9fba",
+            "uuid": "8b13f629-b0b6-41f9-ac85-82e38dd67153",
             "transform": {
               "translation": [
                 -7.97,
-                2.9625,
+                3.7104237,
                 -0.085
               ],
               "rotation": [
@@ -46271,7 +46271,7 @@
               "BoxParams": {
                 "box_q": [
                   0.05,
-                  0.0725,
+                  0.10048683,
                   0.715
                 ],
                 "corner_radius": 0.01
@@ -46405,11 +46405,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f02fbfef-1a7b-4da5-83e0-3a971ce872fb",
+            "uuid": "334332ca-104f-4464-bba0-371a02ff1d6c",
             "transform": {
               "translation": [
                 -8.028,
-                2.92,
+                3.6515179,
                 -0.05
               ],
               "rotation": [
@@ -46452,7 +46452,7 @@
             "params": {
               "TextParams": {
                 "text": "ACADIE",
-                "size": 0.09,
+                "size": 0.12474227,
                 "half_depth": 0.002,
                 "tracking": 0.01,
                 "line_spacing": 1.1
@@ -46586,11 +46586,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "a39e11e1-253a-4cd9-9368-e533164ae43e",
+            "uuid": "2a275728-e4cd-4791-ae8c-f5ed6c15d546",
             "transform": {
               "translation": [
                 -7.97,
-                1.365,
+                1.4962486,
                 -0.92
               ],
               "rotation": [
@@ -46634,7 +46634,7 @@
               "BoxParams": {
                 "box_q": [
                   0.055,
-                  0.125,
+                  0.17325315,
                   0.22
                 ],
                 "corner_radius": 0.025
@@ -46768,11 +46768,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "62a9cb73-2816-47b2-ba81-40aad4c50598",
+            "uuid": "53a78b4d-b92f-47bb-8d7b-0b3560a842b0",
             "transform": {
               "translation": [
                 -7.97,
-                1.365,
+                1.4962486,
                 -0.98
               ],
               "rotation": [
@@ -46816,7 +46816,7 @@
               "BoxParams": {
                 "box_q": [
                   0.065,
-                  0.065,
+                  0.09009164,
                   0.065
                 ],
                 "corner_radius": 0.04
@@ -46950,11 +46950,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "bb52231f-ac59-408d-80c9-841e7523112f",
+            "uuid": "2ebd1a2f-6629-452d-9cb0-37f68cb955f3",
             "transform": {
               "translation": [
                 -7.97,
-                1.365,
+                1.4962486,
                 0.92
               ],
               "rotation": [
@@ -46998,7 +46998,7 @@
               "BoxParams": {
                 "box_q": [
                   0.055,
-                  0.125,
+                  0.17325315,
                   0.22
                 ],
                 "corner_radius": 0.025
@@ -47132,11 +47132,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "7a34e2d3-7bf8-4cf1-a749-4c4a01db3711",
+            "uuid": "da4c2e72-488d-4c39-89f5-29e35a1f01d0",
             "transform": {
               "translation": [
                 -7.97,
-                1.365,
+                1.4962486,
                 0.86
               ],
               "rotation": [
@@ -47180,7 +47180,7 @@
               "BoxParams": {
                 "box_q": [
                   0.065,
-                  0.065,
+                  0.09009164,
                   0.065
                 ],
                 "corner_radius": 0.04
@@ -47314,7 +47314,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "34fefae5-17bf-458d-9a39-c9dc13d7924c",
+            "uuid": "6919a47e-fa13-41f8-b04d-6f06e1b21858",
             "transform": {
               "translation": [
                 -7.97,
@@ -47496,7 +47496,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "750330e7-143b-43b6-a08d-0b6afc2e7aa7",
+            "uuid": "1edb065b-0297-4718-83db-5525d0827110",
             "transform": {
               "translation": [
                 -7.97,
@@ -47678,7 +47678,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "b918abfb-ca61-49cd-b7ec-060c586ea7a7",
+            "uuid": "d3907a0c-334e-40f8-a987-f0d5994bfa89",
             "transform": {
               "translation": [
                 -5.44,
@@ -47856,7 +47856,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "68925cf1-87ee-410c-bd08-dd21750b757c",
+            "uuid": "0a5c1bcc-1d2a-404a-9cdf-ef859217a5d1",
             "transform": {
               "translation": [
                 -5.44,
@@ -48034,7 +48034,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "c63dff13-1355-4cf9-862e-f7bc060d1b10",
+            "uuid": "c84383df-2bb7-425f-aab9-05efa2df99d6",
             "transform": {
               "translation": [
                 -5.44,
@@ -48212,7 +48212,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "ea8b53f3-f25d-403c-838f-ae82c7de3702",
+            "uuid": "04259c97-a0a4-43a8-beee-30536bf4bd54",
             "transform": {
               "translation": [
                 -5.44,
@@ -48390,7 +48390,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "9eda61ae-ac16-42ab-b834-327089efeb7d",
+            "uuid": "dd17380b-757c-4aa1-917a-a03e487b5bae",
             "transform": {
               "translation": [
                 -5.44,
@@ -48568,7 +48568,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "60e1b031-627f-415e-a013-27245c32d111",
+            "uuid": "535cff57-d9a4-4e17-8912-e463dd9e1df2",
             "transform": {
               "translation": [
                 -5.44,
@@ -48746,7 +48746,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "e1e5b810-113d-49f4-8221-ba74f329e732",
+            "uuid": "9fb5d37c-af0d-498b-b5f6-567f376d8e9c",
             "transform": {
               "translation": [
                 5.44,
@@ -48924,7 +48924,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "0902e278-d718-4588-abfe-6702d3fabe15",
+            "uuid": "baa2c2e1-ea44-4db8-9467-31bbafea3314",
             "transform": {
               "translation": [
                 5.44,
@@ -49102,7 +49102,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "f3b5c4bc-df80-41cb-ae8a-0ed1e9f892ef",
+            "uuid": "99c4463b-bd6f-4a9d-899c-a2d5b845b903",
             "transform": {
               "translation": [
                 5.44,
@@ -49280,7 +49280,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "681ed038-a40b-411f-99ee-ee1691d5ec27",
+            "uuid": "bf2b88da-a4d2-4e76-a944-52ebc9858ee8",
             "transform": {
               "translation": [
                 5.44,
@@ -49458,7 +49458,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "2215be44-0408-4d9b-9b28-bb6387958030",
+            "uuid": "be4a9fb6-7db9-429d-a965-a614adcedc6b",
             "transform": {
               "translation": [
                 5.44,
@@ -49636,7 +49636,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "99355659-daab-4ac1-80fc-bae28fe1cfb7",
+            "uuid": "b69d320d-5434-4bc4-9265-7e5fd548c557",
             "transform": {
               "translation": [
                 5.44,
@@ -49814,7 +49814,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "79c029d3-1519-4cb0-8b63-1dfb6f43234e",
+            "uuid": "d594578b-205b-4c75-af34-2ce0cd622409",
             "transform": {
               "translation": [
                 -4.19,
@@ -49992,7 +49992,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "ba01c80f-92c9-4ed3-b590-21ebe57c766b",
+            "uuid": "affb3c6d-f55a-4b79-9f66-031f4d138716",
             "transform": {
               "translation": [
                 -4.19,
@@ -50170,7 +50170,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "7927746e-af49-4afc-a3f7-5bdb5f38a69e",
+            "uuid": "5225c4b9-b26f-46ab-ae72-ee55c9bd35b2",
             "transform": {
               "translation": [
                 -4.815,
@@ -50352,7 +50352,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "74636fb5-43bd-4831-817e-36b887b5f317",
+            "uuid": "7f019e29-4beb-4954-a528-7a7dd4b9bdf8",
             "transform": {
               "translation": [
                 -4.19,
@@ -50530,7 +50530,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "d58dc302-5617-4e8d-bd87-256fc9a682c6",
+            "uuid": "52ba1e7e-733c-4a93-9c77-636bbd9317d2",
             "transform": {
               "translation": [
                 -4.19,
@@ -50708,7 +50708,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "8b28b66c-8be8-432a-913b-13e0a55aa429",
+            "uuid": "05515e40-7fc6-4bad-b686-259e52679d7b",
             "transform": {
               "translation": [
                 -4.815,
@@ -50890,7 +50890,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "f12e4dc1-7ff7-4184-bebe-70330846883f",
+            "uuid": "61c61737-86aa-42f5-a035-059e4b865580",
             "transform": {
               "translation": [
                 4.19,
@@ -51068,7 +51068,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "761d79ac-eb98-4412-a156-9330eb2f70dd",
+            "uuid": "02542447-2646-4327-9b3c-46930f32f727",
             "transform": {
               "translation": [
                 4.19,
@@ -51246,7 +51246,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "1940b0db-a553-400b-a820-1ba8d08ad025",
+            "uuid": "f71e83f8-efb1-4177-8f2b-d6448eab01cb",
             "transform": {
               "translation": [
                 4.815,
@@ -51428,7 +51428,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "2f61d5a7-2242-4d46-9552-e5cfe87be398",
+            "uuid": "9f48c8f1-8219-49d6-aca0-48985eec16e9",
             "transform": {
               "translation": [
                 4.19,
@@ -51606,7 +51606,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "c8caeaf7-9c74-4c30-9b99-7b427e2052da",
+            "uuid": "9590b974-69fa-42fa-a30b-7b9fdacf484b",
             "transform": {
               "translation": [
                 4.19,
@@ -51784,7 +51784,7 @@
             "image_stencil": null
           },
           {
-            "uuid": "fb2b1469-35de-480d-8cfa-d33ae89d427a",
+            "uuid": "9bd9c03a-a4d9-45ab-8500-07221318bc90",
             "transform": {
               "translation": [
                 4.815,
@@ -51966,11 +51966,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0f6b3750-7688-44a9-a796-310e2c8ca6dd",
+            "uuid": "02179c96-cddb-417e-9f49-c418db3fa5ba",
             "transform": {
               "translation": [
                 -6.5,
-                2.9775,
+                3.7312143,
                 0.0
               ],
               "rotation": [
@@ -52014,7 +52014,7 @@
               "BoxParams": {
                 "box_q": [
                   0.7,
-                  0.0125,
+                  0.017325316,
                   0.07
                 ],
                 "corner_radius": 0.0
@@ -52148,11 +52148,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "536aa9d7-83bf-498a-9a90-7a93d71385f4",
+            "uuid": "eaf397e4-a47f-40b3-a968-54ac3ac96d43",
             "transform": {
               "translation": [
                 -3.9,
-                2.9775,
+                3.7312143,
                 0.0
               ],
               "rotation": [
@@ -52196,7 +52196,7 @@
               "BoxParams": {
                 "box_q": [
                   0.7,
-                  0.0125,
+                  0.017325316,
                   0.07
                 ],
                 "corner_radius": 0.0
@@ -52330,11 +52330,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "f895ad92-04f6-41e2-bb21-d714e13199c3",
+            "uuid": "56d4edbd-5c1b-401f-bb71-31d1066d5816",
             "transform": {
               "translation": [
                 -1.3,
-                2.9775,
+                3.7312143,
                 0.0
               ],
               "rotation": [
@@ -52378,7 +52378,7 @@
               "BoxParams": {
                 "box_q": [
                   0.7,
-                  0.0125,
+                  0.017325316,
                   0.07
                 ],
                 "corner_radius": 0.0
@@ -52512,11 +52512,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "bd0c9b07-36f6-46cc-ac3f-324c7fd431d2",
+            "uuid": "d83c8e62-c335-4c4e-8e70-a7ede323e4ff",
             "transform": {
               "translation": [
                 1.3,
-                2.9775,
+                3.7312143,
                 0.0
               ],
               "rotation": [
@@ -52560,7 +52560,7 @@
               "BoxParams": {
                 "box_q": [
                   0.7,
-                  0.0125,
+                  0.017325316,
                   0.07
                 ],
                 "corner_radius": 0.0
@@ -52694,11 +52694,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "0ecaee7a-7ab5-427a-8c60-3ddeee6aea9f",
+            "uuid": "ea8258b4-c51b-469d-9119-cb26aaa18d16",
             "transform": {
               "translation": [
                 3.9,
-                2.9775,
+                3.7312143,
                 0.0
               ],
               "rotation": [
@@ -52742,7 +52742,7 @@
               "BoxParams": {
                 "box_q": [
                   0.7,
-                  0.0125,
+                  0.017325316,
                   0.07
                 ],
                 "corner_radius": 0.0
@@ -52876,11 +52876,11 @@
             "image_stencil": null
           },
           {
-            "uuid": "64a1afc8-663f-4db9-8ab6-cf5bc73869ed",
+            "uuid": "74432849-693c-4509-8ed0-4f77775dec0a",
             "transform": {
               "translation": [
                 6.5,
-                2.9775,
+                3.7312143,
                 0.0
               ],
               "rotation": [
@@ -52924,7 +52924,7 @@
               "BoxParams": {
                 "box_q": [
                   0.7,
-                  0.0125,
+                  0.017325316,
                   0.07
                 ],
                 "corner_radius": 0.0

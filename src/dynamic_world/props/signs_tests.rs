@@ -2,6 +2,47 @@ use super::*;
 use crate::props::{Kind, Placement, SignDesign};
 
 #[test]
+fn service_road_destination_signs_point_along_the_road_report_81() {
+    let program = opencity::parse(include_str!("../../../data/maps/mtl/map.road")).unwrap();
+    let entries = crate::props::read(&program).unwrap();
+    let projection = opencity::map::project(&program);
+    for (sign, road) in [
+        ("sign_ramp_north_destination", "service_north_segment"),
+        ("sign_ramp_south_destination", "service_south_segment"),
+    ] {
+        let entry = entries.iter().find(|e| e.name == sign).unwrap();
+        let crate::props::Shape::Single(p) = &entry.shape else {
+            panic!("{sign} must be a single sign");
+        };
+        // These signs sit past the junction, beside a continuing service road.
+        // A right arrow sends drivers into a forecourt instead of onward.
+        assert!(
+            matches!(
+                p.sign,
+                Some(SignDesign::Highway {
+                    arrow: crate::props::SignArrow::Straight,
+                    ..
+                })
+            ),
+            "{sign} must direct traffic straight ahead"
+        );
+        let segment = projection
+            .segments
+            .iter()
+            .find(|s| s.name.as_deref() == Some(road))
+            .unwrap();
+        let tangent = segment.tangent_at(0.5);
+        let travel = Vec3::new(tangent.x, tangent.y, 0.);
+        let facing_travel = p.transform().transform_vector3(Vec3::Y);
+        let alignment = facing_travel.dot(travel);
+        assert!(
+            alignment > 0. && alignment * alignment > 0.99 * travel.length_squared(),
+            "{sign} must face approaching traffic on {road}"
+        );
+    }
+}
+
+#[test]
 fn sign_geometry_is_not_baked_twice_and_hidden_signs_have_no_colliders() {
     let base = "road r: carlane; end r(-1,0,1,0); land(-2,-2,2,-2,2,2,-2,2);";
     let mut plain = crate::hermes::Hermes::test_map_from_source(base);

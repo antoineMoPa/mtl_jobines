@@ -4565,9 +4565,9 @@ sign_autoroute_east_speed = prop(speed_sign, -0.2325539, -0.5921517, { heading: 
 # highway_south / forward approach
 sign_autoroute_west_speed = prop(speed_sign, 1.7526392, -0.0630892, { heading: 91.6982, elevation: 0.0020000, limit: 100 });
 # service_north_segment / forward approach
-sign_ramp_north_destination = prop(highway_sign, 1.9388161, -0.7263632, { heading: -88.3018, elevation: 0.1020000, destination: "Hochelaga", secondary: "Saint-Denis / Stade", exit: "", arrow: right });
+sign_ramp_north_destination = prop(highway_sign, 1.9388161, -0.7263632, { heading: -88.3018, elevation: 0.1020000, destination: "Hochelaga", secondary: "Saint-Denis / Stade", exit: "", arrow: straight });
 # service_south_segment / forward approach
-sign_ramp_south_destination = prop(highway_sign, 1.4500250, 0.1265263, { heading: 91.6982, elevation: 0.1020000, destination: "Villeray", secondary: "Jean-Talon / Saint-Laurent", exit: "", arrow: right });
+sign_ramp_south_destination = prop(highway_sign, 1.4500250, 0.1265263, { heading: 91.6982, elevation: 0.1020000, destination: "Villeray", secondary: "Jean-Talon / Saint-Laurent", exit: "", arrow: straight });
 sign_merge_north = prop(yield_sign, 5.90, -0.385, {heading:-88.30,elevation:0.002});
 sign_merge_south = prop(yield_sign, -2.48, -0.15, {heading:91.70,elevation:0.002});
 sign_exit_north = prop(highway_sign, -2.9, -0.68, {heading:-88.30,elevation:0.002,destination: "Downtown",secondary: "Saint-Laurent",exit:"1",arrow:exit_right});
@@ -4873,87 +4873,87 @@ road metro_stair:
     sidewalk;
 end
 metro_loop_00 = metro_track(1.3, 1.4, 1.3, 3.6, 1.3, 5.8, 1.3, 8);
-grade(metro_loop_00, -0.035, -0.035);
+grade(metro_loop_00, -0.0365, -0.0365);
 metro_loop_01 = metro_track(1.3, 8, 1.3, 8.15, 1.3, 8.3, 1.3, 8.45);
-grade(metro_loop_01, -0.035, -0.035);
+grade(metro_loop_01, -0.0365, -0.0365);
 metro_loop_02 = metro_track(1.3, 8.45, 1.3, 8.947056, 1.702944, 9.35, 2.2, 9.35);
-grade(metro_loop_02, -0.035, -0.035);
+grade(metro_loop_02, -0.0365, -0.0365);
 metro_loop_03 = metro_track(2.2, 9.35, 7.3, 9.35, 12.4, 9.35, 17.5, 9.35);
-grade(metro_loop_03, -0.035, -0.035);
+grade(metro_loop_03, -0.0365, -0.0365);
 metro_loop_04 = metro_track(17.5, 9.35, 18.366667, 9.35, 19.233333, 9.35, 20.1, 9.35);
-grade(metro_loop_04, -0.035, -0.035);
+grade(metro_loop_04, -0.0365, -0.0365);
 metro_loop_05 = metro_track(20.1, 9.35, 20.597056, 9.35, 21, 8.947056, 21, 8.45);
-grade(metro_loop_05, -0.035, -0.035);
+grade(metro_loop_05, -0.0365, -0.0365);
 metro_loop_06 = metro_track(21, 8.45, 21, 8.416667, 21, 8.383333, 21, 8.35);
-grade(metro_loop_06, -0.035, -0.035);
+grade(metro_loop_06, -0.0365, -0.0365);
 metro_loop_07 = metro_track(21, 8.35, 21, 7.908172, 20.641828, 7.55, 20.2, 7.55);
-grade(metro_loop_07, -0.035, -0.035);
-metro_loop_08 = metro_track(20.2, 7.55, 8, 7.55, 12, 0.4, 2.2, 0.4);
-grade(metro_loop_08, -0.035, -0.035);
-metro_loop_09 = metro_track(2.2, 0.4, 1.702944, 0.4, 1.3, 0.802944, 1.3, 1.3);
-grade(metro_loop_09, -0.035, -0.035);
-metro_loop_10 = metro_track(1.3, 1.3, 1.3, 1.333333, 1.3, 1.366667, 1.3, 1.4);
-grade(metro_loop_10, -0.035, -0.035);
+grade(metro_loop_07, -0.0365, -0.0365);
+metro_loop_08 = metro_track(20.2, 7.55, 8, 7.55, 12, 0.4, 1.8, 0.4);
+grade(metro_loop_08, -0.0365, -0.0365);
+metro_loop_09 = metro_track(1.8, 0.4, 1.523858, 0.4, 1.3, 0.623858, 1.3, 0.9);
+grade(metro_loop_09, -0.0365, -0.0365);
+metro_loop_10 = metro_track(1.3, 0.9, 1.3, 1.066667, 1.3, 1.233333, 1.3, 1.4);
+grade(metro_loop_10, -0.0365, -0.0365);
 
-# acadie: 44 m chamber, 7 m platform, 72-step street staircase.
+# acadie: 64 m chamber, 7 m platform, 72-step street staircase.
 metro_station_acadie = map_point(1.3, 1.4);
-metro_cut_acadie = terrain_cut(-0.036, 1.34, 1.2, 1.34, 1.62, 1.18, 1.62, 1.18, 1.2);
-metro_cut_acadie_left = terrain_cut(-0.036, 1.34, 1.18, 1.34, 1.2, 1.26, 1.2, 1.26, 1.18);
-metro_cut_acadie_right = terrain_cut(-0.036, 1.22, 1.18, 1.22, 1.2, 1.18, 1.2, 1.18, 1.18);
-metro_stair_cut_acadie = terrain_cut(0.1005, { slope_x: 0, slope_y: -0.63375 }, 1.26, 1, 1.26, 1.2, 1.22, 1.2, 1.22, 1);
-metro_dock_acadie_0 = metro_platform(1.27, 1.18, 1.27, 1.62);
+metro_cut_acadie = terrain_cut(-0.036, 1.34, 1.1, 1.34, 1.72, 1.18, 1.72, 1.18, 1.1);
+metro_cut_acadie_left = terrain_cut(-0.036, 1.34, 1.08, 1.34, 1.1, 1.26, 1.1, 1.26, 1.08);
+metro_cut_acadie_right = terrain_cut(-0.036, 1.22, 1.08, 1.22, 1.1, 1.18, 1.1, 1.18, 1.08);
+metro_stair_cut_acadie = terrain_cut(0.1005, { slope_x: 0, slope_y: -0.63375 }, 1.26, 0.9, 1.26, 1.1, 1.22, 1.1, 1.22, 0.9);
+metro_dock_acadie_0 = metro_platform(1.27, 1.08, 1.27, 1.72);
 grade(metro_dock_acadie_0, -0.02625, -0.02625);
-metro_dock_acadie_1 = metro_platform(1.24, 1.18, 1.24, 1.62);
+metro_dock_acadie_1 = metro_platform(1.24, 1.08, 1.24, 1.72);
 grade(metro_dock_acadie_1, -0.02625, -0.02625);
-metro_dock_acadie_2 = metro_platform(1.21, 1.18, 1.21, 1.62);
+metro_dock_acadie_2 = metro_platform(1.21, 1.08, 1.21, 1.72);
 grade(metro_dock_acadie_2, -0.02625, -0.02625);
-metro_stairs_acadie = metro_stair(1.24, 1, 1.24, 1.2);
+metro_stairs_acadie = metro_stair(1.24, 0.9, 1.24, 1.1);
 grade(metro_stairs_acadie, 0.1005, -0.02625);
-metro_roof_acadie_0 = concrete(1.34, 1.22, 1.34, 1.62, 1.18, 1.62, 1.18, 1.22);
-elevation(metro_roof_acadie_0, 0.122);
-metro_roof_acadie_1 = concrete(1.34, 1.18, 1.34, 1.22, 1.26, 1.22, 1.26, 1.18);
-elevation(metro_roof_acadie_1, 0.122);
-metro_roof_acadie_2 = concrete(1.22, 1.18, 1.22, 1.22, 1.18, 1.22, 1.18, 1.18);
-elevation(metro_roof_acadie_2, 0.122);
+metro_roof_acadie_0 = concrete(1.34, 1.12, 1.34, 1.72, 1.18, 1.72, 1.18, 1.12);
+elevation(metro_roof_acadie_0, 0.1215);
+metro_roof_acadie_1 = concrete(1.34, 1.08, 1.34, 1.12, 1.26, 1.12, 1.26, 1.08);
+elevation(metro_roof_acadie_1, 0.1215);
+metro_roof_acadie_2 = concrete(1.22, 1.08, 1.22, 1.12, 1.18, 1.12, 1.18, 1.08);
+elevation(metro_roof_acadie_2, 0.1215);
 
-# jean_talon: 44 m chamber, 7 m platform, 72-step street staircase.
+# jean_talon: 64 m chamber, 7 m platform, 72-step street staircase.
 metro_station_jean_talon = map_point(1.3, 8);
-metro_cut_jean_talon = terrain_cut(-0.036, 1.34, 7.8, 1.34, 8.22, 1.18, 8.22, 1.18, 7.8);
-metro_cut_jean_talon_left = terrain_cut(-0.036, 1.34, 7.78, 1.34, 7.8, 1.26, 7.8, 1.26, 7.78);
-metro_cut_jean_talon_right = terrain_cut(-0.036, 1.22, 7.78, 1.22, 7.8, 1.18, 7.8, 1.18, 7.78);
-metro_stair_cut_jean_talon = terrain_cut(0.1005, { slope_x: 0, slope_y: -0.63375 }, 1.26, 7.6, 1.26, 7.8, 1.22, 7.8, 1.22, 7.6);
-metro_dock_jean_talon_0 = metro_platform(1.27, 7.78, 1.27, 8.22);
+metro_cut_jean_talon = terrain_cut(-0.036, 1.34, 7.7, 1.34, 8.32, 1.18, 8.32, 1.18, 7.7);
+metro_cut_jean_talon_left = terrain_cut(-0.036, 1.34, 7.68, 1.34, 7.7, 1.26, 7.7, 1.26, 7.68);
+metro_cut_jean_talon_right = terrain_cut(-0.036, 1.22, 7.68, 1.22, 7.7, 1.18, 7.7, 1.18, 7.68);
+metro_stair_cut_jean_talon = terrain_cut(0.1005, { slope_x: 0, slope_y: -0.63375 }, 1.26, 7.5, 1.26, 7.7, 1.22, 7.7, 1.22, 7.5);
+metro_dock_jean_talon_0 = metro_platform(1.27, 7.68, 1.27, 8.32);
 grade(metro_dock_jean_talon_0, -0.02625, -0.02625);
-metro_dock_jean_talon_1 = metro_platform(1.24, 7.78, 1.24, 8.22);
+metro_dock_jean_talon_1 = metro_platform(1.24, 7.68, 1.24, 8.32);
 grade(metro_dock_jean_talon_1, -0.02625, -0.02625);
-metro_dock_jean_talon_2 = metro_platform(1.21, 7.78, 1.21, 8.22);
+metro_dock_jean_talon_2 = metro_platform(1.21, 7.68, 1.21, 8.32);
 grade(metro_dock_jean_talon_2, -0.02625, -0.02625);
-metro_stairs_jean_talon = metro_stair(1.24, 7.6, 1.24, 7.8);
+metro_stairs_jean_talon = metro_stair(1.24, 7.5, 1.24, 7.7);
 grade(metro_stairs_jean_talon, 0.1005, -0.02625);
-metro_roof_jean_talon_0 = concrete(1.34, 7.82, 1.34, 8.22, 1.18, 8.22, 1.18, 7.82);
-elevation(metro_roof_jean_talon_0, 0.122);
-metro_roof_jean_talon_1 = concrete(1.34, 7.78, 1.34, 7.82, 1.26, 7.82, 1.26, 7.78);
-elevation(metro_roof_jean_talon_1, 0.122);
-metro_roof_jean_talon_2 = concrete(1.22, 7.78, 1.22, 7.82, 1.18, 7.82, 1.18, 7.78);
-elevation(metro_roof_jean_talon_2, 0.122);
+metro_roof_jean_talon_0 = concrete(1.34, 7.72, 1.34, 8.32, 1.18, 8.32, 1.18, 7.72);
+elevation(metro_roof_jean_talon_0, 0.1215);
+metro_roof_jean_talon_1 = concrete(1.34, 7.68, 1.34, 7.72, 1.26, 7.72, 1.26, 7.68);
+elevation(metro_roof_jean_talon_1, 0.1215);
+metro_roof_jean_talon_2 = concrete(1.22, 7.68, 1.22, 7.72, 1.18, 7.72, 1.18, 7.68);
+elevation(metro_roof_jean_talon_2, 0.1215);
 
-# bonaventure: 44 m chamber, 7 m platform, 72-step street staircase.
+# bonaventure: 64 m chamber, 7 m platform, 72-step street staircase.
 metro_station_bonaventure = map_point(17.5, 9.35);
-metro_cut_bonaventure = terrain_cut(-0.036, 17.3, 9.31, 17.72, 9.31, 17.72, 9.47, 17.3, 9.47);
-metro_cut_bonaventure_left = terrain_cut(-0.036, 17.28, 9.31, 17.3, 9.31, 17.3, 9.39, 17.28, 9.39);
-metro_cut_bonaventure_right = terrain_cut(-0.036, 17.28, 9.43, 17.3, 9.43, 17.3, 9.47, 17.28, 9.47);
-metro_stair_cut_bonaventure = terrain_cut(0.1005, { slope_x: -0.63375, slope_y: 0 }, 17.1, 9.39, 17.3, 9.39, 17.3, 9.43, 17.1, 9.43);
-metro_dock_bonaventure_0 = metro_platform(17.28, 9.38, 17.72, 9.38);
+metro_cut_bonaventure = terrain_cut(-0.036, 17.2, 9.31, 17.82, 9.31, 17.82, 9.47, 17.2, 9.47);
+metro_cut_bonaventure_left = terrain_cut(-0.036, 17.18, 9.31, 17.2, 9.31, 17.2, 9.39, 17.18, 9.39);
+metro_cut_bonaventure_right = terrain_cut(-0.036, 17.18, 9.43, 17.2, 9.43, 17.2, 9.47, 17.18, 9.47);
+metro_stair_cut_bonaventure = terrain_cut(0.1005, { slope_x: -0.63375, slope_y: 0 }, 17, 9.39, 17.2, 9.39, 17.2, 9.43, 17, 9.43);
+metro_dock_bonaventure_0 = metro_platform(17.18, 9.38, 17.82, 9.38);
 grade(metro_dock_bonaventure_0, -0.02625, -0.02625);
-metro_dock_bonaventure_1 = metro_platform(17.28, 9.41, 17.72, 9.41);
+metro_dock_bonaventure_1 = metro_platform(17.18, 9.41, 17.82, 9.41);
 grade(metro_dock_bonaventure_1, -0.02625, -0.02625);
-metro_dock_bonaventure_2 = metro_platform(17.28, 9.44, 17.72, 9.44);
+metro_dock_bonaventure_2 = metro_platform(17.18, 9.44, 17.82, 9.44);
 grade(metro_dock_bonaventure_2, -0.02625, -0.02625);
-metro_stairs_bonaventure = metro_stair(17.1, 9.41, 17.3, 9.41);
+metro_stairs_bonaventure = metro_stair(17, 9.41, 17.2, 9.41);
 grade(metro_stairs_bonaventure, 0.1005, -0.02625);
-metro_roof_bonaventure_0 = concrete(17.32, 9.31, 17.72, 9.31, 17.72, 9.47, 17.32, 9.47);
-elevation(metro_roof_bonaventure_0, 0.122);
-metro_roof_bonaventure_1 = concrete(17.28, 9.31, 17.32, 9.31, 17.32, 9.39, 17.28, 9.39);
-elevation(metro_roof_bonaventure_1, 0.122);
-metro_roof_bonaventure_2 = concrete(17.28, 9.43, 17.32, 9.43, 17.32, 9.47, 17.28, 9.47);
-elevation(metro_roof_bonaventure_2, 0.122);
+metro_roof_bonaventure_0 = concrete(17.22, 9.31, 17.82, 9.31, 17.82, 9.47, 17.22, 9.47);
+elevation(metro_roof_bonaventure_0, 0.1215);
+metro_roof_bonaventure_1 = concrete(17.18, 9.31, 17.22, 9.31, 17.22, 9.39, 17.18, 9.39);
+elevation(metro_roof_bonaventure_1, 0.1215);
+metro_roof_bonaventure_2 = concrete(17.18, 9.43, 17.22, 9.43, 17.22, 9.47, 17.18, 9.47);
+elevation(metro_roof_bonaventure_2, 0.1215);

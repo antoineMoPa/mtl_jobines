@@ -96,7 +96,7 @@ fn pedestrian_can_walk_down_the_complete_station_staircase() {
     let hermes = hermes();
     let mut metro = Metro::new(&hermes);
     let station = metro.map.stations[0].clone();
-    let start = station.point(-0.4, 0.06, 0.102);
+    let start = station.point(-0.5, 0.06, 0.102);
     let mut player = Pedestrian::at(
         hermes.city(),
         crate::dynamic_world::SpawnPoint {
@@ -120,7 +120,7 @@ fn pedestrian_can_walk_down_the_complete_station_staircase() {
     let position = player.position / 100.;
     let along = (position.truncate() - station.center).dot(station.forward);
     assert!(
-        along > -0.19,
+        along > -0.29,
         "stair descent stopped at {along}, body {position:?}"
     );
     assert!(
@@ -133,4 +133,60 @@ fn pedestrian_can_walk_down_the_complete_station_staircase() {
         camera.z < TRACK_HEIGHT + 0.066,
         "camera escaped underground ceiling"
     );
+}
+
+#[test]
+fn three_car_service_boards_each_car_and_takes_fifteen_seconds_per_leg() {
+    let hermes = hermes();
+    for index in 0..3 {
+        let mut metro = Metro::new(&hermes);
+        assert_eq!(metro.cars().count(), 3);
+        metro.step(2., None);
+        let car = metro.car(index).unwrap();
+        let yaw = car.yaw;
+        let position = car.position - Vec3::Z * car.ride_height()
+            + Quat::from_rotation_z(yaw) * Vec3::new(4.96, 2.2, 1.025 + HALF_HEIGHT);
+        let mut player =
+            Pedestrian::new(hermes.city(), position, yaw - std::f32::consts::FRAC_PI_2);
+        for _ in 0..60 {
+            metro.walk(
+                &hermes,
+                &mut player,
+                WalkControls {
+                    forward: 1.,
+                    ..Default::default()
+                },
+                1. / 60.,
+                |_| false,
+            );
+        }
+        assert!(metro.aboard, "car {index} cannot be boarded");
+        assert_eq!(metro.rider, index);
+        let mut world = crate::dynamic_world::DynamicWorld::new(&hermes);
+        world.metro = metro;
+        world.pedestrian = Some(player);
+        let (eye, _) = world
+            .metro_camera()
+            .expect("boarding must switch to inside camera");
+        let local = world.metro.local(eye * 100.).unwrap();
+        assert!(
+            local.x.abs() < 7.5 && local.y.abs() < 1.1 && local.z > 1.025 && local.z < 3.9,
+            "camera outside car {index}: {local:?}"
+        );
+    }
+    let mut metro = Metro::new(&hermes);
+    for _ in 0..3 {
+        while metro.dwell > 0. {
+            metro.step(1. / 60., None);
+        }
+        let mut elapsed = 0.;
+        while metro.dwell == 0. {
+            metro.step(1. / 60., None);
+            elapsed += 1. / 60.;
+        }
+        assert!(
+            (elapsed - 15_f32).abs() < 0.04,
+            "station leg took {elapsed}s"
+        );
+    }
 }

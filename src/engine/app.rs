@@ -608,7 +608,9 @@ impl Game {
             let eye = self.world.camera_eye(&self.hermes, look, eye);
             (eye, look)
         } else {
-            build_camera.map_or((self.eye, look), |(eye, look, _)| (eye, look))
+            self.world.metro_camera().unwrap_or_else(|| {
+                build_camera.map_or((self.eye, look), |(eye, look, _)| (eye, look))
+            })
         };
         let sound_eye = self.eye * METERS_PER_UNIT;
         let sound_velocity = self.sound_eye.map_or(Vec3::ZERO, |previous| {

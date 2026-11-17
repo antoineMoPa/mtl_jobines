@@ -93,10 +93,14 @@ pub(super) fn groups(city: &City) -> Vec<Vec<Mesh>> {
     let features = city.street_features(Region::WholeMap);
     let originals = city.detail_objects(Region::WholeMap);
     assert_eq!(features.len(), originals.len());
+    let metro = super::metro::MetroMap::from_city(city);
     let bins = super::street_bins::placements(city, &features);
     let mut groups: Vec<_> = features
         .into_iter()
         .zip(originals)
+        .filter(|(feature, _)| {
+            feature.kind != StreetFeatureKind::Lamp || !metro.station_interior(feature.position)
+        })
         .map(
             |(feature, original)| match Model::from_feature(feature.kind) {
                 Some(model) => placed(model, feature.position, feature.heading),
@@ -127,9 +131,13 @@ fn automatic_parts(kind: Kind, position: [f32; 3], heading: f32) -> Vec<Part> {
 }
 pub(super) fn parts(city: &City) -> Vec<Vec<Part>> {
     let features = city.street_features(Region::WholeMap);
+    let metro = super::metro::MetroMap::from_city(city);
     let bins = super::street_bins::placements(city, &features);
     let mut groups: Vec<_> = features
         .into_iter()
+        .filter(|feature| {
+            feature.kind != StreetFeatureKind::Lamp || !metro.station_interior(feature.position)
+        })
         .map(|feature| {
             let kind = match feature.kind {
                 StreetFeatureKind::Tree => Kind::street_tree(feature.position),

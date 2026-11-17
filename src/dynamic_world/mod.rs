@@ -298,7 +298,19 @@ impl DynamicWorld {
             .as_ref()
             .map_or(self.player().yaw, |p| p.yaw)
     }
+    pub fn metro_camera(&self) -> Option<(Vec3, Vec3)> {
+        if !self.metro.aboard {
+            return None;
+        }
+        let player = self.pedestrian.as_ref()?;
+        let forward = Vec3::new(player.yaw.cos(), player.yaw.sin(), 0.);
+        let eye = (player.position + Vec3::Z * 0.8 + forward * 0.2) / METERS_PER_UNIT;
+        Some((eye, eye + forward * 0.1))
+    }
     pub fn camera_eye(&self, hermes: &Hermes, anchor: Vec3, desired: Vec3) -> Vec3 {
+        if let Some((eye, _)) = self.metro_camera() {
+            return eye;
+        }
         let eye = self.buildings.camera_eye(hermes.city(), anchor, desired);
         self.metro.camera_eye(anchor, eye)
     }
@@ -796,8 +808,7 @@ impl DynamicWorld {
             })
             .chain(
                 self.metro
-                    .train
-                    .iter()
+                    .cars()
                     .filter(|train| train.position.distance(self.player_position()) < 450.)
                     .map(|v| {
                         let id = v.definition.expect("metro model");

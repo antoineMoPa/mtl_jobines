@@ -8,19 +8,23 @@ use crate::hermes::{
     Hermes,
 };
 use glam::{Quat, Vec3};
-const DWELL: f32 = 18.;
-const DOOR_TIME: f32 = 1.2;
-const MAX_SPEED: f32 = 18.;
-const ACCEL: f32 = 1.1;
-const BRAKE: f32 = 1.3;
+const DWELL: f32 = 10.;
+const DOOR_TIME: f32 = 0.8;
+const TRAVEL_TIME: f32 = 15.;
+const CAR_OFFSETS: [f32; 3] = [0., 16.6, -16.6];
 pub(super) struct Metro {
     pub map: MetroMap,
     pub train: Option<Vehicle>,
+    other_cars: Vec<Vehicle>,
     distance: f32,
     speed: f32,
     stop: usize,
     dwell: f32,
+    travel: f32,
+    leg_start: f32,
+    leg_distance: f32,
     pub aboard: bool,
+    rider: usize,
 }
 impl Metro {
     pub fn new(hermes: &Hermes) -> Self {
@@ -28,11 +32,16 @@ impl Metro {
         let mut service = Self {
             map,
             train: None,
+            other_cars: Vec::new(),
             distance: 0.,
             speed: 0.,
             stop: 0,
             dwell: DWELL,
+            travel: 0.,
+            leg_start: 0.,
+            leg_distance: 0.,
             aboard: false,
+            rider: 0,
         };
         if service.map.stations.is_empty() || service.map.samples.len() < 2 {
             return service;
@@ -41,91 +50,146 @@ impl Metro {
             .iter()
             .position(|d| d.config.research_id == "vehicle-r01")
         {
-            let mut train = Vehicle::spawn(hermes.city());
-            train.set_catalog_model(Some(id));
+            let mut cars = (0..3)
+                .map(|_| {
+                    let mut car = Vehicle::spawn(hermes.city());
+                    car.set_catalog_model(Some(id));
+                    car
+                })
+                .collect::<Vec<_>>();
+            service.train = Some(cars.remove(0));
+            service.other_cars = cars;
             service.distance = service.map.stations[0].distance;
-            service.train = Some(train);
             service.place();
         }
         service
     }
+    pub fn cars(&self) -> impl Iterator<Item = &Vehicle> {
+        self.train.iter().chain(self.other_cars.iter())
+    }
+    fn car(&self, index: usize) -> Option<&Vehicle> {
+        if index == 0 {
+            self.train.as_ref()
+        } else {
+            self.other_cars.get(index - 1)
+        }
+    }
     fn place(&mut self) {
-        if let Some(train) = &mut self.train {
-            let (p, yaw) = self.map.sample(self.distance);
-            train.position = p * METERS_PER_UNIT + Vec3::Z * train.ride_height();
-            train.yaw = yaw;
-            train.pitch = 0.;
-            train.roll = 0.;
-            train.steering = 0.;
-            train.body_lean = glam::Vec2::ZERO;
-            train.velocity = Vec3::new(yaw.cos(), yaw.sin(), 0.) * self.speed;
-            train.sound_running = false;
+        let doors = self.train.as_ref().map_or(0., |t| t.metro_doors);
+        for (index, car) in self
+            .train
+            .iter_mut()
+            .chain(self.other_cars.iter_mut())
+            .enumerate()
+        {
+            let (p, yaw) = self.map.sample(self.distance + CAR_OFFSETS[index]);
+            car.position = p * METERS_PER_UNIT + Vec3::Z * car.ride_height();
+            car.yaw = yaw;
+            car.pitch = 0.;
+            car.roll = 0.;
+            car.steering = 0.;
+            car.body_lean = glam::Vec2::ZERO;
+            car.velocity = Vec3::new(yaw.cos(), yaw.sin(), 0.) * self.speed;
+            car.sound_running = false;
+            car.metro_doors = doors;
         }
     }
     pub fn step(&mut self, dt: f32, player: Option<&mut Pedestrian>) {
-        if self.train.is_none() {
+        if self.train.is_none() || !dt.is_finite() || dt <= 0. {
             return;
         }
-        let old = self.train.as_ref().map(|t| (t.position, t.yaw)).unwrap();
-        let mut time = dt.min(0.25);
+        let old = self.car(self.rider).map(|t| (t.position, t.yaw)).unwrap();
+        let mut time = dt;
         while time > 0. {
             let h = time.min(1. / 120.);
             time -= h;
             if self.dwell > 0. {
                 self.dwell = (self.dwell - h).max(0.);
                 let elapsed = DWELL - self.dwell;
-                let doors = (elapsed / DOOR_TIME)
+                self.train.as_mut().unwrap().metro_doors = (elapsed / DOOR_TIME)
                     .min(self.dwell / DOOR_TIME)
                     .clamp(0., 1.);
-                self.train.as_mut().unwrap().metro_doors = doors;
                 if self.dwell == 0. {
                     self.stop = (self.stop + 1) % self.map.stations.len();
+                    self.travel = 0.;
+                    self.leg_start = self.distance;
+                    self.leg_distance = (self.map.stations[self.stop].distance - self.distance)
+                        .rem_euclid(self.map.length);
                 }
             } else {
-                let target = self.map.stations[self.stop].distance;
-                let remaining = (target - self.distance).rem_euclid(self.map.length);
-                let desired = (2. * BRAKE * remaining).sqrt().min(MAX_SPEED);
-                self.speed += (desired - self.speed).clamp(-BRAKE * h, ACCEL * h);
-                let travel = self.speed * h;
-                if remaining <= travel.max(0.002) {
-                    self.distance = target;
+                let previous = self.distance;
+                self.travel = (self.travel + h).min(TRAVEL_TIME);
+                let t = self.travel / TRAVEL_TIME;
+                let ease = t * t * (3. - 2. * t);
+                self.distance =
+                    (self.leg_start + self.leg_distance * ease).rem_euclid(self.map.length);
+                self.speed = self.leg_distance * 6. * t * (1. - t) / TRAVEL_TIME;
+                let moved = (self.distance - previous).rem_euclid(self.map.length);
+                for car in self.train.iter_mut().chain(self.other_cars.iter_mut()) {
+                    car.wheel_angle += moved / 0.4;
+                }
+                if self.travel >= TRAVEL_TIME {
+                    self.distance = self.map.stations[self.stop].distance;
                     self.speed = 0.;
                     self.dwell = DWELL;
-                } else {
-                    self.distance = (self.distance + travel).rem_euclid(self.map.length);
                 }
-                self.train.as_mut().unwrap().wheel_angle += travel / 0.4;
             }
         }
         self.place();
         if self.aboard {
             if let Some(player) = player {
-                let train = self.train.as_ref().unwrap();
-                let rotation = Quat::from_rotation_z(train.yaw - old.1);
-                player.carry(rotation, old.0, train.position);
+                let car = self.car(self.rider).unwrap();
+                let q = Quat::from_rotation_z(car.yaw - old.1);
+                player.carry(q, old.0, car.position);
             } else {
                 self.aboard = false;
             }
         }
     }
+    fn car_local(car: &Vehicle, position: Vec3) -> Vec3 {
+        Quat::from_rotation_z(-car.yaw) * (position - car.position + Vec3::Z * car.ride_height())
+    }
+    fn local_car(&self, position: Vec3) -> Option<(usize, Vec3)> {
+        if self.aboard {
+            let car = self.car(self.rider)?;
+            return Some((self.rider, Self::car_local(car, position)));
+        }
+        self.cars()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| {
+                a.position
+                    .distance_squared(position)
+                    .total_cmp(&b.position.distance_squared(position))
+            })
+            .map(|(i, c)| (i, Self::car_local(c, position)))
+    }
     fn local(&self, position: Vec3) -> Option<Vec3> {
-        let t = self.train.as_ref()?;
-        Some(Quat::from_rotation_z(-t.yaw) * (position - t.position + Vec3::Z * t.ride_height()))
+        self.local_car(position).map(|(_, p)| p)
     }
     fn open(&self) -> bool {
         self.speed < 0.01 && self.train.as_ref().is_some_and(|t| t.metro_doors > 0.95)
     }
     fn portal(x: f32) -> bool {
-        [4.96, -3.04].iter().any(|d| (x - d).abs() < 0.43)
+        [4.96, -3.04].iter().any(|x0| (x - x0).abs() < 0.43)
     }
     pub fn blocked(&self, position: Vec3) -> bool {
-        let Some(p) = self.local(position) else {
+        let Some((index, p)) = self.local_car(position) else {
             return false;
         };
-        if p.z < 0.5 || p.z > 3.5 || p.x.abs() > 8.35 || p.y.abs() > 1.85 {
+        let roof = self
+            .car(index)
+            .unwrap()
+            .definition()
+            .unwrap()
+            .config
+            .dimensions
+            .height;
+        if p.z < 0.5 || p.z > roof + 0.8 || p.x.abs() > 8.35 || p.y.abs() > 1.85 {
             return false;
         }
-        // Leave only the platform-side door portals open; closed train walls remain solid.
+        if p.x.abs() < 7.5 && p.y.abs() < 1.1 && p.z + super::player::HALF_HEIGHT > roof - 0.08 {
+            return true;
+        }
         let inside = p.x.abs() < 7.35 && p.y.abs() < 0.62;
         let doorway = self.open() && Self::portal(p.x) && p.y >= 0. && p.y < 1.85;
         !(inside || doorway)
@@ -137,10 +201,7 @@ impl Metro {
         }
         let inside = local.x.abs() < 7.4 && local.y.abs() < 0.99;
         let portal = self.open() && Self::portal(local.x) && local.y >= 0. && local.y < 1.65;
-        if !(inside || portal) {
-            return None;
-        }
-        Some(Ground {
+        (inside || portal).then_some(Ground {
             point: p.truncate().extend(FLOOR_HEIGHT * METERS_PER_UNIT),
             gradient: [0.; 2],
         })
@@ -165,17 +226,17 @@ impl Metro {
             |p| blocked(p) || self.blocked(p),
             |p| self.ground(p),
         );
-        if let Some(p) = self.local(player.position) {
+        if let Some((index, p)) = self.local_car(player.position) {
             if (p.z - (1.025 + super::player::HALF_HEIGHT)).abs() > 0.5 {
                 return;
             }
             if p.x.abs() < 7.35 && p.y.abs() < 1.2 && (self.aboard || self.open()) {
                 self.aboard = true;
+                self.rider = index;
             }
             if p.y > 1.6 && self.open() {
                 self.aboard = false;
             }
-            // A person standing in a closing doorway holds the dwell until clear.
             if previous.is_some_and(|p| p.y > 0.6 && p.y < 1.75 && p.z < 3. && Self::portal(p.x))
                 && self.speed == 0.
                 && self.dwell < 2.5
@@ -191,21 +252,20 @@ impl Metro {
         let blocked = |p: Vec3| {
             if self.aboard {
                 if let Some(local) = self.local(p * 100.) {
-                    return local.x.abs() > 7.5 || local.y.abs() > 1.05 || local.z > 3.05;
+                    return local.x.abs() > 7.5 || local.y.abs() > 1.05 || local.z > 3.9;
                 }
             }
             for s in &self.map.stations {
-                if s.center.distance(anchor.truncate()) > 0.5 {
+                if s.center.distance(anchor.truncate()) > 0.6 {
                     continue;
                 }
                 let v = p.truncate() - s.center;
                 let a = v.dot(s.forward);
                 let b = v.dot(glam::Vec2::new(-s.forward.y, s.forward.x));
-                let stair = a > -0.405 && a < -0.18 && b > 0.043 && b < 0.077;
-                if stair {
+                if a > -0.505 && a < -0.28 && b > 0.043 && b < 0.077 {
                     return false;
                 }
-                if a.abs() < 0.225 {
+                if a.abs() < 0.325 {
                     return b < -0.035 || b > 0.115 || p.z > TRACK_HEIGHT + 0.066;
                 }
             }
@@ -247,7 +307,7 @@ impl Metro {
                 beam: [-0.9, 8., 1., 1.],
             });
         }
-        if let Some(t) = &self.train {
+        for t in self.cars() {
             if self.aboard || t.position.distance(center) < 40. {
                 for x in [-5., 0., 5.] {
                     let p =
@@ -279,9 +339,9 @@ impl super::DynamicWorld {
         self.metro.stop = index;
         self.metro.distance = self.metro.map.stations[index].distance;
         self.metro.speed = 0.;
-        self.metro.dwell = 10.;
-        self.metro.place();
+        self.metro.dwell = DWELL - 2.;
         self.metro.train.as_mut().unwrap().metro_doors = 1.;
+        self.metro.place();
         let s = &self.metro.map.stations[index];
         let position =
             s.point(0.05, 0.06, FLOOR_HEIGHT) * 100. + Vec3::Z * super::player::HALF_HEIGHT;

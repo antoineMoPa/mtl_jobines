@@ -2,7 +2,7 @@ use super::{render::Renderer, vehicle_scenery::VehicleScenery};
 use crate::{
     dynamic_world::DynamicWorld,
     hermes::{
-        metro::{MetroMap, StationId, FLOOR_HEIGHT},
+        metro::{MetroMap, StationId, FLOOR_HEIGHT, TRACK_HEIGHT},
         Hermes,
     },
 };
@@ -24,13 +24,14 @@ fn native_underground_metro_station_and_boarding_views() {
         std::env::var_os("METRO_CAPTURE").unwrap_or_else(|| "/tmp/metro-capture".into()),
     );
     std::fs::create_dir_all(&folder).unwrap();
-    let ground = hermes
+    let mut ground = hermes
         .city()
         .mesh(
             opencity::runtime::Region::radius(s.center.to_array(), 0.9).unwrap(),
             0.04,
         )
         .unwrap();
+    map.open_portals(&mut ground);
     let ground = renderer.upload_vertices(&ground.vertices);
     let station = map.scenery().unwrap().unwrap();
     let mut station = renderer.upload_instanced(&station.mesh.vertices);
@@ -53,13 +54,23 @@ fn native_underground_metro_station_and_boarding_views() {
         ),
         (
             "acadie-entrance",
-            s.point(-0.53, -0.05, 0.15),
-            s.point(-0.32, 0.055, 0.11),
+            s.point(-0.63, -0.05, 0.15),
+            s.point(-0.42, 0.055, 0.11),
         ),
         (
             "metro-open-doors",
             s.point(0.11, 0.07, FLOOR_HEIGHT + 0.01875),
             s.point(0.02, 0.0, FLOOR_HEIGHT + 0.01175),
+        ),
+        (
+            "metro-tunnel",
+            s.point(0.28, 0., TRACK_HEIGHT + 0.023),
+            s.point(0.70, 0., TRACK_HEIGHT + 0.02),
+        ),
+        (
+            "metro-concrete-rails",
+            s.point(0.28, 0.05, FLOOR_HEIGHT + 0.015),
+            s.point(0.50, 0., TRACK_HEIGHT),
         ),
         (
             "metro-cabin",
