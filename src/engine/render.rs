@@ -46,6 +46,16 @@ pub struct GpuMesh {
     bounds: Option<Bounds>,
     lod: Option<Box<lod::Variants>>,
 }
+impl GpuMesh {
+    pub(super) fn visible_underground(&self, exits: &[glam::Vec2]) -> bool {
+        let visible = |bounds: Bounds| bounds.visible_underground(exits);
+        if let Some(instances) = &self.instances {
+            instances.bounds.iter().copied().any(visible)
+        } else {
+            self.bounds.is_none_or(visible)
+        }
+    }
+}
 struct Instances {
     buffer: wgpu::Buffer,
     bounds: Vec<Bounds>,
@@ -74,6 +84,7 @@ pub struct Renderer {
     pub config: wgpu::SurfaceConfiguration,
     pub(super) reserved_bottom: u32,
     pub(super) construction_span: Option<f32>,
+    pub(super) underground_exits: Option<Vec<glam::Vec2>>,
     pub(super) ambient_occlusion: bool,
     pub(super) winter_weather: bool,
     pub(super) render_lod: RenderLod,
@@ -628,6 +639,7 @@ impl Renderer {
             config,
             reserved_bottom: 0,
             construction_span: None,
+            underground_exits: None,
             ambient_occlusion: true,
             render_lod,
             contact_debris: true,
@@ -1014,8 +1026,10 @@ impl Renderer {
         let lighting = Lighting::with_settings(time, self.daylight, self.sky_settings);
         let sun = lighting.sun;
         let (view, light) = self.view_matrices(eye, look, sun);
-        let camera_frustum = Frustum::from_matrix(view);
-        let shadow_frustum = Frustum::from_matrix(light);
+        let camera_frustum =
+            Frustum::from_matrix(view).with_underground_exits(&self.underground_exits);
+        let shadow_frustum =
+            Frustum::from_matrix(light).with_underground_exits(&self.underground_exits);
         let detail_view = self.detail_view(eye, look);
         let data = Camera {
             view_projection: view.to_cols_array_2d(),

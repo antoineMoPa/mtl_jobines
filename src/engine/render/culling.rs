@@ -1,5 +1,5 @@
 //! Conservative world-space bounds for static meshes and individual vehicle parts.
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 use opencity::runtime::Vertex;
 
 #[derive(Clone, Copy)]
@@ -8,6 +8,13 @@ pub(super) struct Bounds {
     pub(super) max: Vec3,
 }
 impl Bounds {
+    pub(super) fn visible_underground(self, exits: &[Vec2]) -> bool {
+        self.min.z < 0.06
+            || exits.iter().any(|&exit| {
+                let nearest = exit.clamp(self.min.truncate(), self.max.truncate());
+                nearest.distance(exit) < 0.60
+            })
+    }
     pub(super) fn of_vertices(vertices: &[Vertex]) -> Self {
         let mut bounds = Self {
             min: Vec3::splat(f32::INFINITY),
@@ -35,8 +42,12 @@ impl Bounds {
         }
     }
 }
-pub(super) struct Frustum([Vec4; 6]);
+pub(super) struct Frustum([Vec4; 6], Option<Vec<Vec2>>);
 impl Frustum {
+    pub(super) fn with_underground_exits(mut self, exits: &Option<Vec<Vec2>>) -> Self {
+        self.1 = exits.clone();
+        self
+    }
     pub(super) fn includes(&self, bounds: Option<Bounds>) -> bool {
         bounds.is_none_or(|bounds| self.intersects(bounds))
     }
@@ -44,16 +55,26 @@ impl Frustum {
         let rows = matrix.transpose();
         // WebGPU clips x/y to [-w,w], but depth to [0,w]. Plane lengths
         // do not matter for the signed half-space test.
-        Self([
-            rows.w_axis + rows.x_axis,
-            rows.w_axis - rows.x_axis,
-            rows.w_axis + rows.y_axis,
-            rows.w_axis - rows.y_axis,
-            rows.z_axis,
-            rows.w_axis - rows.z_axis,
-        ])
+        Self(
+            [
+                rows.w_axis + rows.x_axis,
+                rows.w_axis - rows.x_axis,
+                rows.w_axis + rows.y_axis,
+                rows.w_axis - rows.y_axis,
+                rows.z_axis,
+                rows.w_axis - rows.z_axis,
+            ],
+            None,
+        )
     }
     pub(super) fn intersects(&self, bounds: Bounds) -> bool {
+        if self
+            .1
+            .as_ref()
+            .is_some_and(|exits| !bounds.visible_underground(exits))
+        {
+            return false;
+        }
         self.0.iter().all(|plane| {
             // Retain touching boxes, eye crossings and near-plane intersections.
             let corner = Vec3::new(
@@ -83,6 +104,22 @@ mod tests {
     use super::*;
     use glam::Quat;
 
+    #[test]
+    fn underground_culling_keeps_exits_and_subsurface_shadow_casters() {
+        let exits = [Vec2::ZERO];
+        for (min, max, expected) in [
+            ([1., 1., 0.10], [1.1, 1.1, 0.4], false),
+            ([0.1, 0.1, 0.10], [0.2, 0.2, 0.4], true),
+            ([1., 1., -0.04], [1.1, 1.1, 0.10], true),
+            ([-1., -1., 0.10], [1., 1., 0.11], true),
+        ] {
+            let bounds = Bounds {
+                min: Vec3::from_array(min),
+                max: Vec3::from_array(max),
+            };
+            assert_eq!(bounds.visible_underground(&exits), expected);
+        }
+    }
     #[test]
     fn part_bounds_enclose_rotated_scaled_corners_independent_of_opacity() {
         let local = Bounds {

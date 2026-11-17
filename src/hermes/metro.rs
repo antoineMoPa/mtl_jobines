@@ -5,6 +5,10 @@ use opencity::runtime::City;
 use std::fmt::Write;
 pub const TRACK_HEIGHT: f32 = -0.035;
 pub const FLOOR_HEIGHT: f32 = -0.02475;
+// Shared by the tunnel shell, station mouths and fixture placement (1 map unit = 100 m).
+pub const TUNNEL_HALF_WIDTH: f32 = 0.034;
+pub const TUNNEL_WALL_HEIGHT: f32 = 0.035;
+pub const TUNNEL_ARCH_RISE: f32 = 0.027;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StationId {
     Acadie,
@@ -135,9 +139,58 @@ impl MetroMap {
         let v = q - p;
         (p.lerp(q, t), v.y.atan2(v.x))
     }
+    pub(super) fn tunnel_spans(&self, a: Vec3, b: Vec3) -> Vec<(Vec3, Vec3)> {
+        let mut spans: Vec<(f32, f32)> = vec![(0., 1.)];
+        for station in &self.stations {
+            let side = Vec2::new(-station.forward.y, station.forward.x);
+            let local = |p: Vec3| {
+                let d = p.truncate() - station.center;
+                Vec2::new(d.dot(station.forward), d.dot(side))
+            };
+            let start = local(a);
+            let delta = local(b) - start;
+            let mut enter: f32 = 0.;
+            let mut leave: f32 = 1.;
+            for (origin, step, half) in [(start.x, delta.x, 0.315), (start.y, delta.y, 0.038)] {
+                if step.abs() < 0.000001 {
+                    if origin.abs() > half {
+                        leave = -1.;
+                    }
+                } else {
+                    let t0 = (-half - origin) / step;
+                    let t1 = (half - origin) / step;
+                    enter = enter.max(t0.min(t1));
+                    leave = leave.min(t0.max(t1));
+                }
+            }
+            if enter >= leave {
+                continue;
+            }
+            spans = spans
+                .into_iter()
+                .flat_map(|(lo, hi)| {
+                    let mut remaining = Vec::new();
+                    if lo < enter {
+                        remaining.push((lo, hi.min(enter)));
+                    }
+                    if hi > leave {
+                        remaining.push((lo.max(leave), hi));
+                    }
+                    remaining
+                })
+                .collect();
+        }
+        spans
+            .into_iter()
+            .map(|(lo, hi)| (a.lerp(b, lo), a.lerp(b, hi)))
+            .collect()
+    }
     pub fn tunnel_fixtures(&self) -> impl Iterator<Item = Vec3> + '_ {
         (0..(self.length / 12.) as usize)
-            .map(|i| self.sample(i as f32 * 12.).0 + Vec3::Z * 0.043)
+            .map(|i| {
+                self.sample(i as f32 * 12.).0
+                    + Vec3::Z * (TUNNEL_WALL_HEIGHT + TUNNEL_ARCH_RISE - 0.004)
+            })
             .filter(|p| {
                 !self
                     .stations
@@ -211,6 +264,19 @@ impl MetroMap {
             }
         }
         mesh.vertices.truncate(write);
+    }
+    pub fn enclosed_view(&self, eye: Vec3) -> bool {
+        eye.z < TRACK_HEIGHT + 0.058
+            && self
+                .stations
+                .iter()
+                .all(|s| eye.truncate().distance(s.point(-0.40, 0.06, 0.).truncate()) > 0.24)
+            && self.samples.windows(2).any(|pair| {
+                let a = pair[0].1.truncate();
+                let d = pair[1].1.truncate() - a;
+                let t = ((eye.truncate() - a).dot(d) / d.length_squared().max(1e-10)).clamp(0., 1.);
+                eye.truncate().distance(a + d * t) < 0.15
+            })
     }
     pub fn station_interior(&self, point: [f32; 3]) -> bool {
         let p = Vec3::from_array(point);

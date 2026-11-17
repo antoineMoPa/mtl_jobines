@@ -14,6 +14,7 @@ struct Batch {
     meshes: Vec<GpuMesh>,
 }
 pub struct Scenery {
+    pub(super) metro: crate::hermes::metro::MetroMap,
     world: Vec<Batch>,
     details: Vec<Batch>,
     paint: super::graffiti::Nearby,
@@ -101,6 +102,38 @@ fn batches(renderer: &Renderer, mut mesh: Mesh) -> Vec<Batch> {
         })
         .collect()
 }
+// Identity placements already contain world coordinates. Give each spatial draw its
+// own bounds instead of a single box covering the entire metro loop.
+pub(super) fn model_batches(
+    renderer: &Renderer,
+    source: &Mesh,
+    transforms: &[glam::Mat4],
+) -> Vec<GpuMesh> {
+    let upload = |vertices: &[opencity::runtime::Vertex]| {
+        let mut gpu = renderer.upload_instanced(vertices);
+        gpu.static_model = true;
+        let transforms: Vec<_> = transforms
+            .iter()
+            .map(|matrix| {
+                let mut columns = matrix.to_cols_array_2d();
+                columns[1][3] = -1.;
+                columns
+            })
+            .collect();
+        renderer.update_instances(&mut gpu, &transforms);
+        gpu
+    };
+    if transforms == [glam::Mat4::IDENTITY] {
+        let mut mesh = source.clone();
+        partition(&mut mesh)
+            .into_iter()
+            .flat_map(|(_, ranges, _)| ranges)
+            .map(|range| upload(&mesh.vertices[range]))
+            .collect()
+    } else {
+        vec![upload(&source.vertices)]
+    }
+}
 impl Scenery {
     pub fn new(renderer: &Renderer, hermes: &mut Hermes) -> Self {
         let (world, details) = hermes.take_geometry();
@@ -109,23 +142,10 @@ impl Scenery {
         let models = hermes
             .external_models
             .iter()
-            .map(|group| {
-                let mut gpu = renderer.upload_instanced(&group.mesh.vertices);
-                gpu.static_model = true;
-                let transforms: Vec<_> = group
-                    .transforms
-                    .iter()
-                    .map(|matrix| {
-                        let mut columns = matrix.to_cols_array_2d();
-                        columns[1][3] = -1.;
-                        columns
-                    })
-                    .collect();
-                renderer.update_instances(&mut gpu, &transforms);
-                gpu
-            })
+            .flat_map(|group| model_batches(renderer, &group.mesh, &group.transforms))
             .collect();
         Self {
+            metro: crate::hermes::metro::MetroMap::from_city(hermes.city()),
             models,
             world: batches(renderer, world),
             details: batches(renderer, details),

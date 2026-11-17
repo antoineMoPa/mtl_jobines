@@ -1,5 +1,5 @@
 //! Fill vacant block interiors near surface streets, outside protected land.
-use super::{supported, Index, DENSITY_CENTER};
+use super::{plan::Plan, supported, Index};
 use opencity::{heightmap::ElevationMap, Program, Statement};
 use std::{collections::BTreeMap, error::Error, fmt::Write};
 
@@ -8,14 +8,21 @@ pub(super) fn build(
     terrain: &ElevationMap,
     index: &mut Index,
     green: &Index,
+    plan: Plan,
     budget: usize,
 ) -> Result<(Vec<Statement>, usize), Box<dyn Error>> {
     type Sample = ([f32; 2], [f32; 2]);
+    let cell = plan.cell();
+    let reach = plan.reach();
+    let radius = match plan {
+        Plan::SourceCity => 4,
+        Plan::InnerLoop => (reach / cell).ceil() as i32 + 1,
+    };
     let mut cells = BTreeMap::<(i32, i32), Vec<Sample>>::new();
     for r in opencity::map::project(program)
         .segments
         .into_iter()
-        .filter(|r| matches!(r.road_name.as_str(), "sd_street" | "urban_arterial"))
+        .filter(|r| plan.street(&r.road_name))
     {
         let length = [r.start, r.controls[0], r.controls[1], r.end]
             .windows(2)
@@ -35,9 +42,9 @@ pub(super) fn build(
                 continue;
             }
             let direction = [(b.x - a.x) / length, (b.y - a.y) / length];
-            let key = ((p.x / 0.5).floor() as i32, (p.y / 0.5).floor() as i32);
-            for x in -4..=4 {
-                for y in -4..=4 {
+            let key = ((p.x / cell).floor() as i32, (p.y / cell).floor() as i32);
+            for x in -radius..=radius {
+                for y in -radius..=radius {
                     cells
                         .entry((key.0 + x, key.1 + y))
                         .or_default()
@@ -49,8 +56,8 @@ pub(super) fn build(
     let mut cells: Vec<_> = cells.into_iter().collect();
     cells.sort_by(|a, b| {
         let distance = |(x, y): (i32, i32)| {
-            ((x as f32 + 0.5) * 0.5 - DENSITY_CENTER[0])
-                .hypot((y as f32 + 0.5) * 0.5 - DENSITY_CENTER[1])
+            ((x as f32 + 0.5) * cell - plan.center()[0])
+                .hypot((y as f32 + 0.5) * cell - plan.center()[1])
         };
         distance(a.0).total_cmp(&distance(b.0)).then(a.0.cmp(&b.0))
     });
@@ -76,8 +83,8 @@ pub(super) fn build(
                 break 'cells;
             }
             let p = [
-                (x as f32 + 0.25 + (lot % 2) as f32 * 0.5) * 0.5,
-                (y as f32 + 0.25 + (lot / 2) as f32 * 0.5) * 0.5,
+                (x as f32 + 0.25 + (lot % 2) as f32 * 0.5) * cell,
+                (y as f32 + 0.25 + (lot / 2) as f32 * 0.5) * cell,
             ];
             let distance = |q: [f32; 2]| (p[0] - q[0]).hypot(p[1] - q[1]);
             let Some(&(road, u)) = samples
@@ -86,11 +93,11 @@ pub(super) fn build(
             else {
                 continue;
             };
-            if distance(road) > 1.8 {
+            if !plan.contains(p) || distance(road) > reach {
                 continue;
             }
             let v = [-u[1], u[0]];
-            for (w, d) in [(0.35, 0.35), (0.27, 0.27), (0.22, 0.22), (0.16, 0.20)] {
+            for (w, d) in plan.footprints() {
                 let q = [
                     [-w / 2., -d / 2.],
                     [w / 2., -d / 2.],
@@ -104,19 +111,16 @@ pub(super) fn build(
                     ]
                 })
                 .to_vec();
+                if !q.iter().all(|&p| plan.contains(p)) {
+                    continue;
+                }
                 if index.overlaps(&q, None, false) || green.overlaps(&q, None, true) {
                     continue;
                 }
                 let Some((low, high)) = supported(&q, terrain) else {
                     continue;
                 };
-                let central = (36. ..52.).contains(&p[0]) && (-3. ..20.).contains(&p[1]);
-                let height = if central {
-                    0.10 + (count % 4) as f32 * 0.025
-                } else {
-                    0.075 + (count % 3) as f32 * 0.025
-                };
-                let material = if count % 4 == 0 { "concrete" } else { "brick" };
+                let (height, style) = plan.building(p, count, false);
                 let xy = q
                     .iter()
                     .map(|p| format!("{:.7},{:.7}", p[0], p[1]))
@@ -126,10 +130,10 @@ pub(super) fn build(
                 let name = format!("generated_area_interior_{id}");
                 writeln!(
                     source,
-                    "{}=building({:.7},{{use:residential,material:{}}},{});",
+                    "{}=building({:.7},{{{}}},{});",
                     name,
                     height + high - low,
-                    material,
+                    style,
                     xy
                 )?;
                 writeln!(source, "elevation({name},{:.7});", low - 0.002)?;
@@ -165,6 +169,7 @@ mod tests {
                 size: [4., 4.],
                 heights: [0.1, 0.1],
                 water_level: None,
+                cuts: Vec::new(),
             },
             &bytes,
         )
@@ -178,7 +183,8 @@ mod tests {
         let mut green = Index::default();
         index.insert(vec![[-2., -0.102], [2., -0.102], [2., 0.102], [-2., 0.102]]);
         green.insert(vec![[0.3, -2.], [2., -2.], [2., 2.], [0.3, 2.]]);
-        let (statements, count) = build(&program, &terrain, &mut index, &green, 5).unwrap();
+        let (statements, count) =
+            build(&program, &terrain, &mut index, &green, Plan::SourceCity, 5).unwrap();
         assert_eq!(count, 5);
         let features = opencity::project_landscape_features(&Program { statements });
         assert!(features.errors.is_empty());

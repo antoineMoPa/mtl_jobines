@@ -97,10 +97,10 @@ pub(super) fn build(map: &MetroMap) -> Result<Option<ModelInstances>, String> {
         let bed = Vec3::Z * 0.0008;
         mesh.quad(
             [
-                (a - n * 0.029 - bed).to_array(),
-                (b - n * 0.029 - bed).to_array(),
-                (b + n * 0.029 - bed).to_array(),
-                (a + n * 0.029 - bed).to_array(),
+                (a - n * TUNNEL_HALF_WIDTH - bed).to_array(),
+                (b - n * TUNNEL_HALF_WIDTH - bed).to_array(),
+                (b + n * TUNNEL_HALF_WIDTH - bed).to_array(),
+                (a + n * TUNNEL_HALF_WIDTH - bed).to_array(),
             ],
             [0.42, 0.44, 0.43],
             SurfaceKind::Sidewalk,
@@ -133,37 +133,34 @@ pub(super) fn build(map: &MetroMap) -> Result<Option<ModelInstances>, String> {
                 );
             }
         }
-        if map
-            .stations
-            .iter()
-            .any(|s| ((a.truncate() + b.truncate()) * 0.5).distance(s.center) < 0.325)
-        {
-            continue;
-        }
-        for side in [-1., 1.] {
-            let mut face = [
-                a + n * 0.029 * side - Vec3::Z * 0.001,
-                b + n * 0.029 * side - Vec3::Z * 0.001,
-                b + n * 0.029 * side + Vec3::Z * 0.023,
-                a + n * 0.029 * side + Vec3::Z * 0.023,
-            ];
-            if side < 0. {
-                face.reverse();
+        for (a, b) in map.tunnel_spans(a, b) {
+            for side in [-1., 1.] {
+                let mut face = [
+                    a + n * TUNNEL_HALF_WIDTH * side - Vec3::Z * 0.001,
+                    b + n * TUNNEL_HALF_WIDTH * side - Vec3::Z * 0.001,
+                    b + n * TUNNEL_HALF_WIDTH * side + Vec3::Z * TUNNEL_WALL_HEIGHT,
+                    a + n * TUNNEL_HALF_WIDTH * side + Vec3::Z * TUNNEL_WALL_HEIGHT,
+                ];
+                if side < 0. {
+                    face.reverse();
+                }
+                quad(&mut mesh, face, wall_layer, true);
             }
-            quad(&mut mesh, face, wall_layer, true);
-        }
-        // Elliptical vault: 2.3 m vertical walls, 4.8 m crown, 5.8 m clear width.
-        for i in 0..16 {
-            let t0 = i as f32 * std::f32::consts::PI / 16.;
-            let t1 = (i + 1) as f32 * std::f32::consts::PI / 16.;
-            let c0 = n * (0.029 * t0.cos()) + Vec3::Z * (0.023 + 0.025 * t0.sin());
-            let c1 = n * (0.029 * t1.cos()) + Vec3::Z * (0.023 + 0.025 * t1.sin());
-            quad(
-                &mut mesh,
-                [a + c0, b + c0, b + c1, a + c1],
-                wall_layer,
-                true,
-            );
+            // Elliptical vault: 6.8 m wide, 6.2 m crown; ample clearance above the 4.05 m train.
+            for i in 0..16 {
+                let t0 = i as f32 * std::f32::consts::PI / 16.;
+                let t1 = (i + 1) as f32 * std::f32::consts::PI / 16.;
+                let c0 = n * (TUNNEL_HALF_WIDTH * t0.cos())
+                    + Vec3::Z * (TUNNEL_WALL_HEIGHT + TUNNEL_ARCH_RISE * t0.sin());
+                let c1 = n * (TUNNEL_HALF_WIDTH * t1.cos())
+                    + Vec3::Z * (TUNNEL_WALL_HEIGHT + TUNNEL_ARCH_RISE * t1.sin());
+                quad(
+                    &mut mesh,
+                    [a + c0, b + c0, b + c1, a + c1],
+                    wall_layer,
+                    true,
+                );
+            }
         }
     }
     for p in map.tunnel_fixtures() {
@@ -191,8 +188,8 @@ pub(super) fn build(map: &MetroMap) -> Result<Option<ModelInstances>, String> {
             [
                 p(-0.32, -0.0375, TRACK_HEIGHT - 0.0008).to_array(),
                 p(0.32, -0.0375, TRACK_HEIGHT - 0.0008).to_array(),
-                p(0.32, -0.029, TRACK_HEIGHT - 0.0008).to_array(),
-                p(-0.32, -0.029, TRACK_HEIGHT - 0.0008).to_array(),
+                p(0.32, -TUNNEL_HALF_WIDTH, TRACK_HEIGHT - 0.0008).to_array(),
+                p(-0.32, -TUNNEL_HALF_WIDTH, TRACK_HEIGHT - 0.0008).to_array(),
             ],
             [0.42, 0.44, 0.43],
             SurfaceKind::Sidewalk,
@@ -221,11 +218,11 @@ pub(super) fn build(map: &MetroMap) -> Result<Option<ModelInstances>, String> {
                 true,
             );
         }
-        // End bulkheads frame the tunnel; leave the 5.8 m rail opening clear.
+        // End bulkheads frame the tunnel; leave the 6.8 m rail opening clear.
         for (along, b, d) in [
-            (-0.3175, 0.029, 0.04),
+            (-0.3175, TUNNEL_HALF_WIDTH, 0.04),
             (-0.3175, 0.08, 0.1175),
-            (0.3175, 0.029, 0.1175),
+            (0.3175, TUNNEL_HALF_WIDTH, 0.1175),
         ] {
             quad(
                 &mut mesh,
@@ -244,10 +241,10 @@ pub(super) fn build(map: &MetroMap) -> Result<Option<ModelInstances>, String> {
             for i in 0..16 {
                 let t0 = i as f32 * std::f32::consts::PI / 16.;
                 let t1 = (i + 1) as f32 * std::f32::consts::PI / 16.;
-                let x0 = 0.029 * t0.cos();
-                let x1 = 0.029 * t1.cos();
-                let z0 = TRACK_HEIGHT + 0.023 + 0.025 * t0.sin();
-                let z1 = TRACK_HEIGHT + 0.023 + 0.025 * t1.sin();
+                let x0 = TUNNEL_HALF_WIDTH * t0.cos();
+                let x1 = TUNNEL_HALF_WIDTH * t1.cos();
+                let z0 = TRACK_HEIGHT + TUNNEL_WALL_HEIGHT + TUNNEL_ARCH_RISE * t0.sin();
+                let z1 = TRACK_HEIGHT + TUNNEL_WALL_HEIGHT + TUNNEL_ARCH_RISE * t1.sin();
                 let mut face = [
                     p(end, x0, z0),
                     p(end, x1, z1),
@@ -263,8 +260,8 @@ pub(super) fn build(map: &MetroMap) -> Result<Option<ModelInstances>, String> {
                 &mut mesh,
                 [
                     p(end, -0.0375, TRACK_HEIGHT - 0.001),
-                    p(end, -0.029, TRACK_HEIGHT - 0.001),
-                    p(end, -0.029, TRACK_HEIGHT + 0.068),
+                    p(end, -TUNNEL_HALF_WIDTH, TRACK_HEIGHT - 0.001),
+                    p(end, -TUNNEL_HALF_WIDTH, TRACK_HEIGHT + 0.068),
                     p(end, -0.0375, TRACK_HEIGHT + 0.068),
                 ],
                 wall_layer,

@@ -14,7 +14,9 @@ mod blocks;
 mod green;
 mod infill;
 mod junctions;
+mod plan;
 pub(crate) use green::export as export_green;
+use plan::Plan;
 type Polygon = Vec<[f32; 2]>;
 const CELL: f32 = 0.5;
 const DENSITY_CENTER: [f32; 2] = [46., 10.];
@@ -23,16 +25,19 @@ fn generated(name: &str) -> bool {
         || name.starts_with("generated_home_zone_")
         || name.starts_with("generated_shop_")
 }
-fn fixed_content(program: &opencity::Program) -> String {
+fn fixed_content(program: &opencity::Program, removed: &HashSet<String>) -> String {
     let mut fixed = program.clone();
     fixed.statements.retain(|s| {
         let Statement::Call(c) = s else { return true };
-        if c.assigns.iter().any(|n| generated(n)) {
+        if c.assigns
+            .iter()
+            .any(|n| generated(n) || removed.contains(n))
+        {
             return false;
         }
         if c.name == "elevation" {
             if let Some(Argument::Identifier(n)) = c.args.first() {
-                return !generated(n);
+                return !generated(n) && !removed.contains(n);
             }
         }
         true
@@ -138,15 +143,17 @@ fn supported(q: &[[f32; 2]], terrain: &ElevationMap) -> Option<(f32, f32)> {
     (high - low <= 0.06).then_some((low, high))
 }
 pub fn build(base: &str) -> Result<(), Box<dyn Error>> {
-    run(base, true)
+    run(base, true, Plan::SourceCity)
 }
 pub fn fill(base: &str) -> Result<(), Box<dyn Error>> {
-    run(base, false)
+    run(base, false, Plan::SourceCity)
 }
-fn run(base: &str, pack: bool) -> Result<(), Box<dyn Error>> {
+pub fn inner_loop(base: &str) -> Result<(), Box<dyn Error>> {
+    run(base, false, Plan::InnerLoop)
+}
+fn run(base: &str, pack: bool, plan: Plan) -> Result<(), Box<dyn Error>> {
     let original = fs::read_to_string(format!("{base}/before.road"))?;
     let mut p = opencity::parse(&original)?;
-    let fixed = fixed_content(&p);
     let terrain = ElevationMap::from_png(
         ElevationMapSpec::from_program(&p)?.ok_or("missing elevation")?,
         &fs::read(format!("{base}/elevation.png"))?,
@@ -162,11 +169,23 @@ fn run(base: &str, pack: bool) -> Result<(), Box<dyn Error>> {
         .iter()
         .filter(|f| {
             f.kind == LandscapeKind::Building
-                && f.name.as_deref().is_some_and(generated)
+                && (plan == Plan::InnerLoop || f.name.as_deref().is_some_and(generated))
                 && green.overlaps(&f.points, None, true)
         })
         .filter_map(|f| f.name.clone())
         .collect();
+    // A reusable block can contain named buildings as well as top-level calls.
+    for statement in &mut p.statements {
+        if let Statement::Block(block) = statement {
+            block.calls.retain(|c| {
+                !c.assigns.iter().any(|n| removed.contains(n))
+                    && !(c.name == "elevation"
+                        && matches!(c.args.first(),
+                        Some(Argument::Identifier(n)) if removed.contains(n)))
+            });
+        }
+    }
+    let fixed = fixed_content(&p, &removed);
     let mut index = Index::default();
     let mut lots = Vec::new();
     for f in &features.features {
@@ -183,6 +202,15 @@ fn run(base: &str, pack: bool) -> Result<(), Box<dyn Error>> {
         }
     }
     let road_start = index.polygons.len();
+    if plan == Plan::InnerLoop {
+        // Keep parking, pedestrian lanes and station roofs open at street level.
+        plan::reserve_fixtures(&p, &mut index);
+        for f in &features.features {
+            if f.kind == LandscapeKind::Concrete {
+                index.insert(f.points.clone());
+            }
+        }
+    }
     let projection = opencity::map::project(&p);
     let widths: BTreeMap<_, _> = p
         .statements
@@ -342,6 +370,7 @@ fn run(base: &str, pack: bool) -> Result<(), Box<dyn Error>> {
         &terrain,
         &mut index,
         &green,
+        plan,
         if pack { removed.len() + 1500 } else { 10000 },
     )?;
     let budget = if pack { removed.len() + 1500 } else { 10000 };
@@ -350,6 +379,7 @@ fn run(base: &str, pack: bool) -> Result<(), Box<dyn Error>> {
         &terrain,
         &mut index,
         &green,
+        plan,
         budget.saturating_sub(infill_count),
     )?;
     let mut output = Vec::new();
@@ -377,7 +407,7 @@ fn run(base: &str, pack: bool) -> Result<(), Box<dyn Error>> {
     p.statements = output;
     let source = p.to_road_source();
     let checked = opencity::parse(&source)?;
-    if fixed_content(&checked) != fixed {
+    if fixed_content(&checked, &removed) != fixed {
         return Err("fixed map content changed".into());
     }
     let checked = opencity::project_landscape_features(&checked);
@@ -395,7 +425,7 @@ fn run(base: &str, pack: bool) -> Result<(), Box<dyn Error>> {
             continue;
         }
         let id = final_index.insert(f.points.clone());
-        if f.name.as_deref().is_some_and(generated) {
+        if plan == Plan::InnerLoop || f.name.as_deref().is_some_and(generated) {
             if green.overlaps(&f.points, None, true) {
                 return Err("final building intrudes into green space".into());
             }
@@ -453,7 +483,8 @@ fn run(base: &str, pack: bool) -> Result<(), Box<dyn Error>> {
         "new_block_buildings":block_count,
         "final_building_road_overlaps":final_conflicts,
         "final_generated_buildings_in_green_space":0,
-        "non_generated_map_content":"verified unchanged after serialization",
+        "non_generated_map_content":"verified unchanged except explicit park removals",
+        "removed_park_building_names": removed.iter().collect::<std::collections::BTreeSet<_>>(),
         "existing_lots_left_for_terrain":terrain_skips,
         "removed_park_buildings":removed.len(),
         "protected_green_polygons":green.polygons.len(),
@@ -493,6 +524,7 @@ mod tests {
                 size: [2., 2.],
                 heights,
                 water_level: Some(0.),
+                cuts: Vec::new(),
             },
             &bytes,
         )

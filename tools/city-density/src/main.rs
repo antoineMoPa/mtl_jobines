@@ -13,10 +13,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         ["pack", directory] => density::build(directory)?,
         ["fill", directory] => density::fill(directory)?,
+        ["inner-loop", directory] => density::inner_loop(directory)?,
         ["extract-green", pbf, calibration, output] => {
             density::export_green(pbf, calibration, output)?
         }
-        _ => return Err("Use pack DIR, fill DIR, or extract-green PBF CALIBRATION OUTPUT".into()),
+        _ => {
+            return Err(
+                "Use pack DIR, fill DIR, inner-loop DIR, or extract-green PBF CALIBRATION OUTPUT"
+                    .into(),
+            )
+        }
     }
     eprintln!("Finished in {:.2}s", started.elapsed().as_secs_f64());
     Ok(())

@@ -1,5 +1,5 @@
 //! Continuous street-facing apartment rows in gaps left by the source-cell fill.
-use super::{supported, Index, DENSITY_CENTER};
+use super::{plan::Plan, supported, Index};
 use opencity::{heightmap::ElevationMap, Program, Statement};
 use std::{error::Error, fmt::Write};
 
@@ -8,21 +8,22 @@ pub(super) fn build(
     terrain: &ElevationMap,
     index: &mut Index,
     green: &Index,
+    plan: Plan,
     budget: usize,
 ) -> Result<(Vec<Statement>, usize), Box<dyn Error>> {
     let projection = opencity::map::project(program);
     let mut streets: Vec<_> = projection
         .segments
         .iter()
-        .filter(|r| matches!(r.road_name.as_str(), "sd_street" | "urban_arterial"))
+        .filter(|r| plan.street(&r.road_name))
         .collect();
     // Central streets are filled first if the conservative scene budget is reached.
     streets.sort_by(|a, b| {
         let pa = a.point_at(0.5);
         let pb = b.point_at(0.5);
-        (pa.x - DENSITY_CENTER[0])
-            .hypot(pa.y - DENSITY_CENTER[1])
-            .total_cmp(&(pb.x - DENSITY_CENTER[0]).hypot(pb.y - DENSITY_CENTER[1]))
+        (pa.x - plan.center()[0])
+            .hypot(pa.y - plan.center()[1])
+            .total_cmp(&(pb.x - plan.center()[0]).hypot(pb.y - plan.center()[1]))
             .then_with(|| a.name.cmp(&b.name))
     });
     let widths: std::collections::BTreeMap<_, _> = program
@@ -129,6 +130,9 @@ pub(super) fn build(
                             ]
                         })
                         .to_vec();
+                        if !q.iter().all(|&p| plan.contains(p)) {
+                            continue;
+                        }
                         attempts += 1;
                         if index.overlaps(&q, None, false) {
                             building_road_rejects += 1;
@@ -142,22 +146,7 @@ pub(super) fn build(
                             terrain_rejects += 1;
                             continue;
                         };
-                        let central = (36. ..52.).contains(&p[0]) && (-3. ..20.).contains(&p[1]);
-                        let height = if central {
-                            0.10 + (accepted % 4) as f32 * 0.025
-                        } else {
-                            0.075 + (accepted % 3) as f32 * 0.025
-                        };
-                        let use_kind = if accepted % 9 == 0 {
-                            "mixed_use"
-                        } else {
-                            "residential"
-                        };
-                        let material = if accepted % 4 == 0 {
-                            "concrete"
-                        } else {
-                            "brick"
-                        };
+                        let (height, style) = plan.building(p, accepted, true);
                         let xy = q
                             .iter()
                             .map(|p| format!("{:.7},{:.7}", p[0], p[1]))
@@ -167,11 +156,10 @@ pub(super) fn build(
                         let name = format!("generated_area_infill_{id}");
                         writeln!(
                             source,
-                            "{}=building({:.7},{{use:{},material:{}}},{});",
+                            "{}=building({:.7},{{{}}},{});",
                             name,
                             height + high - low,
-                            use_kind,
-                            material,
+                            style,
                             xy
                         )?;
                         writeln!(source, "elevation({name},{:.7});", low - 0.002)?;
@@ -211,6 +199,7 @@ mod tests {
                 size: [2., 2.],
                 heights: [0.1, 0.1],
                 water_level: None,
+                cuts: Vec::new(),
             },
             &bytes,
         )
@@ -222,8 +211,15 @@ mod tests {
         .unwrap();
         let mut green = Index::default();
         green.insert(vec![[-1., 0.1], [1., 0.1], [1., 1.], [-1., 1.]]);
-        let (statements, count) =
-            build(&program, &terrain, &mut Index::default(), &green, 10).unwrap();
+        let (statements, count) = build(
+            &program,
+            &terrain,
+            &mut Index::default(),
+            &green,
+            Plan::SourceCity,
+            10,
+        )
+        .unwrap();
         assert_eq!(
             count, 1,
             "the street is shorter than one usual frontage pitch"

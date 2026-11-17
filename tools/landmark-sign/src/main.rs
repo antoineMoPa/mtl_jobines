@@ -3,6 +3,10 @@
 use std::{fs, path::Path};
 use ttf_parser::{Face, OutlineBuilder};
 
+// Keep raised lettering clear of the panel even after placement at city coordinates
+// and depth-buffer quantization at distant camera positions.
+const LETTERING_STANDOFF: f32 = 0.02;
+
 #[derive(Default)]
 struct Outline(Vec<Vec<[f64; 2]>>);
 impl OutlineBuilder for Outline {
@@ -102,7 +106,7 @@ fn main() {
                             let x = ((pen + points[t[i] * 2]) * scale) as f32;
                             [
                                 -0.25 - side * x,
-                                y + side * 0.002,
+                                y + side * LETTERING_STANDOFF,
                                 bottom + (points[t[i] * 2 + 1] * scale) as f32,
                             ]
                         });
@@ -117,4 +121,44 @@ fn main() {
     bytes[4..8].copy_from_slice(&count.to_le_bytes());
     fs::write(path, &bytes).unwrap();
     println!("Baked {count} vertices ({} bytes)", bytes.len());
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn baked_lettering_is_raised_above_both_panels() {
+        let bytes = include_bytes!("../../../data/landmarks/25.mesh");
+        let vertices: Vec<[f32; 10]> = bytes[32..]
+            .chunks_exact(40)
+            .map(|v| {
+                std::array::from_fn(|i| f32::from_le_bytes(v[i * 4..i * 4 + 4].try_into().unwrap()))
+            })
+            .collect();
+        for side in [-1., 1.] {
+            let face: Vec<_> = vertices
+                .iter()
+                .filter(|v| v[2] > 2.08 && v[4] * side > 0.99)
+                .collect();
+            let panel: Vec<_> = face
+                .iter()
+                .filter(|v| v[6..9].iter().all(|c| *c > 0.9))
+                .collect();
+            let letters: Vec<_> = face
+                .iter()
+                .filter(|v| v[6] > 0.6 && v[7] < 0.1 && v[8] < 0.1)
+                .collect();
+            assert_eq!(panel.len(), 6, "missing panel on side {side}");
+            assert!(letters.len() > 300, "missing lettering on side {side}");
+            let panel_depth = panel
+                .iter()
+                .map(|v| v[1] * side)
+                .fold(f32::NEG_INFINITY, f32::max);
+            for v in letters {
+                assert!(
+                    v[1] * side - panel_depth >= 0.019,
+                    "lettering must remain visibly raised on side {side}"
+                );
+            }
+        }
+    }
 }

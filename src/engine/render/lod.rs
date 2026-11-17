@@ -191,8 +191,8 @@ impl Renderer {
             look,
             Lighting::with_settings(time, self.daylight, self.sky_settings).sun,
         );
-        let camera = Frustum::from_matrix(view);
-        let shadow = Frustum::from_matrix(light);
+        let camera = Frustum::from_matrix(view).with_underground_exits(&self.underground_exits);
+        let shadow = Frustum::from_matrix(light).with_underground_exits(&self.underground_exits);
         let detail = self.detail_view(eye, look);
         let mut stats = VisibilityStats {
             candidates: meshes.len(),

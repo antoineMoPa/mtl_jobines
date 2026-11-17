@@ -117,13 +117,13 @@ fn authored_metro_is_a_closed_underground_loop_with_walkable_stations_and_stairs
                 station.id.title()
             );
         }
-        let roof = station.point(0., 0.06, 0.1015);
+        let roof = station.point(0., 0.06, 0.1005);
         assert!(
             (city
                 .surface_at(roof.truncate().to_array(), roof.z + 0.001)
                 .unwrap()
                 .height
-                - 0.1015)
+                - 0.1005)
                 .abs()
                 < 0.001
         );
@@ -169,4 +169,40 @@ fn ray_blocked(mesh: &opencity::runtime::Mesh, from: Vec3, to: Vec3) -> bool {
         let distance = e2.dot(q) / det;
         distance > 0. && distance < 1.
     })
+}
+
+#[test]
+fn tunnel_shell_overlaps_both_station_mouths_even_on_long_samples() {
+    let station = Station {
+        id: StationId::Acadie,
+        center: Vec2::ZERO,
+        forward: Vec2::X,
+        distance: 0.,
+    };
+    let map = MetroMap {
+        stations: vec![station],
+        ..Default::default()
+    };
+    let spans = map.tunnel_spans(
+        Vec3::new(-0.5, 0., TRACK_HEIGHT),
+        Vec3::new(0.5, 0., TRACK_HEIGHT),
+    );
+    assert_eq!(spans.len(), 2);
+    assert!((spans[0].1.x + 0.315).abs() < 1e-6);
+    assert!((spans[1].0.x - 0.315).abs() < 1e-6);
+    // A train-sized ray remains within the vault; rays above the crown meet the bulkhead.
+    let mesh = map.scenery().unwrap().unwrap();
+    for direction in [-1., 1.] {
+        assert!(!ray_blocked(
+            &mesh.mesh,
+            Vec3::new(0., 0., TRACK_HEIGHT + 0.041),
+            Vec3::new(direction * 0.4, 0., TRACK_HEIGHT + 0.041)
+        ));
+        assert!(ray_blocked(
+            &mesh.mesh,
+            Vec3::new(0., 0., TRACK_HEIGHT + 0.065),
+            Vec3::new(direction * 0.4, 0., TRACK_HEIGHT + 0.065)
+        ));
+    }
+    assert!(!map.enclosed_view(map.stations[0].point(-0.40, 0.06, 0.)));
 }

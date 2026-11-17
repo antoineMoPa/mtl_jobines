@@ -198,6 +198,9 @@ pub(super) fn parts(city: &City) -> (Mesh, Vec<Vec<Mesh>>) {
             feature.building_use,
             BuildingUse::Commercial | BuildingUse::MixedUse
         ) || feature.model.is_some()
+            // The section kit supplies its own street floor and facade. Legacy
+            // panels follow the lot edge and would float in front of setbacks.
+            || opencity::runtime::architecture::BuildingRecipe::from_feature(feature).is_some()
         {
             continue;
         }
@@ -556,6 +559,40 @@ pub(super) fn parts(city: &City) -> (Mesh, Vec<Vec<Mesh>>) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn procedural_facades_do_not_receive_legacy_shop_windows_or_props() {
+        for family in opencity::BuildingFamily::ALL {
+            for points in ["0,0,0.3,0,0.3,0.2,0,0.2", "0,0,0,0.2,0.3,0.2,0.3,0"] {
+                let source = format!(
+                    "shop=building(0.65,{{material:glass,family:{},use:mixed_use,\
+                    floor_height:0.0325,front_edge:0}}, {points});",
+                    family.keyword()
+                );
+                let city = City::from_program(&opencity::parse(&source).unwrap(), None).unwrap();
+                let (details, props) = parts(&city);
+                assert!(
+                    details.vertices.is_empty(),
+                    "{family:?}: floating lot-edge details"
+                );
+                assert!(props.is_empty(), "{family:?}: duplicate street-floor props");
+                let body = city.mesh(Region::WholeMap, 0.05).unwrap();
+                assert!(body
+                    .vertices
+                    .iter()
+                    .any(|v| v.surface[0] == SurfaceKind::Facade as u32 as f32));
+            }
+        }
+        let city = City::from_program(
+            &opencity::parse(
+                "shop=building(0.12,{family:legacy,use:commercial},0,0,0.3,0,0.3,0.2,0,0.2);",
+            )
+            .unwrap(),
+            None,
+        )
+        .unwrap();
+        let (details, _) = parts(&city);
+        assert!(details.vertices.iter().any(|v| v.surface[0] == SHOP));
+    }
     #[test]
     fn developed_area_shops_keep_storefronts_with_a_small_mesh() {
         let p = opencity::parse(

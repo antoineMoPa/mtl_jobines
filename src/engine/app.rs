@@ -739,6 +739,18 @@ impl Game {
         meshes.push(moving_mesh);
         meshes.extend(self.prop_scenery.visible_with_authored(authored_visible));
         meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());
+        let metro = &self.scenery.as_ref().unwrap().metro;
+        renderer.underground_exits =
+            (renderer.construction_span.is_none() && metro.enclosed_view(eye)).then(|| {
+                metro
+                    .stations
+                    .iter()
+                    .map(|s| s.point(-0.40, 0.06, 0.).truncate())
+                    .collect()
+            });
+        if let Some(exits) = renderer.underground_exits.as_deref() {
+            meshes.retain(|mesh| mesh.visible_underground(exits));
+        }
         renderer
             .mission_markers
             .update(&renderer.queue, self.world.waiting_service_passengers());

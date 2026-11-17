@@ -4910,11 +4910,11 @@ grade(metro_dock_acadie_2, -0.02625, -0.02625);
 metro_stairs_acadie = metro_stair(1.24, 0.9, 1.24, 1.1);
 grade(metro_stairs_acadie, 0.1005, -0.02625);
 metro_roof_acadie_0 = concrete(1.34, 1.12, 1.34, 1.72, 1.18, 1.72, 1.18, 1.12);
-elevation(metro_roof_acadie_0, 0.1215);
+elevation(metro_roof_acadie_0, 0.1205);
 metro_roof_acadie_1 = concrete(1.34, 1.08, 1.34, 1.12, 1.26, 1.12, 1.26, 1.08);
-elevation(metro_roof_acadie_1, 0.1215);
+elevation(metro_roof_acadie_1, 0.1205);
 metro_roof_acadie_2 = concrete(1.22, 1.08, 1.22, 1.12, 1.18, 1.12, 1.18, 1.08);
-elevation(metro_roof_acadie_2, 0.1215);
+elevation(metro_roof_acadie_2, 0.1205);
 
 # jean_talon: 64 m chamber, 7 m platform, 72-step street staircase.
 metro_station_jean_talon = map_point(1.3, 8);
@@ -4931,11 +4931,11 @@ grade(metro_dock_jean_talon_2, -0.02625, -0.02625);
 metro_stairs_jean_talon = metro_stair(1.24, 7.5, 1.24, 7.7);
 grade(metro_stairs_jean_talon, 0.1005, -0.02625);
 metro_roof_jean_talon_0 = concrete(1.34, 7.72, 1.34, 8.32, 1.18, 8.32, 1.18, 7.72);
-elevation(metro_roof_jean_talon_0, 0.1215);
+elevation(metro_roof_jean_talon_0, 0.1205);
 metro_roof_jean_talon_1 = concrete(1.34, 7.68, 1.34, 7.72, 1.26, 7.72, 1.26, 7.68);
-elevation(metro_roof_jean_talon_1, 0.1215);
+elevation(metro_roof_jean_talon_1, 0.1205);
 metro_roof_jean_talon_2 = concrete(1.22, 7.68, 1.22, 7.72, 1.18, 7.72, 1.18, 7.68);
-elevation(metro_roof_jean_talon_2, 0.1215);
+elevation(metro_roof_jean_talon_2, 0.1205);
 
 # bonaventure: 64 m chamber, 7 m platform, 72-step street staircase.
 metro_station_bonaventure = map_point(17.5, 9.35);
@@ -4952,8 +4952,8 @@ grade(metro_dock_bonaventure_2, -0.02625, -0.02625);
 metro_stairs_bonaventure = metro_stair(17, 9.41, 17.2, 9.41);
 grade(metro_stairs_bonaventure, 0.1005, -0.02625);
 metro_roof_bonaventure_0 = concrete(17.22, 9.31, 17.82, 9.31, 17.82, 9.47, 17.22, 9.47);
-elevation(metro_roof_bonaventure_0, 0.1215);
+elevation(metro_roof_bonaventure_0, 0.1205);
 metro_roof_bonaventure_1 = concrete(17.18, 9.31, 17.22, 9.31, 17.22, 9.39, 17.18, 9.39);
-elevation(metro_roof_bonaventure_1, 0.1215);
+elevation(metro_roof_bonaventure_1, 0.1205);
 metro_roof_bonaventure_2 = concrete(17.18, 9.43, 17.22, 9.43, 17.22, 9.47, 17.18, 9.47);
-elevation(metro_roof_bonaventure_2, 0.1215);
+elevation(metro_roof_bonaventure_2, 0.1205);
