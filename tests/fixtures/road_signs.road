@@ -1,0 +1,12 @@
+road street: sidewalk carlane middle carlane sidewalk; end
+street(-1,0,1,0);
+land(-2,-2,2,-2,2,2,-2,2);
+player_start(0,-0.1,90);
+stop_a=prop(stop_sign,-0.12,-0.04,{cluster:true});
+stop_b=prop(stop_sign,-0.08,-0.04,{cluster:true});
+speed_a=prop(speed_sign,-0.04,-0.04,{limit:30});
+one_a=prop(one_way_sign,0,-0.04,{arrow:right});
+yield_a=prop(yield_sign,0.04,-0.04);
+curve_a=prop(curve_sign,0.08,-0.04,{arrow:left});
+exit_a=prop(highway_sign,0.14,-0.04,{destination:"Québec",secondary:"40 EST / Centre-ville",exit:"12",arrow:exit_right});
+exit_b=prop(highway_sign,0.22,-0.04,{destination:"Montréal",secondary:"Pont / Centre-ville",exit:"3",arrow:straight});

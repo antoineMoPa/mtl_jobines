@@ -699,12 +699,6 @@ road_28_part_7 = cross_street(road_28_ground_6, 7.76249981, 1.75609994, 7.929100
 
 grade(road_28_part_7, 0.10200094, 0.10200094);
 
-junction_29 = map_point(9.0953, 1.7953);
-
-road_29 = cross_street(junction_28, 8.42889977, 1.77569997, 8.76210022, 1.78550005, junction_29);
-
-grade(road_29, 0.10200094, 0.10200094);
-
 placed_prop_6 = prop(tree, 4.7545052, 3.8815298, { heading: 0.0000000, elevation: 0.3990135 });
 
 placed_prop_7 = prop(tree, 4.7660885, 3.9610496, { heading: 0.0000000, elevation: 0.4002080 });
@@ -777,19 +771,14 @@ road_37 = cross_street(junction_36, 4.6486, 9.9747, 4.5975, 9.9732, junction_37)
 
 grade(road_37, 0.1020, 0.1020);
 
-junction_38 = map_point(4.8527, 9.9807);
-
-road_38 = cross_street(junction_36, 4.7506, 9.9777, 4.8017, 9.9792, junction_38);
-
-grade(road_38, 0.1020, 0.1020);
-
 junction_39 = map_point(4.6951, 10.1293);
 
 road_39 = cross_street(junction_36, 4.6981, 10.0272, 4.6966, 10.0783, junction_39);
 
 grade(road_39, 0.1020, 0.1020);
 
-intersection4(junction_36, cross_street);
+# Report 80: the eastern arm ended immediately; close it with a continuous sidewalk.
+intersection3(junction_36, cross_street);
 
 elevation(junction_36, 0.1020);
 
@@ -2645,7 +2634,8 @@ district_hill_link_31 = cross_street(district_hill_point_30, 8.095700000, 7.6753
 grade(district_hill_link_31, 0.102000948, 0.102000948);
 district_hill_link_32 = cross_street(district_hill_point_31, 8.095700000, 7.870122917, 8.095700000, 7.935061458, district_junction_2_0);
 grade(district_hill_link_32, 0.102000948, 0.102001000);
-intersection3(junction_28, cross_street);
+# The hill access turns north into the district; remove the unused eastern spur.
+intersection2(junction_28, cross_street);
 elevation(junction_28, 0.102001);
 district_north_access_1 = cross_street(district_junction_0_3, 1.360700000, 16.600000000, 0.000000000, 18.800000000, ring_north_1_local_right);
 grade(district_north_access_1, 0.102001000, 0.102001000);
@@ -3484,8 +3474,6 @@ scattered_cone_089 = prop(cone, 7.1601186, 1.6858603, { heading: 85, elevation: 
 scattered_cone_090 = prop(cone, 7.5662055, 1.6978039, { heading: 91, elevation: 0.1020922 });
 # road_28_part_7
 scattered_cone_091 = prop(cone, 7.8130183, 1.8101085, { heading: 201, elevation: 0.1020009 });
-# road_29
-scattered_cone_092 = prop(cone, 8.5033312, 1.7253666, { heading: 229, elevation: 0.1020009 });
 # road_31
 scattered_cone_093 = prop(cone, 1.4823680, 5.1089606, { heading: 96, elevation: 0.1020000 });
 # road_34
@@ -3851,12 +3839,6 @@ scattered_cone_271 = prop(cone, 7.4412560, 1.6941290, { heading: 125, elevation:
 scattered_cone_272 = prop(cone, 7.5631185, 1.8027585, { heading: 144, elevation: 0.1020922 });
 # road_28_part_7
 scattered_cone_273 = prop(cone, 7.7223935, 1.7023977, { heading: 162, elevation: 0.1020009 });
-# road_29
-scattered_cone_274 = prop(cone, 8.2815809, 1.8238899, { heading: 50, elevation: 0.1020009 });
-# road_29
-scattered_cone_275 = prop(cone, 8.5939560, 1.8330774, { heading: 46, elevation: 0.1020009 });
-# road_29
-scattered_cone_276 = prop(cone, 8.9375677, 1.8431836, { heading: 242, elevation: 0.1020009 });
 # road_3
 scattered_cone_277 = prop(cone, 0.6558974, -3.5315409, { heading: 103, elevation: 0.1020000 });
 # road_30
@@ -4509,3 +4491,84 @@ bend_home_41_05_left_yard_tree_2 = prop(tree_linden_2, 0.7664106, 10.1761666, { 
 road_path(road_30, "Jean-Talon");
 road_path(district_street_x_1_1, "Saint-Laurent");
 road_path(district_street_x_1_2, "Saint-Denis");
+
+# Road-sign kit: authored, shared, collidable assemblies.
+# Faces point toward local -Y; heading follows each approach. Heights follow the authored road grade.
+# road_1 / forward approach
+sign_speed_road_1 = prop(speed_sign, 1.6033012, -2.4862514, { heading: -30.2114, elevation: 0.1030000, limit: 30 });
+# road_8 / forward approach
+sign_speed_road_8 = prop(speed_sign, 1.5941783, 1.6347141, { heading: 91.6834, elevation: 0.1030000, limit: 50 });
+# road_11 / forward approach
+sign_speed_road_11 = prop(speed_sign, 2.0748749, 1.4837774, { heading: -88.3153, elevation: 0.1030000, limit: 50 });
+# road_17 / forward approach
+sign_speed_road_17 = prop(speed_sign, 4.9884217, 1.6144859, { heading: -88.3166, elevation: 0.2430000, limit: 30 });
+# road_23 / forward approach
+sign_speed_road_23 = prop(speed_sign, 4.6584449, 7.0883497, { heading: -15.3059, elevation: 0.2206000, limit: 50 });
+# road_30 / forward approach
+sign_speed_road_30 = prop(speed_sign, 1.6566421, 3.0103519, { heading: 1.6847, elevation: 0.1030000, limit: 50 });
+# road_35 / forward approach
+sign_speed_road_35 = prop(speed_sign, 1.4533141, 9.9234217, { heading: 1.6834, elevation: 0.1030000, limit: 50 });
+# road_41 / forward approach
+sign_speed_road_41 = prop(speed_sign, 0.9453148, 9.8907401, { heading: 104.7766, elevation: 0.1030000, limit: 30 });
+# road_42 / forward approach
+sign_speed_road_42 = prop(speed_sign, -0.6746664, 8.4870237, { heading: 136.6902, elevation: 0.1030000, limit: 30 });
+# road_43 / forward approach
+sign_speed_road_43 = prop(speed_sign, -3.1468823, 5.5337152, { heading: 7.1541, elevation: 0.1030000, limit: 30 });
+# road_1 / forward approach
+sign_curve_0 = prop(curve_sign, 1.5081486, -2.6284705, { heading: -37.4562, elevation: 0.1030000, arrow: left });
+# road_41 / forward approach
+sign_curve_2 = prop(curve_sign, 1.1131826, 9.9239863, { heading: 97.5298, elevation: 0.1030000, arrow: left });
+# road_43 / forward approach
+sign_curve_4 = prop(curve_sign, -3.1345914, 5.4916492, { heading: 27.4748, elevation: 0.1030000, arrow: right });
+# district_street_y_0_1 / forward approach
+sign_stop_district_street_y_0_1 = prop(stop_sign, 1.4207000, 12.5367050, { heading: 0.0000, elevation: 0.1030010, cluster: false });
+# district_street_x_0_2 / forward approach
+sign_speed_district_street_x_0_2 = prop(speed_sign, 2.1943000, 12.5450000, { heading: -90.0000, elevation: 0.1030010, limit: 30 });
+# district_street_y_0_2 / forward approach
+sign_stop_district_street_y_0_2 = prop(stop_sign, 1.4207000, 14.2775000, { heading: 0.0000, elevation: 0.1030010, cluster: false });
+# district_street_y_1_1 / forward approach
+sign_stop_district_street_y_1_1 = prop(stop_sign, 4.7551000, 12.5367050, { heading: 0.0000, elevation: 0.1030010, cluster: true });
+# district_street_x_1_2 / forward approach
+sign_speed_district_street_x_1_2 = prop(speed_sign, 5.5452500, 12.5450000, { heading: -90.0000, elevation: 0.1030010, limit: 30 });
+# district_street_y_1_2 / forward approach
+sign_stop_district_street_y_1_2 = prop(stop_sign, 4.7551000, 14.2775000, { heading: 0.0000, elevation: 0.1030010, cluster: true });
+# district_street_y_2_0 / forward approach
+sign_stop_district_street_y_2_0 = prop(stop_sign, 8.1557000, 10.8192950, { heading: 0.0000, elevation: 0.1030010, cluster: true });
+# district_street_y_2_1 / forward approach
+sign_stop_district_street_y_2_1 = prop(stop_sign, 8.1557000, 12.5367050, { heading: 0.0000, elevation: 0.1030010, cluster: true });
+# district_street_x_2_2 / forward approach
+sign_speed_district_street_x_2_2 = prop(speed_sign, 9.7717750, 12.5450000, { heading: -90.0000, elevation: 0.1030010, limit: 30 });
+# district_street_y_2_2 / forward approach
+sign_stop_district_street_y_2_2 = prop(stop_sign, 8.1557000, 14.2775000, { heading: 0.0000, elevation: 0.1030010, cluster: true });
+# district_street_y_3_0 / forward approach
+sign_stop_district_street_y_3_0 = prop(stop_sign, 14.8600000, 10.8192950, { heading: 0.0000, elevation: 0.1030010, cluster: false });
+# district_street_y_3_1 / forward approach
+sign_stop_district_street_y_3_1 = prop(stop_sign, 14.8600000, 12.5367050, { heading: 0.0000, elevation: 0.1030010, cluster: false });
+# district_street_x_3_2 / forward approach
+sign_speed_district_street_x_3_2 = prop(speed_sign, 16.4000000, 12.5450000, { heading: -90.0000, elevation: 0.1030010, limit: 30 });
+# district_street_y_3_2 / forward approach
+sign_stop_district_street_y_3_2 = prop(stop_sign, 14.8600000, 14.2775000, { heading: 0.0000, elevation: 0.1030010, cluster: false });
+# service_north_approach / forward approach
+sign_direction_service_north_approach = prop(one_way_sign, 0.8270460, -0.7243090, { heading: -88.3018, elevation: 0.1020000, arrow: right });
+# service_south_approach / forward approach
+sign_direction_service_south_approach = prop(one_way_sign, 2.5617952, 0.1244721, { heading: 91.6982, elevation: 0.1020000, arrow: right });
+# highway_north / forward approach
+sign_autoroute_east_advance = prop(highway_sign, -3.9809070, -0.7032810, { heading: -88.3018, elevation: 0.0020000, destination: "Montréal", secondary: "Centre-ville / 100 m", exit: "1", arrow: exit_right });
+# highway_north / forward approach
+sign_autoroute_east_through = prop(highway_sign, 2.0164579, -0.5254741, { heading: -88.3018, elevation: 0.0020000, destination: "Québec", secondary: "40 EST", exit: "", arrow: straight });
+# highway_south / forward approach
+sign_autoroute_west_advance = prop(highway_sign, 6.8753885, 0.0887876, { heading: 91.6982, elevation: 0.0020000, destination: "Montréal", secondary: "Centre-ville / 50 m", exit: "2", arrow: exit_right });
+# highway_south / forward approach
+sign_autoroute_west_through = prop(highway_sign, 0.7530784, -0.0927236, { heading: 91.6982, elevation: 0.0020000, destination: "Ottawa / Gatineau", secondary: "40 OUEST", exit: "", arrow: straight });
+# highway_north / forward approach
+sign_autoroute_east_speed = prop(speed_sign, -0.2325539, -0.5921517, { heading: -88.3018, elevation: 0.0020000, limit: 90 });
+# highway_south / forward approach
+sign_autoroute_west_speed = prop(speed_sign, 1.7526392, -0.0630892, { heading: 91.6982, elevation: 0.0020000, limit: 90 });
+# service_north_segment / forward approach
+sign_ramp_north_destination = prop(highway_sign, 1.9388161, -0.7263632, { heading: -88.3018, elevation: 0.1020000, destination: "Québec", secondary: "40 EST", exit: "", arrow: right });
+# service_south_segment / forward approach
+sign_ramp_south_destination = prop(highway_sign, 1.4500250, 0.1265263, { heading: 91.6982, elevation: 0.1020000, destination: "Ottawa", secondary: "40 OUEST", exit: "", arrow: right });
+sign_merge_north = prop(yield_sign, 5.90, -0.385, {heading:-88.30,elevation:0.002});
+sign_merge_south = prop(yield_sign, -2.48, -0.15, {heading:91.70,elevation:0.002});
+sign_exit_north = prop(highway_sign, -2.9, -0.68, {heading:-88.30,elevation:0.002,destination:"Centre-ville",secondary:"Boul. Métropolitain",exit:"1",arrow:exit_right});
+sign_exit_south = prop(highway_sign, 6.3, 0.09, {heading:91.70,elevation:0.002,destination:"Centre-ville",secondary:"Boul. Métropolitain",exit:"2",arrow:exit_right});

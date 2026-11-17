@@ -40,6 +40,7 @@ struct Sample {
     placement: Placement,
 }
 struct PreviewModel {
+    source: Arc<opencity::runtime::Mesh>,
     mesh: Arc<GpuMesh>,
     transforms: Vec<[[f32; 4]; 4]>,
 }
@@ -96,8 +97,9 @@ pub(super) struct Document {
     undo: Vec<Vec<Entry>>,
     redo: Vec<Vec<Entry>>,
     error: String,
+    sign_draft: Option<(usize, opencity::props::SignDesign)>,
     revision: u64,
-    models: std::collections::HashMap<(Kind, usize), PreviewModel>,
+    models: std::collections::HashMap<(Kind, usize, usize), PreviewModel>,
     gpu_revision: Option<u64>,
     last_pointer: Option<egui::Pos2>,
 }
@@ -127,6 +129,7 @@ impl Document {
             undo: Vec::new(),
             redo: Vec::new(),
             error: String::new(),
+            sign_draft: None,
             revision: 1,
             models: Default::default(),
             gpu_revision: None,
@@ -153,7 +156,22 @@ impl Document {
         if !self.open {
             0.
         } else {
-            (if width < 850. { 84. } else { 42. }) + if self.error.is_empty() { 0. } else { 24. }
+            (if width < 850. { 84. } else { 42. })
+                + if self.error.is_empty() { 0. } else { 24. }
+                + if self
+                    .selected_row
+                    .or_else(|| (self.selected.len() == 1).then(|| self.selected[0].entry))
+                    .and_then(|i| self.entries.get(i))
+                    .is_some_and(|e| e.kind().is_road_sign())
+                {
+                    if width < 850. {
+                        120.
+                    } else {
+                        76.
+                    }
+                } else {
+                    0.
+                }
         }
     }
     fn ceiling(&self) -> f32 {
@@ -225,18 +243,14 @@ impl Document {
     fn rebuild(&mut self, city: &City) {
         self.samples.clear();
         let radius = self.span.max(0.3) * 1.5;
-        for (entry, e) in self.entries.iter().enumerate() {
-            if let Ok(placements) = e.placements(city) {
-                for (index, p) in placements {
-                    if p.position.truncate().distance(self.center.truncate()) > radius {
-                        continue;
-                    }
-                    self.samples.push(Sample {
-                        member: Member { entry, index },
-                        placement: p,
-                    });
-                }
+        for (entry, index, p) in crate::props::visible_placements(&self.entries, city) {
+            if p.position.truncate().distance(self.center.truncate()) > radius {
+                continue;
             }
+            self.samples.push(Sample {
+                member: Member { entry, index },
+                placement: p,
+            });
         }
         self.revision = self.revision.wrapping_add(1);
     }
@@ -258,19 +272,25 @@ impl Document {
                 .collect();
             if let Some(draft) = &self.draft {
                 if let Ok(points) = draft.placements(city) {
-                    placements.extend(points.into_iter().map(|(_, p)| (p, true)));
+                    placements.extend(
+                        points
+                            .into_iter()
+                            .filter(|(_, p)| !p.sign_overlaps_building(city))
+                            .map(|(_, p)| (p, true)),
+                    );
                 }
             }
             for (placement, ghost) in placements {
                 for (index, part) in placement.parts().into_iter().enumerate() {
                     let model_kind = part.template.expect("catalogue part").0;
-                    let model =
-                        self.models
-                            .entry((model_kind, index))
-                            .or_insert_with(|| PreviewModel {
-                                mesh: Arc::new(Self::upload_model(renderer, model_kind, index)),
-                                transforms: Vec::new(),
-                            });
+                    let model = self
+                        .models
+                        .entry((model_kind, index, Arc::as_ptr(&part.mesh) as usize))
+                        .or_insert_with(|| PreviewModel {
+                            source: part.mesh.clone(),
+                            mesh: Arc::new(Self::upload_model(renderer, &part.mesh)),
+                            transforms: Vec::new(),
+                        });
                     let mut transform = (part.transform
                         * glam::Mat4::from_scale(Vec3::splat(0.01)))
                     .to_cols_array_2d();
@@ -278,13 +298,14 @@ impl Document {
                     model.transforms.push(transform);
                 }
             }
-            for (&(kind, index), model) in &mut self.models {
+            for model in self.models.values_mut() {
                 if Arc::get_mut(&mut model.mesh).is_none() {
-                    model.mesh = Arc::new(Self::upload_model(renderer, kind, index));
+                    model.mesh = Arc::new(Self::upload_model(renderer, &model.source));
                 }
                 renderer
                     .update_instances(Arc::get_mut(&mut model.mesh).unwrap(), &model.transforms);
             }
+            self.models.retain(|_, model| !model.transforms.is_empty());
             self.gpu_revision = Some(self.revision);
         }
         Some(
@@ -295,8 +316,8 @@ impl Document {
                 .collect(),
         )
     }
-    fn upload_model(renderer: &Renderer, kind: Kind, index: usize) -> GpuMesh {
-        let mut vertices = kind.parts()[index].vertices.clone();
+    fn upload_model(renderer: &Renderer, source: &opencity::runtime::Mesh) -> GpuMesh {
+        let mut vertices = source.vertices.clone();
         for vertex in &mut vertices {
             vertex.position = vertex.position.map(|v| v * crate::props::UNITS);
         }
@@ -344,6 +365,7 @@ impl Document {
         self.rebuild(city);
     }
     fn history(&mut self, city: &City, redo: bool) {
+        self.sign_draft = None;
         self.cancel_interaction();
         let value = if redo {
             self.redo.pop()

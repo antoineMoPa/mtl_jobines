@@ -69,7 +69,7 @@ impl Stage<'_> {
                 )),
             })
     }
-    pub fn props(&self) -> Vec<(crate::props::Kind, usize, Mat4, bool)> {
+    pub fn props(&self) -> Vec<crate::props::Instance> {
         self.definition
             .props
             .iter()
@@ -80,7 +80,16 @@ impl Stage<'_> {
                     Quat::from_rotation_z(self.anchor.yaw + p.yaw.to_radians()),
                     self.anchor.point(p.offset) / METERS_PER_UNIT,
                 );
-                (0..kind.parts().len()).map(move |index| (kind, index, transform, false))
+                kind.parts()
+                    .iter()
+                    .enumerate()
+                    .map(move |(index, mesh)| crate::props::Instance {
+                        kind,
+                        index,
+                        mesh: mesh.clone(),
+                        transform,
+                        automatic: false,
+                    })
             })
             .collect()
     }

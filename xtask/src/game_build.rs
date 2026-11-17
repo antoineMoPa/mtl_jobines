@@ -89,7 +89,12 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
 
 fn cargo(root: &Path) -> Command {
     let mut command = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
-    command.current_dir(root);
+    // Agent checks/tests and editor builds keep the ordinary cache. The game
+    // launcher gets a separate Cargo lock and feature/profile artifact cache.
+    let target = root
+        .join(std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| "target".into()))
+        .join("moon-game");
+    command.current_dir(root).env("CARGO_TARGET_DIR", target);
     command
 }
 

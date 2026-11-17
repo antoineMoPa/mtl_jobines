@@ -29,6 +29,44 @@ impl Drop for Fixture {
 }
 const SOURCE: &str = include_str!("../../../tests/fixtures/props.road");
 #[test]
+fn road_sign_configuration_survives_edit_duplicate_undo_and_reopen() {
+    let f = Fixture::new(include_str!("../../../tests/fixtures/road_signs.road"));
+    let mut d = f.doc();
+    d.rebuild(f.hermes.city());
+    let index = d
+        .entries
+        .iter()
+        .position(|e| e.kind() == Kind::HighwaySign)
+        .unwrap();
+    let before = d.entries.clone();
+    if let Some(opencity::props::SignDesign::Highway {
+        destination, exit, ..
+    }) = d.entries[index].sign_mut()
+    {
+        *destination = "Trois-Rivières".into();
+        *exit = "22".into();
+    } else {
+        panic!("highway design");
+    }
+    d.accept(f.hermes.city(), before.clone());
+    assert!(d.error.is_empty(), "{}", d.error);
+    assert_eq!(f.doc().entries, d.entries);
+    d.selected = vec![Member {
+        entry: index,
+        index: 0,
+    }];
+    d.duplicate(f.hermes.city());
+    assert_eq!(d.entries.len(), before.len() + 1);
+    assert_eq!(
+        d.entries.last().unwrap().clone().sign_mut(),
+        d.entries[index].clone().sign_mut()
+    );
+    d.history(f.hermes.city(), false);
+    d.history(f.hermes.city(), false);
+    assert_eq!(d.entries, before);
+    assert_eq!(f.doc().entries, before);
+}
+#[test]
 fn edits_save_reload_undo_and_preserve_non_prop_source() {
     let f = Fixture::new(SOURCE);
     let mut d = f.doc();

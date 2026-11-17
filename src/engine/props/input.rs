@@ -7,10 +7,9 @@ impl Document {
             .filter_map(|s| {
                 let transform = s.placement.transform();
                 s.placement
-                    .kind
                     .parts()
                     .iter()
-                    .flat_map(|mesh| mesh.vertices.chunks_exact(3))
+                    .flat_map(|part| part.mesh.vertices.chunks_exact(3))
                     .filter_map(|triangle| {
                         geometry::triangle_hit(
                             origin,

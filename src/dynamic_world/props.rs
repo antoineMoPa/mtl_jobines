@@ -11,6 +11,9 @@ use rapier3d::{
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+mod signs;
+use signs::SignBody;
+
 const TILE: f32 = 200.;
 const VIEW: f32 = 150.;
 const TREE_VIEW: f32 = 400.;
@@ -33,6 +36,7 @@ struct Prop {
     mesh: Part,
     center: Vec3,
     half: Vec3,
+    sign: Option<SignBody>,
     collider: Option<ColliderHandle>,
     debris: Option<RigidBodyHandle>,
     floor: Option<ColliderHandle>,
@@ -177,6 +181,7 @@ impl Props {
             ccd: CCDSolver::new(),
         };
         let mut model_bounds = HashMap::new();
+        let mut sign_shapes = HashMap::new();
         for (group, mesh) in groups
             .into_iter()
             .enumerate()
@@ -207,7 +212,8 @@ impl Props {
                     light_lo.is_finite().then_some((light_lo + light_hi) * 0.5),
                 )
             };
-            let (local_lo, local_hi, lamp) = if let Some(key) = mesh.template {
+            let (local_lo, local_hi, lamp) = if mesh.template.is_some() {
+                let key = std::sync::Arc::as_ptr(&mesh.mesh) as usize;
                 *model_bounds.entry(key).or_insert_with(bounds)
             } else {
                 bounds()
@@ -226,6 +232,10 @@ impl Props {
             }
             let center = (lo + hi) * 0.5;
             let half = ((hi - lo) * 0.5).max(Vec3::splat(0.03));
+            let (sign, center, half) = signs::prepare(&mesh, &mut sign_shapes)
+                .map_or((None, center, half), |(sign, center, half)| {
+                    (Some(sign), center, half)
+                });
             let id = result.items.len();
             result.groups[group].push(id);
             result
@@ -242,6 +252,7 @@ impl Props {
                 mesh,
                 center,
                 half,
+                sign,
                 collider: None,
                 debris: None,
                 floor: None,
@@ -263,7 +274,9 @@ impl Props {
             .mesh
             .template
             .is_some_and(|(k, _)| k == crate::props::Kind::Cone);
-        let shape = if cone {
+        let shape = if let Some(sign) = &item.sign {
+            ColliderBuilder::new(sign.shape.clone()).rotation(sign.rotation.scaled_axis())
+        } else if cone {
             Self::cone_shape()
         } else {
             let tree = item.mesh.template.is_some_and(|(kind, _)| kind.is_tree())
@@ -564,7 +577,19 @@ impl Props {
                 .angular_damping(if cone { 0.35 } else { 0. })
                 .build(),
         );
-        if cone {
+        if let Some(sign) = &item.sign {
+            self.debris_colliders.insert_with_parent(
+                ColliderBuilder::new(sign.shape.clone())
+                    .rotation(sign.rotation.scaled_axis())
+                    .mass(sign.mass)
+                    .friction(0.65)
+                    .restitution(0.08)
+                    .user_data(id as u128 + 1)
+                    .build(),
+                body,
+                &mut self.debris_bodies,
+            );
+        } else if cone {
             for collider in [
                 ColliderBuilder::cuboid(0.25, 0.25, 0.0275)
                     .translation(vector![0., 0., -0.4725])
@@ -668,10 +693,11 @@ impl Props {
             &(),
         );
         if self.active.iter().any(|&id| {
-            self.items[id]
-                .mesh
-                .template
-                .is_some_and(|(kind, _)| kind == crate::props::Kind::Cone)
+            self.items[id].sign.is_some()
+                || self.items[id]
+                    .mesh
+                    .template
+                    .is_some_and(|(kind, _)| kind == crate::props::Kind::Cone)
         }) {
             self.debris_query.update(&self.debris_colliders);
         }
@@ -859,7 +885,7 @@ impl Props {
                 }));
         }
     }
-    pub fn authored_instances(&self, center: Vec3) -> Vec<(crate::props::Kind, usize, Mat4, bool)> {
+    pub fn authored_instances(&self, center: Vec3) -> Vec<crate::props::Instance> {
         let tile = Self::tile(center);
         let mut ids = Vec::new();
         for x in tile.0 - 2..=tile.0 + 2 {
@@ -896,12 +922,13 @@ impl Props {
                 };
                 let draw_view = if kind.is_tree() { TREE_VIEW } else { VIEW };
                 (position.truncate().distance(center.truncate()) <= draw_view + item.half.length())
-                    .then_some((
+                    .then(|| crate::props::Instance {
                         kind,
-                        part,
-                        transform * Mat4::from_scale(Vec3::splat(1. / METERS_PER_UNIT)),
-                        item.mesh.automatic,
-                    ))
+                        index: part,
+                        mesh: item.mesh.mesh.clone(),
+                        transform: transform * Mat4::from_scale(Vec3::splat(1. / METERS_PER_UNIT)),
+                        automatic: item.mesh.automatic,
+                    })
             })
             .collect()
     }
@@ -909,6 +936,8 @@ impl Props {
 
 #[cfg(test)]
 mod lifecycle_tests;
+#[cfg(test)]
+mod signs_tests;
 #[cfg(test)]
 mod tests {
     #[test]

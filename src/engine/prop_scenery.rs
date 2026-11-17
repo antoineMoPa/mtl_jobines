@@ -14,13 +14,14 @@ struct CachedSignal {
     last_seen: u64,
 }
 struct InstancedProp {
+    _source: std::sync::Arc<Mesh>,
     mesh: GpuMesh,
     transforms: Vec<[[f32; 4]; 4]>,
     automatic: bool,
 }
 #[derive(Default)]
 pub struct PropScenery {
-    models: HashMap<(crate::props::Kind, usize, u8, bool), InstancedProp>,
+    models: HashMap<(crate::props::Kind, usize, usize, u8, bool), InstancedProp>,
     batches: HashMap<usize, CachedBatch>,
     visible: Vec<usize>,
     signals: HashMap<usize, CachedSignal>,
@@ -56,11 +57,18 @@ impl PropScenery {
         for model in self.models.values_mut() {
             model.transforms.clear();
         }
-        for (kind, index, transform, automatic) in world
+        for instance in world
             .authored_prop_instances()
             .into_iter()
             .chain(stage.map(|s| s.props()).unwrap_or_default())
         {
+            let crate::props::Instance {
+                kind,
+                index,
+                mesh,
+                transform,
+                automatic,
+            } = instance;
             let distance = (transform.w_axis.truncate() * crate::props::UNITS
                 - world.player_position())
             .length_squared();
@@ -75,19 +83,26 @@ impl PropScenery {
                 }
                 let model = self
                     .models
-                    .entry((kind, index, lod, automatic))
+                    .entry((
+                        kind,
+                        index,
+                        std::sync::Arc::as_ptr(&mesh) as usize,
+                        lod,
+                        automatic,
+                    ))
                     .or_insert_with(|| {
                         let mut vertices = match lod {
                             1 => kind.far_parts(),
                             2 => kind.image_parts(),
-                            _ => kind.parts(),
-                        }[index]
-                            .vertices
-                            .clone();
+                            _ => std::slice::from_ref(&mesh),
+                        }[if lod == 0 { 0 } else { index }]
+                        .vertices
+                        .clone();
                         for v in &mut vertices {
                             v.position = v.position.map(|p| p * crate::props::UNITS);
                         }
                         InstancedProp {
+                            _source: mesh.clone(),
                             mesh: renderer.upload_instanced(&vertices),
                             transforms: Vec::new(),
                             automatic,
@@ -103,6 +118,8 @@ impl PropScenery {
         for model in self.models.values_mut() {
             renderer.update_instances(&mut model.mesh, &model.transforms);
         }
+        self.models
+            .retain(|key, model| !key.0.is_road_sign() || !model.transforms.is_empty());
         self.frame += 1;
         self.visible.clear();
         self.visible_signals.clear();
@@ -179,5 +196,7 @@ impl PropScenery {
     }
 }
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod sign_qa;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;

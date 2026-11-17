@@ -716,7 +716,7 @@ impl DynamicWorld {
     pub fn visible_prop_batches(&self) -> Vec<PropBatch> {
         self.props.visible_batches(self.player_position())
     }
-    pub fn authored_prop_instances(&self) -> Vec<(crate::props::Kind, usize, glam::Mat4, bool)> {
+    pub fn authored_prop_instances(&self) -> Vec<crate::props::Instance> {
         self.props.authored_instances(self.player_position())
     }
     pub fn write_prop_batch(&self, batch: &PropBatch, output: &mut Mesh) {

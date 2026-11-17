@@ -32,6 +32,12 @@ code on each edit while keeping simulation and map preparation fast. The first
 build prepares this profile's cache. Shipping and web builds continue to use
 `cargo build --release` with their existing settings.
 
+Moon game builds use `target/moon-game`, independently of ordinary agent
+checks/tests and editor builds, so those commands can compile concurrently
+without waiting on the game's Cargo lock. When `CARGO_TARGET_DIR` is set,
+the game cache is its `moon-game` child directory. The first game build
+populates this separate cache; subsequent launches reuse it.
+
 Native game and OpenCity libraries emit only `rlib` artifacts, allowing Cargo to
 keep hashed filenames for different feature/profile variants in the shared
 target directory. The web build scripts explicitly request `cdylib` output with

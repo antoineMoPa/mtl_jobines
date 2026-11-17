@@ -42,7 +42,7 @@ fn hash_sources(path: &Path, hash: &mut u64) {
         } else if path.extension().is_some_and(|ext| {
             matches!(
                 ext.to_str(),
-                Some("rs" | "wgsl" | "road" | "png" | "svg" | "json" | "mesh")
+                Some("rs" | "wgsl" | "road" | "png" | "svg" | "json" | "mesh" | "glb" | "ttf")
             )
         }) {
             hash_bytes(hash, &fs::read(path).unwrap());
@@ -94,6 +94,11 @@ fn main() {
     hash_sources(Path::new("assets"), &mut hash);
     hash_sources(Path::new("data/landmarks"), &mut hash);
     hash_sources(Path::new("opencity/src"), &mut hash);
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("opencity/assets").display()
+    );
+    hash_sources(Path::new("opencity/assets"), &mut hash);
     hash_bytes(&mut hash, &fs::read("Cargo.lock").unwrap());
     hash_bytes(&mut hash, &fs::read("build.rs").unwrap());
     println!("cargo:rustc-env=MTL_JOBINES_GENERATOR_KEY={hash:016x}");

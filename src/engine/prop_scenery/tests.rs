@@ -9,6 +9,85 @@ use glam::Vec3;
 
 #[test]
 #[ignore = "requires a native GPU adapter"]
+fn native_road_sign_designs_share_uploads_and_render_distinct_artwork() {
+    let source = include_str!("../../../tests/fixtures/road_signs.road");
+    let mut hermes = Hermes::test_map_from_source(source);
+    let world = DynamicWorld::new(&hermes);
+    let mut renderer = pollster::block_on(Renderer::new(None, 1600, 800)).unwrap();
+    renderer.daylight = Some(1.);
+    renderer.render_lod = crate::engine::render::RenderLod::Full;
+    let mut props = PropScenery::default();
+    props.update(&renderer, &world);
+    let stops: Vec<_> = props
+        .models
+        .iter()
+        .filter(|(key, _)| key.0 == crate::props::Kind::StopSign)
+        .collect();
+    assert_eq!(
+        stops.len(),
+        4,
+        "two identical four-part clusters share four uploads"
+    );
+    assert!(stops.iter().all(|(_, m)| m.transforms.len() == 2));
+    let highways: Vec<_> = props
+        .models
+        .iter()
+        .filter(|(key, _)| key.0 == crate::props::Kind::HighwaySign)
+        .collect();
+    assert_eq!(
+        highways.len(),
+        6,
+        "different text must never reuse another sign's panel"
+    );
+    let models = props.models.len();
+    props.update(&renderer, &world);
+    assert_eq!(props.models.len(), models);
+    let scenery = Scenery::new(&renderer, &mut hermes);
+    let mut meshes = scenery.visible([0., 0.]);
+    meshes.extend(props.visible());
+    let png = renderer
+        .report_screenshot(
+            &meshes,
+            Vec3::new(0.05, -0.4, 0.07),
+            Vec3::new(0.05, -0.04, 0.025),
+            0.,
+            hermes.minimap_view([0., 0.], 0.),
+        )
+        .unwrap();
+    let mut decoder = png::Decoder::new(png.as_slice()).read_info().unwrap();
+    let mut pixels = vec![0; decoder.output_buffer_size()];
+    decoder.next_frame(&mut pixels).unwrap();
+    assert!(
+        pixels
+            .chunks_exact(4)
+            .any(|p| p[0] as u16 > p[1] as u16 * 2 && p[0] > 80),
+        "stop faces must be visible"
+    );
+    if let Some(path) = std::env::var_os("ROAD_SIGN_CAPTURE") {
+        let path = std::path::PathBuf::from(path);
+        std::fs::write(&path, png).unwrap();
+        for (name, eye, look) in [
+            (
+                "game-stop-cluster.png",
+                Vec3::new(-0.12, -0.14, 0.035),
+                Vec3::new(-0.12, -0.04, 0.026),
+            ),
+            (
+                "game-autoroute-sign.png",
+                Vec3::new(0.14, -0.2, 0.05),
+                Vec3::new(0.14, -0.04, 0.04),
+            ),
+        ] {
+            let png = renderer
+                .report_screenshot(&meshes, eye, look, 0., hermes.minimap_view([0., 0.], 0.))
+                .unwrap();
+            std::fs::write(path.with_file_name(name), png).unwrap();
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a native GPU adapter"]
 fn native_cached_signals_match_combined_mesh_across_phases_and_views() {
     let mut hermes =
         Hermes::test_map_from_source(include_str!("../../../tests/fixtures/signal_cache.road"));

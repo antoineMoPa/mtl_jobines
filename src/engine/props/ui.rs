@@ -236,6 +236,43 @@ impl Document {
                         ui.colored_label(Color32::from_rgb(255, 140, 120), &self.error);
                     }
                 });
+                let entry = self
+                    .selected_row
+                    .or_else(|| (self.selected.len() == 1).then(|| self.selected[0].entry));
+                if let Some(index) = entry {
+                    if let Some(current) = self.entries[index].sign_mut().cloned() {
+                        if self.sign_draft.as_ref().is_none_or(|(i, _)| *i != index) {
+                            self.sign_draft = Some((index, current.clone()));
+                        }
+                        let draft = &mut self.sign_draft.as_mut().unwrap().1;
+                        let apply = ui
+                            .horizontal_wrapped(|ui| {
+                                draft.edit(ui);
+                                let error = draft.validate().err();
+                                let apply = ui
+                                    .add_enabled(
+                                        *draft != current && error.is_none(),
+                                        egui::Button::new("Apply sign"),
+                                    )
+                                    .clicked();
+                                if let Some(error) = error {
+                                    ui.colored_label(ui.visuals().error_fg_color, error);
+                                }
+                                apply
+                            })
+                            .inner;
+                        if apply {
+                            let before = self.entries.clone();
+                            *self.entries[index].sign_mut().unwrap() = draft.clone();
+                            self.accept(city, before);
+                            self.sign_draft = None;
+                        }
+                    } else {
+                        self.sign_draft = None;
+                    }
+                } else {
+                    self.sign_draft = None;
+                }
             });
     }
 }

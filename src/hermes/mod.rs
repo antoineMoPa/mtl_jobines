@@ -12,6 +12,8 @@ pub mod landmarks;
 pub use landmark_destinations::Landmark;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod highway_tests;
+#[cfg(test)]
+mod intersection_tests;
 mod minimap;
 mod mission_sites;
 mod orange_sign;
@@ -430,11 +432,11 @@ impl Hermes {
         let mut groups = street_props::parts(&self.city);
         groups.extend(self.details.take_props(&self.city, self.prepared.is_none()));
         groups.extend(orange_sign::parts(&self.city));
-        for entry in &self.authored_props {
-            if let Ok(placements) = entry.placements(&self.city) {
-                groups.extend(placements.into_iter().map(|(_, p)| p.parts()));
-            }
-        }
+        groups.extend(
+            crate::props::visible_placements(&self.authored_props, &self.city)
+                .into_iter()
+                .map(|(_, _, p)| p.parts()),
+        );
         groups
     }
     #[cfg(not(target_arch = "wasm32"))]
