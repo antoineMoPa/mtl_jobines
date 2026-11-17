@@ -140,7 +140,7 @@ struct ReturnPoint {
     path: usize,
     distance: f32,
 }
-pub(crate) struct Instance<'a> {
+pub struct Instance<'a> {
     pub model: usize,
     pub transform: Mat4,
     pub opacity: f32,
@@ -833,7 +833,7 @@ impl Crowd {
                 pose: None,
             }))
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(super) fn prepare_collision(&mut self) -> (Vec3, f32) {
         self.walkers.truncate(1);
         self.refill = 1000.;
@@ -846,7 +846,7 @@ impl Crowd {
         self.previous_vehicles.clear();
         (walker.position, walker.yaw)
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(super) fn reaction_counts(&self) -> [usize; 3] {
         let mut counts = [0; 3];
         for w in &self.walkers {

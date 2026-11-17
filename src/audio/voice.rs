@@ -4,7 +4,7 @@ use rodio::Source;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-pub(crate) struct VoiceClip {
+pub struct VoiceClip {
     frames: Vec<[f32; 2]>,
 }
 impl VoiceClip {

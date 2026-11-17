@@ -2,7 +2,7 @@
 use super::Hermes;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Landmark {
+pub struct Landmark {
     pub id: String,
     pub title: &'static str,
     pub point: [f32; 2],
@@ -10,7 +10,7 @@ pub(crate) struct Landmark {
     pub radius: f32,
 }
 
-pub(crate) fn title(model: &str) -> Option<&'static str> {
+pub fn title(model: &str) -> Option<&'static str> {
     Some(match model {
         "study_01" => "Orange sphere",
         "study_02" => "Stepped downtown skyscraper",
@@ -45,7 +45,7 @@ pub(crate) fn title(model: &str) -> Option<&'static str> {
 }
 
 impl Hermes {
-    pub(crate) fn landmarks(&self) -> Vec<Landmark> {
+    pub fn landmarks(&self) -> Vec<Landmark> {
         self.city
             .landscape
             .iter()

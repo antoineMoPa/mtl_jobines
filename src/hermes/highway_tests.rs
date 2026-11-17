@@ -10,7 +10,7 @@ use opencity::{
 
 #[test]
 fn highway_climbs_have_pavement_and_connected_lanes() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl");
+    let root = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl");
     let program = opencity::parse(include_str!("../../data/maps/mtl/map.road")).unwrap();
     assert_eq!(map::project(&program).unresolved, 0);
     let city = City::from_program(&program, Some(&root)).unwrap();

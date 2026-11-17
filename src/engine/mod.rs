@@ -26,6 +26,7 @@ mod job_feed;
 mod lighting;
 mod local_lights;
 mod map_ui;
+mod model_textures;
 mod palette;
 mod pedestrian_scenery;
 mod prop_scenery;
@@ -57,3 +58,8 @@ pub use app::start_web;
 
 #[cfg(test)]
 mod tree_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod bicycle_tests;
+
+mod sound_settings;

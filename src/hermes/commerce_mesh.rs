@@ -2,9 +2,9 @@
 use super::commercial::{seed, Family};
 use opencity::runtime::{BuildingFrontage, City, Mesh, Region, SurfaceKind, Vertex};
 use opencity::BuildingUse;
-pub(crate) const SIGN: f32 = 40.;
-pub(crate) const SHOP: f32 = 41.;
-pub(crate) const BRANDS: [(&str, f32, bool); 10] = [
+pub const SIGN: f32 = 40.;
+pub const SHOP: f32 = 41.;
+pub const BRANDS: [(&str, f32, bool); 10] = [
     ("jean-couteau", 410. / 61., true),
     ("st-hurtubise", 405. / 69., false),
     ("couche-tot", 372. / 60., true),
@@ -187,7 +187,7 @@ fn roof_skin(
     mesh
 }
 #[cfg(test)]
-pub(crate) fn prop_groups(city: &City) -> Vec<Vec<Mesh>> {
+pub fn prop_groups(city: &City) -> Vec<Vec<Mesh>> {
     parts(city).1
 }
 pub(super) fn parts(city: &City) -> (Mesh, Vec<Vec<Mesh>>) {

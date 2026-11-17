@@ -20,7 +20,7 @@ const GRAVITY: f32 = 9.81;
 const JUMP_HEIGHT: f32 = 1.5;
 const JUMP_CROUCH_TIME: f32 = 0.14;
 const JUMP_EXTENSION_TIME: f32 = 0.08;
-pub(crate) const TURN_SPEED: f32 = std::f32::consts::PI * 5. / 6.;
+pub const TURN_SPEED: f32 = std::f32::consts::PI * 5. / 6.;
 
 enum Jump {
     Grounded,

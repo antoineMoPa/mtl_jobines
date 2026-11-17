@@ -4,6 +4,7 @@ use crate::hermes::commerce_mesh::BRANDS;
 pub(super) struct Commerce {
     pub layout: wgpu::BindGroupLayout,
     pub group: wgpu::BindGroup,
+    pub models: super::model_textures::ModelTextures,
     pub graffiti: super::graffiti::PaintTexture,
 }
 const ART: [&[u8]; 10] = [
@@ -30,13 +31,14 @@ fn decode(bytes: &[u8]) -> (Vec<u8>, u32, u32) {
 }
 pub(super) fn shader() -> String {
     format!(
-        "{}\n{}\n{}\n{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}\n{}\n{}",
         opencity::runtime::GAME_SHADER,
         include_str!("snow.wgsl"),
         include_str!("local_lights.wgsl"),
         include_str!("commerce.wgsl"),
         include_str!("graffiti.wgsl"),
-        include_str!("grass.wgsl")
+        include_str!("grass.wgsl"),
+        include_str!("model_textures.wgsl")
     )
 }
 impl Commerce {
@@ -178,6 +180,9 @@ impl Commerce {
         entries.extend(opencity::runtime::tree_textures::TreeTextures::layout(8));
         entries.extend(opencity::runtime::tree_textures::TreeImpostors::layout(10));
         entries.extend(super::grass::layout());
+
+        let models = super::model_textures::ModelTextures::new(device);
+        models.sync(queue);
         let (grass, grass_sampler) = super::grass::upload(device, queue);
         let (vehicle_albedo, vehicle_sampler) = super::vehicle_textures::upload(device, queue);
         let trees = opencity::runtime::tree_textures::TreeTextures::new(device, queue);
@@ -253,6 +258,7 @@ impl Commerce {
             layout,
             group,
             graffiti,
+            models,
         }
     }
 }

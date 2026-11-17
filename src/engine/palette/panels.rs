@@ -100,7 +100,7 @@ impl Palette {
         if self.sound_open && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.sound_open = false;
         }
-        sound.show(&ctx, &mut self.sound_open);
+        super::super::sound_settings::show(sound, &ctx, &mut self.sound_open);
         if let Some(action) = super::super::job_feed::show(
             &ctx,
             &mut self.job_feed_open,

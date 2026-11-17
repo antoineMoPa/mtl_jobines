@@ -1,6 +1,6 @@
 //! Explicit session seasons shared by the palette, simulation and renderer.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum Season {
+pub enum Season {
     #[default]
     Summer,
     Winter,

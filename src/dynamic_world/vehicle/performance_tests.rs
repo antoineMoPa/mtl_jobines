@@ -69,7 +69,7 @@ fn small_catalog_vehicles_have_brisk_arcade_launches() {
     for (id, def) in crate::dynamic_world::catalog::definitions()
         .iter()
         .enumerate()
-        .filter(|(_, d)| d.config.road_vehicle && d.config.physics.mass < 5000.)
+        .filter(|(_, d)| d.config.road_vehicle && !d.is_bicycle() && d.config.physics.mass < 5000.)
     {
         for dt in [1. / 120., 1. / 30.] {
             let mut car = Vehicle::spawn(&city);

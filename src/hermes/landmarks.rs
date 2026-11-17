@@ -35,7 +35,7 @@ fn asset(id: &str) -> Result<&'static [u8], String> {
     })
 }
 /// Original model coordinates for the authoring picker and its previews.
-pub(crate) fn source_mesh(id: &str) -> Result<Mesh, String> {
+pub fn source_mesh(id: &str) -> Result<Mesh, String> {
     let bytes = asset(id)?;
     let count = u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize;
     if bytes.len() != 32 + count * 40 || count % 3 != 0 {
@@ -56,7 +56,7 @@ pub(crate) fn source_mesh(id: &str) -> Result<Mesh, String> {
     Ok(mesh)
 }
 
-pub(crate) fn build(city: &City) -> Result<Mesh, String> {
+pub fn build(city: &City) -> Result<Mesh, String> {
     let mut mesh = Mesh::default();
     for feature in &city.landscape {
         let Some(id) = feature.model.as_deref() else {
@@ -218,7 +218,7 @@ mod tests {
         assert!(!city.building_collision([0.17, 0.12], 0.009, 0.1, 0.12));
         let mesh = super::super::external_models::build(
             &city,
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            std::path::Path::new(env!("MTL_WORKSPACE_DIR"))
                 .join("data/maps/mtl")
                 .as_path(),
         )

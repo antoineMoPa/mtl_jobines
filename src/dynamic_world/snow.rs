@@ -7,15 +7,15 @@ use std::{
     collections::{BinaryHeap, HashMap, VecDeque},
 };
 
-pub(crate) const CELL_METERS: f32 = 0.5;
-pub(crate) const EMPTY: f32 = -10000.;
-pub(crate) type Cell = (i32, i32);
+pub const CELL_METERS: f32 = 0.5;
+pub const EMPTY: f32 = -10000.;
+pub type Cell = (i32, i32);
 // Tracks update every 0.1 seconds in winter. Staggered recovery grows snowy patches
 // across a cleared road over one to three minutes instead of restoring a whole strip at once.
 const RECOVERY_START_TICKS: u64 = 600;
 const RECOVERY_SPREAD_TICKS: u64 = 1200;
 #[derive(Default)]
-pub(crate) struct Tracks {
+pub struct Tracks {
     pub cells: HashMap<Cell, [f32; 4]>,
     pub revision: u64,
     pub epoch: u64,

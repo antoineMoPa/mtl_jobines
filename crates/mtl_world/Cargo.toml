@@ -1,0 +1,38 @@
+[package]
+name = "mtl_world"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+build = "../../build.rs"
+
+# Keep source paths stable for include_bytes!, fixtures, and concurrent work.
+# src/lib.rs owns the renderer; src/world.rs owns these modules exactly once.
+[lib]
+path = "../../src/world.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+flate2 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "=1.0.151"
+gltf = { version = "1.4.1", default-features = false, features = ["utils", "names", "extras"] }
+resvg = { version = "0.45.1", default-features = false, features = ["raster-images"] }
+opencity = { path = "../../opencity", default-features = false, features = ["render-materials", "expansion-ui", "external-web-assets"] }
+glam = "0.29"
+rapier3d = { version = "0.22", features = ["enhanced-determinism"] }
+png = "0.17"
+bytemuck = { version = "1", features = ["derive"] }
+web-time = "1.1"
+rodio = { version = "=0.13.1", default-features = false }
+cpal = { version = "=0.15.3", features = ["wasm-bindgen"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ambisonic = "=0.4.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Document", "EventTarget", "AudioContext", "Storage", "console", "MediaQueryList", "AudioContextState", "AudioBuffer", "AudioBufferSourceNode", "AudioNode", "AudioDestinationNode"] }

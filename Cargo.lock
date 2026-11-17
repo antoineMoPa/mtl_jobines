@@ -1942,26 +1942,22 @@ dependencies = [
 name = "mtl_jobines"
 version = "0.1.0"
 dependencies = [
- "ambisonic",
  "bytemuck",
  "console_error_panic_hook",
- "cpal 0.15.3",
  "earcutr",
  "egui",
  "egui-winit",
  "egui_command_palette",
- "flate2",
  "glam",
  "gltf",
  "js-sys",
+ "mtl_world",
  "naga",
  "opencity",
  "png 0.17.16",
  "pollster 0.4.0",
- "rapier3d",
  "resvg",
  "rfd",
- "rodio",
  "serde",
  "serde_json",
  "wasm-bindgen",
@@ -1970,6 +1966,30 @@ dependencies = [
  "web-time",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "mtl_world"
+version = "0.1.0"
+dependencies = [
+ "ambisonic",
+ "bytemuck",
+ "cpal 0.15.3",
+ "flate2",
+ "glam",
+ "gltf",
+ "js-sys",
+ "opencity",
+ "png 0.17.16",
+ "rapier3d",
+ "resvg",
+ "rodio",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
 ]
 
 [[package]]

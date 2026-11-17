@@ -64,5 +64,11 @@
     "path": "rail/prairie-express",
     "researchId": "vehicle-r02",
     "roadVehicle": false
+  },
+  {
+    "name": "Vélo partagé",
+    "path": "bicycle/velo-partage",
+    "researchId": "vehicle-bike-share",
+    "roadVehicle": true
   }
 ]

@@ -227,7 +227,12 @@ mod tests {
         assert_eq!(feature.name, before.name);
         assert_eq!(feature.model.as_deref(), Some("study_05"));
         let reopened = Document::open(&f.path, Vec3::ZERO, 0.).unwrap();
-        let actual = &reopened.items[0].mesh;
+        let actual = external_models::place(
+            reopened.items[0].model.as_ref().unwrap(),
+            &reopened.items[0].feature,
+        )
+        .unwrap();
+        assert!(reopened.items[0].mesh.vertices.len() < actual.vertices.len());
         let city = City::from_program(&f.document.program, None).unwrap();
         let expected = landmarks::build(&city).unwrap();
         assert_eq!(actual.vertices.len(), expected.vertices.len());

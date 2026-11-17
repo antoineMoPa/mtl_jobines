@@ -143,7 +143,11 @@ fn copies_glb_once_preserves_original_and_persists_rotation_in_road() {
     let city = City::from_program(&reopened.program, Some(&f.dir)).unwrap();
     let mesh = crate::hermes::external_models::build(&city, &f.dir).unwrap();
     assert!(!mesh.vertices.is_empty());
-    assert_eq!(mesh.vertices.len(), reopened.items[0].mesh.vertices.len());
+    assert_eq!(
+        mesh.vertices.len(),
+        reopened.items[0].model.as_ref().unwrap().vertices.len()
+    );
+    assert!(reopened.items[0].mesh.vertices.len() < mesh.vertices.len());
     assert_eq!(std::fs::read(&original).unwrap(), before);
 }
 #[test]

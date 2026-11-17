@@ -9,14 +9,14 @@ use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum MissionId {
+pub enum MissionId {
     Taxi,
     Bus,
     Snowplow,
 }
 
 impl MissionId {
-    pub(crate) fn title(self) -> &'static str {
+    pub fn title(self) -> &'static str {
         match self {
             Self::Taxi => "Taxi",
             Self::Bus => "Autobus",
@@ -24,7 +24,7 @@ impl MissionId {
         }
     }
 
-    pub(crate) fn vehicle_id(self) -> &'static str {
+    pub fn vehicle_id(self) -> &'static str {
         match self {
             Self::Taxi => "vehicle-j01",
             Self::Bus => "vehicle-j02",
@@ -32,7 +32,7 @@ impl MissionId {
         }
     }
 
-    pub(crate) fn season(self) -> crate::season::Season {
+    pub fn season(self) -> crate::season::Season {
         match self {
             Self::Taxi | Self::Bus => crate::season::Season::Summer,
             Self::Snowplow => crate::season::Season::Winter,
@@ -41,7 +41,7 @@ impl MissionId {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum SiteId {
+pub enum SiteId {
     TaxiPickup,
     TaxiDropoff,
     BusStop1,
@@ -50,7 +50,7 @@ pub(crate) enum SiteId {
 }
 
 impl SiteId {
-    pub(crate) const ALL: [Self; 5] = [
+    pub const ALL: [Self; 5] = [
         Self::TaxiPickup,
         Self::TaxiDropoff,
         Self::BusStop1,
@@ -58,7 +58,7 @@ impl SiteId {
         Self::BusStop3,
     ];
 
-    pub(crate) fn map_name(self) -> &'static str {
+    pub fn map_name(self) -> &'static str {
         match self {
             Self::TaxiPickup => "mission_taxi_pickup",
             Self::TaxiDropoff => "mission_taxi_dropoff",
@@ -70,13 +70,13 @@ impl SiteId {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct SnowCell {
-    pub(crate) x: i32,
-    pub(crate) y: i32,
-    pub(crate) height_bits: u32,
+pub struct SnowCell {
+    pub x: i32,
+    pub y: i32,
+    pub height_bits: u32,
 }
 
-pub(crate) enum MissionEvent {
+pub enum MissionEvent {
     PassengerBoarded,
     PassengerAlighted,
     StopServed,
@@ -84,17 +84,17 @@ pub(crate) enum MissionEvent {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct ServicePlan {
-    pub(crate) board: &'static [u32],
-    pub(crate) alight: &'static [u32],
+pub struct ServicePlan {
+    pub board: &'static [u32],
+    pub alight: &'static [u32],
 }
 
-pub(crate) enum MissionProgress {
+pub enum MissionProgress {
     ClearedDistanceKm(f64),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MissionObjective {
+pub enum MissionObjective {
     TaxiPickup,
     TaxiDropoff,
     TaxiComplete,
@@ -105,7 +105,7 @@ pub(crate) enum MissionObjective {
 }
 
 impl MissionObjective {
-    pub(crate) fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
             Self::TaxiPickup => "Approche-toi du passager et arrête-toi",
             Self::TaxiDropoff => "Approche-toi de la destination et arrête-toi",
@@ -118,7 +118,7 @@ impl MissionObjective {
     }
 }
 
-pub(crate) trait Mission {
+pub trait Mission {
     fn id(&self) -> MissionId;
     fn objective(&self) -> MissionObjective;
     fn progress(&self) -> Option<MissionProgress> {
@@ -180,7 +180,7 @@ impl Default for PlayerProgress {
     }
 }
 
-pub(crate) struct Kairos {
+pub struct Kairos {
     active: Option<Box<dyn Mission>>,
     progress: PlayerProgress,
     dirty: bool,
@@ -201,11 +201,11 @@ impl Default for Kairos {
 }
 
 impl Kairos {
-    pub(crate) fn intro_viewed(&self) -> bool {
+    pub fn intro_viewed(&self) -> bool {
         self.progress.intro_viewed
     }
 
-    pub(crate) fn mark_intro_viewed(&mut self) {
+    pub fn mark_intro_viewed(&mut self) {
         if !self.progress.intro_viewed {
             self.progress.intro_viewed = true;
             self.dirty = true;
@@ -213,15 +213,15 @@ impl Kairos {
         self.save_now();
     }
 
-    #[cfg(test)]
-    pub(crate) fn test_session() -> Self {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn test_session() -> Self {
         Self {
             writable: false,
             ..Self::default()
         }
     }
 
-    pub(crate) fn load() -> Self {
+    pub fn load() -> Self {
         match save::read() {
             Ok(None) => Self::default(),
             Ok(Some(progress)) => Self {
@@ -238,7 +238,7 @@ impl Kairos {
         }
     }
 
-    pub(crate) fn accept(&mut self, id: MissionId) {
+    pub fn accept(&mut self, id: MissionId) {
         self.active = Some(match id {
             MissionId::Taxi => Box::new(taxi::TaxiMission::default()),
             MissionId::Bus => Box::new(bus::BusMission::default()),
@@ -246,32 +246,32 @@ impl Kairos {
         });
     }
 
-    pub(crate) fn abandon(&mut self) {
+    pub fn abandon(&mut self) {
         self.active = None;
     }
 
-    pub(crate) fn active_id(&self) -> Option<MissionId> {
+    pub fn active_id(&self) -> Option<MissionId> {
         self.active.as_ref().map(|mission| mission.id())
     }
 
-    pub(crate) fn objective(&self) -> Option<MissionObjective> {
+    pub fn objective(&self) -> Option<MissionObjective> {
         self.active.as_ref().map(|mission| mission.objective())
     }
-    pub(crate) fn progress(&self) -> Option<MissionProgress> {
+    pub fn progress(&self) -> Option<MissionProgress> {
         self.active.as_ref().and_then(|mission| mission.progress())
     }
 
-    pub(crate) fn target(&self) -> Option<SiteId> {
+    pub fn target(&self) -> Option<SiteId> {
         self.active.as_ref().and_then(|mission| mission.target())
     }
 
-    pub(crate) fn service_plan(&self) -> Option<ServicePlan> {
+    pub fn service_plan(&self) -> Option<ServicePlan> {
         self.active
             .as_ref()
             .and_then(|mission| mission.service_plan())
     }
 
-    pub(crate) fn service_finished(&mut self) {
+    pub fn service_finished(&mut self) {
         let event = match (self.active_id(), self.target()) {
             (Some(MissionId::Taxi), Some(SiteId::TaxiPickup)) => MissionEvent::PassengerBoarded,
             (Some(MissionId::Taxi), Some(SiteId::TaxiDropoff)) => MissionEvent::PassengerAlighted,
@@ -281,21 +281,21 @@ impl Kairos {
         self.event(event);
     }
 
-    pub(crate) fn is_complete(&self) -> bool {
+    pub fn is_complete(&self) -> bool {
         self.active
             .as_ref()
             .is_some_and(|mission| mission.complete())
     }
 
-    pub(crate) fn money_cents(&self) -> u64 {
+    pub fn money_cents(&self) -> u64 {
         self.progress.money_cents
     }
 
-    pub(crate) fn completed(&self, id: MissionId) -> u32 {
+    pub fn completed(&self, id: MissionId) -> u32 {
         self.progress.completed.count(id)
     }
 
-    pub(crate) fn event(&mut self, event: MissionEvent) {
+    pub fn event(&mut self, event: MissionEvent) {
         let Some(mission) = self.active.as_mut() else {
             return;
         };
@@ -320,13 +320,13 @@ impl Kairos {
         }
     }
 
-    pub(crate) fn save_if_due(&mut self) {
+    pub fn save_if_due(&mut self) {
         if self.dirty && self.last_save.elapsed() >= web_time::Duration::from_secs(1) {
             self.save_now();
         }
     }
 
-    pub(crate) fn save_now(&mut self) {
+    pub fn save_now(&mut self) {
         if !self.dirty || !self.writable {
             return;
         }

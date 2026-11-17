@@ -14,6 +14,13 @@ fn tree_lod_mask(pixel:vec2<f32>,fade:f32) {
 @group(3) @binding(9) var tree_sampler: sampler;
 @group(3) @binding(10) var tree_impostors: texture_2d_array<f32>;
 @group(3) @binding(11) var tree_impostor_sampler: sampler;
+// Keep summer greens restrained without changing their linear-light luminance.
+// Winter retains its authored colors, including exposed ground beneath snow.
+fn summer_vegetation_color(color:vec3<f32>)->vec3<f32> {
+    if camera.daylight_sky.z>0.2 {return color;}
+    let luminance=dot(color,vec3<f32>(0.2126,0.7152,0.0722));
+    return mix(vec3<f32>(luminance),color,0.65);
+}
 fn tree_image_color(v:Output,uv_dx:vec2<f32>,uv_dy:vec2<f32>)->vec4<f32> {
     let winter=select(0,6,camera.daylight_sky.z>0.2);
     let layer=i32(v.surface.x)-24+winter;
@@ -23,7 +30,7 @@ fn tree_image_color(v:Output,uv_dx:vec2<f32>,uv_dy:vec2<f32>)->vec4<f32> {
     let distance=length(eye);
     let fog=(1.0-exp(-distance*0.025)*(1.0-smoothstep(5.8,7.6,distance)))*(1.0-camera.daylight_sky.y);
     let sky=textureSampleLevel(sky_environment,sky_sampler,-eye/max(distance,0.00001),0.0).rgb;
-    return vec4<f32>(filmic_display(mix(tex.rgb,sky,fog)*camera.sun_exposure.w),tex.a);
+    return vec4<f32>(filmic_display(mix(summer_vegetation_color(tex.rgb),sky,fog)*camera.sun_exposure.w),tex.a);
 }
 // Explicit layer mapping: foliage, grass, spare, bark, spare, bark normal.
 fn tree_layer(kind:i32)->i32 {
@@ -39,6 +46,7 @@ fn tree_color(v:Output,front:bool,uv_dx:vec2<f32>,uv_dy:vec2<f32>,world_dx:vec3<
     if kind<=17 && tex.a<0.42 {discard;}
     var material=v;
     material.color*=tex.rgb;
+    if kind<=17 {material.color=summer_vegetation_color(material.color);}
     material.surface=vec4<f32>(7.0,1.0,0.0,0.0);
     var n=v.normal/max(length(v.normal),0.0001);
     if kind<=17 && !front {n=-n;}

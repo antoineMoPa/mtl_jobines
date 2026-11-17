@@ -50,17 +50,47 @@ fn hash_sources(path: &Path, hash: &mut u64) {
     }
 }
 fn main() {
-    println!("cargo:rerun-if-changed=src");
-    println!("cargo:rerun-if-changed=opencity/src");
-    println!("cargo:rerun-if-changed=assets/default-housing.road");
-    println!("cargo:rerun-if-changed=assets/commerce");
-    println!("cargo:rerun-if-changed=assets/graffiti");
-    println!("cargo:rerun-if-changed=data/landmarks");
-    println!("cargo:rerun-if-changed=Cargo.lock");
-    println!("cargo:rerun-if-changed=build.rs");
+    // This script belongs to mtl_world, whose manifest is below the repo root.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    std::env::set_current_dir(&root).expect("workspace root must exist");
+    println!("cargo:rustc-env=MTL_WORKSPACE_DIR={}", root.display());
+
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("opencity/src").display()
+    );
+    println!("cargo:rerun-if-changed={}", root.join("assets").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("data/landmarks").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("Cargo.lock").display()
+    );
+    println!("cargo:rerun-if-changed={}", root.join("build.rs").display());
     check_commerce_assets();
     let mut hash = 0xcbf29ce484222325;
-    hash_sources(Path::new("src"), &mut hash);
+    // Renderer/UI edits cannot affect generated map data or this library.
+    for source in [
+        "src/world.rs",
+        "src/audio",
+        "src/dynamic_world",
+        "src/hermes",
+        "src/kairos",
+        "src/performance.rs",
+        "src/props",
+        "src/season.rs",
+        "src/web_assets.rs",
+    ] {
+        println!("cargo:rerun-if-changed={}", root.join(source).display());
+        let path = Path::new(source);
+        if path.is_dir() {
+            hash_sources(path, &mut hash);
+        } else {
+            hash_bytes(&mut hash, &fs::read(path).unwrap());
+        }
+    }
     hash_sources(Path::new("assets"), &mut hash);
     hash_sources(Path::new("data/landmarks"), &mut hash);
     hash_sources(Path::new("opencity/src"), &mut hash);

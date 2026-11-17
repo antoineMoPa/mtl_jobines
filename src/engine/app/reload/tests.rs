@@ -383,7 +383,7 @@ fn glb_only_saves_reload_relative_models_and_recover_after_bad_files() {
     assert!(wait_for_reload(&mut watcher, &mut clock).is_err());
     std::fs::write(&asset, &original).unwrap();
     let mut hermes = wait_for_reload(&mut watcher, &mut clock).unwrap();
-    let first = hermes.take_geometry().0;
+    let first = std::sync::Arc::clone(&hermes.external_models[0].mesh);
     let doc = gltf::Gltf::from_slice(&original).unwrap();
     let accessor = doc
         .meshes()
@@ -401,7 +401,7 @@ fn glb_only_saves_reload_relative_models_and_recover_after_bad_files() {
     edited[offset..offset + 4].copy_from_slice(&(position + 0.5).to_le_bytes());
     std::fs::write(&asset, &edited).unwrap();
     let mut updated = wait_for_reload(&mut watcher, &mut clock).unwrap();
-    let second = updated.take_geometry().0;
+    let second = std::sync::Arc::clone(&updated.external_models[0].mesh);
     assert_eq!(first.vertices.len(), second.vertices.len());
     assert!(first
         .vertices

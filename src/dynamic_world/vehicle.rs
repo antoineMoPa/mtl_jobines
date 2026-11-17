@@ -1,4 +1,5 @@
 use glam::{Quat, Vec2, Vec3};
+mod bicycle;
 mod rotation;
 mod support;
 #[cfg(test)]
@@ -152,8 +153,14 @@ impl Vehicle {
         self.definition = definition;
         // Keep tire ground contact when selecting a model with another chassis height.
         self.position.z += self.ride_height() - previous_height;
+        self.body_lean = Vec2::ZERO;
+        self.body_lean_rate = Vec2::ZERO;
+        if self.is_bicycle() {
+            self.roll = 0.;
+            self.angular_momentum.x = 0.;
+        }
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn name(&self) -> &str {
         self.definition()
             .map_or("Prototype", |d| d.config.name.as_str())
@@ -175,6 +182,16 @@ impl Vehicle {
     pub(super) fn ride_height(&self) -> f32 {
         self.definition()
             .map_or(RIDE_HEIGHT, |d| d.config.physics.height_offset)
+    }
+    pub fn is_bicycle(&self) -> bool {
+        self.definition().is_some_and(|d| d.is_bicycle())
+    }
+    fn tire_count(&self) -> f32 {
+        if self.is_bicycle() {
+            2.
+        } else {
+            4.
+        }
     }
     fn wheelbase(&self) -> f32 {
         self.definition()
@@ -258,6 +275,7 @@ impl Vehicle {
         let previous_orientation = self.orientation();
         let suspension = super::suspension::profile(self);
         let previous_velocity = self.velocity.truncate();
+        let tire_share = 1. / self.tire_count();
         let f = Vec2::new(self.yaw.cos(), self.yaw.sin());
         let left = Vec2::new(-f.y, f.x);
         let speed = self.velocity.truncate().dot(f);
@@ -290,8 +308,8 @@ impl Vehicle {
                                 .definition()
                                 .map_or(1., |d| d.config.physics.friction / 0.9)
                             * gravity
-                            * 0.25,
-                        rolling: s.kind.rolling_resistance() * gravity * 0.25,
+                            * tire_share,
+                        rolling: s.kind.rolling_resistance() * gravity * tire_share,
                         rear,
                     });
                     contacts += 1;
@@ -313,6 +331,9 @@ impl Vehicle {
             v -= gradient * (9.81 / (1. + gradient.length_squared())) * dt;
         }
         self.apply_wheel_support(&wheels, &tires, suspension, dt);
+        if self.is_bicycle() {
+            self.balance_bicycle(speed, dt);
+        }
         // Horizontal air drag also acts while airborne.
         v /= 1. + AIR_DRAG * v.length() * dt;
         self.velocity.x = v.x;
@@ -324,7 +345,9 @@ impl Vehicle {
         // Actual acceleration includes braking, tire slip and impacts. Heading
         // changes alone must not lean the body when no contact supplies force.
         let acceleration = (self.velocity.truncate() - previous_velocity) / dt;
-        let target = if self.grounded {
+        let target = if self.is_bicycle() {
+            Vec2::ZERO
+        } else if self.grounded {
             Vec2::new(
                 (acceleration.dot(f) * suspension.lean_response.x)
                     .clamp(-suspension.lean_limit.x, suspension.lean_limit.x),
@@ -355,8 +378,15 @@ impl Vehicle {
     ) {
         let forward = Vec2::new(self.yaw.cos(), self.yaw.sin());
         let speed = velocity.dot(forward);
-        let throttle = input.throttle.clamp(-1., 1.);
-        let motor = if input.brake || input.handbrake {
+        let throttle = if self.is_bicycle() {
+            input.throttle.max(0.)
+        } else {
+            input.throttle
+        }
+        .clamp(-1., 1.);
+        let tire_count = self.tire_count();
+        let braking = input.brake || input.handbrake || (self.is_bicycle() && input.throttle < 0.);
+        let motor = if braking {
             0.
         } else if throttle >= 0. {
             self.definition().map_or(FORWARD_MOTOR_ACCELERATION, |d| {
@@ -382,15 +412,14 @@ impl Vehicle {
             let longitudinal_speed = point_velocity.dot(tire.forward);
             // Four simultaneous tire impulses must not over-correct contact speed.
             // This bound includes the rotational response at the contact point.
-            let response = 4. * (1. + tire.arm.length_squared() / self.inertia());
+            let response = tire_count * (1. + tire.arm.length_squared() / self.inertia());
             let stop_impulse = longitudinal_speed.abs() / response;
-            let brake_scale = if input.brake || input.handbrake {
+            let brake_scale = if braking {
                 SERVICE_BRAKE_GRIP_SCALE
             } else {
                 1.
             };
             // Space combines service braking with reduced rear lateral grip.
-            let braking = input.brake || input.handbrake;
             let drive = if braking {
                 -longitudinal_speed.signum()
                     * (tire.grip * brake_scale * 0.9 * dt).min(stop_impulse)
@@ -400,7 +429,7 @@ impl Vehicle {
                 let lateral = Vec2::new(-tire.forward.y, tire.forward.x);
                 let side_slip = point_velocity.dot(lateral).abs();
                 let slide_drive = 1. - (side_slip / 6.).min(1.) * 0.5;
-                (motor * 0.25 * slide_drive).clamp(-tire.grip * 0.8, tire.grip * 0.8) * dt
+                (motor / tire_count * slide_drive).clamp(-tire.grip * 0.8, tire.grip * 0.8) * dt
             };
             longitudinal_usage[index] = if tire.grip > 0. {
                 (drive / (tire.grip * brake_scale * dt)).clamp(-1., 1.)
@@ -424,7 +453,7 @@ impl Vehicle {
             let point_velocity =
                 *velocity + Vec2::new(-tire.arm.y, tire.arm.x) * self.angular_velocity().z;
             let slip = point_velocity.dot(lateral);
-            let response = 4. * (1. + tire.arm.length_squared() / self.inertia());
+            let response = tire_count * (1. + tire.arm.length_squared() / self.inertia());
             // Linear slip-angle response at speed; viscous slip at parking speed.
             // The impulse bound prevents oscillation and passive energy gain.
             let stiffness = 30. / (1. + point_velocity.dot(tire.forward).abs() * 0.08);
@@ -432,7 +461,7 @@ impl Vehicle {
             let limit = tire.grip
                 * LATERAL_GRIP_SCALE
                 * (1. - longitudinal_usage[index].powi(2)).max(0.).sqrt()
-                * if input.handbrake && tire.rear {
+                * if input.handbrake && tire.rear && !self.is_bicycle() {
                     0.2
                 } else {
                     1.
@@ -448,14 +477,18 @@ impl Vehicle {
 
     fn wheel_contacts(&self, city: &City) -> [(Vec3, Option<SurfaceSample>); 4] {
         let orientation = self.orientation();
-        [
+        let offsets = [
             [-self.wheelbase() * 0.5, -self.half_track()],
             [-self.wheelbase() * 0.5, self.half_track()],
             [self.wheelbase() * 0.5, -self.half_track()],
             [self.wheelbase() * 0.5, self.half_track()],
-        ]
-        .map(|[x, y]| {
+        ];
+        std::array::from_fn(|index| {
+            let [x, y] = offsets[index];
             let wheel = self.position + orientation * Vec3::new(x, y, -self.ride_height());
+            if self.is_bicycle() && index % 2 == 1 {
+                return (wheel, None);
+            }
             let surface = city.surface_at(
                 (wheel.truncate() / METERS_PER_UNIT).to_array(),
                 (wheel.z + WHEEL_STEP_HEIGHT) / METERS_PER_UNIT,

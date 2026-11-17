@@ -185,7 +185,7 @@ fn crossing_links_permitted_turns_and_has_four_signals() {
 #[cfg(not(target_arch = "wasm32"))]
 fn current_map_one_way_crossings_have_visible_signals_at_road_height() {
     let hermes = crate::hermes::Hermes::load_with_game_data(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road"),
+        &std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road"),
         None,
     )
     .unwrap();

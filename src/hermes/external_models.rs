@@ -3,8 +3,10 @@ use glam::{Mat4, Vec3};
 use opencity::runtime::{City, Mesh, SurfaceKind, Vertex};
 use std::path::{Path, PathBuf};
 mod cache;
+pub mod instances;
+pub mod textures;
 
-pub(crate) fn paths(program: &opencity::Program, base: &Path) -> Result<Vec<PathBuf>, String> {
+pub fn paths(program: &opencity::Program, base: &Path) -> Result<Vec<PathBuf>, String> {
     let projected = opencity::project_landscape_features(program);
     if !projected.errors.is_empty() {
         return Err(format!("landscape: {:?}", projected.errors));
@@ -49,16 +51,7 @@ fn walk_materials(
             if primitive.mode() != gltf::mesh::Mode::Triangles {
                 return Err("GLB models require triangle primitives".into());
             }
-            if primitive
-                .material()
-                .pbr_metallic_roughness()
-                .base_color_texture()
-                .is_some()
-            {
-                return Err(
-                    "GLB base-color textures are not supported by the static model renderer".into(),
-                );
-            }
+            let texture_layer = textures::register(primitive.material(), binary)?;
             let reader = primitive.reader(|b| match b.source() {
                 gltf::buffer::Source::Bin => Some(binary),
                 _ => None,
@@ -69,6 +62,12 @@ fn walk_materials(
             }
             let positions: Vec<_> = positions.collect();
             let normals = reader.read_normals().map(|v| v.collect::<Vec<_>>());
+            let texcoords = reader
+                .read_tex_coords(0)
+                .map(|uv| uv.into_f32().collect::<Vec<_>>());
+            if texture_layer.is_some() && texcoords.is_none() {
+                return Err("Textured GLB requires TEXCOORD_0".into());
+            }
             let colors = reader
                 .read_colors(0)
                 .map(|v| v.into_rgba_f32().collect::<Vec<_>>());
@@ -141,16 +140,31 @@ fn walk_materials(
                     {
                         return Err("GLB contains nonfinite vertices".into());
                     }
+                    let uv = if texture_layer.is_some() {
+                        *texcoords
+                            .as_ref()
+                            .and_then(|uv| uv.get(index as usize))
+                            .ok_or("GLB UV index out of bounds")?
+                    } else {
+                        [0.; 2]
+                    };
+                    if uv.iter().any(|v| !v.is_finite()) {
+                        return Err("Invalid GLB UV coordinates".into());
+                    }
                     out.push(Vertex {
                         position: position.to_array(),
                         normal: (normal / length).to_array(),
                         color,
-                        surface: [
-                            kind as u32 as f32,
-                            0.,
-                            0.,
-                            if snow_excluded { -3. } else { 0. },
-                        ],
+                        surface: if let Some(layer) = texture_layer {
+                            [textures::MATERIAL, uv[0], uv[1], layer as f32]
+                        } else {
+                            [
+                                kind as u32 as f32,
+                                0.,
+                                0.,
+                                if snow_excluded { -3. } else { 0. },
+                            ]
+                        },
                     });
                 }
             }
@@ -162,15 +176,15 @@ fn walk_materials(
     Ok(())
 }
 /// The authoring tool validates imports with the same decoder as map loading.
-pub(crate) fn decode(bytes: &[u8]) -> Result<Mesh, String> {
+pub fn decode(bytes: &[u8]) -> Result<Mesh, String> {
     decode_shared(bytes).map(|mesh| mesh.as_ref().clone())
 }
-pub(crate) fn decode_shared(bytes: &[u8]) -> Result<std::sync::Arc<Mesh>, String> {
+pub fn decode_shared(bytes: &[u8]) -> Result<std::sync::Arc<Mesh>, String> {
     cache::decode(bytes)
 }
 /// Packaged street props already contain the approved bake in COLOR_0.
 /// Keep that shading once, and map their diffuser materials to game lights.
-pub(crate) fn decode_street_prop(bytes: &[u8]) -> Result<Mesh, String> {
+pub fn decode_street_prop(bytes: &[u8]) -> Result<Mesh, String> {
     decode_model(bytes, true)
 }
 fn decode_model(bytes: &[u8], baked_prop: bool) -> Result<Mesh, String> {
@@ -203,10 +217,18 @@ fn decode_model(bytes: &[u8], baked_prop: bool) -> Result<Mesh, String> {
     }
     let size = hi - lo;
     let radius = (size.min_element() * 0.5).max(size.max_element() * 0.02);
-    opencity::runtime::ambient_occlusion::bake_fast(&mut mesh, radius, Some(lo.z));
+    let has_baked_ao = scene.nodes().any(|n| {
+        n.extras()
+            .as_ref()
+            .and_then(|e| serde_json::from_str::<serde_json::Value>(e.get()).ok())
+            .is_some_and(|v| v.get("ambientOcclusion").is_some())
+    });
+    if !has_baked_ao {
+        opencity::runtime::ambient_occlusion::bake_fast(&mut mesh, radius, Some(lo.z));
+    }
     let unit = (size.z / 3.).max(size.max_element() / 32.);
     for v in &mut mesh.vertices {
-        if v.surface[0] == SurfaceKind::Light as u32 as f32 {
+        if v.surface[0] == SurfaceKind::Light as u32 as f32 || v.surface[0] == textures::MATERIAL {
             continue;
         }
         let p = Vec3::from_array(v.position) - lo;
@@ -228,7 +250,7 @@ fn decode_model(bytes: &[u8], baked_prop: bool) -> Result<Mesh, String> {
     Ok(mesh)
 }
 
-pub(crate) fn bounds(mesh: &Mesh) -> (Vec3, Vec3) {
+pub fn bounds(mesh: &Mesh) -> (Vec3, Vec3) {
     mesh.vertices.iter().fold(
         (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
         |(lo, hi), v| {
@@ -238,7 +260,7 @@ pub(crate) fn bounds(mesh: &Mesh) -> (Vec3, Vec3) {
     )
 }
 
-pub(crate) fn place(mesh: &Mesh, feature: &opencity::LandscapeFeature) -> Result<Mesh, String> {
+pub fn place(mesh: &Mesh, feature: &opencity::LandscapeFeature) -> Result<Mesh, String> {
     if feature.points.len() != 4 {
         return Err("GLB placement needs four footprint corners".into());
     }
@@ -287,33 +309,49 @@ pub(crate) fn place(mesh: &Mesh, feature: &opencity::LandscapeFeature) -> Result
     Ok(result)
 }
 
-pub(crate) fn build(city: &City, base: &Path) -> Result<Mesh, String> {
+pub fn build(city: &City, base: &Path) -> Result<Mesh, String> {
+    build_with_loader(city, |model| {
+        let path = base.join(model);
+        let metadata = std::fs::metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        if metadata.len() > 64 * 1024 * 1024 {
+            return Err(format!("{}: GLB exceeds 64 MiB", path.display()));
+        }
+        std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))
+    })
+}
+fn build_with_loader(
+    city: &City,
+    mut load: impl FnMut(&str) -> Result<Vec<u8>, String>,
+) -> Result<Mesh, String> {
     let mut result = Mesh::default();
+    let mut models = std::collections::HashMap::new();
     for feature in &city.landscape {
         let Some(path) = feature.model.as_deref().filter(|p| p.ends_with(".glb")) else {
             continue;
         };
         if path == super::orange_sign::MODEL_PATH {
-            // Its two physical parts are drawn by the breakable prop system.
             continue;
         }
-        let path = base.join(path);
-        let metadata = std::fs::metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        if metadata.len() > 64 * 1024 * 1024 {
-            return Err(format!("{}: GLB exceeds 64 MiB", path.display()));
+        if !models.contains_key(path) {
+            let bytes = load(path)?;
+            models.insert(
+                path,
+                decode_shared(&bytes).map_err(|e| format!("{path}: {e}"))?,
+            );
         }
-        let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let raw = decode(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
-        result.vertices.extend(place(&raw, feature)?.vertices);
+        result
+            .vertices
+            .extend(place(&models[path], feature)?.vertices);
     }
     Ok(result)
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
+    mod textured;
     #[test]
     fn imported_model_bakes_shading_once_and_keeps_geometry_and_original_asset() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("MTL_WORKSPACE_DIR"))
             .join("data/maps/mtl/models/fuel-station.glb");
         let bytes = std::fs::read(&path).unwrap();
         let glb = gltf::Gltf::from_slice(&bytes).unwrap();
@@ -354,7 +392,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("external-model-cache-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::copy(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            std::path::Path::new(env!("MTL_WORKSPACE_DIR"))
                 .join("data/maps/mtl/models/fuel-station.glb"),
             dir.join("model.glb"),
         )
@@ -369,17 +407,17 @@ mod tests {
         )
         .unwrap();
         let mut map = super::super::Hermes::load_with_game_data(&path, None).unwrap();
-        assert!(map.external_vertex_count > 0);
+        assert!(!map.external_models.is_empty());
         let key = map.cache.as_ref().unwrap().0;
         let package = dir.join("map.game-data.gz");
         map.write_game_data(&package).unwrap();
         let packed = super::super::game_data::GameData::read(&package, key).unwrap();
         let mut reloaded =
             super::super::Hermes::load_with_game_data(&path, Some(&package)).unwrap();
-        assert!(reloaded.external_vertex_count > 0);
+        assert!(!reloaded.external_models.is_empty());
         assert_eq!(
             reloaded.take_geometry().0.vertices.len(),
-            packed.world.vertices.len() + reloaded.external_vertex_count
+            packed.world.vertices.len()
         );
         std::fs::remove_dir_all(dir).unwrap();
     }

@@ -10,7 +10,7 @@ mod signal_placement;
 mod tests;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum SpeedClass {
+pub enum SpeedClass {
     Local,
     Arterial,
     Highway,
@@ -32,14 +32,14 @@ impl SpeedClass {
     }
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum Turn {
+pub enum Turn {
     #[default]
     Straight,
     Left,
     Right,
 }
 #[derive(Clone)]
-pub(crate) struct TrafficPath {
+pub struct TrafficPath {
     pub points: Vec<Vec3>,
     pub length: f32,
     bounds: [Vec3; 2],
@@ -89,7 +89,7 @@ impl TrafficPath {
     }
 }
 #[derive(Clone)]
-pub(crate) struct SignalApproach {
+pub struct SignalApproach {
     pub position: Vec3,
     pub mast_base: Option<Vec3>,
     pub forward: Vec3,
@@ -97,7 +97,7 @@ pub(crate) struct SignalApproach {
     pub phase: usize,
 }
 #[derive(Default, Clone)]
-pub(crate) struct TrafficPaths {
+pub struct TrafficPaths {
     pub paths: Vec<TrafficPath>,
     pub signals: Vec<SignalApproach>,
 }

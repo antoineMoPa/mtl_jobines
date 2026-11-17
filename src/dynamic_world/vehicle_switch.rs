@@ -2,7 +2,7 @@
 use super::{catalog, Controls, DynamicWorld};
 
 impl DynamicWorld {
-    pub(crate) fn switch_vehicle(&mut self, model: usize) -> bool {
+    pub fn switch_vehicle(&mut self, model: usize) -> bool {
         if catalog::definitions().get(model).is_none() {
             return false;
         }

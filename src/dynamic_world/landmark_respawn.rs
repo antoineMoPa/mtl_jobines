@@ -27,11 +27,7 @@ pub(super) fn vehicles_overlap(a: &Vehicle, b: &Vehicle) -> bool {
 }
 
 impl DynamicWorld {
-    pub(crate) fn respawn_at_point(
-        &mut self,
-        hermes: &Hermes,
-        point: [f32; 2],
-    ) -> Result<(), String> {
+    pub fn respawn_at_point(&mut self, hermes: &Hermes, point: [f32; 2]) -> Result<(), String> {
         let bounds = hermes.city().bounds;
         if point.iter().any(|value| !value.is_finite())
             || point[0] < bounds[0]
@@ -54,7 +50,7 @@ impl DynamicWorld {
         Ok(())
     }
 
-    pub(crate) fn respawn_at_landmark(
+    pub fn respawn_at_landmark(
         &mut self,
         hermes: &Hermes,
         landmark: &Landmark,
@@ -111,11 +107,11 @@ impl DynamicWorld {
         self.respawn_near(hermes, landmark.point)
     }
 
-    pub(crate) fn respawn_near(&mut self, hermes: &Hermes, point: [f32; 2]) -> Result<(), String> {
+    pub fn respawn_near(&mut self, hermes: &Hermes, point: [f32; 2]) -> Result<(), String> {
         self.respawn_near_within(hermes, point, 500.)
     }
 
-    pub(crate) fn respawn_near_within(
+    pub fn respawn_near_within(
         &mut self,
         hermes: &Hermes,
         point: [f32; 2],
@@ -379,6 +375,8 @@ mod tests {
              sphere=building(0.12,\"study_01\",0.2,-0.06,0.32,-0.06,0.32,0.06,0.2,0.06);",
         );
         let mut world = DynamicWorld::new(&hermes);
+        // This parking regression measures car launch distance, not bicycle acceleration.
+        world.switch_vehicle(1);
         world
             .respawn_at_landmark(&hermes, &hermes.landmarks()[0])
             .unwrap();
@@ -418,7 +416,7 @@ mod tests {
 
     #[test]
     fn every_placed_landmark_has_a_clear_lane_spawn_in_the_current_map() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
+        let path = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
         let landmarks = hermes.landmarks();
         let models = hermes

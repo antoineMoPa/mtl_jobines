@@ -1,15 +1,15 @@
 //! Mutable game entities. OpenCity's City snapshot is static geography, not
 //! the owner of vehicles, players, traffic, or future mission objects.
 mod buildings;
-pub(crate) mod catalog;
+pub mod catalog;
 mod contacts;
 mod crowd;
 mod illumination;
-pub(crate) mod pedestrian_catalog;
-pub(crate) mod pedestrian_gait;
-pub(crate) use illumination::LocalLight;
-#[cfg(test)]
-pub(crate) use illumination::RearLight;
+pub mod pedestrian_catalog;
+pub mod pedestrian_gait;
+pub use illumination::LocalLight;
+#[cfg(any(test, feature = "test-support"))]
+pub use illumination::RearLight;
 mod landmark_respawn;
 mod lineup;
 pub(crate) mod parked;
@@ -20,14 +20,14 @@ mod service_passengers;
 pub use props::PropBatch;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod physics_lod_tests;
-pub(crate) mod snow;
+pub mod snow;
 mod spawn;
 #[cfg(test)]
 mod street_tests;
 mod suspension;
 mod traffic;
 pub use spawn::SpawnPoint;
-pub(crate) use traffic::SignalBatch;
+pub use traffic::SignalBatch;
 #[cfg(test)]
 mod handbrake_tests;
 mod vehicle;
@@ -37,20 +37,20 @@ use crate::hermes::Hermes;
 use glam::Vec3;
 use opencity::runtime::Mesh;
 use player::Pedestrian;
-pub(crate) const PEDESTRIAN_CAPACITY: usize = crowd::CAPACITY + crowd::KIOSK_CAPACITY + 5;
+pub const PEDESTRIAN_CAPACITY: usize = crowd::CAPACITY + crowd::KIOSK_CAPACITY + 5;
 pub use player::WalkControls;
-pub(crate) use player::TURN_SPEED as WALK_TURN_SPEED;
+pub use player::TURN_SPEED as WALK_TURN_SPEED;
 pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VehicleId(usize);
 #[derive(Default)]
-pub(crate) struct StepProfile {
+pub struct StepProfile {
     pub stages_ns: [u64; 8],
     pub crowd_ns: [u64; 13],
 }
 pub struct DynamicWorld {
     season: crate::season::Season,
-    pub(crate) snow: snow::Tracks,
+    pub snow: snow::Tracks,
     snow_timer: f32,
     sound_impacts: [crate::audio::Impact; crate::audio::IMPACT_VOICES],
     sound_serial: u64,
@@ -80,7 +80,7 @@ impl DynamicWorld {
     pub fn with_start(hermes: &Hermes, start: Option<SpawnPoint>) -> Result<Self, String> {
         Self::with_vehicle_lineup(hermes, start, false)
     }
-    pub(crate) fn with_vehicle_lineup(
+    pub fn with_vehicle_lineup(
         hermes: &Hermes,
         start: Option<SpawnPoint>,
         vehicle_lineup: bool,
@@ -106,11 +106,12 @@ impl DynamicWorld {
             Some(point) => Vehicle::spawn_at(hermes.city(), point)?,
             None => Vehicle::spawn(hermes.city()),
         };
+        //TEMPORARY: start on the shared bicycle while testing its handling.
         vehicle.set_catalog_model(Some(
             catalog::definitions()
                 .iter()
-                .position(|definition| definition.config.name == "Boreal Colline")
-                .expect("bundled Boreal Colline default vehicle"),
+                .position(|definition| definition.config.research_id == catalog::BICYCLE_ID)
+                .expect("bundled shared bicycle test vehicle"),
         ));
         let prop_center = walking_start.map_or(vehicle.position, |point| {
             Vec3::new(
@@ -197,19 +198,19 @@ impl DynamicWorld {
             self.vehicle_spawns[d.0] = d.1;
         }
     }
-    pub(crate) fn season(&self) -> crate::season::Season {
+    pub fn season(&self) -> crate::season::Season {
         self.season
     }
-    pub(crate) fn take_snow_events(&mut self) -> Vec<crate::kairos::SnowCell> {
+    pub fn take_snow_events(&mut self) -> Vec<crate::kairos::SnowCell> {
         std::mem::take(&mut self.snow_events)
     }
-    pub(crate) fn clear_service_passengers(&mut self) {
+    pub fn clear_service_passengers(&mut self) {
         self.service_passengers.clear();
     }
-    pub(crate) fn spawn_service_passenger(&mut self, id: u32, point: Vec3) {
+    pub fn spawn_service_passenger(&mut self, id: u32, point: Vec3) {
         self.service_passengers.spawn(id, point);
     }
-    pub(crate) fn begin_service(
+    pub fn begin_service(
         &mut self,
         board: &[u32],
         alight: &[u32],
@@ -220,10 +221,10 @@ impl DynamicWorld {
         self.service_passengers
             .begin(board, alight, vehicle, sidewalk, bus)
     }
-    pub(crate) fn take_service_finished(&mut self) -> bool {
+    pub fn take_service_finished(&mut self) -> bool {
         self.service_passengers.take_finished()
     }
-    pub(crate) fn set_season(&mut self, hermes: &Hermes, season: crate::season::Season) {
+    pub fn set_season(&mut self, hermes: &Hermes, season: crate::season::Season) {
         if self.season == season {
             return;
         }
@@ -237,17 +238,17 @@ impl DynamicWorld {
     pub fn player(&self) -> &Vehicle {
         &self.vehicles[self.player_vehicle.0]
     }
-    pub(crate) fn player_model_id(&self) -> Option<&str> {
+    pub fn player_model_id(&self) -> Option<&str> {
         self.player()
             .definition()
             .map(|model| model.config.research_id.as_str())
     }
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn retain_player_vehicle(&mut self, previous: &Self) {
+    pub fn retain_player_vehicle(&mut self, previous: &Self) {
         self.vehicles[self.player_vehicle.0].set_catalog_model(previous.player().definition);
     }
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn preview_vehicle_lamps(&mut self, model: usize, controls: Controls) {
+    pub fn preview_vehicle_lamps(&mut self, model: usize, controls: Controls) {
         for (id, vehicle) in self.vehicles.iter_mut().enumerate() {
             if id == self.player_vehicle.0 {
                 vehicle.set_catalog_model(Some(model));
@@ -259,7 +260,7 @@ impl DynamicWorld {
             }
         }
     }
-    pub(crate) fn player_foot_motion(&self) -> Option<pedestrian_gait::FootMotion> {
+    pub fn player_foot_motion(&self) -> Option<pedestrian_gait::FootMotion> {
         self.pedestrian.as_ref().map(Pedestrian::foot_motion)
     }
     pub fn is_driving(&self) -> bool {
@@ -285,7 +286,7 @@ impl DynamicWorld {
     }
     /// Snapshot only nearby active vehicles. Parked lineup cars have no engine.
     /// Slots are bounded, ordered by distance; slot zero reserves the player.
-    pub(crate) fn sound_frame(
+    pub fn sound_frame(
         &self,
         eye: Vec3,
         forward: Vec3,
@@ -398,7 +399,7 @@ impl DynamicWorld {
     pub fn step(&mut self, hermes: &Hermes, input: Controls, walk: WalkControls, dt: f32) {
         self.step_inner(hermes, input, walk, dt, None);
     }
-    pub(crate) fn step_profiled(
+    pub fn step_profiled(
         &mut self,
         hermes: &Hermes,
         input: Controls,
@@ -602,25 +603,25 @@ impl DynamicWorld {
         stage!(7);
     }
     #[cfg(any(not(target_arch = "wasm32"), test))]
-    pub(crate) fn use_full_traffic_physics(&mut self) {
+    pub fn use_full_traffic_physics(&mut self) {
         self.traffic.use_full_physics();
     }
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn traffic_physics_counts(&self) -> [usize; 3] {
+    pub fn traffic_physics_counts(&self) -> [usize; 3] {
         self.traffic.physics_counts(self.vehicles.len())
     }
-    pub(crate) fn pedestrian_instances(&self) -> impl Iterator<Item = crowd::Instance<'_>> + '_ {
+    pub fn pedestrian_instances(&self) -> impl Iterator<Item = crowd::Instance<'_>> + '_ {
         self.pedestrian
             .iter()
             .map(|player| player.instance(self.season))
             .chain(self.crowd.instances(self.player_position()))
             .chain(self.service_passengers.instances())
     }
-    pub(crate) fn waiting_service_passengers(&self) -> impl Iterator<Item = Vec3> + '_ {
+    pub fn waiting_service_passengers(&self) -> impl Iterator<Item = Vec3> + '_ {
         self.service_passengers.waiting_positions()
     }
-    #[cfg(test)]
-    pub(crate) fn prepare_pedestrian_collision(&mut self) -> glam::Vec3 {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn prepare_pedestrian_collision(&mut self) -> glam::Vec3 {
         let (target, yaw) = self.crowd.prepare_collision();
         let direction = glam::Vec3::new(yaw.cos(), yaw.sin(), 0.);
         let vehicle = &mut self.vehicles[self.player_vehicle.0];
@@ -629,8 +630,8 @@ impl DynamicWorld {
         vehicle.velocity = direction * 8.;
         target
     }
-    #[cfg(test)]
-    pub(crate) fn prepare_player_pedestrian_collision(&mut self, hermes: &Hermes) -> Vec3 {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn prepare_player_pedestrian_collision(&mut self, hermes: &Hermes) -> Vec3 {
         let (target, yaw) = self.crowd.prepare_collision();
         let direction = Vec3::new(yaw.cos(), yaw.sin(), 0.);
         self.pedestrian = Some(Pedestrian::new(
@@ -640,8 +641,8 @@ impl DynamicWorld {
         ));
         target
     }
-    #[cfg(test)]
-    pub(crate) fn pedestrian_reactions(&self) -> [usize; 3] {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn pedestrian_reactions(&self) -> [usize; 3] {
         self.crowd.reaction_counts()
     }
     #[cfg(test)]
@@ -660,9 +661,7 @@ impl DynamicWorld {
     pub fn visible_prop_batches(&self) -> Vec<PropBatch> {
         self.props.visible_batches(self.player_position())
     }
-    pub(crate) fn authored_prop_instances(
-        &self,
-    ) -> Vec<(crate::props::Kind, usize, glam::Mat4, bool)> {
+    pub fn authored_prop_instances(&self) -> Vec<(crate::props::Kind, usize, glam::Mat4, bool)> {
         self.props.authored_instances(self.player_position())
     }
     pub fn write_prop_batch(&self, batch: &PropBatch, output: &mut Mesh) {
@@ -672,7 +671,7 @@ impl DynamicWorld {
     pub fn write_moving_mesh(&self, mesh: &mut Mesh) {
         self.write_moving_mesh_with_player_pose(mesh, glam::Mat4::IDENTITY);
     }
-    pub(crate) fn write_moving_mesh_with_player_pose(
+    pub fn write_moving_mesh_with_player_pose(
         &self,
         mesh: &mut Mesh,
         player_pose_delta: glam::Mat4,
@@ -680,10 +679,10 @@ impl DynamicWorld {
         self.write_non_vehicle_actors_with_player_pose(mesh, player_pose_delta);
         self.props.append_moving(mesh, self.player_position());
     }
-    pub(crate) fn standing_signal_batches(&self) -> impl Iterator<Item = SignalBatch> + '_ {
+    pub fn standing_signal_batches(&self) -> impl Iterator<Item = SignalBatch> + '_ {
         self.traffic.standing_signal_batches(self.player_position())
     }
-    pub(crate) fn write_signal_batch(&self, batch: &SignalBatch, output: &mut Mesh) {
+    pub fn write_signal_batch(&self, batch: &SignalBatch, output: &mut Mesh) {
         output.vertices.clear();
         self.traffic.append_signal_batch(batch, output);
     }
@@ -709,7 +708,7 @@ impl DynamicWorld {
         vehicle.position.distance_squared(self.player_position())
             <= crate::performance::draw_radius(distance).powi(2)
     }
-    pub(crate) fn vehicle_instances(
+    pub fn vehicle_instances(
         &self,
     ) -> impl Iterator<Item = (usize, Vec<glam::Mat4>, f32, bool, bool, u8)> + '_ {
         self.vehicles
@@ -765,11 +764,20 @@ impl DynamicWorld {
 mod tests {
     use super::*;
     #[test]
-    fn default_player_vehicle_is_boreal_colline() {
+    fn temporary_default_player_vehicle_is_shared_bicycle() {
+        let program = opencity::parse(include_str!("../../data/maps/mtl/map.road")).unwrap();
+        assert!(
+            SpawnPoint::walking_from_program(&program)
+                .unwrap()
+                .is_none(),
+            "test map must begin mounted, not at pedestrian_start"
+        );
+        assert!(SpawnPoint::from_program(&program).unwrap().is_some());
         let world = DynamicWorld::new(&Hermes::test_map());
+        assert!(world.is_driving());
         assert_eq!(
             world.player().definition().unwrap().config.name,
-            "Boreal Colline"
+            "Vélo partagé"
         );
     }
     #[test]

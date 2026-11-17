@@ -1,38 +1,37 @@
 //! Static map/navigation access. OpenCity owns authored roads and geometry;
 //! Hermes owns navigation, routing and the game’s map presentation.
 mod building_style;
-pub(crate) mod commerce_mesh;
+pub mod commerce_mesh;
 mod commerce_props;
 mod commercial;
 mod details;
-pub(crate) mod external_models;
+pub mod external_models;
 mod game_data;
-pub(crate) mod landmark_destinations;
-pub(crate) mod landmarks;
-pub(crate) use landmark_destinations::Landmark;
+pub mod landmark_destinations;
+pub mod landmarks;
+pub use landmark_destinations::Landmark;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod highway_tests;
 mod minimap;
 mod mission_sites;
 mod orange_sign;
 mod street_bins;
-pub(crate) mod street_props;
+pub mod street_props;
 mod taxi_runs;
 
 mod route_signal;
 mod routing;
 pub use route_signal::RouteSignal;
-pub(crate) mod traffic_paths;
-pub(crate) mod walking_paths;
+pub mod traffic_paths;
+pub mod walking_paths;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data))]
 use game_data::CacheKey;
 use game_data::GameData;
 pub use minimap::MinimapView;
-pub(crate) use minimap::TEXTURE_SIZE;
+pub use minimap::TEXTURE_SIZE;
 use opencity::runtime::City;
 use opencity::runtime::{Mesh, Region};
 pub use routing::RouteStatus;
-#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 use std::sync::Arc;
 /// Both platforms expand the same source, differing only in elevation asset access.
@@ -127,8 +126,7 @@ pub struct Hermes {
     prepared: Option<(Mesh, Mesh)>,
     details: details::Prepared,
     landmark_mesh: Mesh,
-    external_mesh: Mesh,
-    external_vertex_count: usize,
+    pub external_models: Vec<external_models::instances::ModelInstances>,
     router: routing::Router,
     traffic_paths: Arc<traffic_paths::TrafficPaths>,
     walking_paths: Arc<walking_paths::WalkingPaths>,
@@ -137,15 +135,15 @@ pub struct Hermes {
     cache: Option<(CacheKey, std::path::PathBuf)>,
 }
 impl Hermes {
-    #[cfg(test)]
-    pub(crate) fn test_map() -> Self {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn test_map() -> Self {
         Self::test_map_from_source(
             "road street: sidewalk carlane carlane sidewalk; end
             street(-1,0,1,0); land(-2,-2,2,-2,2,2,-2,2);",
         )
     }
-    #[cfg(test)]
-    pub(crate) fn test_map_from_source(source: &str) -> Self {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn test_map_from_source(source: &str) -> Self {
         let program = opencity::parse(source).unwrap();
         let city = City::from_program(&program, None).unwrap();
         Self::from_city_data(city, None, &program).unwrap()
@@ -165,7 +163,7 @@ impl Hermes {
         Self::from_map_bytes(&source, &elevation, packaged, path.parent())
     }
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn from_map_bytes(
+    pub fn from_map_bytes(
         source: &[u8],
         elevation: &[u8],
         packaged: Option<&Path>,
@@ -227,9 +225,8 @@ impl Hermes {
             }
         }
         let mut hermes = Self::from_city_data(city, data, &program)?;
-        hermes.external_mesh =
-            external_models::build(&hermes.city, model_base.unwrap_or(Path::new(".")))?;
-        hermes.external_vertex_count = hermes.external_mesh.vertices.len();
+        hermes.external_models =
+            external_models::instances::load(&hermes.city, model_base.unwrap_or(Path::new(".")))?;
         hermes.cache = Some((key, cache_path));
         Ok(hermes)
     }
@@ -291,6 +288,10 @@ impl Hermes {
         for entry in &authored_props {
             entry.placements(&city)?;
         }
+        #[cfg(target_arch = "wasm32")]
+        let external_models = external_models::instances::load(&city, Path::new("."))?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let external_models = Vec::new();
         Ok(Self {
             authored_props,
             default_start: crate::dynamic_world::SpawnPoint::from_program(program)?,
@@ -310,19 +311,18 @@ impl Hermes {
             prepared,
             details: details::Prepared::default(),
             landmark_mesh,
-            external_mesh: Mesh::default(),
-            external_vertex_count: 0,
+            external_models,
             #[cfg(not(target_arch = "wasm32"))]
             cache: None,
         })
     }
-    pub(crate) fn default_start(&self) -> Option<crate::dynamic_world::SpawnPoint> {
+    pub fn default_start(&self) -> Option<crate::dynamic_world::SpawnPoint> {
         self.default_start
     }
-    pub(crate) fn walking_start(&self) -> Option<crate::dynamic_world::SpawnPoint> {
+    pub fn walking_start(&self) -> Option<crate::dynamic_world::SpawnPoint> {
         self.walking_start
     }
-    pub(crate) fn mission_site(&self, site: crate::kairos::SiteId) -> Option<[f32; 2]> {
+    pub fn mission_site(&self, site: crate::kairos::SiteId) -> Option<[f32; 2]> {
         use crate::kairos::SiteId;
         match site {
             SiteId::TaxiPickup => self
@@ -334,7 +334,7 @@ impl Hermes {
             _ => self.mission_sites.get(site),
         }
     }
-    pub(crate) fn mission_waiting_point(&self, site: crate::kairos::SiteId) -> Option<glam::Vec3> {
+    pub fn mission_waiting_point(&self, site: crate::kairos::SiteId) -> Option<glam::Vec3> {
         use crate::kairos::SiteId;
         match site {
             SiteId::TaxiPickup => return self.taxi_run.map(|run| run.pickup.sidewalk),
@@ -344,7 +344,7 @@ impl Hermes {
         let point = self.mission_site(site)?;
         self.mission_sites.waiting_point(&self.walking_paths, point)
     }
-    pub(crate) fn select_mission_destination(
+    pub fn select_mission_destination(
         &mut self,
         site: crate::kairos::SiteId,
         player_position: [f32; 3],
@@ -373,7 +373,7 @@ impl Hermes {
         &self.parked_vehicles
     }
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn prepare_for_reload(&mut self) {
+    pub fn prepare_for_reload(&mut self) {
         // Accepted authoring edits should not wait for a compressed disk-cache write.
         let cache = self.cache.take();
         let geometry = self.take_geometry();
@@ -382,8 +382,7 @@ impl Hermes {
         self.minimap.prepare_for_reload();
     }
     pub fn take_geometry(&mut self) -> (Mesh, Mesh) {
-        if let Some(mut meshes) = self.prepared.take() {
-            meshes.0.vertices.append(&mut self.external_mesh.vertices);
+        if let Some(meshes) = self.prepared.take() {
             return meshes;
         }
         let mut world = self
@@ -412,11 +411,10 @@ impl Hermes {
                 }
             }
         }
-        world.vertices.append(&mut self.external_mesh.vertices);
         (world, details)
     }
     #[cfg(test)]
-    pub(crate) fn prop_groups(&self) -> Vec<Vec<Mesh>> {
+    pub fn prop_groups(&self) -> Vec<Vec<Mesh>> {
         let mut groups = street_props::groups(&self.city);
         let (_, frontage) = self.city.building_detail_parts_matching(
             Region::WholeMap,
@@ -428,7 +426,7 @@ impl Hermes {
         groups.extend(orange_sign::meshes(&self.city));
         groups
     }
-    pub(crate) fn prop_parts(&self) -> Vec<Vec<crate::props::Part>> {
+    pub fn prop_parts(&self) -> Vec<Vec<crate::props::Part>> {
         let mut groups = street_props::parts(&self.city);
         groups.extend(self.details.take_props(&self.city, self.prepared.is_none()));
         groups.extend(orange_sign::parts(&self.city));
@@ -441,10 +439,7 @@ impl Hermes {
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write_game_data(&mut self, path: &Path) -> Result<(), String> {
-        let (mut world, details) = self.take_geometry();
-        world
-            .vertices
-            .truncate(world.vertices.len() - self.external_vertex_count);
+        let (world, details) = self.take_geometry();
         let key = self
             .cache
             .as_ref()
@@ -453,10 +448,10 @@ impl Hermes {
         game_data::write(path, key, &world, &details, self.minimap.pixels())
             .map_err(|e| e.to_string())
     }
-    pub(crate) fn traffic_paths(&self) -> &Arc<traffic_paths::TrafficPaths> {
+    pub fn traffic_paths(&self) -> &Arc<traffic_paths::TrafficPaths> {
         &self.traffic_paths
     }
-    pub(crate) fn walking_paths(&self) -> &Arc<walking_paths::WalkingPaths> {
+    pub fn walking_paths(&self) -> &Arc<walking_paths::WalkingPaths> {
         &self.walking_paths
     }
     pub fn city(&self) -> &Arc<City> {
@@ -480,7 +475,7 @@ impl Hermes {
         self.navigation
             .select(&self.router, self.minimap.world_point(uv), position.into());
     }
-    pub(crate) fn map_world_point(&self, uv: [f32; 2]) -> [f32; 2] {
+    pub fn map_world_point(&self, uv: [f32; 2]) -> [f32; 2] {
         self.minimap.world_point(uv)
     }
     pub fn clear_destination(&mut self) {

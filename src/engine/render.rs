@@ -39,6 +39,7 @@ pub struct GpuMesh {
     buffer: wgpu::Buffer,
     skin: Option<wgpu::Buffer>,
     instances: Option<Instances>,
+    pub(super) static_model: bool,
     count: u32,
     opaque_count: u32,
     paint_start: u32,
@@ -87,6 +88,7 @@ pub struct Renderer {
     shadow_pipeline: wgpu::RenderPipeline,
     opaque_shadow_pipeline: wgpu::RenderPipeline,
     vehicle_pipeline: wgpu::RenderPipeline,
+    model_pipeline: wgpu::RenderPipeline,
     vehicle_shadow_pipeline: wgpu::RenderPipeline,
     pedestrian_pipeline: wgpu::RenderPipeline,
     pedestrian_shadow_pipeline: wgpu::RenderPipeline,
@@ -238,6 +240,10 @@ fn world_pipelines(
                     include_str!("vehicle.wgsl"),
                     include_str!("pedestrian.wgsl")
                 )
+            )
+            .replace(
+                "const VEHICLE_SAMPLE_COUNT: u32 = 4u;",
+                &format!("const VEHICLE_SAMPLE_COUNT: u32 = {samples}u;"),
             )
             .into(),
         ),
@@ -575,6 +581,15 @@ impl Renderer {
                 &commerce.layout,
                 samples,
             );
+        let model_pipeline = super::model_textures::pipeline(
+            &device,
+            format,
+            &camera_layout,
+            &shadow_layout,
+            &sky.environment.layout,
+            &commerce.models.layout,
+            samples,
+        );
         let depth = depth(&device, width.max(1), height.max(1), "depth", samples);
         let color = color_target(&device, width, height, format, samples);
         let ssao = ssao::Ssao::new(
@@ -626,6 +641,7 @@ impl Renderer {
             shadow_pipeline,
             opaque_shadow_pipeline,
             vehicle_pipeline,
+            model_pipeline,
             vehicle_shadow_pipeline,
             pedestrian_pipeline,
             pedestrian_shadow_pipeline,
@@ -664,6 +680,15 @@ impl Renderer {
             return;
         }
         let format = self.config.format.add_srgb_suffix();
+        self.model_pipeline = super::model_textures::pipeline(
+            &self.device,
+            format,
+            &self.pipeline.get_bind_group_layout(0),
+            &self.pipeline.get_bind_group_layout(1),
+            &self.sky.environment.layout,
+            &self.commerce.models.layout,
+            samples,
+        );
         let pipelines = world_pipelines(
             &self.device,
             format,
@@ -801,6 +826,7 @@ impl Renderer {
         let mut gpu = GpuMesh {
             skin: None,
             instances: None,
+            static_model: false,
             buffer: self.dynamic_buffer(std::mem::size_of_val(mesh.vertices.as_slice()) as u64),
             count: 0,
             opaque_count: 0,
@@ -927,6 +953,7 @@ impl Renderer {
             buffer,
             skin: None,
             instances: None,
+            static_model: false,
             count: source.len() as u32,
             opaque_count,
             paint_start,
@@ -981,6 +1008,7 @@ impl Renderer {
         time: f32,
         navigation: MinimapView,
     ) {
+        self.commerce.models.sync(&self.queue);
         self.contact_texture
             .set_enabled(&self.queue, self.contact_debris);
         let lighting = Lighting::with_settings(time, self.daylight, self.sky_settings);
@@ -1179,7 +1207,7 @@ impl Renderer {
             }
             pass.set_pipeline(&self.vehicle_pipeline);
             for mesh in meshes {
-                if mesh.skin.is_some() {
+                if mesh.skin.is_some() || mesh.static_model {
                     continue;
                 }
                 if let Some(instances) = &mesh.instances {
@@ -1191,6 +1219,22 @@ impl Renderer {
                     }
                 }
             }
+            pass.set_pipeline(&self.model_pipeline);
+            pass.set_bind_group(3, &self.commerce.models.group, &[]);
+            for mesh in meshes {
+                if !mesh.static_model {
+                    continue;
+                }
+                if let Some(instances) = &mesh.instances {
+                    for (draw, range) in
+                        mesh.instance_draws(&camera_frustum, &detail_view, self.render_lod, false)
+                    {
+                        pass.set_vertex_buffer(1, instances.buffer.slice(..));
+                        draw.draw(&mut pass, 0..draw.count, range);
+                    }
+                }
+            }
+            pass.set_bind_group(3, &self.commerce.group, &[]);
             pass.set_pipeline(&self.pedestrian_pipeline);
             for mesh in meshes {
                 if let (Some(skin), Some(instances)) = (&mesh.skin, &mesh.instances) {

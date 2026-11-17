@@ -1,3 +1,11 @@
+// Set by world_pipelines for screenshot and MSAA rendering paths.
+const VEHICLE_SAMPLE_COUNT: u32 = 4u;
+fn vehicle_alpha_threshold(position: vec2<f32>) -> f32 {
+    let pattern = array<f32, 16>(0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
+        3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+    let pixel = vec2<u32>(position) % vec2<u32>(4u);
+    return (pattern[pixel.y * 4u + pixel.x] + 0.5) / 16.0;
+}
 // Vehicle geometry stays in metres on the GPU. One instance matrix per body/wheel part.
 @group(3) @binding(6) var vehicle_albedo: texture_2d_array<f32>;
 @group(3) @binding(7) var vehicle_albedo_sampler: sampler;
@@ -21,6 +29,13 @@ struct VehicleTransform {
     o.clip = camera.view_projection * vec4<f32>(world, 1.0);
     o.world = world;
     o.normal = (model * vec4<f32>(v.normal, 0.0)).xyz * 100.0;
+    if instance.y.w< -0.5 {
+        let a=instance.x.xyz;let b=instance.y.xyz;let c=instance.z.xyz;
+        let determinant=dot(a,cross(b,c));
+        let normal=(cross(b,c)*v.normal.x+cross(c,a)*v.normal.y+cross(a,b)*v.normal.z)/determinant;
+        o.normal=normal/max(length(normal),0.000001);o.color=v.color;o.surface=v.surface;o.fence_uv=v.surface.yz;
+        o.snow_control=vec2<f32>(select(1.0,0.0,v.surface.w== -3.0),-1.0);return o;
+    }
     o.color = v.color; o.surface = v.surface; if !tree {o.surface.y *= instance.translation.w;} o.fence_uv = v.surface.yz;
     let excluded=v.surface.y<0.999 || (v.surface.x>=0.0 && (v.surface.w== -3.0 || v.surface.w>=64.0)) || (v.surface.x<0.0 && fract(-v.surface.x)>0.1);
     o.snow_control=vec2<f32>(select(1.0,0.0,excluded || tree),1.0);
@@ -45,7 +60,9 @@ struct VehicleTransform {
     if v.surface.x>=15.0 && v.surface.x<=23.0 {world=tree_vertex(world,instance.translation.xyz);}
     o.clip = camera.light_view_projection * vec4<f32>(world, 1.0);
     o.fence_uv = v.surface.yz; o.kind_pattern = vec2<f32>(v.surface.x, v.surface.y * instance.translation.w);
+    if v.surface.x<0.0 {o.fence_uv=v.surface.zw;}
     if v.surface.x>=15.0 && v.surface.x<=29.0 {o.kind_pattern.y=instance.x.w;}
+    if instance.y.w< -0.5 {o.kind_pattern.y=1.0;}
     return o;
 }
 // Alpha-to-coverage retains depth-correct seats behind glass without sorting
@@ -61,6 +78,13 @@ struct VehicleTransform {
         material.surface=vec4<f32>(7.0,material.surface.y,0.0,v.surface.w);
     }
     var surface=prepare_surface(material);
+    if v.snow_control.y< -0.5 {
+
+        return shade_local_surface(v,front,1.0,surface);
+    }
+    // Single-sample captures do not have alpha-to-coverage.
+    let threshold=select(0.01,vehicle_alpha_threshold(v.clip.xy),VEHICLE_SAMPLE_COUNT==1u);
+    if v.surface.x<0.0 && material.surface.y<=threshold {discard;}
     if v.surface.x>=15.0 && v.surface.x<=29.0 {tree_lod_mask(v.clip.xy,v.surface.w);}
     if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v,uv_dx,uv_dy);}
     if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front,uv_dx,uv_dy,world_dx,world_dy,surface);}
@@ -92,5 +116,9 @@ struct VehicleTransform {
         3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
     let pixel = vec2<u32>(v.clip.xy) % vec2<u32>(4u);
     let threshold = (pattern[pixel.y * 4u + pixel.x] + 0.5) / 16.0;
-    if v.kind_pattern.y <= threshold { discard; }
+    var coverage=v.kind_pattern.y;
+    if v.kind_pattern.x<0.0 {
+        coverage*=textureSampleLevel(vehicle_albedo,vehicle_albedo_sampler,v.fence_uv,i32(floor(-v.kind_pattern.x))-1,0.0).a;
+    }
+    if coverage <= threshold { discard; }
 }

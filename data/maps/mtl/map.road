@@ -3,7 +3,8 @@ elevation_map("elevation.png", -76.8, -76.8, 153.6, 153.6, -0.18, 1.2);
 water_level(0);
 
 player_start(1.1318498, -0.94828856, -80.17438820378175);
-pedestrian_start(2.1649537, 1.6698667, -120.95461);
+//TEMPORARY: begin mounted on the bicycle at player_start while testing.
+// pedestrian_start(2.1649537, 1.6698667, -120.95461);
 
 # Bus stops; taxi stops are selected from the current road network at runtime.
 mission_bus_stop_1 = map_point(2.0, -0.63);
@@ -81,6 +82,11 @@ end
 
 road cross_street:
     sidewalk carlane middle carlane sidewalk;
+end
+
+# Paired curbside bike lanes on the two connected streets east of junction_9.
+road cycling_street:
+    sidewalk bikelane carlane middle carlane bikelane sidewalk;
 end
 
 road access_ramp:
@@ -428,13 +434,13 @@ elevation(junction_7, 0.1020);
 
 junction_11 = map_point(2.7915, 1.6099);
 
-road_11 = cross_street(junction_9, 2.1251, 1.5903, 2.4583, 1.6001, junction_11);
+road_11 = cycling_street(junction_9, 2.1251, 1.5903, 2.4583, 1.6001, junction_11);
 
 grade(road_11, 0.1020, 0.1020);
 
 junction_12 = map_point(3.7911, 1.6393);
 
-road_12 = cross_street(junction_11, 3.1247, 1.6197, 3.4579, 1.6295, junction_12);
+road_12 = cycling_street(junction_11, 3.1247, 1.6197, 3.4579, 1.6295, junction_12);
 
 grade(road_12, 0.1020, 0.1820);
 
@@ -1260,200 +1266,169 @@ elevation(west_apartment_60, 0.102);
 
 # Report 69: two-storey homes on both sides of roads 4, 5 and 6.
 # Street-facing fronts follow the curve; leave gardens, sidewalks and end bends clear.
-curve_home_4_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.2129679, 1.4306266, 1.0956185, 1.4557085, 1.0632210, 1.3041322, 1.1805704, 1.2790504);
+curve_home_4_01_left = building(0.1184306, "models/house-garden.glb", { use: residential, front_edge: 0 }, 1.2004269, 1.3719519, 1.0830775, 1.3970338, 1.0607824, 1.2927232, 1.1781318, 1.2676413);
 elevation(curve_home_4_01_left, 0.1000009);
 
-curve_home_4_02_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.0276555, 1.8130084, 1.1413170, 1.7745239, 1.1958367, 1.9355443, 1.0821751, 1.9740288);
+curve_home_4_02_right = building(0.1184307, "models/house-garden.glb", { use: residential, front_edge: 0 }, 1.0468978, 1.8698392, 1.1605593, 1.8313547, 1.1947678, 1.9323871, 1.0811063, 1.9708716);
 elevation(curve_home_4_02_right, 0.1000009);
 
-curve_home_4_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 1.0386916, 1.4714264, 0.9250302, 1.5099109, 0.8705105, 1.3488905, 0.9841720, 1.3104060);
-elevation(curve_home_4_02_left, 0.1000009);
 
-curve_home_4_03_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.8989876, 1.8722509, 1.0075393, 1.8210987, 1.0863988, 1.9884491, 0.9778472, 2.0396013);
-elevation(curve_home_4_03_right, 0.1000009);
 
-curve_home_4_03_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.8711335, 1.5316278, 0.7625819, 1.5827800, 0.6837223, 1.4154296, 0.7922739, 1.3642774);
+
+
+curve_home_4_03_left = building(0.1346975, "models/house-manor.glb", { use: residential, front_edge: 0 }, 0.8455574, 1.4773520, 0.7370058, 1.5285042, 0.6915372, 1.4320139, 0.8000888, 1.3808617);
 elevation(curve_home_4_03_left, 0.1000009);
 
-curve_home_4_04_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.7783880, 1.9458857, 0.8802111, 1.8823872, 0.9622298, 2.0139089, 0.8604068, 2.0774074);
+curve_home_4_04_right = building(0.1346975, "models/house-manor.glb", { use: residential, front_edge: 0 }, 0.8101372, 1.9967973, 0.9119603, 1.9332988, 0.9684033, 2.0238083, 0.8665802, 2.0873068);
 elevation(curve_home_4_04_right, 0.1000009);
 
-curve_home_4_04_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.7108820, 1.6108589, 0.6090589, 1.6743574, 0.5270401, 1.5428358, 0.6288632, 1.4793373);
-elevation(curve_home_4_04_left, 0.1000009);
 
-curve_home_5_01_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.5440304, 2.1534128, 0.6313215, 2.0710702, 0.7376804, 2.1838214, 0.6503893, 2.2661638);
+
+curve_home_5_01_right = building(0.1184309, "models/house-garden.glb", { use: residential, front_edge: 0 }, 0.5852015, 2.1970584, 0.6724926, 2.1147158, 0.7456858, 2.1923081, 0.6583947, 2.2746507);
 elevation(curve_home_5_01_right, 0.1000009);
 
-curve_home_5_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.4117421, 1.8382939, 0.3244510, 1.9206363, 0.2180922, 1.8078852, 0.3053833, 1.7255428);
+curve_home_5_01_left = building(0.1346975, "models/house-manor.glb", { use: residential, front_edge: 0 }, 0.3705710, 1.7946483, 0.2832799, 1.8769907, 0.2100867, 1.7993985, 0.2973778, 1.7170561);
 elevation(curve_home_5_01_left, 0.1000009);
 
-curve_home_5_02_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.4275862, 2.2632070, 0.5149004, 2.1808891, 0.6315173, 2.3045843, 0.5442030, 2.3869021);
-elevation(curve_home_5_02_right, 0.1000009);
 
-curve_home_5_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.2953863, 1.9480511, 0.2080720, 2.0303688, 0.0914552, 1.9066737, 0.1787694, 1.8243558);
-elevation(curve_home_5_02_left, 0.1000009);
 
-curve_home_5_03_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.3111877, 2.3729823, 0.3985012, 2.2906635, 0.5254092, 2.4252717, 0.4380957, 2.5075905);
+
+
+curve_home_5_03_right = building(0.1346977, "models/house-manor.glb", { use: residential, front_edge: 0 }, 0.3523471, 2.4166390, 0.4396606, 2.3343202, 0.5128329, 2.4119322, 0.4255194, 2.4942510);
 elevation(curve_home_5_03_right, 0.1000009);
 
-curve_home_5_03_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.1789846, 2.0578277, 0.0916712, 2.1401465, -0.0352367, 2.0055382, 0.0520767, 1.9232196);
+curve_home_5_03_left = building(0.1184308, "models/house-garden.glb", { use: residential, front_edge: 0 }, 0.1378253, 2.0141710, 0.0505119, 2.0964898, -0.0226603, 2.0188778, 0.0646531, 1.9365590);
 elevation(curve_home_5_03_left, 0.1000009);
 
-curve_home_5_04_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.1947943, 2.4827554, 0.2821043, 2.4004333, 0.3884373, 2.5132089, 0.3011272, 2.5955310);
-elevation(curve_home_5_04_right, 0.1000009);
 
-curve_home_5_04_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.0625782, 2.1676066, -0.0247318, 2.2499287, -0.1310648, 2.1371531, -0.0437547, 2.0548310);
-elevation(curve_home_5_04_left, 0.1000009);
 
-curve_home_5_05_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.0783670, 2.5925431, 0.1656913, 2.5102358, 0.2822930, 2.6339452, 0.1949687, 2.7162526);
+
+
+curve_home_5_05_right = building(0.1184308, "models/house-garden.glb", { use: residential, front_edge: 0 }, 0.1195206, 2.6362053, 0.2068449, 2.5538980, 0.2800069, 2.6315197, 0.1926826, 2.7138270);
 elevation(curve_home_5_05_right, 0.1000009);
 
-curve_home_5_05_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.0537944, 2.2773709, -0.1411187, 2.3596783, -0.2577205, 2.2359688, -0.1703961, 2.1536615);
+curve_home_5_05_left = building(0.1346977, "models/house-manor.glb", { use: residential, front_edge: 0 }, -0.0949480, 2.2337087, -0.1822723, 2.3160161, -0.2554343, 2.2383944, -0.1681100, 2.1560870);
 elevation(curve_home_5_05_left, 0.1000009);
 
-curve_home_6_01_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.1834555, 2.8394876, -0.0961545, 2.7571559, 0.0101908, 2.8699198, -0.0771101, 2.9522514);
+curve_home_6_01_right = building(0.1184306, "models/house-garden.glb", { use: residential, front_edge: 0 }, -0.1422896, 2.8831381, -0.0549886, 2.8008064, 0.0181952, 2.8784073, -0.0691058, 2.9607390);
 elevation(curve_home_6_01_right, 0.1000009);
 
-curve_home_6_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.3157062, 2.5243535, -0.4030071, 2.6066852, -0.5093524, 2.4939213, -0.4220515, 2.4115896);
+curve_home_6_01_left = building(0.1184305, "models/house-garden.glb", { use: residential, front_edge: 0 }, -0.3568721, 2.4807030, -0.4441730, 2.5630347, -0.5173567, 2.4854339, -0.4300558, 2.4031022);
 elevation(curve_home_6_01_left, 0.1000009);
 
-curve_home_6_02_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.2997951, 2.9492009, -0.2124902, 2.8668730, -0.0958592, 2.9905550, -0.1831641, 3.0728829);
-elevation(curve_home_6_02_right, 0.1000009);
 
-curve_home_6_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.4320309, 2.6340601, -0.5193358, 2.7163880, -0.6359668, 2.5927060, -0.5486619, 2.5103781);
-elevation(curve_home_6_02_left, 0.1000009);
 
-curve_home_6_03_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.4161107, 3.0589032, -0.3288140, 2.9765668, -0.2018787, 3.1111493, -0.2891754, 3.1934857);
+
+
+curve_home_6_03_right = building(0.1346975, "models/house-manor.glb", { use: residential, front_edge: 0 }, -0.3749425, 3.1025516, -0.2876458, 3.0202152, -0.2144579, 3.0978123, -0.3017546, 3.1801487);
 elevation(curve_home_6_03_right, 0.1000009);
 
-curve_home_6_03_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.5483779, 2.7437758, -0.6356745, 2.8261123, -0.7626098, 2.6915298, -0.6753132, 2.6091933);
+curve_home_6_03_left = building(0.1346975, "models/house-manor.glb", { use: residential, front_edge: 0 }, -0.5895461, 2.7001274, -0.6768427, 2.7824639, -0.7500306, 2.7048668, -0.6627340, 2.6225303);
 elevation(curve_home_6_03_left, 0.1000009);
 
-curve_home_6_04_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.5324455, 3.1686139, -0.4451467, 3.0862799, -0.3387985, 3.1990409, -0.4260974, 3.2813749);
-elevation(curve_home_6_04_right, 0.1000009);
 
-curve_home_6_04_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.6647042, 2.8534827, -0.7520031, 2.9358168, -0.8583512, 2.8230557, -0.7710524, 2.7407217);
-elevation(curve_home_6_04_left, 0.1000009);
 
-curve_home_6_05_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.6487771, 3.2783220, -0.5614774, 3.1959889, -0.4448387, 3.3196635, -0.5321383, 3.4019966);
+
+
+curve_home_6_05_right = building(0.1184306, "models/house-garden.glb", { use: residential, front_edge: 0 }, -0.6076105, 3.3219719, -0.5203108, 3.2396388, -0.4471258, 3.3172385, -0.5344255, 3.3995716);
 elevation(curve_home_6_05_right, 0.1000009);
 
-curve_home_6_05_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.7810325, 2.9631894, -0.8683322, 3.0455225, -0.9849709, 2.9218478, -0.8976712, 2.8395147);
+curve_home_6_05_left = building(0.1184306, "models/house-garden.glb", { use: residential, front_edge: 0 }, -0.8221991, 2.9195395, -0.9094988, 3.0018726, -0.9826838, 2.9242729, -0.8953841, 2.8419398);
 elevation(curve_home_6_05_left, 0.1000009);
 
-curve_home_6_06_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.7665977, 3.3894353, -0.6792980, 3.3071022, -0.5523677, 3.4416893, -0.6396674, 3.5240223);
-elevation(curve_home_6_06_right, 0.1000009);
 
-curve_home_6_06_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.8988532, 3.0743027, -0.9861529, 3.1566358, -1.1130832, 3.0220487, -1.0257835, 2.9397156);
-elevation(curve_home_6_06_left, 0.1000009);
 
-curve_home_6_07_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.8829472, 3.4991510, -0.7956368, 3.4168289, -0.6893043, 3.5296049, -0.7766147, 3.6119270);
+
+
+curve_home_6_07_right = building(0.1346977, "models/house-manor.glb", { use: residential, front_edge: 0 }, -0.8417862, 3.5428062, -0.7544758, 3.4604841, -0.6813007, 3.5380934, -0.7686111, 3.6204155);
 elevation(curve_home_6_07_right, 0.1000009);
 
-curve_home_6_07_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.0151618, 3.1840012, -1.1024722, 3.2663233, -1.2088046, 3.1535473, -1.1214942, 3.0712252);
+curve_home_6_07_left = building(0.1346977, "models/house-manor.glb", { use: residential, front_edge: 0 }, -1.0563227, 3.1403460, -1.1436331, 3.2226681, -1.2168082, 3.1450587, -1.1294978, 3.0627366);
 elevation(curve_home_6_07_left, 0.1000009);
 
-curve_home_6_08_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.9992670, 3.6088538, -0.9119612, 3.5265269, -0.7953317, 3.6502104, -0.8826375, 3.7325373);
-elevation(curve_home_6_08_right, 0.1000009);
 
-curve_home_6_08_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.1314989, 3.2937112, -1.2188047, 3.3760381, -1.3354342, 3.2523546, -1.2481284, 3.1700277);
-elevation(curve_home_6_08_left, 0.1000009);
 
-curve_home_6_09_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.1155844, 3.7185550, -1.0282841, 3.6362224, -0.9013548, 3.7708106, -0.9886551, 3.8531432);
+
+
+curve_home_6_09_right = building(0.1184307, "models/house-garden.glb", { use: residential, front_edge: 0 }, -1.0744182, 3.7622052, -0.9871179, 3.6798726, -0.9139335, 3.7574730, -1.0012338, 3.8398056);
 elevation(curve_home_6_09_right, 0.1000009);
 
-curve_home_6_09_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.2478375, 3.4034214, -1.3351378, 3.4857540, -1.4620671, 3.3511658, -1.3747668, 3.2688332);
+curve_home_6_09_left = building(0.1184307, "models/house-garden.glb", { use: residential, front_edge: 0 }, -1.2890037, 3.3597712, -1.3763040, 3.4421038, -1.4494884, 3.3645034, -1.3621881, 3.2821708);
 elevation(curve_home_6_09_left, 0.1000009);
 
-curve_home_6_10_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.2319225, 3.8282650, -1.1446167, 3.7459381, -1.0382781, 3.8587081, -1.1255839, 3.9410350);
-elevation(curve_home_6_10_right, 0.1000009);
 
-curve_home_6_10_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.3641545, 3.5131223, -1.4514602, 3.5954492, -1.5577989, 3.4826791, -1.4704931, 3.4003522);
-elevation(curve_home_6_10_left, 0.1000009);
 
-curve_home_6_11_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.3482436, 3.9379678, -1.2609411, 3.8556376, -1.1443064, 3.9793158, -1.2316089, 4.0616460);
+
+
+curve_home_6_11_right = building(0.1346974, "models/house-manor.glb", { use: residential, front_edge: 0 }, -1.3070784, 3.9816190, -1.2197759, 3.8992888, -1.1465933, 3.9768908, -1.2338958, 4.0592210);
 elevation(curve_home_6_11_right, 0.1000009);
 
-curve_home_6_11_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.4804887, 3.6228309, -1.5677911, 3.7051611, -1.6844258, 3.5814829, -1.5971234, 3.4991527);
+curve_home_6_11_left = building(0.1346974, "models/house-manor.glb", { use: residential, front_edge: 0 }, -1.5216539, 3.5791797, -1.6089563, 3.6615099, -1.6821388, 3.5839079, -1.5948364, 3.5015777);
 elevation(curve_home_6_11_left, 0.1000009);
 
-curve_home_6_12_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.4645603, 4.0476680, -1.3772633, 3.9653318, -1.2503283, 4.0999146, -1.3376253, 4.1822510);
-elevation(curve_home_6_12_right, 0.1000009);
 
-curve_home_6_12_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.5968266, 3.7325399, -1.6841235, 3.8148763, -1.8110585, 3.6802936, -1.7237616, 3.5979571);
-elevation(curve_home_6_12_left, 0.1000009);
 
-curve_home_6_13_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.5808883, 4.1573734, -1.4935911, 4.0750375, -1.3872406, 4.1877966, -1.4745378, 4.2701325);
+
+
+curve_home_6_13_right = building(0.1184307, "models/house-garden.glb", { use: residential, front_edge: 0 }, -1.5397204, 4.2010220, -1.4524232, 4.1186861, -1.3792358, 4.1962837, -1.4665330, 4.2786196);
 elevation(curve_home_6_13_right, 0.1000009);
 
-curve_home_6_13_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.7131531, 3.8422446, -1.8004503, 3.9245806, -1.9068007, 3.8118217, -1.8195035, 3.7294858);
+curve_home_6_13_left = building(0.1184308, "models/house-garden.glb", { use: residential, front_edge: 0 }, -1.7543210, 3.7985960, -1.8416182, 3.8809320, -1.9148057, 3.8033344, -1.8275085, 3.7209984);
 elevation(curve_home_6_13_left, 0.1000009);
 
-curve_home_6_14_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.6972153, 4.2670784, -1.6099181, 4.1847420, -1.4932755, 4.3084130, -1.5805727, 4.3907495);
-elevation(curve_home_6_14_right, 0.1000009);
 
-curve_home_6_14_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.8294809, 3.9519498, -1.9167781, 4.0342865, -2.0334206, 3.9106154, -1.9461235, 3.8282790);
-elevation(curve_home_6_14_left, 0.1000009);
 
-curve_home_6_15_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.8135557, 4.3767891, -1.7262516, 4.2944603, -1.5993283, 4.4290543, -1.6866324, 4.5113831);
+
+
+curve_home_6_15_right = building(0.1346977, "models/house-manor.glb", { use: residential, front_edge: 0 }, -1.7723914, 4.4204412, -1.6850873, 4.3381124, -1.6119063, 4.4157162, -1.6992104, 4.4980450);
 elevation(curve_home_6_15_right, 0.1000009);
 
-curve_home_6_15_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.9457946, 4.0616493, -2.0330987, 4.1439781, -2.1600220, 4.0093842, -2.0727179, 3.9270556);
+curve_home_6_15_left = building(0.1346977, "models/house-manor.glb", { use: residential, front_edge: 0 }, -1.9869589, 4.0179973, -2.0742630, 4.1003261, -2.1474441, 4.0227224, -2.0601400, 3.9403936);
 elevation(curve_home_6_15_left, 0.1000009);
 
-curve_home_6_16_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.9298763, 4.4864917, -1.8425760, 4.4041591, -1.7362299, 4.5169220, -1.8235302, 4.5992546);
-elevation(curve_home_6_16_right, 0.1000009);
 
-curve_home_6_16_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.0621295, 4.1713576, -2.1494298, 4.2536902, -2.2557759, 4.1409273, -2.1684756, 4.0585947);
-elevation(curve_home_6_16_left, 0.1000009);
 
-curve_home_6_17_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.0461977, 4.5961943, -1.9589006, 4.5138578, -1.8422580, 4.6375289, -1.9295549, 4.7198653);
+
+
+curve_home_6_17_right = building(0.1184310, "models/house-garden.glb", { use: residential, front_edge: 0 }, -2.0050297, 4.6398429, -1.9177326, 4.5575064, -1.8445449, 4.6351041, -1.9318420, 4.7174406);
 elevation(curve_home_6_17_right, 0.1000009);
 
-curve_home_6_17_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.1784632, 4.2810659, -2.2657602, 4.3634024, -2.3824029, 4.2397313, -2.2951059, 4.1573949);
+curve_home_6_17_left = building(0.1184310, "models/house-garden.glb", { use: residential, front_edge: 0 }, -2.2196312, 4.2374173, -2.3069282, 4.3197538, -2.3801159, 4.2421562, -2.2928189, 4.1598197);
 elevation(curve_home_6_17_left, 0.1000009);
 
-curve_home_6_18_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.1625390, 4.7059059, -2.0752349, 4.6235771, -1.9483116, 4.7581711, -2.0356157, 4.8404999);
-elevation(curve_home_6_18_right, 0.1000009);
 
-curve_home_6_18_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.2947779, 4.3907661, -2.3820820, 4.4730949, -2.5090053, 4.3385010, -2.4217012, 4.2561722);
-elevation(curve_home_6_18_left, 0.1000009);
 
-curve_home_6_19_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.2788472, 4.8156033, -2.1915536, 4.7332640, -2.0851984, 4.8460183, -2.1724920, 4.9283576);
+
+
+curve_home_6_19_right = building(0.1346972, "models/house-manor.glb", { use: residential, front_edge: 0 }, -2.2376774, 4.8592501, -2.1503838, 4.7769108, -2.0771932, 4.8545050, -2.1644868, 4.9368443);
 elevation(curve_home_6_19_right, 0.1000009);
 
-curve_home_6_19_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.4111257, 4.5004807, -2.4984193, 4.5828199, -2.6047745, 4.4700656, -2.5174809, 4.3877263);
+curve_home_6_19_left = building(0.1346971, "models/house-manor.glb", { use: residential, front_edge: 0 }, -2.4522955, 4.4568338, -2.5395891, 4.5391730, -2.6127796, 4.4615788, -2.5254860, 4.3792396);
 elevation(curve_home_6_19_left, 0.1000009);
 
-curve_home_6_20_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.3951759, 4.9253097, -2.3078823, 4.8429704, -2.1912348, 4.9666367, -2.2785285, 5.0489759);
-elevation(curve_home_6_20_right, 0.1000009);
 
-curve_home_6_20_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.5274544, 4.6101871, -2.6147480, 4.6925263, -2.7313955, 4.5688601, -2.6441019, 4.4865208);
-elevation(curve_home_6_20_left, 0.1000009);
 
-curve_home_6_21_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.5115380, 5.0350308, -2.4242272, 4.9527097, -2.2973154, 5.0873141, -2.3846262, 5.1696353);
+
+
+curve_home_6_21_right = building(0.1184305, "models/house-garden.glb", { use: residential, front_edge: 0 }, -2.4703774, 5.0786863, -2.3830666, 4.9963652, -2.3098923, 5.0739748, -2.3972031, 5.1562959);
 elevation(curve_home_6_21_right, 0.1000009);
 
-curve_home_6_21_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.6437507, 4.7198806, -2.7310615, 4.8022017, -2.8579733, 4.6675973, -2.7706625, 4.5852761);
+curve_home_6_21_left = building(0.1184305, "models/house-garden.glb", { use: residential, front_edge: 0 }, -2.6849113, 4.6762251, -2.7722221, 4.7585462, -2.8453964, 4.6809366, -2.7580856, 4.5986155);
 elevation(curve_home_6_21_left, 0.1000009);
 
-curve_home_6_22_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.6278617, 5.1447353, -2.5405538, 5.0624104, -2.4342177, 5.1751828, -2.5215256, 5.2575078);
-elevation(curve_home_6_22_right, 0.1000009);
 
-curve_home_6_22_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.7600863, 4.8295898, -2.8473942, 4.9119148, -2.9537303, 4.7991424, -2.8664224, 4.7168174);
-elevation(curve_home_6_22_left, 0.1000009);
 
-curve_home_6_23_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.7441916, 5.2544432, -2.6568842, 5.1721182, -2.5402567, 5.2958035, -2.6275642, 5.3781285);
+
+
+curve_home_6_23_right = building(0.1346974, "models/house-manor.glb", { use: residential, front_edge: 0 }, -2.7030290, 5.2980968, -2.6157216, 5.2157718, -2.5425436, 5.2933782, -2.6298510, 5.3757032);
 elevation(curve_home_6_23_right, 0.1000009);
 
-curve_home_6_23_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.8764176, 4.9392986, -2.9637251, 5.0216236, -3.0803525, 4.8979383, -2.9930451, 4.8156133);
+curve_home_6_23_left = building(0.1346975, "models/house-manor.glb", { use: residential, front_edge: 0 }, -2.9175802, 4.8956450, -3.0048877, 4.9779700, -3.0780657, 4.9003635, -2.9907582, 4.8180385);
 elevation(curve_home_6_23_left, 0.1000009);
 
-curve_home_6_24_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.8604896, 5.3641386, -2.7731993, 5.2817955, -2.6462533, 5.4163675, -2.7335436, 5.4987106);
-elevation(curve_home_6_24_right, 0.1000009);
 
-curve_home_6_24_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.9927819, 5.0490217, -3.0800722, 5.1313648, -3.2070181, 4.9967928, -3.1197278, 4.9144497);
-elevation(curve_home_6_24_left, 0.1000009);
+
+
 
 # Inward interstate interchange: retain the bridge and four ramps serving the city.
 # The outward interstate and its four ramp chains are removed.
@@ -1834,226 +1809,191 @@ grade(east_clover_out, 0.102001, 0.102001);
 
 # Report 69 extension: residential rows around the far bend and along roads 43, 42 and 41.
 # Street-facing fronts follow the curve; leave gardens, sidewalks and end bends clear.
-bend_home_43_01_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -3.0580075, 5.6014838, -3.0361664, 5.4834886, -2.8837554, 5.5116997, -2.9055965, 5.6296949);
+bend_home_43_01_right = building(0.1184303, "models/house-garden.glb", { use: residential, front_edge: 0 }, -2.9990097, 5.6124042, -2.9771686, 5.4944090, -2.8722839, 5.5138230, -2.8941250, 5.6318182);
 elevation(bend_home_43_01_right, 0.1000009);
 
-bend_home_43_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -3.3508217, 5.4252458, -3.3726628, 5.5432410, -3.5250738, 5.5150299, -3.5032327, 5.3970346);
+bend_home_43_01_left = building(0.1346970, "models/house-manor.glb", { use: residential, front_edge: 0 }, -3.4098195, 5.4143254, -3.4316606, 5.5323206, -3.5365453, 5.5129066, -3.5147042, 5.3949114);
 elevation(bend_home_43_01_left, 0.1000009);
 
-bend_home_43_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -3.3596160, 5.6633868, -3.3225367, 5.7775140, -3.4842174, 5.8300428, -3.5212967, 5.7159157);
-elevation(bend_home_43_02_left, 0.1000009);
 
-bend_home_42_01_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.8742156, 5.8330045, -2.9565134, 5.7456717, -2.8437083, 5.6393700, -2.7614105, 5.7267027);
+
+bend_home_42_01_right = building(0.1184305, "models/house-garden.glb", { use: residential, front_edge: 0 }, -2.8305492, 5.7918555, -2.9128470, 5.7045227, -2.8352179, 5.6313690, -2.7529201, 5.7187018);
 elevation(bend_home_42_01_right, 0.1000009);
 
-bend_home_42_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -3.1894011, 5.9651332, -3.1071033, 6.0524659, -3.2199085, 6.1587677, -3.3022063, 6.0714350);
+bend_home_42_01_left = building(0.1184304, "models/house-garden.glb", { use: residential, front_edge: 0 }, -3.2330676, 6.0062822, -3.1507698, 6.0936149, -3.2283989, 6.1667685, -3.3106967, 6.0794358);
 elevation(bend_home_42_01_left, 0.1000009);
 
-bend_home_42_02_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.7644694, 5.9494281, -2.8467700, 5.8620973, -2.7230520, 5.7455044, -2.6407514, 5.8328352);
-elevation(bend_home_42_02_right, 0.1000009);
 
-bend_home_42_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -3.0796511, 6.0815654, -2.9973505, 6.1688962, -3.1210685, 6.2854891, -3.2033691, 6.1981583);
-elevation(bend_home_42_02_left, 0.1000009);
 
-bend_home_42_03_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.6547208, 6.0658550, -2.7370214, 5.9785242, -2.6023872, 5.8516436, -2.5200865, 5.9389744);
+
+
+bend_home_42_03_right = building(0.1346978, "models/house-manor.glb", { use: residential, front_edge: 0 }, -2.6110557, 6.0247046, -2.6933563, 5.9373738, -2.6157293, 5.8642173, -2.5334287, 5.9515481);
 elevation(bend_home_42_03_right, 0.1000009);
 
-bend_home_42_03_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.9699025, 6.1979923, -2.8876019, 6.2853231, -3.0222361, 6.4122038, -3.1045368, 6.3248730);
+bend_home_42_03_left = building(0.1346978, "models/house-manor.glb", { use: residential, front_edge: 0 }, -3.0135676, 6.2391427, -2.9312670, 6.3264735, -3.0088940, 6.3996300, -3.0911946, 6.3122992);
 elevation(bend_home_42_03_left, 0.1000009);
 
-bend_home_42_04_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.5449896, 6.1822391, -2.6273136, 6.0949311, -2.5145407, 5.9885955, -2.4322166, 6.0759034);
-elevation(bend_home_42_04_right, 0.1000009);
 
-bend_home_42_04_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.8601356, 6.3144622, -2.7778115, 6.4017701, -2.8905845, 6.5081058, -2.9729085, 6.4207978);
-elevation(bend_home_42_04_left, 0.1000009);
 
-bend_home_42_05_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.4352310, 6.2986870, -2.5175436, 6.2113676, -2.3938413, 6.0947580, -2.3115287, 6.1820774);
+
+
+bend_home_42_05_right = building(0.1184309, "models/house-garden.glb", { use: residential, front_edge: 0 }, -2.3915714, 6.2575307, -2.4738840, 6.1702113, -2.3962668, 6.0970445, -2.3139542, 6.1843639);
 elevation(bend_home_42_05_right, 0.1000009);
 
-bend_home_42_05_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.7503951, 6.4308672, -2.6680825, 6.5181866, -2.7917848, 6.6347961, -2.8740973, 6.5474768);
+bend_home_42_05_left = building(0.1184309, "models/house-garden.glb", { use: residential, front_edge: 0 }, -2.7940547, 6.4720235, -2.7117421, 6.5593429, -2.7893593, 6.6325097, -2.8716719, 6.5451903);
 elevation(bend_home_42_05_left, 0.1000009);
 
-bend_home_42_06_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.3254948, 6.4150825, -2.4078245, 6.3277793, -2.2732327, 6.2008538, -2.1909029, 6.2881570);
-elevation(bend_home_42_06_right, 0.1000009);
 
-bend_home_42_06_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.6406322, 6.5473256, -2.5583024, 6.6346288, -2.6928942, 6.7615542, -2.7752240, 6.6742511);
-elevation(bend_home_42_06_left, 0.1000009);
 
-bend_home_42_07_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.2157245, 6.5315542, -2.2980280, 6.4442263, -2.1852300, 6.3379173, -2.1029265, 6.4252453);
+
+
+bend_home_42_07_right = building(0.1346976, "models/house-manor.glb", { use: residential, front_edge: 0 }, -2.1720608, 6.4904023, -2.2543643, 6.4030744, -2.1767398, 6.3299154, -2.0944363, 6.4172433);
 elevation(bend_home_42_07_right, 0.1000009);
 
-bend_home_42_07_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.5309014, 6.6637030, -2.4485979, 6.7510309, -2.5613959, 6.8573399, -2.6436994, 6.7700119);
+bend_home_42_07_left = building(0.1346976, "models/house-manor.glb", { use: residential, front_edge: 0 }, -2.5745651, 6.7048549, -2.4922616, 6.7921828, -2.5698861, 6.8653418, -2.6521896, 6.7780139);
 elevation(bend_home_42_07_left, 0.1000009);
 
-bend_home_42_08_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.1059718, 6.6479850, -2.1882730, 6.5606551, -2.0645554, 6.4440618, -1.9822543, 6.5313916);
-elevation(bend_home_42_08_right, 0.1000009);
 
-bend_home_42_08_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.4211531, 6.7801242, -2.3388519, 6.8674541, -2.4625695, 6.9840474, -2.5448706, 6.8967175);
-elevation(bend_home_42_08_left, 0.1000009);
 
-bend_home_42_09_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.9962363, 6.7643728, -2.0785575, 6.6770620, -1.9439530, 6.5501504, -1.8616319, 6.6374612);
+
+
+bend_home_42_09_right = building(0.1184305, "models/house-garden.glb", { use: residential, front_edge: 0 }, -1.9525807, 6.7232123, -2.0349019, 6.6359015, -1.9572921, 6.5627273, -1.8749709, 6.6500381);
 elevation(bend_home_42_09_right, 0.1000009);
 
-bend_home_42_09_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.3113871, 6.8965855, -2.2290659, 6.9838963, -2.3636703, 7.1108079, -2.4459915, 7.0234971);
+bend_home_42_09_left = building(0.1184305, "models/house-garden.glb", { use: residential, front_edge: 0 }, -2.3550426, 6.9377461, -2.2727214, 7.0250569, -2.3503311, 7.0982312, -2.4326523, 7.0109204);
 elevation(bend_home_42_09_left, 0.1000009);
 
-bend_home_42_10_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.8864679, 6.8808413, -1.9687657, 6.7935085, -1.8559607, 6.6872072, -1.7736629, 6.7745399);
-elevation(bend_home_42_10_right, 0.1000009);
 
-bend_home_42_10_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.2016535, 7.0129700, -2.1193557, 7.1003027, -2.2321608, 7.2066040, -2.3144586, 7.1192713);
-elevation(bend_home_42_10_left, 0.1000009);
 
-bend_home_42_11_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.7767315, 6.9972281, -1.8590496, 6.9099145, -1.7353548, 6.7932968, -1.6530367, 6.8806105);
+
+
+bend_home_42_11_right = building(0.1346972, "models/house-manor.glb", { use: residential, front_edge: 0 }, -1.7330746, 6.9560690, -1.8153927, 6.8687554, -1.7377806, 6.7955838, -1.6554625, 6.8828974);
 elevation(bend_home_42_11_right, 0.1000009);
 
-bend_home_42_11_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -2.0918865, 7.1294293, -2.0095685, 7.2167430, -2.1332631, 7.3333607, -2.2155812, 7.2460470);
+bend_home_42_11_left = building(0.1346972, "models/house-manor.glb", { use: residential, front_edge: 0 }, -2.1355434, 7.1705885, -2.0532254, 7.2579022, -2.1308375, 7.3310739, -2.2131555, 7.2437602);
 elevation(bend_home_42_11_left, 0.1000009);
 
-bend_home_42_12_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.6669661, 7.1136875, -1.7492656, 7.0263557, -1.6146295, 6.8994770, -1.5323300, 6.9868088);
-elevation(bend_home_42_12_right, 0.1000009);
 
-bend_home_42_12_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.9821495, 7.2458210, -1.8998500, 7.3331528, -2.0344861, 7.4600315, -2.1167855, 7.3726997);
-elevation(bend_home_42_12_left, 0.1000009);
 
-bend_home_42_13_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.5572282, 7.2300763, -1.6395468, 7.1427627, -1.5267668, 7.0364347, -1.4444482, 7.1237483);
+
+
+bend_home_42_13_right = building(0.1184308, "models/house-garden.glb", { use: residential, front_edge: 0 }, -1.5135714, 7.1889171, -1.5958900, 7.1016035, -1.5182779, 7.0284315, -1.4359593, 7.1157451);
 elevation(bend_home_42_13_right, 0.1000009);
 
-bend_home_42_13_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.8723830, 7.3622785, -1.7900645, 7.4495921, -1.9028444, 7.5559201, -1.9851630, 7.4686065);
+bend_home_42_13_left = building(0.1184307, "models/house-garden.glb", { use: residential, front_edge: 0 }, -1.9160398, 7.4034377, -1.8337213, 7.4907513, -1.9113334, 7.5639233, -1.9936519, 7.4766097);
 elevation(bend_home_42_13_left, 0.1000009);
 
-bend_home_42_14_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.4474634, 7.3465323, -1.5297645, 7.2592025, -1.4060469, 7.1426091, -1.3237457, 7.2299390);
-elevation(bend_home_42_14_right, 0.1000009);
 
-bend_home_42_14_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.7626446, 7.4786716, -1.6803435, 7.5660014, -1.8040612, 7.6825948, -1.8863623, 7.5952649);
-elevation(bend_home_42_14_left, 0.1000009);
 
-bend_home_42_15_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.3377310, 7.4629097, -1.4200579, 7.3756037, -1.2854617, 7.2486830, -1.2031348, 7.3359890);
+
+
+bend_home_42_15_right = building(0.1346978, "models/house-manor.glb", { use: residential, front_edge: 0 }, -1.2940782, 7.4217463, -1.3764051, 7.3344403, -1.2987999, 7.2612607, -1.2164730, 7.3485667);
 elevation(bend_home_42_15_right, 0.1000009);
 
-bend_home_42_15_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.6528729, 7.5951424, -1.5705460, 7.6824484, -1.7051423, 7.8093691, -1.7874691, 7.7220631);
+bend_home_42_15_left = building(0.1346978, "models/house-manor.glb", { use: residential, front_edge: 0 }, -1.6965257, 7.6363058, -1.6141988, 7.7236118, -1.6918040, 7.7967914, -1.7741309, 7.7094854);
 elevation(bend_home_42_15_left, 0.1000009);
 
-bend_home_42_16_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.2279637, 7.5793700, -1.3102705, 7.4920449, -1.1974761, 7.3857317, -1.1151693, 7.4730568);
-elevation(bend_home_42_16_right, 0.1000009);
 
-bend_home_42_16_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.5431364, 7.7115293, -1.4608295, 7.7988544, -1.5736239, 7.9051676, -1.6559308, 7.8178425);
-elevation(bend_home_42_16_left, 0.1000009);
 
-bend_home_42_17_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.1182172, 7.6957808, -1.2005312, 7.6084633, -1.0768310, 7.4918523, -0.9945170, 7.5791698);
+
+
+bend_home_42_17_right = building(0.1184305, "models/house-garden.glb", { use: residential, front_edge: 0 }, -1.0745582, 7.6546239, -1.1568722, 7.5673064, -1.0792564, 7.4941387, -0.9969424, 7.5814562);
 elevation(bend_home_42_17_right, 0.1000009);
 
-bend_home_42_17_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.4333789, 7.8279676, -1.3510649, 7.9152851, -1.4747652, 8.0318966, -1.5570792, 7.9445786);
+bend_home_42_17_left = building(0.1184305, "models/house-garden.glb", { use: residential, front_edge: 0 }, -1.4770378, 7.8691246, -1.3947238, 7.9564421, -1.4723395, 8.0296099, -1.5546535, 7.9422924);
 elevation(bend_home_42_17_left, 0.1000009);
 
-bend_home_42_18_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.0084695, 7.8121943, -1.0907892, 7.7248816, -0.9561825, 7.5979724, -0.8738627, 7.6852851);
-elevation(bend_home_42_18_right, 0.1000009);
 
-bend_home_42_18_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.3236226, 7.9444013, -1.2413028, 8.0317135, -1.3759096, 8.1586237, -1.4582293, 8.0713110);
-elevation(bend_home_42_18_left, 0.1000009);
 
-bend_home_42_19_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.8987175, 7.9286180, -0.9810372, 7.8413053, -0.8682586, 7.7349758, -0.7859389, 7.8222885);
+
+
+bend_home_42_19_right = building(0.1346977, "models/house-manor.glb", { use: residential, front_edge: 0 }, -0.8550612, 7.8874582, -0.9373809, 7.8001455, -0.8597697, 7.7269724, -0.7774500, 7.8142851);
 elevation(bend_home_42_19_right, 0.1000009);
 
-bend_home_42_19_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.2138705, 8.0608244, -1.1315508, 8.1481371, -1.2443293, 8.2544670, -1.3266491, 8.1671543);
+bend_home_42_19_left = building(0.1346977, "models/house-manor.glb", { use: residential, front_edge: 0 }, -1.2575267, 8.1019843, -1.1752070, 8.1892970, -1.2528181, 8.2624703, -1.3351378, 8.1751576);
 elevation(bend_home_42_19_left, 0.1000009);
 
-bend_home_42_20_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.7889698, 8.0450344, -0.8712944, 7.9577274, -0.7476083, 7.8411007, -0.6652837, 7.9284077);
-elevation(bend_home_42_20_right, 0.1000009);
 
-bend_home_42_20_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -1.1041151, 8.1772594, -1.0217905, 8.2645664, -1.1454766, 8.3811932, -1.2278012, 8.2938862);
-elevation(bend_home_42_20_left, 0.1000009);
 
-bend_home_42_21_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.6792002, 8.1615019, -0.7615013, 8.0741720, -0.6268674, 7.9472909, -0.5445664, 8.0346212);
+
+
+bend_home_42_21_right = building(0.1184306, "models/house-garden.glb", { use: residential, front_edge: 0 }, -0.6355352, 8.1203513, -0.7178363, 8.0330214, -0.6402097, 7.9598649, -0.5579086, 8.0471948);
 elevation(bend_home_42_21_right, 0.1000009);
 
-bend_home_42_21_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.9943814, 8.2936411, -0.9120803, 8.3809710, -1.0467142, 8.5078516, -1.1290152, 8.4205217);
+bend_home_42_21_left = building(0.1184306, "models/house-garden.glb", { use: residential, front_edge: 0 }, -1.0380464, 8.3347916, -0.9557453, 8.4221215, -1.0333720, 8.4952779, -1.1156731, 8.4079480);
 elevation(bend_home_42_21_left, 0.1000009);
 
-bend_home_42_22_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.5694668, 8.2778826, -0.6517915, 8.1905756, -0.5390189, 8.0842390, -0.4566942, 8.1715460);
-elevation(bend_home_42_22_right, 0.1000009);
 
-bend_home_42_22_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.8846122, 8.4101076, -0.8022876, 8.4974146, -0.9150602, 8.6037512, -0.9973848, 8.5164442);
-elevation(bend_home_42_22_left, 0.1000009);
 
-bend_home_42_23_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.4597064, 8.3943291, -0.5420189, 8.3070107, -0.4183165, 8.1904011, -0.3360041, 8.2777195);
+
+
+bend_home_42_23_right = building(0.1346968, "models/house-manor.glb", { use: residential, front_edge: 0 }, -0.4160468, 8.3531728, -0.4983593, 8.2658544, -0.4207426, 8.1926881, -0.3384301, 8.2800065);
 elevation(bend_home_42_23_right, 0.1000009);
 
-bend_home_42_23_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.7748703, 8.5265102, -0.6925578, 8.6138287, -0.8162602, 8.7304382, -0.8985726, 8.6431198);
+bend_home_42_23_left = building(0.1346969, "models/house-manor.glb", { use: residential, front_edge: 0 }, -0.8185299, 8.5676664, -0.7362174, 8.6549849, -0.8138342, 8.7281512, -0.8961467, 8.6408327);
 elevation(bend_home_42_23_left, 0.1000009);
 
-bend_home_42_24_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.3499560, 8.5107536, -0.4322692, 8.4234352, -0.2976531, 8.2965355, -0.2153399, 8.3838539);
-elevation(bend_home_42_24_right, 0.1000009);
 
-bend_home_42_24_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.6651188, 8.6429367, -0.5828056, 8.7302551, -0.7174217, 8.8571548, -0.7997350, 8.7698364);
-elevation(bend_home_42_24_left, 0.1000009);
 
-bend_home_42_25_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.2402138, 8.6271582, -0.3225380, 8.5398493, -0.2097650, 8.4335136, -0.1274407, 8.5208225);
+
+
+bend_home_42_25_right = building(0.1184312, "models/house-garden.glb", { use: residential, front_edge: 0 }, -0.1965598, 8.5859960, -0.2788840, 8.4986871, -0.2012765, 8.4255096, -0.1189523, 8.5128185);
 elevation(bend_home_42_25_right, 0.1000009);
 
-bend_home_42_25_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.5553598, 8.7593813, -0.4730355, 8.8466902, -0.5858086, 8.9530258, -0.6681329, 8.8657169);
+bend_home_42_25_left = building(0.1184313, "models/house-garden.glb", { use: residential, front_edge: 0 }, -0.5990139, 8.8005434, -0.5166896, 8.8878523, -0.5942972, 8.9610298, -0.6766215, 8.8737209);
 elevation(bend_home_42_25_left, 0.1000009);
 
-bend_home_42_26_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.1304543, 8.7436066, -0.2127664, 8.6562862, -0.0890636, 8.5396776, -0.0067515, 8.6269979);
-elevation(bend_home_42_26_right, 0.1000009);
 
-bend_home_42_26_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.4456188, 8.8757858, -0.3633068, 8.9631062, -0.4870096, 9.0797148, -0.5693216, 8.9923944);
-elevation(bend_home_42_26_left, 0.1000009);
 
-bend_home_42_27_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.0206978, 8.8600492, -0.1030012, 8.7727213, 0.0316294, 8.6458368, 0.1139327, 8.7331648);
+
+
+bend_home_42_27_right = building(0.1346976, "models/house-manor.glb", { use: residential, front_edge: 0 }, 0.0229661, 8.8188975, -0.0593373, 8.7315696, 0.0182875, 8.6584110, 0.1005909, 8.7457389);
 elevation(bend_home_42_27_right, 0.1000009);
 
-bend_home_42_27_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.3358756, 8.9921961, -0.2535723, 9.0795240, -0.3882028, 9.2064085, -0.4705061, 9.1190805);
+bend_home_42_27_left = building(0.1346975, "models/house-manor.glb", { use: residential, front_edge: 0 }, -0.3795395, 9.0333478, -0.2972362, 9.1206757, -0.3748609, 9.1938343, -0.4571642, 9.1065064);
 elevation(bend_home_42_27_left, 0.1000009);
 
-bend_home_42_28_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.0890430, 8.9764547, 0.0067285, 8.8891382, 0.1195134, 8.7828150, 0.2018279, 8.8701315);
-elevation(bend_home_42_28_right, 0.1000009);
 
-bend_home_42_28_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.2261177, 9.1086435, -0.1438032, 9.1959600, -0.2565881, 9.3022833, -0.3389026, 9.2149668);
-elevation(bend_home_42_28_left, 0.1000009);
 
-bend_home_42_29_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.1987944, 9.0928869, 0.1164831, 9.0055666, 0.2401870, 8.8889589, 0.3224983, 8.9762793);
+
+
+bend_home_42_29_right = building(0.1184306, "models/house-garden.glb", { use: residential, front_edge: 0 }, 0.2424546, 9.0517312, 0.1601433, 8.9644109, 0.2377614, 8.8912453, 0.3200727, 8.9785656);
 elevation(bend_home_42_29_right, 0.1000009);
 
-bend_home_42_29_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.1163712, 9.2250643, -0.0340599, 9.3123846, -0.1577637, 9.4289923, -0.2400750, 9.3416719);
+bend_home_42_29_left = building(0.1184306, "models/house-garden.glb", { use: residential, front_edge: 0 }, -0.1600314, 9.2662200, -0.0777201, 9.3535403, -0.1553381, 9.4267059, -0.2376494, 9.3393856);
 elevation(bend_home_42_29_left, 0.1000009);
 
-bend_home_42_30_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.3085427, 9.2093153, 0.2262312, 9.1219950, 0.3608498, 8.9950981, 0.4431613, 9.0824184);
-elevation(bend_home_42_30_right, 0.1000009);
 
-bend_home_42_30_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, -0.0066226, 9.3414927, 0.0756889, 9.4288130, -0.0589297, 9.5557098, -0.1412412, 9.4683895);
-elevation(bend_home_42_30_left, 0.1000009);
 
-bend_home_42_31_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.4182908, 9.3257437, 0.3359795, 9.2384233, 0.4487683, 9.1321049, 0.5310796, 9.2194252);
+
+
+bend_home_42_31_right = building(0.1346975, "models/house-manor.glb", { use: residential, front_edge: 0 }, 0.4619510, 9.2845881, 0.3796397, 9.1972677, 0.4572579, 9.1241022, 0.5395692, 9.2114226);
 elevation(bend_home_42_31_right, 0.1000009);
 
-bend_home_42_31_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.1031252, 9.4579210, 0.1854365, 9.5452414, 0.0726477, 9.6515598, -0.0096637, 9.5642395);
+bend_home_42_31_left = building(0.1346975, "models/house-manor.glb", { use: residential, front_edge: 0 }, 0.0594650, 9.4990766, 0.1417763, 9.5863970, 0.0641581, 9.6595625, -0.0181532, 9.5722421);
 elevation(bend_home_42_31_left, 0.1000009);
 
-bend_home_41_01_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.5523241, 9.4549837, 0.4627990, 9.3750753, 0.5660134, 9.2594385, 0.6555384, 9.3393469);
+bend_home_41_01_right = building(0.1184311, "models/house-garden.glb", { use: residential, front_edge: 0 }, 0.5922780, 9.4102212, 0.5027529, 9.3303128, 0.5737823, 9.2507347, 0.6633074, 9.3306431);
 elevation(bend_home_41_01_right, 0.1000009);
 
-bend_home_41_01_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.2497113, 9.6138086, 0.3392363, 9.6937170, 0.2360220, 9.8093538, 0.1464969, 9.7294455);
+bend_home_41_01_left = building(0.1184310, "models/house-garden.glb", { use: residential, front_edge: 0 }, 0.2097574, 9.6585712, 0.2992824, 9.7384796, 0.2282531, 9.8180577, 0.1387281, 9.7381493);
 elevation(bend_home_41_01_left, 0.1000009);
 
-bend_home_41_02_right = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.6673019, 9.5359459, 0.5686349, 9.4676456, 0.6653923, 9.3278675, 0.7640594, 9.3961678);
-elevation(bend_home_41_02_right, 0.1000009);
 
-bend_home_41_02_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.3865031, 9.7307587, 0.4851701, 9.7990589, 0.3884127, 9.9388371, 0.2897456, 9.8705368);
-elevation(bend_home_41_02_left, 0.1000009);
 
-bend_home_41_03_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.7917286, 9.6032124, 0.6857456, 9.5469303, 0.7725129, 9.3835402, 0.8784959, 9.4398222);
+
+
+bend_home_41_03_right = building(0.1346978, "models/house-manor.glb", { use: residential, front_edge: 0 }, 0.8198694, 9.5502209, 0.7138864, 9.4939388, 0.7639146, 9.3997315, 0.8698976, 9.4560136);
 elevation(bend_home_41_03_right, 0.1000009);
 
-bend_home_41_03_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.5356617, 9.8295517, 0.6416447, 9.8858337, 0.5548774, 10.0492239, 0.4488944, 9.9929419);
+bend_home_41_03_left = building(0.1346978, "models/house-manor.glb", { use: residential, front_edge: 0 }, 0.5075209, 9.8825432, 0.6135039, 9.9388252, 0.5634757, 10.0330325, 0.4574927, 9.9767505);
 elevation(bend_home_41_03_left, 0.1000009);
 
-bend_home_41_04_right = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.9232036, 9.6560926, 0.8115204, 9.6121969, 0.8682191, 9.4679394, 0.9799023, 9.5118351);
-elevation(bend_home_41_04_right, 0.1000009);
 
-bend_home_41_04_left = building(0.0630, { material: red_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.6944650, 9.9100199, 0.8061482, 9.9539156, 0.7494496, 10.0981731, 0.6377663, 10.0542774);
-elevation(bend_home_41_04_left, 0.1000009);
 
-bend_home_41_05_left = building(0.0630, { material: brown_brick, floor_height: 0.0315, use: residential, family: legacy, front_edge: 0 }, 0.8617250, 9.9720802, 0.9777412, 10.0027447, 0.9343011, 10.1671009, 0.8182850, 10.1364365);
+
+
+bend_home_41_05_left = building(0.1184310, "models/house-garden.glb", { use: residential, front_edge: 0 }, 0.8463932, 10.0300883, 0.9624094, 10.0607528, 0.9351528, 10.1638785, 0.8191366, 10.1332140);
 elevation(bend_home_41_05_left, 0.1000009);
 
 # Eastern city ring: a 300 m radius turn from eastbound to northbound.
@@ -3979,3 +3919,593 @@ elevation(placed_building_19, 0.1010);
 
 
 
+
+# Spacious house lots: private driveways and parked residents, with front/side and rear garden trees.
+curve_home_4_01_left_drive = concrete(1.1126986, 1.5691104, 1.0774938, 1.5766350, 1.0166420, 1.2919317, 1.0518468, 1.2844072);
+elevation(curve_home_4_01_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", 1.0701256, 1.4560443, 77.93527);
+
+curve_home_4_01_left_yard_tree_1 = prop(tree_locust, 1.2565038, 1.3855308, { heading: 0, elevation: 0.1000009 });
+
+curve_home_4_01_left_yard_tree_2 = prop(tree_linden_2, 1.2057524, 1.2054955, { heading: 113, elevation: 0.1000009 });
+
+curve_home_4_03_left_drive = concrete(0.8050079, 1.6892351, 0.7724424, 1.7045807, 0.6483769, 1.4412975, 0.6809423, 1.4259518);
+elevation(curve_home_4_03_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", 0.7378356, 1.5889137, 64.76903);
+
+curve_home_4_03_left_yard_tree_1 = prop(tree_linden_2, 0.9032531, 1.4778010, { heading: 47, elevation: 0.1000009 });
+
+curve_home_4_03_left_yard_tree_2 = prop(tree, 0.8128279, 1.3140581, { heading: 160, elevation: 0.1000009 });
+
+curve_home_4_02_right_drive = concrete(1.1130511, 1.6692155, 1.1471495, 1.6576702, 1.2387036, 1.9280686, 1.2046051, 1.9396139);
+elevation(curve_home_4_02_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", 1.1666000, 1.7712422, -108.70556);
+
+curve_home_4_02_right_yard_tree_1 = prop(tree, 0.9896268, 1.8628363, { heading: 94, elevation: 0.1000009 });
+
+curve_home_4_02_right_yard_tree_2 = prop(tree_locust, 1.0608579, 2.0357946, { heading: 207, elevation: 0.1000009 });
+
+curve_home_4_04_right_drive = concrete(0.8286685, 1.7865071, 0.8592154, 1.7674575, 1.0101814, 2.0095399, 0.9796345, 2.0285895);
+elevation(curve_home_4_04_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", 0.9040700, 1.8734010, -121.94825);
+
+curve_home_4_04_right_yard_tree_1 = prop(tree_locust, 0.7527850, 2.0031001, { heading: 141, elevation: 0.1000009 });
+
+curve_home_4_04_right_yard_tree_2 = prop(tree_linden_2, 0.8617426, 2.1551419, { heading: 254, elevation: 0.1000009 });
+
+curve_home_5_01_right_drive = concrete(0.5592240, 1.9844382, 0.5854113, 1.9597355, 0.7838269, 2.1700764, 0.7576396, 2.1947791);
+elevation(curve_home_5_01_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", 0.6529380, 2.0575527, -133.32890);
+
+curve_home_5_01_right_yard_tree_1 = prop(tree_linden_2, 0.5302209, 2.2145544, { heading: 188, elevation: 0.1000009 });
+
+curve_home_5_01_right_yard_tree_2 = prop(tree, 0.6670380, 2.3421066, { heading: 301, elevation: 0.1000009 });
+
+curve_home_5_03_right_drive = concrete(0.3264116, 2.2039957, 0.3526056, 2.1793001, 0.5509800, 2.3897108, 0.5247860, 2.4144064);
+elevation(curve_home_5_03_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", 0.4201214, 2.2771519, -133.31347);
+
+curve_home_5_03_right_yard_tree_1 = prop(tree, 0.2973616, 2.4341201, { heading: 235, elevation: 0.1000009 });
+
+curve_home_5_03_right_yard_tree_2 = prop(tree_locust, 0.4341444, 2.5617091, { heading: 348, elevation: 0.1000009 });
+
+curve_home_5_05_right_drive = concrete(0.0936054, 2.4235502, 0.1198027, 2.3988581, 0.3181569, 2.6093033, 0.2919597, 2.6339955);
+elevation(curve_home_5_05_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", 0.1873133, 2.4967270, -133.30587);
+
+curve_home_5_05_right_yard_tree_1 = prop(tree_locust, 0.0645328, 2.6536791, { heading: 282, elevation: 0.1000009 });
+
+curve_home_5_05_right_yard_tree_2 = prop(tree_linden_2, 0.2012986, 2.7812863, { heading: 35, elevation: 0.1000009 });
+
+curve_home_5_01_left_drive = concrete(0.3965482, 2.0072679, 0.3703608, 2.0319706, 0.1719455, 1.8216303, 0.1981328, 1.7969276);
+elevation(curve_home_5_01_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", 0.3028344, 1.9341538, 46.67107);
+
+curve_home_5_01_left_yard_tree_1 = prop(tree_linden_2, 0.4255517, 1.7771523, { heading: 329, elevation: 0.1000009 });
+
+curve_home_5_01_left_yard_tree_2 = prop(tree, 0.2887346, 1.6496002, { heading: 82, elevation: 0.1000009 });
+
+curve_home_5_03_left_drive = concrete(0.1637610, 2.2268146, 0.1375670, 2.2515103, -0.0608075, 2.0410992, -0.0346135, 2.0164036);
+elevation(curve_home_5_03_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", 0.0700510, 2.1536582, 46.68657);
+
+curve_home_5_03_left_yard_tree_1 = prop(tree, 0.1928108, 1.9966898, { heading: 16, elevation: 0.1000009 });
+
+curve_home_5_03_left_yard_tree_2 = prop(tree_locust, 0.0560281, 1.8691008, { heading: 129, elevation: 0.1000009 });
+
+curve_home_5_05_left_drive = concrete(-0.0690326, 2.4463640, -0.0952299, 2.4710562, -0.2935843, 2.2606108, -0.2673870, 2.2359186);
+elevation(curve_home_5_05_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", -0.1627406, 2.3731871, 46.69413);
+
+curve_home_5_05_left_yard_tree_1 = prop(tree_locust, -0.0399602, 2.2162349, { heading: 63, elevation: 0.1000009 });
+
+curve_home_5_05_left_yard_tree_2 = prop(tree_linden_2, -0.1767261, 2.0886277, { heading: 176, elevation: 0.1000009 });
+
+curve_home_6_01_right_drive = concrete(-0.1682477, 2.6705087, -0.1420574, 2.6458092, 0.0563391, 2.8561802, 0.0301488, 2.8808797);
+elevation(curve_home_6_01_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -0.0745362, 2.7436410, -133.32205);
+
+curve_home_6_01_right_yard_tree_1 = prop(tree_linden_2, -0.1972726, 2.9006275, { heading: 110, elevation: 0.1000009 });
+
+curve_home_6_01_right_yard_tree_2 = prop(tree, -0.0604708, 3.0281960, { heading: 223, elevation: 0.1000009 });
+
+curve_home_6_03_right_drive = concrete(-0.4009087, 2.8899267, -0.3747197, 2.8652258, -0.1763152, 3.0755831, -0.2025042, 3.1002840);
+elevation(curve_home_6_03_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -0.3071965, 2.9630507, -133.32505);
+
+curve_home_6_03_right_yard_tree_1 = prop(tree, -0.4299245, 3.1200439, { heading: 157, elevation: 0.1000009 });
+
+curve_home_6_03_right_yard_tree_2 = prop(tree_locust, -0.2931160, 3.2476051, { heading: 270, elevation: 0.1000009 });
+
+curve_home_6_05_right_drive = concrete(-0.6335711, 3.1093438, -0.6073812, 3.0846439, -0.4089822, 3.2950107, -0.4351722, 3.3197106);
+elevation(curve_home_6_05_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", -0.5398594, 3.1824736, -133.32296);
+
+curve_home_6_05_right_yard_tree_1 = prop(tree_locust, -0.6625932, 3.3394622, { heading: 204, elevation: 0.1000009 });
+
+curve_home_6_05_right_yard_tree_2 = prop(tree_linden_2, -0.5257894, 3.4670284, { heading: 317, elevation: 0.1000009 });
+
+curve_home_6_07_right_drive = concrete(-0.8677269, 3.3301666, -0.8415338, 3.3054700, -0.6431544, 3.5158706, -0.6693475, 3.5405672);
+elevation(curve_home_6_07_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -0.7740171, 3.4033165, -133.31556);
+
+curve_home_6_07_right_yard_tree_1 = prop(tree_linden_2, -0.8967711, 3.5602893, { heading: 251, elevation: 0.1000009 });
+
+curve_home_6_07_right_yard_tree_2 = prop(tree, -0.7599836, 3.6878734, { heading: 4, elevation: 0.1000009 });
+
+curve_home_6_09_right_drive = concrete(-1.1003776, 3.5495762, -1.0741875, 3.5248765, -0.8757898, 3.7352455, -0.9019799, 3.7599453);
+elevation(curve_home_6_09_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -1.0066660, 3.6227073, -133.32247);
+
+curve_home_6_09_right_yard_tree_1 = prop(tree, -1.1294009, 3.7796951, { heading: 298, elevation: 0.1000009 });
+
+curve_home_6_09_right_yard_tree_2 = prop(tree_locust, -0.9925982, 3.9072625, { heading: 51, elevation: 0.1000009 });
+
+curve_home_6_11_right_drive = concrete(-1.3330341, 3.7689882, -1.3068434, 3.7442891, -1.1084490, 3.9546643, -1.1346397, 3.9793633);
+elevation(curve_home_6_11_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", -1.2393226, 3.8421230, -133.32118);
+
+curve_home_6_11_right_yard_tree_1 = prop(tree_locust, -1.3620617, 3.9991074, { heading: 345, elevation: 0.1000009 });
+
+curve_home_6_11_right_yard_tree_2 = prop(tree_linden_2, -1.2252618, 4.1266779, { heading: 98, elevation: 0.1000009 });
+
+curve_home_6_13_right_drive = concrete(-1.5656855, 3.9883966, -1.5394964, 3.9636958, -1.3410930, 4.1740548, -1.3672821, 4.1987556);
+elevation(curve_home_6_13_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -1.4719735, 4.0615216, -133.32468);
+
+curve_home_6_13_right_yard_tree_1 = prop(tree_linden_2, -1.5947025, 4.2185140, { heading: 32, elevation: 0.1000009 });
+
+curve_home_6_13_right_yard_tree_2 = prop(tree, -1.4578948, 4.3460762, { heading: 145, elevation: 0.1000009 });
+
+curve_home_6_15_right_drive = concrete(-1.7983439, 4.2078081, -1.7721527, 4.1831095, -1.5737618, 4.3934905, -1.5999530, 4.4181891);
+elevation(curve_home_6_15_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -1.7046330, 4.2809462, -133.31989);
+
+curve_home_6_15_right_yard_tree_1 = prop(tree, -1.8273749, 4.4379285, { heading: 79, elevation: 0.1000009 });
+
+curve_home_6_15_right_yard_tree_2 = prop(tree_locust, -1.6905778, 4.5655022, { heading: 192, elevation: 0.1000009 });
+
+curve_home_6_17_right_drive = concrete(-2.0309952, 4.4272172, -2.0048061, 4.4025164, -1.8064024, 4.6128751, -1.8325914, 4.6375760);
+elevation(curve_home_6_17_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", -1.9372832, 4.5003419, -133.32476);
+
+curve_home_6_17_right_yard_tree_1 = prop(tree_locust, -2.0600116, 4.6573349, { heading: 126, elevation: 0.1000009 });
+
+curve_home_6_17_right_yard_tree_2 = prop(tree_linden_2, -1.9232036, 4.7848971, { heading: 239, elevation: 0.1000009 });
+
+curve_home_6_19_right_drive = concrete(-2.2636493, 4.6466287, -2.2374612, 4.6219268, -2.0390512, 4.8322744, -2.0652393, 4.8569763);
+elevation(curve_home_6_19_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -2.1699365, 4.7197471, -133.32718);
+
+curve_home_6_19_right_yard_tree_1 = prop(tree_linden_2, -2.2926589, 4.8767445, { heading: 173, elevation: 0.1000009 });
+
+curve_home_6_19_right_yard_tree_2 = prop(tree, -2.1558458, 5.0043005, { heading: 286, elevation: 0.1000009 });
+
+curve_home_6_21_right_drive = concrete(-2.4963173, 4.8660459, -2.4701240, 4.8413496, -2.2717456, 5.0517522, -2.2979389, 5.0764485);
+elevation(curve_home_6_21_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -2.4026073, 4.9391973, -133.31513);
+
+curve_home_6_21_right_yard_tree_1 = prop(tree, -2.5253625, 5.0961691, { heading: 220, elevation: 0.1000009 });
+
+curve_home_6_21_right_yard_tree_2 = prop(tree_locust, -2.3885762, 5.2237539, { heading: 333, elevation: 0.1000009 });
+
+curve_home_6_23_right_drive = concrete(-2.7289752, 5.0854611, -2.7027830, 5.0607636, -2.5043979, 5.2711540, -2.5305902, 5.2958515);
+elevation(curve_home_6_23_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", -2.6352649, 5.1586049, -133.31776);
+
+curve_home_6_23_right_yard_tree_1 = prop(tree_locust, -2.7580133, 5.3155820, { heading: 267, elevation: 0.1000009 });
+
+curve_home_6_23_right_yard_tree_2 = prop(tree_linden_2, -2.6212210, 5.4431607, { heading: 20, elevation: 0.1000009 });
+
+curve_home_6_01_left_drive = concrete(-0.3309138, 2.6933326, -0.3571041, 2.7180321, -0.5555006, 2.5076611, -0.5293103, 2.4829615);
+elevation(curve_home_6_01_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -0.4246254, 2.6202002, 46.67795);
+
+curve_home_6_01_left_yard_tree_1 = prop(tree_linden_2, -0.3018891, 2.4632135, { heading: 314, elevation: 0.1000009 });
+
+curve_home_6_01_left_yard_tree_2 = prop(tree, -0.4386908, 2.3356452, { heading: 67, elevation: 0.1000009 });
+
+curve_home_6_03_left_drive = concrete(-0.5635797, 2.9127525, -0.5897687, 2.9374535, -0.7881733, 2.7270960, -0.7619843, 2.7023951);
+elevation(curve_home_6_03_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -0.6572920, 2.8396284, 46.67495);
+
+curve_home_6_03_left_yard_tree_1 = prop(tree, -0.5345641, 2.6826351, { heading: 1, elevation: 0.1000009 });
+
+curve_home_6_03_left_yard_tree_2 = prop(tree_locust, -0.6713726, 2.5550738, { heading: 114, elevation: 0.1000009 });
+
+curve_home_6_05_left_drive = concrete(-0.7962384, 3.1321677, -0.8224283, 3.1568677, -1.0208274, 2.9465007, -0.9946374, 2.9218008);
+elevation(curve_home_6_05_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", -0.8899502, 3.0590378, 46.67704);
+
+curve_home_6_05_left_yard_tree_1 = prop(tree_locust, -0.7672164, 2.9020492, { heading: 48, elevation: 0.1000009 });
+
+curve_home_6_05_left_yard_tree_2 = prop(tree_linden_2, -0.9040202, 2.7744830, { heading: 161, elevation: 0.1000009 });
+
+curve_home_6_07_left_drive = concrete(-1.0303819, 3.3529859, -1.0565750, 3.3776825, -1.2549545, 3.1672815, -1.2287614, 3.1425849);
+elevation(curve_home_6_07_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -1.1240919, 3.2798357, 46.68448);
+
+curve_home_6_07_left_yard_tree_1 = prop(tree_linden_2, -1.0013379, 3.1228628, { heading: 95, elevation: 0.1000009 });
+
+curve_home_6_07_left_yard_tree_2 = prop(tree, -1.1381253, 2.9952787, { heading: 208, elevation: 0.1000009 });
+
+curve_home_6_09_left_drive = concrete(-1.2630442, 3.5724003, -1.2892343, 3.5971001, -1.4876321, 3.3867309, -1.4614420, 3.3620311);
+elevation(curve_home_6_09_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -1.3567559, 3.4992691, 46.67753);
+
+curve_home_6_09_left_yard_tree_1 = prop(tree, -1.2340210, 3.3422813, { heading: 142, elevation: 0.1000009 });
+
+curve_home_6_09_left_yard_tree_2 = prop(tree_locust, -1.3708237, 3.2147139, { heading: 255, elevation: 0.1000009 });
+
+curve_home_6_11_left_drive = concrete(-1.4956984, 3.7918104, -1.5218891, 3.8165095, -1.7202831, 3.6061344, -1.6940924, 3.5814354);
+elevation(curve_home_6_11_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", -1.5894096, 3.7186757, 46.67886);
+
+curve_home_6_11_left_yard_tree_1 = prop(tree_locust, -1.4666706, 3.5616912, { heading: 189, elevation: 0.1000009 });
+
+curve_home_6_11_left_yard_tree_2 = prop(tree_linden_2, -1.6034703, 3.4341207, { heading: 302, elevation: 0.1000009 });
+
+curve_home_6_13_left_drive = concrete(-1.7283556, 4.0112217, -1.7545447, 4.0359224, -1.9529485, 3.8255633, -1.9267594, 3.8008625);
+elevation(curve_home_6_13_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -1.8220678, 3.9380965, 46.67529);
+
+curve_home_6_13_left_yard_tree_1 = prop(tree_linden_2, -1.6993390, 3.7811040, { heading: 236, elevation: 0.1000009 });
+
+curve_home_6_13_left_yard_tree_2 = prop(tree, -1.8361468, 3.6535419, { heading: 349, elevation: 0.1000009 });
+
+curve_home_6_15_left_drive = concrete(-1.9610062, 4.2306303, -1.9871974, 4.2553289, -2.1855887, 4.0449481, -2.1593975, 4.0202495);
+elevation(curve_home_6_15_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -2.0547173, 4.1574922, 46.68003);
+
+curve_home_6_15_left_yard_tree_1 = prop(tree, -1.9319754, 4.0005099, { heading: 283, elevation: 0.1000009 });
+
+curve_home_6_15_left_yard_tree_2 = prop(tree_locust, -2.0687727, 3.8729364, { heading: 36, elevation: 0.1000009 });
+
+curve_home_6_17_left_drive = concrete(-2.1936655, 4.4500430, -2.2198545, 4.4747439, -2.4182585, 4.2643852, -2.3920694, 4.2396843);
+elevation(curve_home_6_17_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", -2.2873776, 4.3769183, 46.67521);
+
+curve_home_6_17_left_yard_tree_1 = prop(tree_locust, -2.1646493, 4.2199253, { heading: 330, elevation: 0.1000009 });
+
+curve_home_6_17_left_yard_tree_2 = prop(tree_linden_2, -2.3014574, 4.0923632, { heading: 83, elevation: 0.1000009 });
+
+curve_home_6_19_left_drive = concrete(-2.4263237, 4.6694552, -2.4525119, 4.6941570, -2.6509216, 4.4838094, -2.6247335, 4.4591076);
+elevation(curve_home_6_19_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -2.5200365, 4.5963368, 46.67286);
+
+curve_home_6_19_left_yard_tree_1 = prop(tree_linden_2, -2.3973139, 4.4393395, { heading: 17, elevation: 0.1000009 });
+
+curve_home_6_19_left_yard_tree_2 = prop(tree, -2.5341269, 4.3117834, { heading: 130, elevation: 0.1000009 });
+
+curve_home_6_21_left_drive = concrete(-2.6589718, 4.8888651, -2.6851651, 4.9135615, -2.8835431, 4.7031592, -2.8573498, 4.6784629);
+elevation(curve_home_6_21_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -2.7526814, 4.8157141, 46.68487);
+
+curve_home_6_21_left_yard_tree_1 = prop(tree, -2.6299262, 4.6587423, { heading: 64, elevation: 0.1000009 });
+
+curve_home_6_21_left_yard_tree_2 = prop(tree_locust, -2.7667125, 4.5311575, { heading: 177, elevation: 0.1000009 });
+
+curve_home_6_23_left_drive = concrete(-2.8916337, 5.1082811, -2.9178260, 5.1329786, -3.1162113, 4.9225876, -3.0900191, 4.8978901);
+elevation(curve_home_6_23_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", -2.9853444, 5.0351368, 46.68228);
+
+curve_home_6_23_left_yard_tree_1 = prop(tree_locust, -2.8625959, 4.8781598, { heading: 111, elevation: 0.1000009 });
+
+curve_home_6_23_left_yard_tree_2 = prop(tree_linden_2, -2.9993881, 4.7505810, { heading: 224, elevation: 0.1000009 });
+
+bend_home_43_01_right_drive = concrete(-3.1175287, 5.4613095, -3.1109763, 5.4259108, -2.8546244, 5.4733611, -2.8611768, 5.5087598);
+elevation(bend_home_43_01_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -3.0266996, 5.4598160, -169.51333);
+
+bend_home_43_01_right_yard_tree_1 = prop(tree_linden_2, -3.0330566, 5.6589857, { heading: 158, elevation: 0.1000009 });
+
+bend_home_43_01_right_yard_tree_2 = prop(tree, -2.7845196, 5.4792185, { heading: 271, elevation: 0.1000009 });
+
+bend_home_43_01_left_drive = concrete(-3.2592386, 5.5713548, -3.2657910, 5.6067534, -3.5542048, 5.5533685, -3.5476524, 5.5179698);
+elevation(bend_home_43_01_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -3.3821296, 5.5669136, 10.48667);
+
+bend_home_43_01_left_yard_tree_1 = prop(tree, -3.3757726, 5.3677439, { heading: 205, elevation: 0.1000009 });
+
+bend_home_43_01_left_yard_tree_2 = prop(tree_locust, -3.5615052, 5.3455689, { heading: 318, elevation: 0.1000009 });
+
+bend_home_42_01_right_drive = concrete(-2.9266075, 5.9414604, -2.9512969, 5.9152605, -2.7408415, 5.7169381, -2.7161521, 5.7431380);
+elevation(bend_home_42_01_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", -2.8534312, 5.8477699, 136.70010);
+
+bend_home_42_01_right_yard_tree_1 = prop(tree_locust, -2.8112868, 5.5401148, { heading: 252, elevation: 0.1000009 });
+
+bend_home_42_01_right_yard_tree_2 = prop(tree_linden_2, -2.6854598, 5.7100929, { heading: 5, elevation: 0.1000009 });
+
+bend_home_42_03_right_drive = concrete(-2.8237010, 6.0505935, -2.8483911, 6.0243943, -2.6379427, 5.8260655, -2.6132526, 5.8522646);
+elevation(bend_home_42_03_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -2.7505285, 5.9569012, 136.69823);
+
+bend_home_42_03_right_yard_tree_1 = prop(tree_linden_2, -2.5935861, 6.0796938, { heading: 299, elevation: 0.1000009 });
+
+bend_home_42_03_right_yard_tree_2 = prop(tree, -2.4659690, 5.9429369, { heading: 52, elevation: 0.1000009 });
+
+bend_home_42_05_right_drive = concrete(-2.6042066, 6.2834418, -2.6289004, 6.2572460, -2.4184854, 6.0588958, -2.3937917, 6.0850916);
+elevation(bend_home_42_05_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -2.5310537, 6.1897465, 136.69060);
+
+bend_home_42_05_right_yard_tree_1 = prop(tree, -2.3740942, 6.3125175, { heading: 346, elevation: 0.1000009 });
+
+bend_home_42_05_right_yard_tree_2 = prop(tree_locust, -2.2464954, 6.1757437, { heading: 99, elevation: 0.1000009 });
+
+bend_home_42_07_right_drive = concrete(-2.3847049, 6.5162980, -2.4093959, 6.4900997, -2.1989545, 6.2917643, -2.1742635, 6.3179627);
+elevation(bend_home_42_07_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", -2.3115359, 6.4226037, 136.69634);
+
+bend_home_42_07_right_yard_tree_1 = prop(tree_locust, -2.1545892, 6.5453909, { heading: 33, elevation: 0.1000009 });
+
+bend_home_42_07_right_yard_tree_2 = prop(tree_linden_2, -2.0269767, 6.4086300, { heading: 146, elevation: 0.1000009 });
+
+bend_home_42_09_right_drive = concrete(-2.1652083, 6.7491396, -2.1899047, 6.7229463, -1.9795147, 6.5245807, -1.9548183, 6.5507740);
+elevation(bend_home_42_09_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -2.0920699, 6.6554421, 136.68498);
+
+bend_home_42_09_right_yard_tree_1 = prop(tree_linden_2, -1.9350979, 6.7781973, { heading: 80, elevation: 0.1000009 });
+
+bend_home_42_09_right_yard_tree_2 = prop(tree, -1.8075128, 6.6414113, { heading: 193, elevation: 0.1000009 });
+
+bend_home_42_11_right_drive = concrete(-1.9457049, 6.9819913, -1.9704004, 6.9557971, -1.7600019, 6.7574364, -1.7353064, 6.7836305);
+elevation(bend_home_42_11_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -1.8725613, 6.8882941, 136.68684);
+
+bend_home_42_11_right_yard_tree_1 = prop(tree, -1.7155936, 7.0110547, { heading: 127, elevation: 0.1000009 });
+
+bend_home_42_11_right_yard_tree_2 = prop(tree_locust, -1.5880041, 6.8742729, { heading: 240, elevation: 0.1000009 });
+
+bend_home_42_13_right_drive = concrete(-1.7262019, 7.2148399, -1.7508975, 7.1886459, -1.5404992, 6.9902842, -1.5158037, 7.0164783);
+elevation(bend_home_42_13_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", -1.6530584, 7.1211425, 136.68669);
+
+bend_home_42_13_right_yard_tree_1 = prop(tree_locust, -1.4960904, 7.2439026, { heading: 174, elevation: 0.1000009 });
+
+bend_home_42_13_right_yard_tree_2 = prop(tree_linden_2, -1.3685011, 7.1071202, { heading: 287, elevation: 0.1000009 });
+
+bend_home_42_15_right_drive = concrete(-1.5066996, 7.4476832, -1.5313976, 7.4214915, -1.3210247, 7.2231156, -1.2963267, 7.2493073);
+elevation(bend_home_42_15_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -1.4335715, 7.3539848, 136.68117);
+
+bend_home_42_15_right_yard_tree_1 = prop(tree_linden_2, -1.2765920, 7.4767301, { heading: 221, elevation: 0.1000009 });
+
+bend_home_42_15_right_yard_tree_2 = prop(tree, -1.1490157, 7.3399354, { heading: 334, elevation: 0.1000009 });
+
+bend_home_42_17_right_drive = concrete(-1.2871936, 7.6805389, -1.3118878, 7.6543436, -1.1014759, 7.4559903, -1.0767817, 7.4821856);
+elevation(bend_home_42_17_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -1.2140418, 7.5868423, 136.68973);
+
+bend_home_42_17_right_yard_tree_1 = prop(tree, -1.0570799, 7.7096103, { heading: 268, elevation: 0.1000009 });
+
+bend_home_42_17_right_yard_tree_2 = prop(tree_locust, -0.9294835, 7.5728350, { heading: 21, elevation: 0.1000009 });
+
+bend_home_42_19_right_drive = concrete(-1.0676908, 7.9133832, -1.0923867, 7.8871894, -0.8819915, 7.6888255, -0.8572956, 7.7150192);
+elevation(bend_home_42_19_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", -0.9945490, 7.8196853, 136.68592);
+
+bend_home_42_19_right_yard_tree_1 = prop(tree_locust, -0.8375796, 7.9424435, { heading: 315, elevation: 0.1000009 });
+
+bend_home_42_19_right_yard_tree_2 = prop(tree_linden_2, -0.7099920, 7.8056594, { heading: 68, elevation: 0.1000009 });
+
+bend_home_42_21_right_drive = concrete(-0.8481820, 8.1462424, -0.8728723, 8.1200435, -0.6624235, 7.9217133, -0.6377331, 7.9479122);
+elevation(bend_home_42_21_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -0.7750086, 8.0525490, 136.69809);
+
+bend_home_42_21_right_yard_tree_1 = prop(tree_linden_2, -0.6180651, 8.1753404, { heading: 2, elevation: 0.1000009 });
+
+bend_home_42_21_right_yard_tree_2 = prop(tree, -0.4904486, 8.0385835, { heading: 115, elevation: 0.1000009 });
+
+bend_home_42_23_right_drive = concrete(-0.6286831, 8.3790854, -0.6533770, 8.3528898, -0.4429617, 8.1545393, -0.4182678, 8.1807349);
+elevation(bend_home_42_23_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -0.5555293, 8.2853894, 136.69061);
+
+bend_home_42_23_right_yard_tree_1 = prop(tree, -0.3985691, 8.4081597, { heading: 49, elevation: 0.1000009 });
+
+bend_home_42_23_right_yard_tree_2 = prop(tree_locust, -0.2709709, 8.2713865, { heading: 162, elevation: 0.1000009 });
+
+bend_home_42_25_right_drive = concrete(-0.4091834, 8.6119280, -0.4338805, 8.5857354, -0.2235000, 8.3873639, -0.1988028, 8.4135564);
+elevation(bend_home_42_25_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", -0.3360508, 8.5182300, 136.68284);
+
+bend_home_42_25_right_yard_tree_1 = prop(tree_locust, -0.1790754, 8.6409805, { heading: 96, elevation: 0.1000009 });
+
+bend_home_42_25_right_yard_tree_2 = prop(tree_linden_2, -0.0514949, 8.5041892, { heading: 209, elevation: 0.1000009 });
+
+bend_home_42_27_right_drive = concrete(-0.1896778, 8.8447920, -0.2143688, 8.8185936, -0.0039272, 8.6202599, 0.0207638, 8.6464583);
+elevation(bend_home_42_27_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -0.1165091, 8.7510987, 136.69660);
+
+bend_home_42_27_right_yard_tree_1 = prop(tree_linden_2, 0.0404376, 8.8738861, { heading: 143, elevation: 0.1000009 });
+
+bend_home_42_27_right_yard_tree_2 = prop(tree, 0.1680506, 8.7371258, { heading: 256, elevation: 0.1000009 });
+
+bend_home_42_29_right_drive = concrete(0.0298180, 9.0776404, 0.0051246, 9.0514443, 0.2155432, 8.8530963, 0.2402366, 8.8792924);
+elevation(bend_home_42_29_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", 0.1029732, 8.9839452, 136.69140);
+
+bend_home_42_29_right_yard_tree_1 = prop(tree, 0.2599311, 9.1067183, { heading: 190, elevation: 0.1000009 });
+
+bend_home_42_29_right_yard_tree_2 = prop(tree_locust, 0.3875317, 8.9699464, { heading: 303, elevation: 0.1000009 });
+
+bend_home_42_31_right_drive = concrete(0.2493153, 9.3104961, 0.2246219, 9.2843000, 0.4350398, 9.0859531, 0.4597332, 9.1121492);
+elevation(bend_home_42_31_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", 0.3224697, 9.2168019, 136.69147);
+
+bend_home_42_31_right_yard_tree_1 = prop(tree_locust, 0.4811752, 9.0328446, { heading: 237, elevation: 0.1000009 });
+
+bend_home_42_31_right_yard_tree_2 = prop(tree_linden_2, 0.6070282, 9.2028034, { heading: 350, elevation: 0.1000009 });
+
+bend_home_42_01_left_drive = concrete(-3.0204187, 5.9803974, -2.9957293, 6.0065973, -3.2061864, 6.2049211, -3.2308758, 6.1787212);
+elevation(bend_home_42_01_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -3.0935967, 6.0740894, -43.29986);
+
+bend_home_42_01_left_yard_tree_1 = prop(tree_linden_2, -3.2505358, 5.9512924, { heading: 284, elevation: 0.1000009 });
+
+bend_home_42_01_left_yard_tree_2 = prop(tree, -3.3781570, 6.0880446, { heading: 37, elevation: 0.1000009 });
+
+bend_home_42_03_left_drive = concrete(-2.8009221, 6.2132536, -2.7762319, 6.2394528, -2.9866806, 6.4377818, -3.0113707, 6.4115827);
+elevation(bend_home_42_03_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -2.8740948, 6.3069461, -43.30177);
+
+bend_home_42_03_left_yard_tree_1 = prop(tree, -3.0310372, 6.1841535, { heading: 331, elevation: 0.1000009 });
+
+bend_home_42_03_left_yard_tree_2 = prop(tree_locust, -3.1586543, 6.3209104, { heading: 84, elevation: 0.1000009 });
+
+bend_home_42_05_left_drive = concrete(-2.5814198, 6.4461127, -2.5567260, 6.4723084, -2.7671407, 6.6706584, -2.7918344, 6.6444626);
+elevation(bend_home_42_05_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", -2.6545724, 6.5398077, -43.30940);
+
+bend_home_42_05_left_yard_tree_1 = prop(tree_locust, -2.8115319, 6.4170367, { heading: 18, elevation: 0.1000009 });
+
+bend_home_42_05_left_yard_tree_2 = prop(tree_linden_2, -2.9391307, 6.5538105, { heading: 131, elevation: 0.1000009 });
+
+bend_home_42_07_left_drive = concrete(-2.3619219, 6.6789599, -2.3372308, 6.7051583, -2.5476714, 6.9034929, -2.5723624, 6.8772945);
+elevation(bend_home_42_07_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -2.4350900, 6.7726535, -43.30366);
+
+bend_home_42_07_left_yard_tree_1 = prop(tree_linden_2, -2.5920367, 6.6498663, { heading: 65, elevation: 0.1000009 });
+
+bend_home_42_07_left_yard_tree_2 = prop(tree, -2.7196492, 6.7866272, { heading: 178, elevation: 0.1000009 });
+
+bend_home_42_09_left_drive = concrete(-2.1424159, 6.9118192, -2.1177195, 6.9380125, -2.3281085, 7.1363778, -2.3528049, 7.1101845);
+elevation(bend_home_42_09_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -2.2155535, 7.0055162, -43.31510);
+
+bend_home_42_09_left_yard_tree_1 = prop(tree, -2.3725255, 6.8827610, { heading: 112, elevation: 0.1000009 });
+
+bend_home_42_09_left_yard_tree_2 = prop(tree_locust, -2.5001104, 7.0195472, { heading: 225, elevation: 0.1000009 });
+
+bend_home_42_11_left_drive = concrete(-1.9229138, 7.1446667, -1.8982184, 7.1708609, -2.1086162, 7.3692213, -2.1333116, 7.3430271);
+elevation(bend_home_42_11_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", -1.9960569, 7.2383634, -43.31320);
+
+bend_home_42_11_left_yard_tree_1 = prop(tree_locust, -2.1530243, 7.1156027, { heading: 159, elevation: 0.1000009 });
+
+bend_home_42_11_left_yard_tree_2 = prop(tree_linden_2, -2.2806138, 7.2523847, { heading: 272, elevation: 0.1000009 });
+
+bend_home_42_13_left_drive = concrete(-1.7034100, 7.3775155, -1.6787144, 7.4037095, -1.8891121, 7.6020706, -1.9138076, 7.5758765);
+elevation(bend_home_42_13_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -1.7765529, 7.4712124, -43.31331);
+
+bend_home_42_13_left_yard_tree_1 = prop(tree_linden_2, -1.9335208, 7.3484522, { heading: 206, elevation: 0.1000009 });
+
+bend_home_42_13_left_yard_tree_2 = prop(tree, -2.0611101, 7.4852345, { heading: 319, elevation: 0.1000009 });
+
+bend_home_42_15_left_drive = concrete(-1.4839043, 7.6103688, -1.4592063, 7.6365606, -1.6695792, 7.8349365, -1.6942772, 7.8087448);
+elevation(bend_home_42_15_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -1.5570324, 7.7040673, -43.31883);
+
+bend_home_42_15_left_yard_tree_1 = prop(tree, -1.7140119, 7.5813220, { heading: 253, elevation: 0.1000009 });
+
+bend_home_42_15_left_yard_tree_2 = prop(tree_locust, -1.8415882, 7.7181167, { heading: 6, elevation: 0.1000009 });
+
+bend_home_42_17_left_drive = concrete(-1.2644025, 7.8432092, -1.2397082, 7.8694045, -1.4501200, 8.0677583, -1.4748143, 8.0415630);
+elevation(bend_home_42_17_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", -1.3375543, 7.9369061, -43.31035);
+
+bend_home_42_17_left_yard_tree_1 = prop(tree_locust, -1.4945162, 7.8141381, { heading: 300, elevation: 0.1000009 });
+
+bend_home_42_17_left_yard_tree_2 = prop(tree_linden_2, -1.6221124, 7.9509136, { heading: 53, elevation: 0.1000009 });
+
+bend_home_42_19_left_drive = concrete(-1.0448987, 8.0760603, -1.0202028, 8.1022541, -1.2305963, 8.3006172, -1.2552922, 8.2744235);
+elevation(bend_home_42_19_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -1.1180390, 8.1697572, -43.31419);
+
+bend_home_42_19_left_yard_tree_1 = prop(tree_linden_2, -1.2750084, 8.0469990, { heading: 347, elevation: 0.1000009 });
+
+bend_home_42_19_left_yard_tree_2 = prop(tree, -1.4025957, 8.1837834, { heading: 100, elevation: 0.1000009 });
+
+bend_home_42_21_left_drive = concrete(-0.8253988, 8.3089000, -0.8007085, 8.3350990, -1.0111583, 8.5334296, -1.0358486, 8.5072306);
+elevation(bend_home_42_21_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -0.8985730, 8.4025940, -43.30184);
+
+bend_home_42_21_left_yard_tree_1 = prop(tree, -1.0555165, 8.2798026, { heading: 34, elevation: 0.1000009 });
+
+bend_home_42_21_left_yard_tree_2 = prop(tree_locust, -1.1831332, 8.4165593, { heading: 147, elevation: 0.1000009 });
+
+bend_home_42_23_left_drive = concrete(-0.6058941, 8.5417545, -0.5812002, 8.5679501, -0.7916152, 8.7663001, -0.8163091, 8.7401044);
+elevation(bend_home_42_23_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", -0.6790474, 8.6354500, -43.30935);
+
+bend_home_42_23_left_yard_tree_1 = prop(tree_locust, -0.8360075, 8.5126796, { heading: 81, elevation: 0.1000009 });
+
+bend_home_42_23_left_yard_tree_2 = prop(tree_linden_2, -0.9636059, 8.6494528, { heading: 194, elevation: 0.1000009 });
+
+bend_home_42_25_left_drive = concrete(-0.3863912, 8.7746126, -0.3616940, 8.8008051, -0.5720736, 8.9991755, -0.5967708, 8.9729830);
+elevation(bend_home_42_25_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", -0.4595227, 8.8683094, -43.31712);
+
+bend_home_42_25_left_yard_tree_1 = prop(tree_linden_2, -0.6164982, 8.7455591, { heading: 128, elevation: 0.1000009 });
+
+bend_home_42_25_left_yard_tree_2 = prop(tree, -0.7440788, 8.8823503, { heading: 241, elevation: 0.1000009 });
+
+bend_home_42_27_left_drive = concrete(-0.1668960, 9.0074535, -0.1422050, 9.0336519, -0.3526462, 9.2319854, -0.3773372, 9.2057871);
+elevation(bend_home_42_27_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", -0.2400644, 9.1011466, -43.30343);
+
+bend_home_42_27_left_yard_tree_1 = prop(tree, -0.3970110, 8.9783592, { heading: 175, elevation: 0.1000009 });
+
+bend_home_42_27_left_yard_tree_2 = prop(tree_locust, -0.5246239, 9.1151195, { heading: 288, elevation: 0.1000009 });
+
+bend_home_42_29_left_drive = concrete(0.0526041, 9.2403117, 0.0772975, 9.2665078, -0.1331198, 9.4648550, -0.1578132, 9.4386589);
+elevation(bend_home_42_29_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", -0.0205500, 9.3340060, -43.30864);
+
+bend_home_42_29_left_yard_tree_1 = prop(tree_locust, -0.1775079, 9.2112329, { heading: 222, elevation: 0.1000009 });
+
+bend_home_42_29_left_yard_tree_2 = prop(tree_linden_2, -0.3051083, 9.3480048, { heading: 335, elevation: 0.1000009 });
+
+bend_home_42_31_left_drive = concrete(0.2721006, 9.4731687, 0.2967940, 9.4993648, 0.0863762, 9.6977116, 0.0616828, 9.6715155);
+elevation(bend_home_42_31_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", 0.1989463, 9.5668628, -43.30853);
+
+bend_home_42_31_left_yard_tree_1 = prop(tree_linden_2, 0.0419885, 9.4440896, { heading: 269, elevation: 0.1000009 });
+
+bend_home_42_31_left_yard_tree_2 = prop(tree, -0.0856122, 9.5808613, { heading: 22, elevation: 0.1000009 });
+
+bend_home_41_01_right_drive = concrete(0.3855361, 9.4511253, 0.3586787, 9.4271529, 0.5483617, 9.2146406, 0.5752192, 9.2386131);
+elevation(bend_home_41_01_right_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", 0.4474776, 9.3546977, 131.75129);
+
+bend_home_41_01_right_yard_tree_1 = prop(tree, 0.6144245, 9.4634989, { heading: 316, elevation: 0.1000009 });
+
+bend_home_41_01_right_yard_tree_2 = prop(tree_locust, 0.7297733, 9.3162466, { heading: 69, elevation: 0.1000009 });
+
+bend_home_41_03_right_drive = concrete(0.6284884, 9.6398258, 0.5966935, 9.6229413, 0.7306277, 9.3707320, 0.7624225, 9.3876166);
+elevation(bend_home_41_03_right_drive, 0.1010009);
+parked_vehicle("vehicle-12", 0.6660111, 9.5307890, 117.97026);
+
+bend_home_41_03_right_yard_tree_1 = prop(tree_locust, 0.8540698, 9.5966895, { heading: 3, elevation: 0.1000009 });
+
+bend_home_41_03_right_yard_tree_2 = prop(tree_linden_2, 0.9310208, 9.4261987, { heading: 116, elevation: 0.1000009 });
+
+bend_home_41_01_left_drive = concrete(0.4206988, 9.6129619, 0.4475562, 9.6369344, 0.2536737, 9.8541518, 0.2268163, 9.8301793);
+elevation(bend_home_41_01_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-09", 0.3545577, 9.7140946, -48.24875);
+
+bend_home_41_01_left_yard_tree_1 = prop(tree_linden_2, 0.2122831, 9.9110361, { heading: 50, elevation: 0.1000009 });
+
+bend_home_41_01_left_yard_tree_2 = prop(tree, 0.0722623, 9.7525457, { heading: 163, elevation: 0.1000009 });
+
+bend_home_41_03_left_drive = concrete(0.7015081, 9.7880306, 0.7333029, 9.8049151, 0.5967626, 10.0620320, 0.5649678, 10.0451474);
+elevation(bend_home_41_03_left_drive, 0.1010009);
+parked_vehicle("vehicle-v2-01", 0.6613793, 9.9019750, -62.02974);
+
+bend_home_41_03_left_yard_tree_1 = prop(tree, 0.4733205, 9.8360746, { heading: 97, elevation: 0.1000009 });
+
+bend_home_41_03_left_yard_tree_2 = prop(tree_locust, 0.3963695, 10.0065654, { heading: 210, elevation: 0.1000009 });
+
+bend_home_41_05_left_drive = concrete(1.0137603, 9.8938593, 1.0485651, 9.9030586, 0.9741697, 10.1845345, 0.9393650, 10.1753352);
+elevation(bend_home_41_05_left_drive, 0.1010009);
+parked_vehicle("vehicle-12", 1.0006334, 10.0139671, -75.19501);
+
+bend_home_41_05_left_yard_tree_1 = prop(tree_locust, 0.8025080, 9.9926304, { heading: 144, elevation: 0.1000009 });
+
+bend_home_41_05_left_yard_tree_2 = prop(tree_linden_2, 0.7664106, 10.1761666, { heading: 257, elevation: 0.1000009 });
+
+# Street identities supplied in bug reports 75, 76 and 77.
+road_path(road_30, "Jean-Talon");
+road_path(district_street_x_1_1, "Saint-Laurent");
+road_path(district_street_x_1_2, "Saint-Denis");

@@ -163,7 +163,11 @@ mod tests {
                     assert_eq!(vertex.surface[3] as u32 & bit != 0, selected);
                     lit += usize::from(selected);
                 }
-                assert!(lit > 0);
+                if car.is_bicycle() {
+                    assert_eq!(lit, 0);
+                } else {
+                    assert!(lit > 0);
+                }
                 car.update_route_signal(signal, 0.4);
                 let mut mesh = Mesh::default();
                 car.append_lights(&mut mesh);
@@ -188,7 +192,7 @@ mod tests {
         for (id, definition) in catalog::definitions().iter().enumerate() {
             car.set_catalog_model(Some(id));
             assert!(
-                !definition.rear_lenses().is_empty(),
+                definition.rear_lenses().is_empty() == definition.is_bicycle(),
                 "{}",
                 definition.config.name
             );

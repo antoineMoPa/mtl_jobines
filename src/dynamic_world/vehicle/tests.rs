@@ -1221,7 +1221,7 @@ fn building_grid_contacts_match_the_full_map_scan_at_cell_boundaries() {
 #[test]
 fn report_45_heritage_facade_stops_vehicles_and_follow_camera() {
     let map = crate::hermes::Hermes::load_with_game_data(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road"),
+        &std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road"),
         None,
     )
     .unwrap();

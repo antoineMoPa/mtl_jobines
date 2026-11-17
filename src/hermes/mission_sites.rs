@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn authored_bus_sites_have_sidewalks_and_directed_routes() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
+        let path = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road");
         let mut hermes = super::super::Hermes::load_with_game_data(&path, None).unwrap();
         for site in [SiteId::BusStop1, SiteId::BusStop2, SiteId::BusStop3] {
             let point = hermes.mission_site(site).expect(site.map_name());

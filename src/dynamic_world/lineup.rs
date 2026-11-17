@@ -99,7 +99,7 @@ mod tests {
     use super::*;
     #[test]
     fn current_map_loads_authored_parking_without_catalog_and_resets_on_supported_ground() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
+        let path = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
         let mut world = DynamicWorld::new(&hermes);
         let walking = hermes

@@ -25,7 +25,7 @@ impl Vehicle {
             let load = (9.81 + compression * suspension.heave_spring
                 - compression_speed * suspension.heave_damping)
                 .max(0.)
-                * 0.25
+                / self.tire_count()
                 * dt;
             let force = Vec3::Z * load;
             impulse += force;

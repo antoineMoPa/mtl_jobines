@@ -3,24 +3,24 @@
 use glam::Vec3;
 use opencity::runtime::SurfaceKind;
 mod vehicle;
-pub(crate) use vehicle::VehicleSound;
-pub(crate) use vehicle::{EngineKind, HornKind};
+pub use vehicle::VehicleSound;
+pub use vehicle::{EngineKind, HornKind};
 
 #[cfg(target_arch = "wasm32")]
 mod browser_cutscene;
 mod output;
 mod voice;
-pub(crate) use voice::VoiceClip;
+pub use voice::VoiceClip;
 mod scene;
 #[cfg(any(target_arch = "wasm32", test))]
 mod spatial_web;
 #[cfg(test)]
 mod tests;
-pub(crate) const CAR_VOICES: usize = 10;
-pub(crate) const IMPACT_VOICES: usize = 3;
+pub const CAR_VOICES: usize = 10;
+pub const IMPACT_VOICES: usize = 3;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum Material {
+pub enum Material {
     #[default]
     Hard,
     Body,
@@ -29,7 +29,7 @@ pub(crate) enum Material {
     Timber,
 }
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct Impact {
+pub struct Impact {
     pub serial: u64,
     pub position: Vec3,
     pub speed: f32,
@@ -38,7 +38,7 @@ pub(crate) struct Impact {
     pub age: f32,
 }
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Car {
+pub struct Car {
     pub id: usize,
     pub position: Vec3,
     pub velocity: Vec3,
@@ -75,7 +75,7 @@ impl Default for Car {
     }
 }
 #[derive(Clone, Copy)]
-pub(crate) struct Frame {
+pub struct Frame {
     pub cars: [Car; CAR_VOICES],
     pub impacts: [Impact; IMPACT_VOICES],
     pub eye: Vec3,
@@ -100,7 +100,7 @@ impl Default for Frame {
     }
 }
 #[derive(Clone, Copy)]
-pub(crate) struct Settings {
+pub struct Settings {
     pub master: f32,
     pub engines: f32,
     pub tires: f32,
@@ -120,25 +120,6 @@ impl Default for Settings {
         }
     }
 }
-impl Settings {
-    pub fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
-        egui::Window::new("Sound")
-            .open(open)
-            .resizable(false)
-            .show(ctx, |ui| {
-                for (label, value) in [
-                    ("Master", &mut self.master),
-                    ("Engines", &mut self.engines),
-                    ("Horns", &mut self.horns),
-                    ("Tires", &mut self.tires),
-                    ("Wind and surroundings", &mut self.ambience),
-                    ("Collisions and breakage", &mut self.impacts),
-                ] {
-                    ui.add(egui::Slider::new(value, 0.0..=1.0).text(label));
-                }
-            });
-    }
-}
 
 /// Explicit world -> ambisonic axes: right, forward, up. Position and velocity
 /// use the same basis; camera rotation itself must never create Doppler.
@@ -156,7 +137,7 @@ fn listener_vector(vector: Vec3, forward: Vec3) -> [f32; 3] {
 }
 
 #[derive(Default)]
-pub(crate) struct Audio {
+pub struct Audio {
     backend: Option<output::Backend>,
     attempted: bool,
 }

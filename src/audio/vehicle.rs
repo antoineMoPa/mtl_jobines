@@ -3,21 +3,21 @@ use serde::Deserialize;
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub(crate) enum EngineKind {
+pub enum EngineKind {
     Petrol,
     Diesel,
     Electric,
 }
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub(crate) enum HornKind {
+pub enum HornKind {
     Dual,
     Air,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct HornSound {
+pub struct HornSound {
     pub kind: HornKind,
     pub frequencies_hz: [f32; 2],
     pub gain: f32,
@@ -33,7 +33,7 @@ impl Default for HornSound {
 }
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct VehicleSound {
+pub struct VehicleSound {
     pub engine: EngineKind,
     pub idle_rpm: f32,
     pub redline_rpm: f32,
@@ -68,7 +68,7 @@ impl Default for VehicleSound {
     }
 }
 impl VehicleSound {
-    pub(crate) fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), String> {
         let in_range = |name: &str, value: f32, low: f32, high: f32| {
             if value.is_finite() && (low..=high).contains(&value) {
                 Ok(())

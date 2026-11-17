@@ -166,11 +166,20 @@ mod tests {
 
     #[test]
     fn sphere_lot_has_twelve_supported_radial_visitors_and_a_clear_forecourt() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
+        let path = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
         let mut world = DynamicWorld::new(&hermes);
-        assert_eq!(hermes.parked_vehicles().len(), 12);
-        assert_eq!(world.vehicles.len() - world.traffic.count(), 13);
+        assert_eq!(hermes.parked_vehicles().len(), 85);
+        assert_eq!(world.vehicles.len() - world.traffic.count(), 86);
+        // The first twelve visitors remain on the landmark lot; the rest belong
+        // to the detached-house driveways. Every authored parked car must fit.
+        assert_eq!(world.parked_vehicle_count, 85);
+        for (i, vehicle) in world.vehicles.iter().enumerate().skip(1).take(85) {
+            assert!(
+                world.clear_vehicle_position(&hermes, vehicle, Some(i)),
+                "blocked driveway car {i}"
+            );
+        }
         let forecourt = [1.2, -1.10];
         let mut probe = Vehicle::spawn_at(
             hermes.city(),

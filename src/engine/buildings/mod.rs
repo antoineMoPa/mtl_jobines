@@ -39,7 +39,7 @@ struct Item {
 impl Item {
     fn rebuild(&mut self) -> Result<(), String> {
         self.mesh = match &self.model {
-            Some(model) => crate::hermes::external_models::place(model, &self.feature)?,
+            Some(_) => geometry::prism(&self.feature),
             None => BuildingRecipe::from_feature(&self.feature)
                 // This mesh is only used for picking. The reload worker prepares
                 // the visible mesh and its AO; never duplicate that bake in UI input.
@@ -104,6 +104,7 @@ impl Document {
             return Err(projected.errors[0].to_string());
         }
         let mut items = Vec::new();
+        let mut loaded_models = std::collections::HashMap::<String, Arc<Mesh>>::new();
         for (statement, s) in program.statements.iter().enumerate() {
             let Statement::Call(call) = s else {
                 continue;
@@ -128,6 +129,9 @@ impl Document {
                     p.ends_with(".glb") || crate::hermes::landmark_destinations::title(p).is_some()
                 })
                 .map(|relative| {
+                    if let Some(mesh) = loaded_models.get(relative) {
+                        return Ok(Arc::clone(mesh));
+                    }
                     if crate::hermes::landmark_destinations::title(relative).is_some() {
                         return crate::hermes::landmarks::source_mesh(relative).map(Arc::new);
                     }
@@ -135,7 +139,9 @@ impl Document {
                     let bytes = storage::read_model(
                         &path.parent().unwrap_or(Path::new(".")).join(relative),
                     )?;
-                    crate::hermes::external_models::decode_shared(&bytes)
+                    let mesh = crate::hermes::external_models::decode_shared(&bytes)?;
+                    loaded_models.insert(relative.clone(), Arc::clone(&mesh));
+                    Ok(mesh)
                 })
                 .transpose()?;
             let mut item = Item {

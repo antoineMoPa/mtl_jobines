@@ -2,7 +2,7 @@
 mod lod;
 mod models;
 mod signals;
-pub(crate) use signals::SignalBatch;
+pub use signals::SignalBatch;
 #[cfg(test)]
 mod tests;
 use super::{catalog, Controls, SpawnPoint, Vehicle, METERS_PER_UNIT};
@@ -207,6 +207,7 @@ impl Traffic {
             .enumerate()
             .filter(|(_, d)| {
                 d.config.road_vehicle
+                    && !d.is_bicycle()
                     && (d.config.dimensions.length < 6.
                         || d.config.category == "bus"
                         || d.config.research_id == "vehicle-j05"

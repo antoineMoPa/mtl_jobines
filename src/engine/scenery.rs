@@ -17,6 +17,7 @@ pub struct Scenery {
     world: Vec<Batch>,
     details: Vec<Batch>,
     paint: super::graffiti::Nearby,
+    models: Vec<GpuMesh>,
 }
 fn triangle_key(triangle: &[opencity::runtime::Vertex; 3]) -> (i32, i32, bool, i32, i32) {
     let center = [
@@ -105,7 +106,27 @@ impl Scenery {
         let (world, details) = hermes.take_geometry();
         renderer.snow.set_geometry(&[&world, &details]);
         let paint = super::graffiti::Nearby::new(renderer, &world);
+        let models = hermes
+            .external_models
+            .iter()
+            .map(|group| {
+                let mut gpu = renderer.upload_instanced(&group.mesh.vertices);
+                gpu.static_model = true;
+                let transforms: Vec<_> = group
+                    .transforms
+                    .iter()
+                    .map(|matrix| {
+                        let mut columns = matrix.to_cols_array_2d();
+                        columns[1][3] = -1.;
+                        columns
+                    })
+                    .collect();
+                renderer.update_instances(&mut gpu, &transforms);
+                gpu
+            })
+            .collect();
         Self {
+            models,
             world: batches(renderer, world),
             details: batches(renderer, details),
             paint,
@@ -155,6 +176,7 @@ impl Scenery {
                     .filter(|b| intersects(b, crate::performance::draw_radius(1.5))),
             )
             .flat_map(|b| &b.meshes)
+            .chain(self.models.iter())
             .chain(self.paint.visible())
             .collect()
     }

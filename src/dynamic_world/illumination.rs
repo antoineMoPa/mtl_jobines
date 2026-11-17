@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Quat, Vec3};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RearLight {
+pub enum RearLight {
     Tail,
     Brake,
     Indicator,
@@ -13,14 +13,14 @@ pub(crate) enum RearLight {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub(crate) struct LocalLight {
+pub struct LocalLight {
     pub position_range: [f32; 4],
     pub direction_outer: [f32; 4],
     pub color_intensity: [f32; 4],
     pub beam: [f32; 4],
 }
 impl LocalLight {
-    pub(crate) fn rear(position: Vec3, orientation: Quat, kind: RearLight, strength: f32) -> Self {
+    pub fn rear(position: Vec3, orientation: Quat, kind: RearLight, strength: f32) -> Self {
         let (range, intensity, color) = match kind {
             RearLight::Tail => (0.045, 1., [1., 0.001, 0.0005]),
             RearLight::Brake => (0.075, 8., [1., 0.001, 0.0005]),
@@ -36,7 +36,7 @@ impl LocalLight {
             beam: [0.80, 1.5, 0., 0.],
         }
     }
-    pub(crate) fn streetlamp(position: Vec3) -> Self {
+    pub fn streetlamp(position: Vec3) -> Self {
         Self {
             position_range: position.extend(0.16).to_array(),
             direction_outer: [0., 0., -1., 0.20],
@@ -44,7 +44,7 @@ impl LocalLight {
             beam: [0.85, 4., 1., 0.],
         }
     }
-    pub(crate) fn headlight(position: Vec3, orientation: Quat, strength: f32) -> Self {
+    pub fn headlight(position: Vec3, orientation: Quat, strength: f32) -> Self {
         let tilt = Quat::from_rotation_y(0.04);
         Self {
             position_range: position.extend(0.45).to_array(),
@@ -55,22 +55,18 @@ impl LocalLight {
             beam: [16_f32.to_radians().cos(), 16., 0., 0.],
         }
     }
-    pub(crate) fn position(self) -> Vec3 {
+    pub fn position(self) -> Vec3 {
         Vec3::from_slice(&self.position_range)
     }
 }
 impl DynamicWorld {
-    #[cfg(test)]
-    pub(crate) fn preview_vehicle_signal(
-        &mut self,
-        signal: crate::hermes::RouteSignal,
-        phase: f32,
-    ) {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn preview_vehicle_signal(&mut self, signal: crate::hermes::RouteSignal, phase: f32) {
         let vehicle = &mut self.vehicles[self.player_vehicle.0];
         vehicle.update_route_signal(signal, 0.);
         vehicle.signal_time = phase;
     }
-    pub(crate) fn local_lights(&self) -> Vec<LocalLight> {
+    pub fn local_lights(&self) -> Vec<LocalLight> {
         let center = self.player_position();
         let mut lights = Vec::new();
         self.props.append_local_lights(&mut lights, center);
@@ -129,20 +125,20 @@ impl DynamicWorld {
 mod tests {
     use super::*;
     #[test]
-    fn every_catalog_vehicle_has_two_authored_headlights_that_follow_its_body() {
+    fn authored_headlights_follow_each_vehicle_body() {
         let hermes = crate::hermes::Hermes::test_map();
         let mut world = DynamicWorld::new(&hermes);
         for model in 0..super::super::catalog::definitions().len() {
             let definition = &super::super::catalog::definitions()[model];
             assert_eq!(
                 definition.headlights().len(),
-                2,
+                if definition.is_bicycle() { 1 } else { 2 },
                 "{}",
                 definition.config.name
             );
             assert_eq!(
                 definition.rear_emitters().len(),
-                2,
+                if definition.is_bicycle() { 0 } else { 2 },
                 "{}",
                 definition.config.name
             );

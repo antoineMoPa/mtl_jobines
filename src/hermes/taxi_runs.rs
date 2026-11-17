@@ -39,7 +39,7 @@ impl Hermes {
         None
     }
 
-    pub(crate) fn choose_taxi_run(&mut self, player: Vec3) -> bool {
+    pub fn choose_taxi_run(&mut self, player: Vec3) -> bool {
         let previous = self.taxi_run;
         let mut pickup = None;
         for _ in 0..48 {
@@ -72,7 +72,7 @@ impl Hermes {
         false
     }
 
-    pub(crate) fn clear_taxi_run(&mut self) {
+    pub fn clear_taxi_run(&mut self) {
         self.taxi_run = None;
     }
 }

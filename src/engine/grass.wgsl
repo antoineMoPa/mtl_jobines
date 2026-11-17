@@ -45,6 +45,7 @@ fn shade_grass(v:Output,front:bool,coverage:f32,surface:SurfaceData)->vec4<f32> 
     var material=v;
     material.color=color*mix(vec3<f32>(0.90,1.04,0.88),vec3<f32>(1.24,1.06,0.77),dry)
         *(0.80+0.24*large+0.18*medium+0.08*small);
+    material.color=summer_vegetation_color(material.color);
     // Use the generic physical surface after evaluating grass, bypassing the old
     // procedural green tint. The original grass snow mask is retained.
     material.surface=vec4<f32>(7.0,0.0,0.0,0.0);

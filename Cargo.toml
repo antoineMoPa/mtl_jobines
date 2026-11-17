@@ -4,20 +4,21 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 default-run = "mtl_jobines"
+build = false
 
 [workspace]
-members = ["opencity"]
-default-members = ["."]
+members = ["opencity", "crates/mtl_world"]
+default-members = [".", "crates/mtl_world"]
 resolver = "2"
 
 [lib]
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
+mtl_world = { path = "crates/mtl_world" }
 earcutr = "0.5"
 egui = "0.36"
 egui_command_palette = { path = "opencity/crates/egui_command_palette" }
-flate2 = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "=1.0.151"
 gltf = { version = "1.4.1", default-features = false, features = ["utils", "names", "extras"] }
@@ -26,16 +27,12 @@ opencity = { path = "opencity", default-features = false, features = ["render-ma
 wgpu = "30.0.1"
 winit = "0.30"
 glam = "0.29"
-rapier3d = { version = "0.22", features = ["enhanced-determinism"] }
 pollster = "0.4"
 png = "0.17"
 bytemuck = { version = "1", features = ["derive"] }
 web-time = "1.1"
-rodio = { version = "=0.13.1", default-features = false }
-cpal = { version = "=0.15.3", features = ["wasm-bindgen"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-ambisonic = "=0.4.1"
 egui-winit = { version = "0.36", default-features = false }
 rfd = "0.17"
 
@@ -47,6 +44,7 @@ console_error_panic_hook = "0.1"
 web-sys = { version = "0.3", features = ["Window", "Location", "Document", "HtmlCanvasElement", "HtmlElement", "Element", "Storage", "console", "MediaQueryList", "AudioContextState", "AudioBuffer", "AudioBufferSourceNode", "AudioNode", "AudioDestinationNode"] }
 
 [dev-dependencies]
+mtl_world = { path = "crates/mtl_world", features = ["test-support"] }
 naga = { version = "30", features = ["wgsl-in"] }
 
 # Map geometry and SVG rasterization also need optimization during development.

@@ -1,12 +1,7 @@
-mod audio;
-mod dynamic_world;
 mod engine;
-mod hermes;
-mod kairos;
-mod performance;
-mod props;
-mod season;
-mod web_assets;
+
+use mtl_world::web_asset;
+use mtl_world::{audio, dynamic_world, hermes, kairos, performance, props, season};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use engine::run;

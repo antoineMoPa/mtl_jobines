@@ -12,7 +12,7 @@ pub(super) enum Aspect {
 /// Exact standing mesh selection. Position is immutable until a map reload;
 /// phase and power are the only changes while the signal assembly is intact.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct SignalBatch {
+pub struct SignalBatch {
     pub id: usize,
     pub(super) active: Option<Aspect>,
 }

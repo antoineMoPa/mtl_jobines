@@ -9,7 +9,7 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
 #[derive(Clone)]
-pub(crate) struct WalkingPath {
+pub struct WalkingPath {
     pub points: Vec<Vec3>,
     pub length: f32,
     pub reverse: usize,
@@ -151,7 +151,7 @@ fn corner(city: &City, a: Vec3, b: Vec3) -> Option<Vec<Vec3>> {
 }
 
 #[derive(Default)]
-pub(crate) struct WalkingPaths {
+pub struct WalkingPaths {
     pub paths: Vec<WalkingPath>,
 }
 impl WalkingPaths {

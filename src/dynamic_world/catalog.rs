@@ -6,7 +6,17 @@ use opencity::runtime::Mesh;
 use opencity::runtime::{SurfaceKind, Vertex};
 use serde::Deserialize;
 use std::sync::OnceLock;
-pub(crate) const SNOWPLOW_ID: &str = "vehicle-j03";
+pub const BICYCLE_ID: &str = "vehicle-bike-share";
+
+#[derive(Default, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum VehicleKind {
+    #[default]
+    Motorized,
+    Bicycle,
+}
+
+pub const SNOWPLOW_ID: &str = "vehicle-j03";
 
 // Preserve the integer paint-variant mask; fractional bits carry the authored
 // GLB finish without increasing vertex stride or changing lamp/snow metadata.
@@ -54,11 +64,13 @@ pub struct Config {
     pub research_id: String,
     pub category: String,
     pub road_vehicle: bool,
+    #[serde(default)]
+    pub vehicle_kind: VehicleKind,
     pub model: String,
     pub dimensions: Dimensions,
     pub physics: Physics,
     #[serde(default)]
-    pub(crate) sound: crate::audio::VehicleSound,
+    pub sound: crate::audio::VehicleSound,
     pub qa: serde_json::Value,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -66,13 +78,14 @@ enum PartRole {
     Body,
     RearWheel,
     FrontWheel,
+    Steering,
 }
 fn part_role(name: &str) -> Result<PartRole, String> {
     match name {
-        "wheel_front_left" | "wheel_front_right" => Ok(PartRole::FrontWheel),
-        "wheel_rear_left" | "wheel_rear_right" | "wheel_middle_left" | "wheel_middle_right" => {
-            Ok(PartRole::RearWheel)
-        }
+        "wheel_front" | "wheel_front_left" | "wheel_front_right" => Ok(PartRole::FrontWheel),
+        "wheel_rear" | "wheel_rear_left" | "wheel_rear_right" | "wheel_middle_left"
+        | "wheel_middle_right" => Ok(PartRole::RearWheel),
+        "bicycle_steering" => Ok(PartRole::Steering),
         name if name.starts_with("wheel_") => Err(format!("Unknown wheel role: {name}")),
         _ => Ok(PartRole::Body),
     }
@@ -133,7 +146,7 @@ fn excludes_snow(name: &str, role: PartRole) -> bool {
 }
 pub struct Definition {
     pub config: Config,
-    pub(crate) texture_png: Option<Vec<u8>>,
+    pub texture_png: Option<Vec<u8>>,
     parts: Vec<Part>,
     rear_lenses: Vec<Vertex>,
     headlights: Vec<Vec3>,
@@ -143,7 +156,8 @@ pub struct Definition {
 fn headlight_lens(name: &str) -> bool {
     matches!(
         name,
-        "frontlamp0"
+        "headlamp_lens"
+            | "frontlamp0"
             | "frontlamp2"
             | "headL"
             | "headR"
@@ -197,9 +211,12 @@ fn game_vector(p: [f32; 3]) -> Vec3 {
     Vec3::new(p[0], -p[2], p[1])
 }
 impl Definition {
+    pub fn is_bicycle(&self) -> bool {
+        self.config.vehicle_kind == VehicleKind::Bicycle
+    }
     /// Rear face in GLB coordinates (+X nose, +Y up). These positions follow
     /// the authored tailgate, hatch, or equipment panel of each model.
-    pub(crate) fn plate_mount(&self) -> (f32, f32) {
+    pub fn plate_mount(&self) -> (f32, f32) {
         match self.config.research_id.as_str() {
             "vehicle-v2-01" => (-2.767, 1.04),
             "vehicle-12" => (-2.340, 1.06),
@@ -274,13 +291,17 @@ impl Definition {
                 p.height_offset,
                 p.wheel_radius,
                 p.wheelbase,
-                p.track,
                 config.dimensions.length,
                 config.dimensions.width,
                 config.dimensions.height,
             ]
             .iter()
             .any(|v| !v.is_finite() || *v <= 0.)
+            || !p.track.is_finite()
+            || match config.vehicle_kind {
+                VehicleKind::Bicycle => p.track != 0.,
+                VehicleKind::Motorized => p.track <= 0.,
+            }
             || p.max_steer_angle >= std::f32::consts::FRAC_PI_2
         {
             return Err(format!("Invalid SI vehicle configuration: {}", config.name));
@@ -560,18 +581,20 @@ impl Definition {
                 vertices: body,
             },
         );
-        if rear_lenses.is_empty() {
+        if rear_lenses.is_empty() && config.vehicle_kind != VehicleKind::Bicycle {
             return Err(format!("Missing authored rear lenses: {}", config.name));
         }
         let mut headlights = Vec::new();
         for left in [false, true] {
+            if config.vehicle_kind == VehicleKind::Bicycle && left {
+                continue;
+            }
             let mut lo = Vec3::splat(f32::INFINITY);
             let mut hi = Vec3::splat(f32::NEG_INFINITY);
-            for v in articulated[0]
-                .vertices
-                .iter()
-                .filter(|v| headlight_vertex(v) && (v.position[1] > 0.) == left)
-            {
+            for v in articulated[0].vertices.iter().filter(|v| {
+                headlight_vertex(v)
+                    && (config.vehicle_kind == VehicleKind::Bicycle || (v.position[1] > 0.) == left)
+            }) {
                 let p = Vec3::from_array(v.position);
                 lo = lo.min(p);
                 hi = hi.max(p);
@@ -605,7 +628,7 @@ impl Definition {
     pub fn part_vertices(&self) -> impl Iterator<Item = &[Vertex]> {
         self.parts.iter().map(|p| p.vertices.as_slice())
     }
-    pub(crate) fn part_shadow_vertices(&self) -> impl Iterator<Item = &[Vertex]> {
+    pub fn part_shadow_vertices(&self) -> impl Iterator<Item = &[Vertex]> {
         self.parts
             .iter()
             .map(|part| part.shadow_vertices.as_deref().unwrap_or(&part.vertices))
@@ -623,6 +646,7 @@ impl Definition {
             .map(|part| {
                 let rotation = match part.role {
                     PartRole::Body => lean,
+                    PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
                     PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
                     PartRole::FrontWheel => {
                         Quat::from_rotation_z(vehicle.steering)
@@ -657,6 +681,7 @@ impl Definition {
         for part in &self.parts {
             let q = match part.role {
                 PartRole::Body => lean,
+                PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
                 PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
                 PartRole::FrontWheel => {
                     Quat::from_rotation_z(vehicle.steering)
@@ -690,7 +715,7 @@ macro_rules! asset {
         )
     };
 }
-fn assets() -> [(&'static [u8], &'static [u8]); 11] {
+fn assets() -> [(&'static [u8], &'static [u8]); 12] {
     [
         asset!("pickup/castor-rive"),
         asset!("suv/boreal-colline"),
@@ -703,6 +728,7 @@ fn assets() -> [(&'static [u8], &'static [u8]); 11] {
         asset!("emergency/saint-laurent-secours"),
         asset!("rail/azur-classique"),
         asset!("rail/prairie-express"),
+        asset!("bicycle/velo-partage"),
     ]
 }
 pub fn definitions() -> &'static [Definition] {
@@ -719,7 +745,9 @@ pub fn definitions() -> &'static [Definition] {
             })
             .collect();
         for definition in &mut definitions {
-            definition.add_rear_plate(texture_layer);
+            if !definition.is_bicycle() {
+                definition.add_rear_plate(texture_layer);
+            }
         }
         definitions
     })
@@ -800,7 +828,7 @@ mod tests {
                     .map(|part| part.vertices.len())
                     .sum::<usize>()
                     + definition.rear_lenses.len(),
-                source_vertices + 6, // shared textured rear plate quad
+                source_vertices + if definition.is_bicycle() { 0 } else { 6 },
                 "{}",
                 definition.config.name
             );
@@ -889,7 +917,11 @@ mod tests {
                 .any(|v| (v.surface[1] - glass).abs() < 0.0001));
             assert!(vertices.clone().any(|v| v.surface[1] == 1.));
             assert!(vertices.clone().all(|v| (0. ..=1.).contains(&v.surface[1])));
-            for wheel in definition.parts.iter().filter(|p| p.role != PartRole::Body) {
+            for wheel in definition
+                .parts
+                .iter()
+                .filter(|p| matches!(p.role, PartRole::FrontWheel | PartRole::RearWheel))
+            {
                 // Tires and metal rim/hub details must move together at one axle.
                 let first = wheel.vertices[0].color;
                 assert!(wheel.vertices.iter().any(|v| v.color != first));
@@ -1012,7 +1044,11 @@ mod tests {
                 .unwrap();
             vehicle_qa::vented_bus_rim(steel, blob, name.ends_with("left"));
         }
-        for part in definition.parts.iter().filter(|p| p.role != PartRole::Body) {
+        for part in definition
+            .parts
+            .iter()
+            .filter(|p| matches!(p.role, PartRole::FrontWheel | PartRole::RearWheel))
+        {
             assert!(part
                 .vertices
                 .iter()
@@ -1340,14 +1376,14 @@ mod tests {
         assert_eq!(ids, ["vehicle-12", "vehicle-v2-01", "vehicle-v2-09"]);
     }
     #[test]
-    fn every_export_loads_with_four_or_six_axle_local_wheels_and_si_data() {
-        assert_eq!(definitions().len(), 11);
+    fn every_export_loads_with_axle_local_wheels_and_si_data() {
+        assert_eq!(definitions().len(), 12);
         assert_eq!(
             definitions()
                 .iter()
                 .filter(|d| d.config.road_vehicle)
                 .count(),
-            9
+            10
         );
         let mut page_ids = std::collections::HashSet::new();
         for def in definitions() {
@@ -1361,21 +1397,29 @@ mod tests {
             let wheels = def
                 .parts
                 .iter()
-                .filter(|p| p.role != PartRole::Body)
+                .filter(|p| matches!(p.role, PartRole::FrontWheel | PartRole::RearWheel))
                 .collect::<Vec<_>>();
-            assert!([4, 6].contains(&wheels.len()), "{}", def.config.name);
+            assert!(
+                if def.is_bicycle() {
+                    wheels.len() == 2
+                } else {
+                    [4, 6].contains(&wheels.len())
+                },
+                "{}",
+                def.config.name
+            );
             assert_eq!(
                 wheels
                     .iter()
                     .filter(|p| p.role == PartRole::FrontWheel)
                     .count(),
-                2
+                if def.is_bicycle() { 1 } else { 2 }
             );
             for part in wheels {
                 assert!(part.pivot.x.abs() > 0.5);
                 // Wheel vertices lie on a circular rim, not a square profile.
                 let radius = def.config.physics.wheel_radius;
-                for v in &part.vertices {
+                for v in part.vertices.iter().filter(|v| v.surface[0] >= 0.) {
                     let radial = (v.position[0].powi(2) + v.position[2].powi(2)).sqrt();
                     assert!(
                         radial <= radius + 0.0001,
@@ -1394,8 +1438,8 @@ mod tests {
                     .map(|v| v.position[0])
                     .fold(f32::NEG_INFINITY, f32::max);
                 assert!(
-                    (min + max).abs() < 1e-4,
-                    "wheel must rotate around its axle"
+                    (min + max).abs() < if def.is_bicycle() { 0.0011 } else { 1e-4 },
+                    "wheel must rotate around its axle (native bike tessellation within 1.1 mm)"
                 );
             }
         }

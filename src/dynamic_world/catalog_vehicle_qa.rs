@@ -165,8 +165,9 @@ pub(super) fn textured_truck(
     }
     assert_eq!(definition.headlights.len(), 2);
     assert_eq!(definition.rear_emitters.len(), 2);
-    let textured: Vec<_> = definition.parts[0]
-        .vertices
+    // The final six vertices are the separate shared registration-plate atlas.
+    let body = &definition.parts[0].vertices;
+    let textured: Vec<_> = body[..body.len() - 6]
         .iter()
         .filter(|v| v.surface[0] < 0.)
         .collect();

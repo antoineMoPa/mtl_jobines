@@ -4,10 +4,10 @@ use gltf::animation::util::ReadOutputs;
 use opencity::runtime::{SurfaceKind, Vertex};
 use std::sync::OnceLock;
 
-pub(crate) const JOINT_LIMIT: usize = 32;
-pub(crate) const CROWD_MODEL_COUNT: usize = 6;
-pub(crate) const PLAYER_SUMMER_MODEL: usize = 6;
-pub(crate) const PLAYER_WINTER_MODEL: usize = 7;
+pub const JOINT_LIMIT: usize = 32;
+pub const CROWD_MODEL_COUNT: usize = 6;
+pub const PLAYER_SUMMER_MODEL: usize = 6;
+pub const PLAYER_WINTER_MODEL: usize = 7;
 fn assets() -> [&'static [u8]; 8] {
     [
         crate::web_asset!("../../data/pedestrian/01.glb", "data/pedestrian/01.glb"),
@@ -27,7 +27,7 @@ fn assets() -> [&'static [u8]; 8] {
     ]
 }
 
-pub(crate) fn player_model(season: crate::season::Season) -> usize {
+pub fn player_model(season: crate::season::Season) -> usize {
     match season {
         crate::season::Season::Summer => PLAYER_SUMMER_MODEL,
         crate::season::Season::Winter => PLAYER_WINTER_MODEL,
@@ -36,7 +36,7 @@ pub(crate) fn player_model(season: crate::season::Season) -> usize {
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct SkinVertex {
+pub struct SkinVertex {
     pub joints: [u16; 4],
     pub weights: [f32; 4],
 }
@@ -98,7 +98,7 @@ impl Clip {
     }
 }
 
-pub(crate) struct Definition {
+pub struct Definition {
     pub vertices: Vec<Vertex>,
     pub skin: Vec<SkinVertex>,
     pub texture_png: Vec<u8>,
@@ -419,11 +419,11 @@ impl Definition {
         self.skin_from_worlds(&worlds)
     }
 }
-pub(crate) fn definitions() -> &'static [Definition] {
+pub fn definitions() -> &'static [Definition] {
     static MODELS: OnceLock<Vec<Definition>> = OnceLock::new();
     MODELS.get_or_init(|| assets().into_iter().map(Definition::read).collect())
 }
-pub(crate) fn instance_transform(position: Vec3, yaw: f32) -> Mat4 {
+pub fn instance_transform(position: Vec3, yaw: f32) -> Mat4 {
     let axes = Mat4::from_cols(Vec4::Y, Vec4::Z, Vec4::X, Vec4::W);
     Mat4::from_translation(position / super::METERS_PER_UNIT)
         * Mat4::from_rotation_z(yaw)

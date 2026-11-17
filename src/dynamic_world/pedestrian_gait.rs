@@ -49,7 +49,7 @@ pub(super) struct JumpPreparation {
     pub motion: JumpMotion,
 }
 #[derive(Clone, Copy)]
-pub(crate) struct Ground {
+pub struct Ground {
     pub point: Vec3,
     pub gradient: [f32; 2],
 }
@@ -155,7 +155,7 @@ impl Rig {
 }
 /// World-space ankle trajectories and ground anchors, in metres.
 #[derive(Clone, Copy)]
-pub(crate) struct FootMotion {
+pub struct FootMotion {
     pub root: Vec3,
     pub yaw: f32,
     pub ankles: [Vec3; 2],
@@ -164,7 +164,7 @@ pub(crate) struct FootMotion {
     pub speed: f32,
     pub cadence: f32,
 }
-pub(crate) struct Gait {
+pub struct Gait {
     rig: Rig,
     feet: [Foot; 2],
     position: Vec3,
@@ -191,7 +191,7 @@ pub(crate) struct Gait {
     landing: Option<([Mat4; JOINT_LIMIT], f32)>,
 }
 impl Gait {
-    pub(crate) fn foot_motion(&self) -> FootMotion {
+    pub fn foot_motion(&self) -> FootMotion {
         let model = &super::pedestrian_catalog::definitions()
             [super::pedestrian_catalog::PLAYER_SUMMER_MODEL];
         let worlds = model.joint_worlds(&self.palette);

@@ -65,7 +65,7 @@ fn follow_camera_ignores_site_bounds_and_stops_at_individual_objects() {
 #[test]
 fn canonical_station_forecourt_is_driveable_and_shop_remains_solid() {
     let map = crate::hermes::Hermes::load_with_game_data(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road"),
+        &std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road"),
         None,
     )
     .unwrap();
