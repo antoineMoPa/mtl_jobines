@@ -14,6 +14,7 @@ pub use landmark_destinations::Landmark;
 mod highway_tests;
 #[cfg(test)]
 mod intersection_tests;
+pub mod metro;
 mod minimap;
 mod mission_sites;
 mod orange_sign;
@@ -227,8 +228,12 @@ impl Hermes {
             }
         }
         let mut hermes = Self::from_city_data(city, data, &program)?;
-        hermes.external_models =
-            external_models::instances::load(&hermes.city, model_base.unwrap_or(Path::new(".")))?;
+        hermes
+            .external_models
+            .extend(external_models::instances::load(
+                &hermes.city,
+                model_base.unwrap_or(Path::new(".")),
+            )?);
         hermes.cache = Some((key, cache_path));
         Ok(hermes)
     }
@@ -294,6 +299,10 @@ impl Hermes {
         let external_models = external_models::instances::load(&city, Path::new("."))?;
         #[cfg(not(target_arch = "wasm32"))]
         let external_models = Vec::new();
+        let mut external_models = external_models;
+        if let Some(stations) = metro::MetroMap::from_city(&city).scenery()? {
+            external_models.push(stations);
+        }
         Ok(Self {
             authored_props,
             default_start: crate::dynamic_world::SpawnPoint::from_program(program)?,
@@ -461,7 +470,7 @@ impl Hermes {
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn minimap_svg(&self) -> String {
-        self.city.minimap_svg().expect("loaded map SVG")
+        metro::navigation_svg(&self.city).expect("loaded map SVG")
     }
     pub fn update_minimap_view(
         &mut self,

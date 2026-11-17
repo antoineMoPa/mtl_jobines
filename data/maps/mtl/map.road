@@ -4497,7 +4497,7 @@ road_path(district_street_x_1_2, "Saint-Denis");
 # road_1 / forward approach
 sign_speed_road_1 = prop(speed_sign, 1.6033012, -2.4862514, { heading: -30.2114, elevation: 0.1030000, limit: 30 });
 # road_8 / forward approach
-sign_speed_road_8 = prop(speed_sign, 1.5941783, 1.6347141, { heading: 91.6834, elevation: 0.1030000, limit: 50 });
+sign_speed_road_8 = prop(speed_sign, 1.4911875, 1.6387904, { heading: 91.6843872, elevation: 0.1035000, limit: 50 });
 # road_11 / forward approach
 sign_speed_road_11 = prop(speed_sign, 2.0748749, 1.4837774, { heading: -88.3153, elevation: 0.1030000, limit: 50 });
 # road_17 / forward approach
@@ -4507,7 +4507,7 @@ sign_speed_road_23 = prop(speed_sign, 4.6584449, 7.0883497, { heading: -15.3059,
 # road_30 / forward approach
 sign_speed_road_30 = prop(speed_sign, 1.6566421, 3.0103519, { heading: 1.6847, elevation: 0.1030000, limit: 50 });
 # road_35 / forward approach
-sign_speed_road_35 = prop(speed_sign, 1.4533141, 9.9234217, { heading: 1.6834, elevation: 0.1030000, limit: 50 });
+sign_speed_road_35 = prop(speed_sign, 1.4589936, 9.9718695, { heading: 1.6831051, elevation: 0.1035000, limit: 50 });
 # road_41 / forward approach
 sign_speed_road_41 = prop(speed_sign, 0.9453148, 9.8907401, { heading: 104.7766, elevation: 0.1030000, limit: 30 });
 # road_42 / forward approach
@@ -4521,54 +4521,439 @@ sign_curve_2 = prop(curve_sign, 1.1131826, 9.9239863, { heading: 97.5298, elevat
 # road_43 / forward approach
 sign_curve_4 = prop(curve_sign, -3.1345914, 5.4916492, { heading: 27.4748, elevation: 0.1030000, arrow: right });
 # district_street_y_0_1 / forward approach
-sign_stop_district_street_y_0_1 = prop(stop_sign, 1.4207000, 12.5367050, { heading: 0.0000, elevation: 0.1030010, cluster: false });
+sign_stop_district_street_y_0_1 = prop(stop_sign, 1.4277999, 12.4173403, { heading: -0.0000000, elevation: 0.1035010, cluster: false });
 # district_street_x_0_2 / forward approach
 sign_speed_district_street_x_0_2 = prop(speed_sign, 2.1943000, 12.5450000, { heading: -90.0000, elevation: 0.1030010, limit: 30 });
 # district_street_y_0_2 / forward approach
-sign_stop_district_street_y_0_2 = prop(stop_sign, 1.4207000, 14.2775000, { heading: 0.0000, elevation: 0.1030010, cluster: false });
+sign_stop_district_street_y_0_2 = prop(stop_sign, 1.4278001, 14.1900005, { heading: -0.0000000, elevation: 0.1035010, cluster: false });
 # district_street_y_1_1 / forward approach
-sign_stop_district_street_y_1_1 = prop(stop_sign, 4.7551000, 12.5367050, { heading: 0.0000, elevation: 0.1030010, cluster: true });
+sign_stop_district_street_y_1_1 = prop(stop_sign, 4.7621994, 12.4173403, { heading: -0.0000000, elevation: 0.1035010, cluster: true });
 # district_street_x_1_2 / forward approach
 sign_speed_district_street_x_1_2 = prop(speed_sign, 5.5452500, 12.5450000, { heading: -90.0000, elevation: 0.1030010, limit: 30 });
 # district_street_y_1_2 / forward approach
-sign_stop_district_street_y_1_2 = prop(stop_sign, 4.7551000, 14.2775000, { heading: 0.0000, elevation: 0.1030010, cluster: true });
+sign_stop_district_street_y_1_2 = prop(stop_sign, 4.7621994, 14.1900005, { heading: -0.0000000, elevation: 0.1035010, cluster: true });
 # district_street_y_2_0 / forward approach
 sign_stop_district_street_y_2_0 = prop(stop_sign, 8.1557000, 10.8192950, { heading: 0.0000, elevation: 0.1030010, cluster: true });
 # district_street_y_2_1 / forward approach
-sign_stop_district_street_y_2_1 = prop(stop_sign, 8.1557000, 12.5367050, { heading: 0.0000, elevation: 0.1030010, cluster: true });
+sign_stop_district_street_y_2_1 = prop(stop_sign, 8.1627998, 12.4173403, { heading: -0.0000000, elevation: 0.1035010, cluster: true });
 # district_street_x_2_2 / forward approach
 sign_speed_district_street_x_2_2 = prop(speed_sign, 9.7717750, 12.5450000, { heading: -90.0000, elevation: 0.1030010, limit: 30 });
 # district_street_y_2_2 / forward approach
-sign_stop_district_street_y_2_2 = prop(stop_sign, 8.1557000, 14.2775000, { heading: 0.0000, elevation: 0.1030010, cluster: true });
+sign_stop_district_street_y_2_2 = prop(stop_sign, 8.1627998, 14.1900005, { heading: -0.0000000, elevation: 0.1035010, cluster: true });
 # district_street_y_3_0 / forward approach
 sign_stop_district_street_y_3_0 = prop(stop_sign, 14.8600000, 10.8192950, { heading: 0.0000, elevation: 0.1030010, cluster: false });
 # district_street_y_3_1 / forward approach
-sign_stop_district_street_y_3_1 = prop(stop_sign, 14.8600000, 12.5367050, { heading: 0.0000, elevation: 0.1030010, cluster: false });
+sign_stop_district_street_y_3_1 = prop(stop_sign, 14.8670998, 12.4173403, { heading: -0.0000000, elevation: 0.1035010, cluster: false });
 # district_street_x_3_2 / forward approach
 sign_speed_district_street_x_3_2 = prop(speed_sign, 16.4000000, 12.5450000, { heading: -90.0000, elevation: 0.1030010, limit: 30 });
 # district_street_y_3_2 / forward approach
-sign_stop_district_street_y_3_2 = prop(stop_sign, 14.8600000, 14.2775000, { heading: 0.0000, elevation: 0.1030010, cluster: false });
+sign_stop_district_street_y_3_2 = prop(stop_sign, 14.8670998, 14.1900005, { heading: -0.0000000, elevation: 0.1035010, cluster: false });
 # service_north_approach / forward approach
 sign_direction_service_north_approach = prop(one_way_sign, 0.8270460, -0.7243090, { heading: -88.3018, elevation: 0.1020000, arrow: right });
 # service_south_approach / forward approach
 sign_direction_service_south_approach = prop(one_way_sign, 2.5617952, 0.1244721, { heading: 91.6982, elevation: 0.1020000, arrow: right });
 # highway_north / forward approach
-sign_autoroute_east_advance = prop(highway_sign, -3.9809070, -0.7032810, { heading: -88.3018, elevation: 0.0020000, destination: "Montréal", secondary: "Centre-ville / 100 m", exit: "1", arrow: exit_right });
+sign_autoroute_east_advance = prop(highway_sign, -3.9809070, -0.7032810, { heading: -88.3018, elevation: 0.0020000, destination: "Downtown", secondary: "Saint-Laurent / 100 m", exit: "1", arrow: exit_right });
 # highway_north / forward approach
-sign_autoroute_east_through = prop(highway_sign, 2.0164579, -0.5254741, { heading: -88.3018, elevation: 0.0020000, destination: "Québec", secondary: "40 EST", exit: "", arrow: straight });
+sign_autoroute_east_through = prop(highway_sign, 2.0164579, -0.5254741, { heading: -88.3018, elevation: 0.0020000, destination: "Hochelaga", secondary: "Saint-Denis / Stade", exit: "", arrow: straight });
 # highway_south / forward approach
-sign_autoroute_west_advance = prop(highway_sign, 6.8753885, 0.0887876, { heading: 91.6982, elevation: 0.0020000, destination: "Montréal", secondary: "Centre-ville / 50 m", exit: "2", arrow: exit_right });
+sign_autoroute_west_advance = prop(highway_sign, 6.8753885, 0.0887876, { heading: 91.6982, elevation: 0.0020000, destination: "Jean-Talon", secondary: "Saint-Denis / 50 m", exit: "2", arrow: exit_right });
 # highway_south / forward approach
-sign_autoroute_west_through = prop(highway_sign, 0.7530784, -0.0927236, { heading: 91.6982, elevation: 0.0020000, destination: "Ottawa / Gatineau", secondary: "40 OUEST", exit: "", arrow: straight });
+sign_autoroute_west_through = prop(highway_sign, 0.7530784, -0.0927236, { heading: 91.6982, elevation: 0.0020000, destination: "Villeray", secondary: "Jean-Talon / Saint-Laurent", exit: "", arrow: straight });
 # highway_north / forward approach
-sign_autoroute_east_speed = prop(speed_sign, -0.2325539, -0.5921517, { heading: -88.3018, elevation: 0.0020000, limit: 90 });
+sign_autoroute_east_speed = prop(speed_sign, -0.2325539, -0.5921517, { heading: -88.3018, elevation: 0.0020000, limit: 100 });
 # highway_south / forward approach
-sign_autoroute_west_speed = prop(speed_sign, 1.7526392, -0.0630892, { heading: 91.6982, elevation: 0.0020000, limit: 90 });
+sign_autoroute_west_speed = prop(speed_sign, 1.7526392, -0.0630892, { heading: 91.6982, elevation: 0.0020000, limit: 100 });
 # service_north_segment / forward approach
-sign_ramp_north_destination = prop(highway_sign, 1.9388161, -0.7263632, { heading: -88.3018, elevation: 0.1020000, destination: "Québec", secondary: "40 EST", exit: "", arrow: right });
+sign_ramp_north_destination = prop(highway_sign, 1.9388161, -0.7263632, { heading: -88.3018, elevation: 0.1020000, destination: "Hochelaga", secondary: "Saint-Denis / Stade", exit: "", arrow: right });
 # service_south_segment / forward approach
-sign_ramp_south_destination = prop(highway_sign, 1.4500250, 0.1265263, { heading: 91.6982, elevation: 0.1020000, destination: "Ottawa", secondary: "40 OUEST", exit: "", arrow: right });
+sign_ramp_south_destination = prop(highway_sign, 1.4500250, 0.1265263, { heading: 91.6982, elevation: 0.1020000, destination: "Villeray", secondary: "Jean-Talon / Saint-Laurent", exit: "", arrow: right });
 sign_merge_north = prop(yield_sign, 5.90, -0.385, {heading:-88.30,elevation:0.002});
 sign_merge_south = prop(yield_sign, -2.48, -0.15, {heading:91.70,elevation:0.002});
-sign_exit_north = prop(highway_sign, -2.9, -0.68, {heading:-88.30,elevation:0.002,destination:"Centre-ville",secondary:"Boul. Métropolitain",exit:"1",arrow:exit_right});
-sign_exit_south = prop(highway_sign, 6.3, 0.09, {heading:91.70,elevation:0.002,destination:"Centre-ville",secondary:"Boul. Métropolitain",exit:"2",arrow:exit_right});
+sign_exit_north = prop(highway_sign, -2.9, -0.68, {heading:-88.30,elevation:0.002,destination: "Downtown",secondary: "Saint-Laurent",exit:"1",arrow:exit_right});
+sign_exit_south = prop(highway_sign, 6.3, 0.09, {heading:91.70,elevation:0.002,destination: "Jean-Talon",secondary: "Saint-Denis",exit:"2",arrow:exit_right});
+
+# Street-level parking signs and first-drive visibility.
+# Parking faces the carriageway. Poles are on sidewalks, with signs staggered along both sides.
+parking_service_north_approach_1=prop(parking_sign,1.1889740,-0.7105775,{heading:-178.3018,elevation:0.1030000,permit:true});
+parking_service_north_segment_1=prop(parking_sign,2.1885348,-0.6809430,{heading:-178.3018,elevation:0.1030000,permit:true});
+parking_service_south_approach_1=prop(parking_sign,2.1998672,0.1107405,{heading:1.6982,elevation:0.1030000,permit:true});
+parking_service_south_segment_1=prop(parking_sign,1.2003063,0.0811061,{heading:1.6982,elevation:0.1030000,permit:true});
+parking_cross_west_1=prop(parking_sign,1.8031604,-1.4705852,{heading:-88.3018,elevation:0.1030000,permit:true});
+parking_cross_west_2=prop(parking_sign,1.6388301,-0.9219640,{heading:91.6982,elevation:0.1030000,permit:false});
+parking_cross_overpass_1=prop(parking_sign,1.7683880,-0.2977255,{heading:-88.3018,elevation:0.1030000,permit:true});
+parking_cross_east_1=prop(parking_sign,1.7462585,0.4486965,{heading:-88.3018,elevation:0.1030000,permit:true});
+parking_cross_island_extension_1=prop(parking_sign,1.7258107,1.1383935,{heading:-88.3018,elevation:0.1030000,permit:true});
+parking_road_1_1=prop(parking_sign,1.7184632,-2.2769513,{heading:-110.8006,elevation:0.1030000,permit:true});
+parking_road_2_1=prop(parking_sign,1.0932568,-3.0987488,{heading:-133.2982,elevation:0.1030000,permit:true});
+parking_road_11_1=prop(parking_sign,2.2948163,1.4892458,{heading:-178.3153,elevation:0.1030000,permit:true});
+parking_road_12_1=prop(parking_sign,3.2944163,1.5186458,{heading:-178.3153,elevation:0.1430000,permit:true});
+parking_road_13_1=prop(parking_sign,4.2930755,1.5800320,{heading:-178.3153,elevation:0.2130000,permit:true});
+parking_road_18_1=prop(parking_sign,4.9985680,2.3282755,{heading:-88.3153,elevation:0.2830000,permit:true});
+parking_road_19_1=prop(parking_sign,5.0417640,3.3102260,{heading:-102.0701,elevation:0.3630000,permit:true});
+parking_road_20_1=prop(parking_sign,5.2409055,4.3119212,{heading:-100.4160,elevation:0.4030000,permit:true});
+parking_road_21_1=prop(parking_sign,5.1476055,5.1100299,{heading:-61.7463,elevation:0.3830000,permit:true});
+parking_road_21_2=prop(parking_sign,4.7035296,5.5372006,{heading:120.5374,elevation:0.3430000,permit:false});
+parking_road_22_1=prop(parking_sign,4.6273067,6.3307955,{heading:-85.1197,elevation:0.2830000,permit:true});
+parking_road_23_1=prop(parking_sign,4.7378020,7.3020132,{heading:-107.3658,elevation:0.2030000,permit:true});
+parking_road_24_1=prop(parking_sign,4.8221680,8.3258755,{heading:-88.3153,elevation:0.1330000,permit:true});
+parking_road_25_1=prop(parking_sign,4.7927680,9.3254755,{heading:-88.3153,elevation:0.1030000,permit:true});
+parking_road_28_part_7_1=prop(parking_sign,7.8479754,1.6845820,{heading:-178.3153,elevation:0.1030009,permit:true});
+parking_road_16_1=prop(parking_sign,1.6935680,2.2310755,{heading:-88.3153,elevation:0.1030000,permit:true});
+parking_road_30_1=prop(parking_sign,1.6641680,3.2306755,{heading:-88.3153,elevation:0.1030000,permit:true});
+parking_road_31_1=prop(parking_sign,1.6384430,4.1053080,{heading:-88.3152,elevation:0.1030000,permit:true});
+parking_road_31_2=prop(parking_sign,1.4684570,4.8506274,{heading:91.6847,elevation:0.1030000,permit:false});
+parking_road_31_3=prop(parking_sign,1.5943430,5.6046550,{heading:-88.3153,elevation:0.1030000,permit:false});
+parking_road_31_4=prop(parking_sign,1.4243570,6.3499838,{heading:91.6847,elevation:0.1030000,permit:true});
+parking_road_31_5=prop(parking_sign,1.5502430,7.1040162,{heading:-88.3153,elevation:0.1030000,permit:false});
+parking_road_31_6=prop(parking_sign,1.3802570,7.8493450,{heading:91.6847,elevation:0.1030000,permit:false});
+parking_road_31_7=prop(parking_sign,1.5061430,8.6033726,{heading:-88.3153,elevation:0.1030000,permit:true});
+parking_road_31_8=prop(parking_sign,1.3361570,9.3486920,{heading:91.6848,elevation:0.1030000,permit:false});
+parking_road_40_1=prop(parking_sign,1.8497582,9.8181577,{heading:-178.3133,elevation:0.1030000,permit:true});
+parking_road_40_2=prop(parking_sign,2.4451583,9.9837710,{heading:1.6895,elevation:0.1030000,permit:false});
+parking_road_40_3=prop(parking_sign,3.0492829,9.8535322,{heading:-178.3096,elevation:0.1030000,permit:false});
+parking_road_40_4=prop(parking_sign,3.6446783,10.0191646,{heading:1.6895,elevation:0.1030000,permit:true});
+parking_road_40_5=prop(parking_sign,4.2487982,9.8889065,{heading:-178.3133,elevation:0.1030000,permit:false});
+parking_road_4_1=prop(parking_sign,1.0106373,1.7289313,{heading:-20.8182,elevation:0.1030000,permit:true});
+parking_road_5_1=prop(parking_sign,0.2380217,2.3237853,{heading:-43.3225,elevation:0.1030000,permit:true});
+parking_road_6_1=prop(parking_sign,-0.3387917,2.8677700,{heading:-43.3219,elevation:0.1030000,permit:true});
+parking_road_6_2=prop(parking_sign,-0.8664522,3.1619595,{heading:136.6781,elevation:0.1030000,permit:false});
+parking_road_6_3=prop(parking_sign,-1.1910212,3.6714852,{heading:-43.3219,elevation:0.1030000,permit:false});
+parking_road_6_4=prop(parking_sign,-1.7186711,3.9656642,{heading:136.6781,elevation:0.1030000,permit:true});
+parking_road_6_5=prop(parking_sign,-2.0432366,4.4751864,{heading:-43.3219,elevation:0.1030000,permit:false});
+parking_road_6_6=prop(parking_sign,-2.5708901,4.7693689,{heading:136.6781,elevation:0.1030000,permit:false});
+parking_road_6_7=prop(parking_sign,-2.8954660,5.2789015,{heading:-43.3219,elevation:0.1030000,permit:true});
+parking_road_41_1=prop(parking_sign,0.7158556,9.8242161,{heading:24.1874,elevation:0.1030000,permit:true});
+parking_road_42_1=prop(parking_sign,0.0611012,9.2879596,{heading:46.6915,elevation:0.1030000,permit:true});
+parking_road_42_2=prop(parking_sign,-0.2599123,8.7316499,{heading:-133.3094,elevation:0.1030000,permit:false});
+parking_road_42_3=prop(parking_sign,-0.7963195,8.3783831,{heading:46.6900,elevation:0.1030000,permit:false});
+parking_road_42_4=prop(parking_sign,-1.1173446,7.8220805,{heading:-133.3103,elevation:0.1030000,permit:true});
+parking_road_42_5=prop(parking_sign,-1.6537554,7.4688195,{heading:46.6897,elevation:0.1030000,permit:false});
+parking_road_42_6=prop(parking_sign,-1.9747805,6.9125169,{heading:-133.3100,elevation:0.1030000,permit:false});
+parking_road_42_7=prop(parking_sign,-2.5111877,6.5592501,{heading:46.6906,elevation:0.1030000,permit:true});
+parking_road_42_8=prop(parking_sign,-2.8322012,6.0029404,{heading:-133.3085,elevation:0.1030000,permit:false});
+parking_road_44_1=prop(parking_sign,1.4493680,10.5338755,{heading:-88.3153,elevation:0.1030000,permit:true});
+parking_ring_west_1_cross_right_1=prop(parking_sign,-11.5205534,8.0740000,{heading:0.0000,elevation:0.1355010,permit:true});
+parking_ring_west_1_cross_bridge_1=prop(parking_sign,-12.2855534,8.0740000,{heading:0.0000,elevation:0.1680010,permit:true});
+parking_ring_west_1_cross_left_1=prop(parking_sign,-13.0505534,8.0740000,{heading:0.0000,elevation:0.1355010,permit:true});
+parking_ring_west_1_local_right_street_1=prop(parking_sign,-9.6855534,8.0740000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_ring_west_1_local_right_street_2=prop(parking_sign,-10.4855534,7.9260000,{heading:180.0000,elevation:0.1030010,permit:false});
+parking_ring_west_2_cross_right_1=prop(parking_sign,-11.5205534,16.5740000,{heading:0.0000,elevation:0.1355010,permit:true});
+parking_ring_west_2_cross_bridge_1=prop(parking_sign,-12.2855534,16.5740000,{heading:0.0000,elevation:0.1680010,permit:true});
+parking_ring_west_2_cross_left_1=prop(parking_sign,-13.0505534,16.5740000,{heading:0.0000,elevation:0.1355010,permit:true});
+parking_ring_west_2_local_right_street_1=prop(parking_sign,-9.6855534,16.5740000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_ring_west_2_local_right_street_2=prop(parking_sign,-10.4855534,16.4260000,{heading:180.0000,elevation:0.1030010,permit:false});
+parking_ring_east_1_cross_right_1=prop(parking_sign,28.5150000,12.0740000,{heading:0.0000,elevation:0.1355010,permit:true});
+parking_ring_east_1_cross_bridge_1=prop(parking_sign,27.7500000,12.0740000,{heading:0.0000,elevation:0.1680010,permit:true});
+parking_ring_east_1_cross_left_1=prop(parking_sign,26.9850000,12.0740000,{heading:0.0000,elevation:0.1355010,permit:true});
+parking_ring_east_1_local_left_street_1=prop(parking_sign,25.9500000,12.0740000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_ring_east_1_local_left_street_2=prop(parking_sign,25.1500000,11.9260000,{heading:180.0000,elevation:0.1030010,permit:false});
+parking_ring_north_1_cross_right_1=prop(parking_sign,0.0740000,23.2350000,{heading:-90.0000,elevation:0.1355010,permit:true});
+parking_ring_north_1_cross_bridge_1=prop(parking_sign,0.0740000,24.0000000,{heading:-90.0000,elevation:0.1680010,permit:true});
+parking_ring_north_1_cross_left_1=prop(parking_sign,0.0740000,24.7650000,{heading:-90.0000,elevation:0.1355010,permit:true});
+parking_ring_north_1_local_right_street_1=prop(parking_sign,0.0740000,21.4000000,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_ring_north_1_local_right_street_2=prop(parking_sign,-0.0740000,22.2000000,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_ring_north_2_cross_right_1=prop(parking_sign,14.0740000,23.2350000,{heading:-90.0000,elevation:0.1355010,permit:true});
+parking_ring_north_2_cross_bridge_1=prop(parking_sign,14.0740000,24.0000000,{heading:-90.0000,elevation:0.1680010,permit:true});
+parking_ring_north_2_cross_left_1=prop(parking_sign,14.0740000,24.7650000,{heading:-90.0000,elevation:0.1355010,permit:true});
+parking_ring_north_2_local_right_street_1=prop(parking_sign,14.0740000,21.4000000,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_ring_north_2_local_right_street_2=prop(parking_sign,13.9260000,22.2000000,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_east_clover_city_link_1=prop(parking_sign,15.7125598,6.5762123,{heading:-48.5957,elevation:0.1030010,permit:true});
+parking_east_clover_city_link_2=prop(parking_sign,14.9104988,6.9825511,{heading:140.5760,elevation:0.1030010,permit:false});
+parking_east_clover_city_approach_1=prop(parking_sign,14.8740000,7.6500000,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_0_1_1=prop(parking_sign,1.6385667,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_0_1_2=prop(parking_sign,2.1943000,11.1375000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_1_3=prop(parking_sign,2.7500333,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_1_4=prop(parking_sign,3.3057667,11.1375000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_0_1_5=prop(parking_sign,3.8615000,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_1_6=prop(parking_sign,4.4172333,11.1375000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_0_1_1=prop(parking_sign,1.4347000,11.4361250,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_0_1_2=prop(parking_sign,1.2867000,12.2453750,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_2_1=prop(parking_sign,1.6385667,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_0_2_2=prop(parking_sign,2.1943000,12.7560000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_2_3=prop(parking_sign,2.7500333,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_2_4=prop(parking_sign,3.3057667,12.7560000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_0_2_5=prop(parking_sign,3.8615000,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_2_6=prop(parking_sign,4.4172333,12.7560000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_0_2_1=prop(parking_sign,1.4347000,12.9416667,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_0_2_2=prop(parking_sign,1.2867000,13.5250000,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_0_2_3=prop(parking_sign,1.4347000,14.1083333,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_3_1=prop(parking_sign,1.6385667,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_0_3_2=prop(parking_sign,2.1943000,14.5060000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_3_3=prop(parking_sign,2.7500333,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_3_4=prop(parking_sign,3.3057667,14.5060000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_0_3_5=prop(parking_sign,3.8615000,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_0_3_6=prop(parking_sign,4.4172333,14.5060000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_1_1=prop(parking_sign,4.9784833,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_1_1_2=prop(parking_sign,5.5452500,11.1375000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_1_3=prop(parking_sign,6.1120167,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_1_4=prop(parking_sign,6.6787833,11.1375000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_1_1_5=prop(parking_sign,7.2455500,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_1_6=prop(parking_sign,7.8123167,11.1375000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_1_1_1=prop(parking_sign,4.7691000,11.4361250,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_1_1_2=prop(parking_sign,4.6211000,12.2453750,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_2_1=prop(parking_sign,4.9784833,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_1_2_2=prop(parking_sign,5.5452500,12.7560000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_2_3=prop(parking_sign,6.1120167,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_2_4=prop(parking_sign,6.6787833,12.7560000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_1_2_5=prop(parking_sign,7.2455500,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_2_6=prop(parking_sign,7.8123167,12.7560000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_1_2_1=prop(parking_sign,4.7691000,12.9416667,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_1_2_2=prop(parking_sign,4.6211000,13.5250000,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_1_2_3=prop(parking_sign,4.7691000,14.1083333,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_3_1=prop(parking_sign,4.9784833,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_1_3_2=prop(parking_sign,5.5452500,14.5060000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_3_3=prop(parking_sign,6.1120167,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_3_4=prop(parking_sign,6.6787833,14.5060000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_1_3_5=prop(parking_sign,7.2455500,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_1_3_6=prop(parking_sign,7.8123167,14.5060000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_0_1=prop(parking_sign,8.5147188,7.9260000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_0_2=prop(parking_sign,9.3527563,8.0740000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_0_3=prop(parking_sign,10.1907938,7.9260000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_0_4=prop(parking_sign,11.0288313,8.0740000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_0_5=prop(parking_sign,11.8668687,7.9260000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_0_6=prop(parking_sign,12.7049062,8.0740000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_0_7=prop(parking_sign,13.5429437,7.9260000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_0_8=prop(parking_sign,14.3809812,8.0740000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_2_0_1=prop(parking_sign,8.1697000,8.3031500,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_2_0_2=prop(parking_sign,8.0217000,8.9094500,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_2_0_3=prop(parking_sign,8.1697000,9.5157500,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_2_0_4=prop(parking_sign,8.0217000,10.1220500,{heading:90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_2_0_5=prop(parking_sign,8.1697000,10.7283500,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_1_1=prop(parking_sign,8.5147188,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_1_2=prop(parking_sign,9.3527563,11.1375000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_1_3=prop(parking_sign,10.1907938,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_1_4=prop(parking_sign,11.0288313,11.1375000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_1_5=prop(parking_sign,11.8668687,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_1_6=prop(parking_sign,12.7049062,11.1375000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_1_7=prop(parking_sign,13.5429437,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_1_8=prop(parking_sign,14.3809812,11.1375000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_2_1_1=prop(parking_sign,8.1697000,11.4361250,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_2_1_2=prop(parking_sign,8.0217000,12.2453750,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_2_1=prop(parking_sign,8.5147188,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_2_2=prop(parking_sign,9.3527563,12.7560000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_2_3=prop(parking_sign,10.1907938,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_2_4=prop(parking_sign,11.0288313,12.7560000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_2_5=prop(parking_sign,11.8668687,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_2_6=prop(parking_sign,12.7049062,12.7560000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_2_7=prop(parking_sign,13.5429437,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_2_8=prop(parking_sign,14.3809812,12.7560000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_2_2_1=prop(parking_sign,8.1697000,12.9416667,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_2_2_2=prop(parking_sign,8.0217000,13.5250000,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_2_2_3=prop(parking_sign,8.1697000,14.1083333,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_3_1=prop(parking_sign,8.5147188,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_3_2=prop(parking_sign,9.3527563,14.5060000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_3_3=prop(parking_sign,10.1907938,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_3_4=prop(parking_sign,11.0288313,14.5060000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_3_5=prop(parking_sign,11.8668687,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_3_6=prop(parking_sign,12.7049062,14.5060000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_2_3_7=prop(parking_sign,13.5429437,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_2_3_8=prop(parking_sign,14.3809812,14.5060000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_0_1=prop(parking_sign,15.2000000,7.9260000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_0_2=prop(parking_sign,16.0000000,8.0740000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_0_3=prop(parking_sign,16.8000000,7.9260000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_0_4=prop(parking_sign,17.6000000,8.0740000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_0_5=prop(parking_sign,18.4000000,7.9260000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_0_6=prop(parking_sign,19.2000000,8.0740000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_0_7=prop(parking_sign,20.0000000,7.9260000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_0_8=prop(parking_sign,20.8000000,8.0740000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_3_0_1=prop(parking_sign,14.8740000,8.3031500,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_3_0_2=prop(parking_sign,14.7260000,8.9094500,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_3_0_3=prop(parking_sign,14.8740000,9.5157500,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_3_0_4=prop(parking_sign,14.7260000,10.1220500,{heading:90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_3_0_5=prop(parking_sign,14.8740000,10.7283500,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_1_1=prop(parking_sign,15.2000000,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_1_2=prop(parking_sign,16.0000000,11.1375000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_1_3=prop(parking_sign,16.8000000,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_1_4=prop(parking_sign,17.6000000,11.1375000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_1_5=prop(parking_sign,18.4000000,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_1_6=prop(parking_sign,19.2000000,11.1375000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_1_7=prop(parking_sign,20.0000000,10.9255000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_1_8=prop(parking_sign,20.8000000,11.1375000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_3_1_1=prop(parking_sign,14.8740000,11.4361250,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_3_1_2=prop(parking_sign,14.7260000,12.2453750,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_2_1=prop(parking_sign,15.2000000,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_2_2=prop(parking_sign,16.0000000,12.7560000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_2_3=prop(parking_sign,16.8000000,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_2_4=prop(parking_sign,17.6000000,12.7560000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_2_5=prop(parking_sign,18.4000000,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_2_6=prop(parking_sign,19.2000000,12.7560000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_2_7=prop(parking_sign,20.0000000,12.5440000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_2_8=prop(parking_sign,20.8000000,12.7560000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_3_2_1=prop(parking_sign,14.8740000,12.9416667,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_3_2_2=prop(parking_sign,14.7260000,13.5250000,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_3_2_3=prop(parking_sign,14.8740000,14.1083333,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_3_1=prop(parking_sign,15.2000000,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_3_2=prop(parking_sign,16.0000000,14.5060000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_3_3=prop(parking_sign,16.8000000,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_3_4=prop(parking_sign,17.6000000,14.5060000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_3_5=prop(parking_sign,18.4000000,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_3_6=prop(parking_sign,19.2000000,14.5060000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_x_3_3_7=prop(parking_sign,20.0000000,14.2940000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_street_x_3_3_8=prop(parking_sign,20.8000000,14.5060000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_4_0_1=prop(parking_sign,21.2740000,8.3031500,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_4_0_2=prop(parking_sign,21.1260000,8.9094500,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_4_0_3=prop(parking_sign,21.2740000,9.5157500,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_4_0_4=prop(parking_sign,21.1260000,10.1220500,{heading:90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_4_0_5=prop(parking_sign,21.2740000,10.7283500,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_4_1_1=prop(parking_sign,21.2740000,11.4361250,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_4_1_2=prop(parking_sign,21.1260000,12.2453750,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_4_2_1=prop(parking_sign,21.2740000,12.9416667,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_street_y_4_2_2=prop(parking_sign,21.1260000,13.5250000,{heading:90.0000,elevation:0.1030010,permit:false});
+parking_district_street_y_4_2_3=prop(parking_sign,21.2740000,14.1083333,{heading:-90.0000,elevation:0.1030010,permit:false});
+parking_district_neighborhood_link_1=prop(parking_sign,4.7691000,10.5804000,{heading:-90.0000,elevation:0.1030010,permit:true});
+parking_district_north_access_1_1=prop(parking_sign,1.4192251,14.8178495,{heading:-85.8544,elevation:0.1030010,permit:true});
+parking_district_north_access_1_2=prop(parking_sign,1.1624076,15.6237960,{heading:100.6722,elevation:0.1030010,permit:false});
+parking_district_north_access_1_3=prop(parking_sign,1.1166254,16.4815066,{heading:-75.1170,elevation:0.1030010,permit:false});
+parking_district_north_access_1_4=prop(parking_sign,0.7364587,17.2659495,{heading:106.9312,elevation:0.1030010,permit:true});
+parking_district_north_access_1_5=prop(parking_sign,0.6242413,18.1340505,{heading:-73.0688,elevation:0.1030010,permit:false});
+parking_district_north_access_1_6=prop(parking_sign,0.2440746,18.9184934,{heading:104.8830,elevation:0.1030010,permit:false});
+parking_district_north_access_1_7=prop(parking_sign,0.1982924,19.7762040,{heading:-79.3278,elevation:0.1030010,permit:true});
+parking_district_north_access_1_8=prop(parking_sign,-0.0585251,20.5821505,{heading:94.1456,elevation:0.1030010,permit:false});
+parking_district_north_access_2_1=prop(parking_sign,14.8649485,14.8156505,{heading:-87.5599,elevation:0.1030010,permit:true});
+parking_district_north_access_2_2=prop(parking_sign,14.6526219,15.6293510,{heading:96.3223,elevation:0.1030010,permit:false});
+parking_district_north_access_2_3=prop(parking_sign,14.6875660,16.4739239,{heading:-81.1193,elevation:0.1030010,permit:false});
+parking_district_north_access_2_4=prop(parking_sign,14.4017669,17.2744628,{heading:100.1472,elevation:0.1030010,permit:true});
+parking_district_north_access_2_5=prop(parking_sign,14.3982331,18.1255372,{heading:-79.8528,elevation:0.1030010,permit:false});
+parking_district_north_access_2_6=prop(parking_sign,14.1124340,18.9260761,{heading:98.8807,elevation:0.1030010,permit:false});
+parking_district_north_access_2_7=prop(parking_sign,14.1473781,19.7706490,{heading:-83.6777,elevation:0.1030010,permit:true});
+parking_district_north_access_2_8=prop(parking_sign,13.9350515,20.5843495,{heading:92.4401,elevation:0.1030010,permit:false});
+parking_district_east_access_1=prop(parking_sign,21.4938663,12.5634629,{heading:175.2679,elevation:0.1030010,permit:true});
+parking_district_east_access_2=prop(parking_sign,22.1139861,12.6209491,{heading:-11.5112,elevation:0.1030010,permit:false});
+parking_district_east_access_3=prop(parking_sign,22.6774121,12.3339708,{heading:165.1455,elevation:0.1030010,permit:false});
+parking_district_east_access_4=prop(parking_sign,23.3091710,12.3159960,{heading:-14.9544,elevation:0.1030010,permit:true});
+parking_district_east_access_5=prop(parking_sign,23.8638368,12.0291131,{heading:168.2500,elevation:0.1030010,permit:false});
+parking_district_east_access_6=prop(parking_sign,24.4678101,12.0865187,{heading:-4.9015,elevation:0.1030010,permit:false});
+parking_district_west_access_1_1=prop(parking_sign,-9.0336780,7.9696924,{heading:-160.1750,elevation:0.1030010,permit:true});
+parking_district_west_access_1_2=prop(parking_sign,-8.7324147,8.3713054,{heading:49.2468,elevation:0.1030010,permit:false});
+parking_district_west_access_1_3=prop(parking_sign,-8.2914282,8.7769152,{heading:-118.0978,elevation:0.1030010,permit:false});
+parking_district_west_access_1_4=prop(parking_sign,-8.1285909,9.4544170,{heading:65.3759,elevation:0.1030010,permit:true});
+parking_district_west_access_1_5=prop(parking_sign,-7.6857787,10.0427861,{heading:-117.0300,elevation:0.1030010,permit:false});
+parking_district_west_access_1_6=prop(parking_sign,-7.4496096,10.7311547,{heading:54.5473,elevation:0.1030010,permit:false});
+parking_district_west_access_1_7=prop(parking_sign,-6.8901731,11.1186799,{heading:-142.0116,elevation:0.1030010,permit:true});
+parking_district_west_access_1_8=prop(parking_sign,-6.3691342,11.5327682,{heading:13.0979,elevation:0.1030010,permit:false});
+parking_district_west_access_2_1=prop(parking_sign,-8.8824397,16.3980525,{heading:171.8957,elevation:0.1030010,permit:true});
+parking_district_west_access_2_2=prop(parking_sign,-8.1022392,16.3198183,{heading:-25.1026,elevation:0.1030010,permit:false});
+parking_district_west_access_2_3=prop(parking_sign,-7.5594291,15.7881290,{heading:138.8757,elevation:0.1030010,permit:false});
+parking_district_west_access_2_4=prop(parking_sign,-6.9397356,15.3166902,{heading:-54.5813,elevation:0.1030010,permit:true});
+parking_district_west_access_2_5=prop(parking_sign,-6.6653622,14.5409806,{heading:114.6971,elevation:0.1030010,permit:false});
+parking_district_west_access_2_6=prop(parking_sign,-6.2306003,13.7880287,{heading:-73.8586,elevation:0.1030010,permit:false});
+parking_district_west_access_2_7=prop(parking_sign,-6.1804259,12.8781058,{heading:99.0695,elevation:0.1030010,permit:true});
+parking_district_west_access_2_8=prop(parking_sign,-5.9378832,11.9718825,{heading:-87.1008,elevation:0.1030010,permit:false});
+parking_district_west_feeder_1=prop(parking_sign,-5.6062500,11.4260000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_west_feeder_2=prop(parking_sign,-4.8187500,11.5740000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_west_feeder_3=prop(parking_sign,-4.0312500,11.4260000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_west_feeder_4=prop(parking_sign,-3.2437500,11.5740000,{heading:0.0000,elevation:0.1030010,permit:true});
+parking_district_west_feeder_5=prop(parking_sign,-2.4562500,11.4260000,{heading:-180.0000,elevation:0.1030010,permit:false});
+parking_district_west_feeder_6=prop(parking_sign,-1.6687500,11.5740000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_west_feeder_7=prop(parking_sign,-0.8812500,11.4260000,{heading:-180.0000,elevation:0.1030010,permit:true});
+parking_district_west_feeder_8=prop(parking_sign,-0.0937500,11.5740000,{heading:0.0000,elevation:0.1030010,permit:false});
+parking_district_existing_neighborhood_1=prop(parking_sign,0.6641068,11.3496249,{heading:153.9102,elevation:0.1030010,permit:true});
+parking_district_existing_neighborhood_2=prop(parking_sign,1.1937574,10.9084476,{heading:-70.9443,elevation:0.1030010,permit:false});
+parking_district_existing_neighborhood_3=prop(parking_sign,1.1631974,10.1743733,{heading:92.2333,elevation:0.1030010,permit:false});
+parking_spawn_01 = prop(parking_sign, 1.1000000, -0.8900000, { heading: 0.0000000, elevation: 0.1020000, permit: false });
+parking_spawn_02 = prop(parking_sign, 1.4400001, -1.0000000, { heading: -90.0000000, elevation: 0.1020000, permit: true });
+parking_spawn_03 = prop(parking_sign, 0.8800000, -1.0800000, { heading: 90.0000000, elevation: 0.1020000, permit: false });
+parking_spawn_04 = prop(parking_sign, 1.5000000, -0.7800000, { heading: 180.0000000, elevation: 0.1020000, permit: true });
+sign_speed_first_drive=prop(speed_sign,1.30,-0.700,{heading:-88.3,elevation:0.103,limit:30});
+
+# Local wayfinding beside the stadium, rather than an out-of-map city destination.
+road_path(ring_east_1_right_in, "Hochelaga", "Stade");
+sign_hochelaga_stadium=prop(highway_sign,29.205,11.55,{heading:0,elevation:0.102001,destination:"Hochelaga",secondary:"Stade",exit:"",arrow:right});
+
+# Underground metro loop: authored cubic centreline, platforms and stair excavations.
+# Entire loop stays inside the interstate ring; the return curve clears its inward spur.
+road metro_track:
+    subwaytrack;
+end
+road metro_platform:
+    sidewalk;
+end
+road metro_stair:
+    sidewalk;
+end
+metro_loop_00 = metro_track(1.3, 1.4, 1.3, 3.6, 1.3, 5.8, 1.3, 8);
+grade(metro_loop_00, -0.035, -0.035);
+metro_loop_01 = metro_track(1.3, 8, 1.3, 8.15, 1.3, 8.3, 1.3, 8.45);
+grade(metro_loop_01, -0.035, -0.035);
+metro_loop_02 = metro_track(1.3, 8.45, 1.3, 8.947056, 1.702944, 9.35, 2.2, 9.35);
+grade(metro_loop_02, -0.035, -0.035);
+metro_loop_03 = metro_track(2.2, 9.35, 7.3, 9.35, 12.4, 9.35, 17.5, 9.35);
+grade(metro_loop_03, -0.035, -0.035);
+metro_loop_04 = metro_track(17.5, 9.35, 18.366667, 9.35, 19.233333, 9.35, 20.1, 9.35);
+grade(metro_loop_04, -0.035, -0.035);
+metro_loop_05 = metro_track(20.1, 9.35, 20.597056, 9.35, 21, 8.947056, 21, 8.45);
+grade(metro_loop_05, -0.035, -0.035);
+metro_loop_06 = metro_track(21, 8.45, 21, 8.416667, 21, 8.383333, 21, 8.35);
+grade(metro_loop_06, -0.035, -0.035);
+metro_loop_07 = metro_track(21, 8.35, 21, 7.908172, 20.641828, 7.55, 20.2, 7.55);
+grade(metro_loop_07, -0.035, -0.035);
+metro_loop_08 = metro_track(20.2, 7.55, 8, 7.55, 12, 0.4, 2.2, 0.4);
+grade(metro_loop_08, -0.035, -0.035);
+metro_loop_09 = metro_track(2.2, 0.4, 1.702944, 0.4, 1.3, 0.802944, 1.3, 1.3);
+grade(metro_loop_09, -0.035, -0.035);
+metro_loop_10 = metro_track(1.3, 1.3, 1.3, 1.333333, 1.3, 1.366667, 1.3, 1.4);
+grade(metro_loop_10, -0.035, -0.035);
+
+# acadie: 44 m chamber, 7 m platform, 72-step street staircase.
+metro_station_acadie = map_point(1.3, 1.4);
+metro_cut_acadie = terrain_cut(-0.036, 1.34, 1.2, 1.34, 1.62, 1.18, 1.62, 1.18, 1.2);
+metro_cut_acadie_left = terrain_cut(-0.036, 1.34, 1.18, 1.34, 1.2, 1.26, 1.2, 1.26, 1.18);
+metro_cut_acadie_right = terrain_cut(-0.036, 1.22, 1.18, 1.22, 1.2, 1.18, 1.2, 1.18, 1.18);
+metro_stair_cut_acadie = terrain_cut(0.1005, { slope_x: 0, slope_y: -0.63375 }, 1.26, 1, 1.26, 1.2, 1.22, 1.2, 1.22, 1);
+metro_dock_acadie_0 = metro_platform(1.27, 1.18, 1.27, 1.62);
+grade(metro_dock_acadie_0, -0.02625, -0.02625);
+metro_dock_acadie_1 = metro_platform(1.24, 1.18, 1.24, 1.62);
+grade(metro_dock_acadie_1, -0.02625, -0.02625);
+metro_dock_acadie_2 = metro_platform(1.21, 1.18, 1.21, 1.62);
+grade(metro_dock_acadie_2, -0.02625, -0.02625);
+metro_stairs_acadie = metro_stair(1.24, 1, 1.24, 1.2);
+grade(metro_stairs_acadie, 0.1005, -0.02625);
+metro_roof_acadie_0 = concrete(1.34, 1.22, 1.34, 1.62, 1.18, 1.62, 1.18, 1.22);
+elevation(metro_roof_acadie_0, 0.122);
+metro_roof_acadie_1 = concrete(1.34, 1.18, 1.34, 1.22, 1.26, 1.22, 1.26, 1.18);
+elevation(metro_roof_acadie_1, 0.122);
+metro_roof_acadie_2 = concrete(1.22, 1.18, 1.22, 1.22, 1.18, 1.22, 1.18, 1.18);
+elevation(metro_roof_acadie_2, 0.122);
+
+# jean_talon: 44 m chamber, 7 m platform, 72-step street staircase.
+metro_station_jean_talon = map_point(1.3, 8);
+metro_cut_jean_talon = terrain_cut(-0.036, 1.34, 7.8, 1.34, 8.22, 1.18, 8.22, 1.18, 7.8);
+metro_cut_jean_talon_left = terrain_cut(-0.036, 1.34, 7.78, 1.34, 7.8, 1.26, 7.8, 1.26, 7.78);
+metro_cut_jean_talon_right = terrain_cut(-0.036, 1.22, 7.78, 1.22, 7.8, 1.18, 7.8, 1.18, 7.78);
+metro_stair_cut_jean_talon = terrain_cut(0.1005, { slope_x: 0, slope_y: -0.63375 }, 1.26, 7.6, 1.26, 7.8, 1.22, 7.8, 1.22, 7.6);
+metro_dock_jean_talon_0 = metro_platform(1.27, 7.78, 1.27, 8.22);
+grade(metro_dock_jean_talon_0, -0.02625, -0.02625);
+metro_dock_jean_talon_1 = metro_platform(1.24, 7.78, 1.24, 8.22);
+grade(metro_dock_jean_talon_1, -0.02625, -0.02625);
+metro_dock_jean_talon_2 = metro_platform(1.21, 7.78, 1.21, 8.22);
+grade(metro_dock_jean_talon_2, -0.02625, -0.02625);
+metro_stairs_jean_talon = metro_stair(1.24, 7.6, 1.24, 7.8);
+grade(metro_stairs_jean_talon, 0.1005, -0.02625);
+metro_roof_jean_talon_0 = concrete(1.34, 7.82, 1.34, 8.22, 1.18, 8.22, 1.18, 7.82);
+elevation(metro_roof_jean_talon_0, 0.122);
+metro_roof_jean_talon_1 = concrete(1.34, 7.78, 1.34, 7.82, 1.26, 7.82, 1.26, 7.78);
+elevation(metro_roof_jean_talon_1, 0.122);
+metro_roof_jean_talon_2 = concrete(1.22, 7.78, 1.22, 7.82, 1.18, 7.82, 1.18, 7.78);
+elevation(metro_roof_jean_talon_2, 0.122);
+
+# bonaventure: 44 m chamber, 7 m platform, 72-step street staircase.
+metro_station_bonaventure = map_point(17.5, 9.35);
+metro_cut_bonaventure = terrain_cut(-0.036, 17.3, 9.31, 17.72, 9.31, 17.72, 9.47, 17.3, 9.47);
+metro_cut_bonaventure_left = terrain_cut(-0.036, 17.28, 9.31, 17.3, 9.31, 17.3, 9.39, 17.28, 9.39);
+metro_cut_bonaventure_right = terrain_cut(-0.036, 17.28, 9.43, 17.3, 9.43, 17.3, 9.47, 17.28, 9.47);
+metro_stair_cut_bonaventure = terrain_cut(0.1005, { slope_x: -0.63375, slope_y: 0 }, 17.1, 9.39, 17.3, 9.39, 17.3, 9.43, 17.1, 9.43);
+metro_dock_bonaventure_0 = metro_platform(17.28, 9.38, 17.72, 9.38);
+grade(metro_dock_bonaventure_0, -0.02625, -0.02625);
+metro_dock_bonaventure_1 = metro_platform(17.28, 9.41, 17.72, 9.41);
+grade(metro_dock_bonaventure_1, -0.02625, -0.02625);
+metro_dock_bonaventure_2 = metro_platform(17.28, 9.44, 17.72, 9.44);
+grade(metro_dock_bonaventure_2, -0.02625, -0.02625);
+metro_stairs_bonaventure = metro_stair(17.1, 9.41, 17.3, 9.41);
+grade(metro_stairs_bonaventure, 0.1005, -0.02625);
+metro_roof_bonaventure_0 = concrete(17.32, 9.31, 17.72, 9.31, 17.72, 9.47, 17.32, 9.47);
+elevation(metro_roof_bonaventure_0, 0.122);
+metro_roof_bonaventure_1 = concrete(17.28, 9.31, 17.32, 9.31, 17.32, 9.39, 17.28, 9.39);
+elevation(metro_roof_bonaventure_1, 0.122);
+metro_roof_bonaventure_2 = concrete(17.28, 9.43, 17.32, 9.43, 17.32, 9.47, 17.28, 9.47);
+elevation(metro_roof_bonaventure_2, 0.122);

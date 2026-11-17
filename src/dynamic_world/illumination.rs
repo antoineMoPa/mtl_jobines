@@ -69,6 +69,7 @@ impl DynamicWorld {
     pub fn local_lights(&self) -> Vec<LocalLight> {
         let center = self.player_position();
         let mut lights = Vec::new();
+        self.metro.append_lights(&mut lights, center);
         self.props.append_local_lights(&mut lights, center);
         for (id, vehicle) in self.vehicles.iter().enumerate() {
             if self.traffic.inactive(id)

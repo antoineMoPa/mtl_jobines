@@ -2,7 +2,7 @@
   "targets": [
     {
       "name": "Game UI",
-      "build": "cargo xtask game-build",
+      "build": "true",
       "run": "cargo xtask game-run"
     },
     {

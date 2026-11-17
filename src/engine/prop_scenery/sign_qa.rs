@@ -19,6 +19,7 @@ fn family(kind: Kind) -> usize {
         Kind::YieldSign => 3,
         Kind::CurveSign => 4,
         Kind::HighwaySign => 5,
+        Kind::ParkingSign => 6,
         _ => unreachable!(),
     }
 }
@@ -34,7 +35,7 @@ fn native_capture_thirty_map_signs_for_qa() {
         Hermes::load_with_game_data(std::path::Path::new("data/maps/mtl/map.road"), None).unwrap();
     let visible = crate::props::visible_placements(&entries, hermes.city());
     let visible_ids: HashSet<_> = visible.iter().map(|(e, i, _)| (*e, *i)).collect();
-    let mut buckets: [Vec<_>; 6] = std::array::from_fn(|_| Vec::new());
+    let mut buckets: [Vec<_>; 7] = std::array::from_fn(|_| Vec::new());
     let mut suppressed = Vec::new();
     for (entry, e) in entries.iter().enumerate() {
         if SignDesign::for_kind(e.kind()).is_none() {
@@ -49,22 +50,86 @@ fn native_capture_thirty_map_signs_for_qa() {
         }
     }
     for bucket in &mut buckets {
-        bucket.sort_by_key(|(_, _, _, hidden)| *hidden);
+        bucket.sort_by(|a, b| {
+            a.3.cmp(&b.3).then_with(|| {
+                a.2.position
+                    .distance_squared(Vec3::new(1.1318498, -0.94828856, 0.122))
+                    .total_cmp(&b.2.position.distance_squared(Vec3::new(
+                        1.1318498,
+                        -0.94828856,
+                        0.122,
+                    )))
+            })
+        });
     }
     let mut selected = Vec::new();
-    let mut cursor = [0; 6];
+    for name in [
+        "sign_stop_district_street_y_0_1",
+        "sign_stop_district_street_y_0_2",
+        "sign_speed_road_8",
+        "sign_autoroute_west_speed",
+        "sign_curve_0",
+        "sign_curve_4",
+        "sign_curve_2",
+        "sign_hochelaga_stadium",
+        "sign_autoroute_east_through",
+        "sign_autoroute_west_through",
+        "sign_ramp_north_destination",
+        "sign_ramp_south_destination",
+    ] {
+        if let Some(p) = buckets
+            .iter()
+            .flatten()
+            .find(|(e, _, _, _)| entries[*e].name == name)
+        {
+            selected.push(p.clone());
+        }
+    }
+    for name in [
+        "sign_stop_district_street_y_0_1",
+        "sign_stop_district_street_y_0_2",
+        "sign_speed_road_8",
+        "sign_autoroute_west_speed",
+        "sign_curve_0",
+        "sign_curve_2",
+        "sign_curve_4",
+        "sign_hochelaga_stadium",
+    ] {
+        if let Some(p) = buckets
+            .iter()
+            .flatten()
+            .find(|(entry, _, _, _)| entries[*entry].name == name)
+        {
+            selected.push(p.clone());
+        }
+    }
+    let mut cursor = [0; 7];
     while selected.len() < 30 {
         let before = selected.len();
-        for f in 0..6 {
+        for f in 0..7 {
+            while buckets[f]
+                .get(cursor[f])
+                .is_some_and(|p| selected.iter().any(|s| s.0 == p.0 && s.1 == p.1))
+            {
+                cursor[f] += 1;
+            }
             if let Some(p) = buckets[f].get(cursor[f]) {
-                selected.push(p.clone());
+                if !selected
+                    .iter()
+                    .any(|(entry, member, _, _)| *entry == p.0 && *member == p.1)
+                {
+                    selected.push(p.clone());
+                }
                 cursor[f] += 1;
             }
             if selected.len() == 30 {
                 break;
             }
         }
-        assert!(selected.len() > before, "map needs 30 sign placements");
+        assert!(
+            selected.len() > before || (0..7).any(|f| cursor[f] < buckets[f].len()),
+            "map needs 30 sign placements"
+        );
     }
     let mut renderer = pollster::block_on(Renderer::new(None, 1280, 720)).unwrap();
     renderer.daylight = Some(1.);
@@ -143,7 +208,7 @@ fn native_capture_thirty_map_signs_for_qa() {
             .unwrap();
         let file = format!("sign-{:02}.png", number + 1);
         std::fs::write(output.join(&file), png).unwrap();
-        records.push(serde_json::json!({"number":number+1,"name":entries[entry].name,"member":member,"kind":p.kind.keyword(),"label":p.kind.label(),"design":format!("{design:?}"),"position":p.position.to_array(),"heading":p.heading,"hidden":hidden,"file":file}));
+        records.push(serde_json::json!({"number":number+1,"name":entries[entry].name,"member":member,"kind":p.kind.keyword(),"label":p.kind.label(),"design":format!("{design:?}"),"position":p.position.to_array(),"heading":p.heading,"hidden":hidden,"file":file,"distance_from_start_m":p.position.truncate().distance(glam::Vec2::new(1.1318498,-0.94828856))*100.}));
         eprintln!(
             "QA sign {}/30: {}{}",
             number + 1,

@@ -1164,7 +1164,7 @@ impl ApplicationHandler<GameEvent> for Game {
             let phone_shortcut = matches!(&event, WindowEvent::KeyboardInput { event, .. }
                 if event.physical_key == PhysicalKey::Code(KeyCode::KeyP)
                     && event.state == ElementState::Pressed && !event.repeat
-                    && !palette.shortcut() && !open && !self.world.is_driving()
+                    && !palette.shortcut() && !open
                     && self.overlay == Overlay::Driving);
             if phone_shortcut {
                 palette.open_job_feed();

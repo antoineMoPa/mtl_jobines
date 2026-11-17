@@ -14,6 +14,7 @@ pub use illumination::LocalLight;
 pub use illumination::RearLight;
 mod landmark_respawn;
 mod lineup;
+mod metro;
 pub(crate) mod parked;
 mod player;
 mod props;
@@ -59,6 +60,7 @@ pub struct DynamicWorld {
     sound_serial: u64,
     sound_foliage: f32,
     sound_geography_timer: f32,
+    metro: metro::Metro,
     vehicles: Vec<Vehicle>,
     // Authored parking occupies the slots after the initial player, before traffic.
     parked_vehicle_count: usize,
@@ -138,6 +140,7 @@ impl DynamicWorld {
             service_passengers: Default::default(),
             buildings: buildings::Buildings::new(hermes.city()),
             building_candidates: Vec::new(),
+            metro: metro::Metro::new(hermes),
             vehicles: vec![vehicle],
             parked_vehicle_count: 0,
             player_vehicle: VehicleId(0),
@@ -296,7 +299,8 @@ impl DynamicWorld {
             .map_or(self.player().yaw, |p| p.yaw)
     }
     pub fn camera_eye(&self, hermes: &Hermes, anchor: Vec3, desired: Vec3) -> Vec3 {
-        self.buildings.camera_eye(hermes.city(), anchor, desired)
+        let eye = self.buildings.camera_eye(hermes.city(), anchor, desired);
+        self.metro.camera_eye(anchor, eye)
     }
     /// Snapshot only nearby active vehicles. Parked lineup cars have no engine.
     /// Slots are bounded, ordered by distance; slot zero reserves the player.
@@ -368,6 +372,9 @@ impl DynamicWorld {
         frame
     }
     pub fn toggle_vehicle(&mut self, hermes: &Hermes) -> bool {
+        if self.metro.aboard {
+            return false;
+        }
         if let Some(player) = &self.pedestrian {
             if let Some((index, _)) = self
                 .vehicles
@@ -401,6 +408,7 @@ impl DynamicWorld {
         false
     }
     pub fn reset_player(&mut self, hermes: &Hermes) {
+        self.metro.aboard = false;
         let definition = self.player().definition;
         self.vehicles[self.player_vehicle.0] =
             Vehicle::spawn_at(hermes.city(), self.vehicle_spawns[self.player_vehicle.0])
@@ -444,6 +452,7 @@ impl DynamicWorld {
                 }
             };
         }
+        self.metro.step(dt, self.pedestrian.as_mut());
         self.vehicle_notice = (self.vehicle_notice - dt).max(0.);
         if self.traffic.needs_refill(dt) {
             self.populate_traffic(hermes);
@@ -583,7 +592,7 @@ impl DynamicWorld {
         }
         if let Some(player) = &mut self.pedestrian {
             let before = player.position;
-            player.step(hermes.city(), walk, dt, |position| {
+            self.metro.walk(hermes, player, walk, dt, |position| {
                 self.props.blocked(position)
                     || self
                         .vehicles
@@ -785,6 +794,23 @@ impl DynamicWorld {
                     )
                 })
             })
+            .chain(
+                self.metro
+                    .train
+                    .iter()
+                    .filter(|train| train.position.distance(self.player_position()) < 450.)
+                    .map(|v| {
+                        let id = v.definition.expect("metro model");
+                        (
+                            id,
+                            catalog::definitions()[id].part_transforms(v),
+                            1.,
+                            false,
+                            false,
+                            0,
+                        )
+                    }),
+            )
     }
     #[cfg(test)]
     fn write_non_vehicle_actors(&self, mesh: &mut Mesh) {

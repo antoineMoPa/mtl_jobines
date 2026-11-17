@@ -1,7 +1,8 @@
 //! Visible progress for Moon's incremental native game build.
 use std::{
     collections::HashMap,
-    path::Path,
+    io::{BufRead, BufReader},
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::mpsc,
     thread,
@@ -11,9 +12,17 @@ use std::{
 use crate::Result;
 
 pub fn build(root: &Path) -> Result<()> {
+    build_once(root).map(|_| ())
+}
+
+fn build_once(root: &Path) -> Result<PathBuf> {
+    build_command(cargo(root))
+}
+
+fn build_command(mut command: Command) -> Result<PathBuf> {
     eprintln!("[game build] Building incremental local game (app opt=1, world/map opt=3).");
     let started = Instant::now();
-    let mut child = cargo(root)
+    let mut child = command
         .args([
             "build",
             "--profile",
@@ -21,9 +30,12 @@ pub fn build(root: &Path) -> Result<()> {
             "--bin",
             "mtl_jobines",
             "--timings",
+            "--message-format=json-render-diagnostics",
         ])
         .env("CARGO_TERM_PROGRESS_WHEN", "never")
+        .stdout(Stdio::piped())
         .spawn()?;
+    let output = child.stdout.take().ok_or("missing Cargo stdout")?;
     let cargo_pid = child.id();
     let (done, stop) = mpsc::channel();
     let logger = thread::spawn(move || {
@@ -49,6 +61,8 @@ pub fn build(root: &Path) -> Result<()> {
             }
         }
     });
+    // Drain stdout while Cargo runs so its message pipe cannot fill up.
+    let executable = executable(BufReader::new(output));
     let status = child.wait();
     let _ = done.send(());
     let _ = logger.join();
@@ -61,20 +75,18 @@ pub fn build(root: &Path) -> Result<()> {
         .into());
     }
     eprintln!(
-        "[game build +{:.1}s] Build complete. Cargo's timing report above shows time per crate.",
+        "[game build +{:.1}s] Cargo pass complete. Cargo's timing report above shows time per crate.",
         started.elapsed().as_secs_f32()
     );
-    Ok(())
+    executable?.ok_or_else(|| "Cargo did not report the game executable".into())
 }
 
 pub fn run(root: &Path, args: &[String]) -> Result<()> {
-    build(root)?;
-    eprintln!("[game run] Launching game; Cargo will verify the build is still current.");
-    let mut command = cargo(root);
-    command
-        .args(["run", "--profile", "dev", "--bin", "mtl_jobines", "--"])
-        .args(args);
-    // Cargo resolves the executable correctly even with a custom target directory.
+    let executable = build_once(root)?;
+    eprintln!("[game run] Launching game.");
+    let mut command = Command::new(executable);
+    command.current_dir(root).args(args);
+    // Cargo's artifact message resolves custom target directories and targets.
     // Replacing xtask also preserves Ctrl-C and the game's exit status.
     #[cfg(unix)]
     {
@@ -85,6 +97,28 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     {
         std::process::exit(command.status()?.code().unwrap_or(1));
     }
+}
+
+fn executable(output: impl BufRead) -> Result<Option<PathBuf>> {
+    let mut executable = None;
+    for line in output.lines() {
+        let line = line?;
+        let Ok(message) = serde_json::from_str::<serde_json::Value>(&line) else {
+            println!("{line}");
+            continue;
+        };
+        if message["reason"] == "compiler-artifact"
+            && message["target"]["name"] == "mtl_jobines"
+            && message["target"]["kind"]
+                .as_array()
+                .is_some_and(|kinds| kinds.iter().any(|kind| kind == "bin"))
+        {
+            if let Some(path) = message["executable"].as_str() {
+                executable = Some(PathBuf::from(path));
+            }
+        }
+    }
+    Ok(executable)
 }
 
 fn cargo(root: &Path) -> Command {
@@ -180,6 +214,80 @@ fn phase(snapshot: &str, cargo_pid: u32) -> Phase {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        fs,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
+    struct Inputs(PathBuf);
+
+    impl Inputs {
+        fn new() -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            let path = std::env::temp_dir().join(format!(
+                "game-build-inputs-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+
+        fn write(&self, file: &str, contents: &str) {
+            let path = self.0.join(file);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, contents).unwrap();
+        }
+    }
+
+    impl Drop for Inputs {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn selects_game_binary_from_cargo_messages_including_fresh_artifacts() {
+        let messages = concat!(
+            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"mtl_jobines\",\"kind\":[\"lib\"]},\"executable\":null}\n",
+            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"other\",\"kind\":[\"bin\"]},\"executable\":\"/wrong\"}\n",
+            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"mtl_jobines\",\"kind\":[\"bin\"]},\"executable\":\"/custom target/debug/game\",\"fresh\":true}\n",
+            "{\"reason\":\"build-finished\",\"success\":true}\n",
+        );
+        assert_eq!(
+            executable(messages.as_bytes()).unwrap(),
+            Some(PathBuf::from("/custom target/debug/game"))
+        );
+        assert_eq!(executable("".as_bytes()).unwrap(), None);
+    }
+
+    #[test]
+    fn real_cargo_reports_a_runnable_artifact_after_one_build() {
+        let inputs = Inputs::new();
+        inputs.write("Cargo.toml", "[package]\nname = \"mtl_jobines\"\nversion = \"0.0.0\"\nedition = \"2021\"\n[workspace]\n");
+        inputs.write(
+            "src/main.rs",
+            r#"
+            fn main() {
+                println!("game {:?}", std::env::args().skip(1).collect::<Vec<_>>());
+                std::process::exit(7);
+            }
+        "#,
+        );
+        let mut command = cargo(&inputs.0);
+        // Keep this fixture isolated even when the caller sets CARGO_TARGET_DIR.
+        command.env("CARGO_TARGET_DIR", inputs.0.join("custom target"));
+        let path = build_command(command).unwrap();
+        let output = Command::new(path)
+            .args(["--map", "a map.road"])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(7));
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            "game [\"--map\", \"a map.road\"]\n"
+        );
+    }
 
     #[test]
     fn reports_compiler_for_this_cargo_and_ignores_unrelated_linkers() {

@@ -138,6 +138,7 @@ impl Vehicle {
             roll: gradient.dot(left).atan(),
             steering: 0.,
             wheel_angle: 0.,
+            metro_doors: 0.,
             pedal_angle: 0.,
             riding_stand: 0.,
             surface: support.kind,

@@ -191,6 +191,21 @@ pub struct Gait {
     landing: Option<([Mat4; JOINT_LIMIT], f32)>,
 }
 impl Gait {
+    pub(super) fn carry(&mut self, from: Vec3, to: Vec3, angle: f32) {
+        let from = game_to_motion(from);
+        let to = game_to_motion(to);
+        let q = Quat::from_rotation_y(angle);
+        self.position = to + q * (self.position - from);
+        self.yaw += angle;
+        for f in &mut self.feet {
+            f.position = to + q * (f.position - from);
+            f.start = to + q * (f.start - from);
+            f.target = to + q * (f.target - from);
+            f.yaw += angle;
+            f.start_yaw += angle;
+            f.target_yaw += angle;
+        }
+    }
     pub fn foot_motion(&self) -> FootMotion {
         let model = &super::pedestrian_catalog::definitions()
             [super::pedestrian_catalog::PLAYER_SUMMER_MODEL];

@@ -76,6 +76,8 @@ pub struct Config {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum PartRole {
     Body,
+    MetroDoorForward,
+    MetroDoorBackward,
     RearWheel,
     FrontWheel,
     Steering,
@@ -84,6 +86,12 @@ enum PartRole {
 }
 fn part_role(name: &str) -> Result<PartRole, String> {
     match name {
+        "metro_door_left_front_forward" | "metro_door_left_rear_forward" => {
+            Ok(PartRole::MetroDoorForward)
+        }
+        "metro_door_left_front_backward" | "metro_door_left_rear_backward" => {
+            Ok(PartRole::MetroDoorBackward)
+        }
         "wheel_front" | "wheel_front_left" | "wheel_front_right" => Ok(PartRole::FrontWheel),
         "wheel_rear" | "wheel_rear_left" | "wheel_rear_right" | "wheel_middle_left"
         | "wheel_middle_right" => Ok(PartRole::RearWheel),
@@ -663,6 +671,7 @@ impl Definition {
             .map(|part| {
                 let rotation = match part.role {
                     PartRole::Body => lean,
+                    PartRole::MetroDoorForward | PartRole::MetroDoorBackward => Quat::IDENTITY,
                     PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
                     PartRole::Pedal => Quat::IDENTITY,
                     PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
@@ -678,6 +687,13 @@ impl Definition {
                         Vec3::ZERO
                     } else {
                         part.animated_pivot(vehicle)
+                            + Vec3::X
+                                * vehicle.metro_doors
+                                * match part.role {
+                                    PartRole::MetroDoorForward => 0.7,
+                                    PartRole::MetroDoorBackward => -0.7,
+                                    _ => 0.,
+                                }
                     },
                 )
             })
@@ -700,6 +716,7 @@ impl Definition {
         for part in &self.parts {
             let q = match part.role {
                 PartRole::Body => lean,
+                PartRole::MetroDoorForward | PartRole::MetroDoorBackward => Quat::IDENTITY,
                 PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
                 PartRole::Pedal => Quat::IDENTITY,
                 PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
@@ -716,6 +733,13 @@ impl Definition {
                         Vec3::ZERO
                     } else {
                         part.animated_pivot(vehicle)
+                            + Vec3::X
+                                * vehicle.metro_doors
+                                * match part.role {
+                                    PartRole::MetroDoorForward => 0.7,
+                                    PartRole::MetroDoorBackward => -0.7,
+                                    _ => 0.,
+                                }
                     };
                 v.position =
                     ((orientation * local + vehicle.position) / super::METERS_PER_UNIT).to_array();

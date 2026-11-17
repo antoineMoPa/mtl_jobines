@@ -112,3 +112,30 @@ pub(super) fn register(
     });
     Ok(Some(index))
 }
+
+/// Game-authored RGBA material layers use the same mipmapped colour/normal arrays.
+pub fn register_pixels(colour: Vec<u8>, normal: Vec<u8>) -> Result<usize, String> {
+    let size = (SIZE * SIZE * 4) as usize;
+    if colour.len() != size || normal.len() != size {
+        return Err("Material images must be 512×512 RGBA".into());
+    }
+    let mut layers = LAYERS
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    if let Some(index) = layers
+        .iter()
+        .position(|l| l.colour.as_ref() == colour && l.normal.as_ref() == normal)
+    {
+        return Ok(index);
+    }
+    if layers.len() >= CAPACITY as usize {
+        return Err("Material texture budget exceeded".into());
+    }
+    let index = layers.len();
+    layers.push(Layer {
+        colour: colour.into(),
+        normal: normal.into(),
+    });
+    Ok(index)
+}

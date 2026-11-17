@@ -115,6 +115,7 @@ export function installMobileControls(api, canvas) {
     });
   }
   buttons.phone.setAttribute('aria-label', 'Ouvrir le téléphone');
+  buttons.phone.title = 'Ouvrir le téléphone';
   root.addEventListener('contextmenu', event => event.preventDefault());
   const setButton = (button, icon, label) => {
     button.innerHTML = `${icons[icon]}<span>${label}</span>`;
@@ -132,8 +133,6 @@ export function installMobileControls(api, canvas) {
       setButton(buttons.vehicle, driving ? 'exit' : 'enter', driving ? 'Descendre' : 'Monter');
       buttons.forward.setAttribute('aria-label', driving ? 'Accélérer' : 'Avancer');
       buttons.backward.setAttribute('aria-label', driving ? 'Freiner / reculer' : 'Reculer');
-      buttons.phone.disabled = driving;
-      buttons.phone.title = driving ? 'Téléphone disponible à pied' : 'Ouvrir le téléphone';
     }
     root.hidden = !available();
     const notice = canvas.dataset.mobileNotice;

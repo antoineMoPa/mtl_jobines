@@ -168,6 +168,12 @@ impl Pedestrian {
                 (position.z + HALF_HEIGHT) / METERS_PER_UNIT,
             )
     }
+    pub(super) fn carry(&mut self, rotation: glam::Quat, from: Vec3, to: Vec3) {
+        let angle = (rotation * Vec3::X).y.atan2((rotation * Vec3::X).x);
+        self.position = to + rotation * (self.position - from);
+        self.yaw += angle;
+        self.gait.carry(from, to, angle);
+    }
     pub(crate) fn foot_motion(&self) -> super::pedestrian_gait::FootMotion {
         self.gait.foot_motion()
     }
@@ -186,6 +192,22 @@ impl Pedestrian {
             self.step_once(city, input, dt / steps as f32, &blocked);
         }
     }
+    pub(super) fn step_supported(
+        &mut self,
+        city: &City,
+        input: WalkControls,
+        dt: f32,
+        blocked: impl Fn(Vec3) -> bool,
+        support: impl Fn(Vec3) -> Option<super::pedestrian_gait::Ground>,
+    ) {
+        if !dt.is_finite() || dt <= 0. {
+            return;
+        }
+        let steps = (dt / (1. / 120.)).ceil().max(1.) as usize;
+        for _ in 0..steps {
+            self.step_once_supported(city, input, dt / steps as f32, &blocked, &support);
+        }
+    }
     fn step_once(
         &mut self,
         city: &City,
@@ -193,6 +215,17 @@ impl Pedestrian {
         dt: f32,
         blocked: &impl Fn(Vec3) -> bool,
     ) {
+        self.step_once_supported(city, input, dt, blocked, &|_| None);
+    }
+    fn step_once_supported(
+        &mut self,
+        city: &City,
+        input: WalkControls,
+        dt: f32,
+        blocked: &impl Fn(Vec3) -> bool,
+        support: &impl Fn(Vec3) -> Option<super::pedestrian_gait::Ground>,
+    ) {
+        let ground_at = |p| support(p).or_else(|| footing(city, p, false));
         let model = &pedestrian_catalog::definitions()[MODEL];
         let target = input.forward.clamp(-1., 1.) * if input.run { RUN_SPEED } else { WALK_SPEED };
         if input.jump && !self.jump_held && matches!(self.jump, Jump::Grounded) {
@@ -222,7 +255,7 @@ impl Pedestrian {
                 continue;
             }
             let foot = self.position - Vec3::Z * HALF_HEIGHT;
-            let Some(ground) = footing(city, foot + delta.extend(0.), false) else {
+            let Some(ground) = ground_at(foot + delta.extend(0.)) else {
                 continue;
             };
             let position = ground.point + Vec3::Z * HALF_HEIGHT;
@@ -243,8 +276,8 @@ impl Pedestrian {
             let mut next = self.position;
             next.z += self.vertical_speed * dt - 0.5 * GRAVITY * dt * dt;
             self.vertical_speed -= GRAVITY * dt;
-            let ground = city
-                .surface_at(
+            let ground = support(next.truncate().extend(previous_foot)).or_else(|| {
+                city.surface_at(
                     (next.truncate() / METERS_PER_UNIT).to_array(),
                     (previous_foot + 0.01) / METERS_PER_UNIT,
                 )
@@ -254,7 +287,8 @@ impl Pedestrian {
                         next.truncate().extend(surface.height * METERS_PER_UNIT),
                         false,
                     )
-                });
+                })
+            });
             if let Some(ground) =
                 ground.filter(|g| self.vertical_speed <= 0. && next.z - HALF_HEIGHT <= g.point.z)
             {
@@ -279,8 +313,7 @@ impl Pedestrian {
             turn / dt,
         );
         if landed {
-            self.gait
-                .land(model, foot, self.yaw, |p| footing(city, p, false));
+            self.gait.land(model, foot, self.yaw, |p| ground_at(p));
         } else if self.jump.is_airborne() {
             self.gait.set_air_velocity(self.vertical_speed);
             self.gait.airborne(model, foot, self.yaw, jump_motion, dt);
@@ -295,7 +328,7 @@ impl Pedestrian {
                     motion: jump_motion,
                 },
                 dt,
-                |p| footing(city, p, false).filter(|g| !blocked(g.point + Vec3::Z * HALF_HEIGHT)),
+                |p| ground_at(p).filter(|g| !blocked(g.point + Vec3::Z * HALF_HEIGHT)),
             );
         } else {
             self.gait.advance(
@@ -306,7 +339,7 @@ impl Pedestrian {
                 foot + Vec3::new(self.yaw.cos(), self.yaw.sin(), 0.)
                     * if self.speed < 0. { -1. } else { 1. },
                 dt,
-                |p| footing(city, p, false).filter(|g| !blocked(g.point + Vec3::Z * HALF_HEIGHT)),
+                |p| ground_at(p).filter(|g| !blocked(g.point + Vec3::Z * HALF_HEIGHT)),
             );
         }
         // Animate only accepted travel. A wall or a prop cannot advance the body then roll it back.

@@ -197,6 +197,8 @@ impl PropScenery {
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
+mod sign_mounts;
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod sign_qa;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;

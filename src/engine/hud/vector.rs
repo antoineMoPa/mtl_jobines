@@ -3,8 +3,11 @@ use opencity::runtime::City;
 use resvg::{tiny_skia as sk, usvg};
 
 pub(super) fn build(city: &City) -> Result<(Vec<[f32; 5]>, Vec<u8>), String> {
-    let tree = usvg::Tree::from_str(&city.minimap_svg()?, &Default::default())
-        .map_err(|e| e.to_string())?;
+    let tree = usvg::Tree::from_str(
+        &crate::hermes::metro::navigation_svg(city)?,
+        &Default::default(),
+    )
+    .map_err(|e| e.to_string())?;
     let span = (city.bounds[2] - city.bounds[0]).max(city.bounds[3] - city.bounds[1]);
     let scale = (city.bounds[2] - city.bounds[0]) / span / tree.size().width();
     let transform = sk::Transform::from_row(

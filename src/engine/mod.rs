@@ -63,3 +63,6 @@ mod tree_tests;
 mod bicycle_tests;
 
 mod sound_settings;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod metro_tests;

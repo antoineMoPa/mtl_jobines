@@ -24,13 +24,17 @@ The browser release commands are documented in [web/DEPLOY.md](../web/DEPLOY.md)
 
 ## Native game build logging
 
-Moon's Game UI target uses `cargo xtask game-build` and `cargo xtask game-run`.
-These use the incremental native `dev` profile: the application uses optimization
-level 1 and line-table debug information; world simulation and OpenCity geometry
-use optimization level 3. This avoids full release optimization of application
-code on each edit while keeping simulation and map preparation fast. The first
-build prepares this profile's cache. Shipping and web builds continue to use
-`cargo build --release` with their existing settings.
+Moon's Game UI build command is `true` (a no-op). Its run command,
+`cargo xtask game-run`, compiles once and launches the resulting executable
+directly. This avoids compiling in both Moon's build phase and its run phase.
+For an explicit standalone build, use `cargo xtask game-build`.
+
+Game compilation uses the incremental native `dev` profile: the application uses
+optimization level 1 and line-table debug information; world simulation and
+OpenCity geometry use optimization level 3. This avoids full release optimization
+of application code on each edit while keeping simulation and map preparation
+fast. The first build prepares this profile's cache. Shipping and web builds
+continue to use `cargo build --release` with their existing settings.
 
 Moon game builds use `target/moon-game`, independently of ordinary agent
 checks/tests and editor builds, so those commands can compile concurrently
@@ -55,5 +59,7 @@ executable compilation times. Progress logging does not change compiler flags or
 invalidate the game build cache. A failed build does not launch the game.
 
 `cargo xtask game-run -- --map path/to/map.road` passes arguments to the game.
-After the logged build, Cargo verifies freshness and resolves the executable,
-including custom target directories, before launching it.
+`game-run` launches the executable reported by Cargo directly, including custom
+target directories, and preserves game arguments and exit status. It does not
+start another Cargo invocation or retry compilation when agents edit files.
+Edits made during compilation may require the next launch.

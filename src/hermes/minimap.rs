@@ -26,7 +26,7 @@ pub struct Minimap {
 }
 impl Minimap {
     pub fn new(city: &City) -> Result<Self, String> {
-        let svg = city.minimap_svg()?;
+        let svg = super::metro::navigation_svg(city)?;
         let tree =
             usvg::Tree::from_str(&svg, &usvg::Options::default()).map_err(|e| e.to_string())?;
         Ok(Self {

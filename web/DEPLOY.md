@@ -41,14 +41,7 @@ Direct-upload projects do not use Git-integrated automatic deployment. See the
 guide](https://developers.cloudflare.com/pages/get-started/direct-upload/)
 and [Wrangler Pages commands](https://developers.cloudflare.com/workers/wrangler/commands/pages/).
 
-## Mobile controls
-
-The browser shell enables touch controls at widths up to 600 CSS pixels, or landscape-sized
-views up to 1024 by 600 CSS pixels. Native builds and larger browser views retain their existing
-HUD and keyboard input. Controls use the existing game actions, accept simultaneous fingers,
-and release held input on cancellation, focus loss, resizing, and modal or mode changes.
-The phone remains available on foot. The mobile map button replaces the corner minimap;
-tapping the full map selects a route and its close button returns to play.
+## Bundled assets
 
 The web build bundles `mobile-controls.js`, `mobile-controls.css`, and the existing PT Sans
 font and license. No third-party icon or font requests are needed at runtime.

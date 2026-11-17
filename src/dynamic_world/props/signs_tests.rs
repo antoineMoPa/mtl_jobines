@@ -87,25 +87,31 @@ fn current_map_contains_all_sign_families_with_supported_mounts() {
         Kind::YieldSign,
         Kind::CurveSign,
         Kind::HighwaySign,
+        Kind::ParkingSign,
     ] {
         assert!(signs.iter().any(|e| e.kind() == kind), "missing {:?}", kind);
     }
-    for entry in signs {
-        for (_, p) in entry.placements(hermes.city()).unwrap() {
-            let ground = hermes
-                .city()
-                .surface_at(p.position.truncate().to_array(), p.position.z + 0.02);
-            if let Some(ground) = ground {
-                if (ground.height - p.position.z).abs() > 0.006 || ground.kind == SurfaceKind::Water
-                {
-                    failures.push(format!(
-                        "{}: base={}, surface={}",
-                        entry.name, p.position.z, ground.height
-                    ));
-                }
-            } else {
-                failures.push(format!("{}: no supporting surface", entry.name));
+    for (_, _, p) in crate::props::visible_placements(&entries, hermes.city())
+        .into_iter()
+        .filter(|(_, _, p)| p.kind.is_road_sign())
+    {
+        let ground = hermes
+            .city()
+            .surface_at(p.position.truncate().to_array(), p.position.z + 0.02);
+        if let Some(ground) = ground {
+            if (ground.height - p.position.z).abs() > 0.006 || ground.kind == SurfaceKind::Water {
+                failures.push(format!(
+                    "{}: base={}, surface={}",
+                    format!("{:?} at {:?}", p.kind, p.position),
+                    p.position.z,
+                    ground.height
+                ));
             }
+        } else {
+            failures.push(format!(
+                "{:?} at {:?}: no supporting surface",
+                p.kind, p.position
+            ));
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));

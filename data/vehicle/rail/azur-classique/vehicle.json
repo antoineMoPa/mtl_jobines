@@ -5,7 +5,7 @@
   "roadVehicle": false,
   "model": "model.glb",
   "dimensions": {
-    "length": 16.0092,
+    "length": 16.36,
     "width": 2.67,
     "height": 3.208
   },
@@ -22,10 +22,10 @@
   },
   "qa": {
     "status": "exported",
-    "triangles": 1704,
-    "parts": 42,
-    "boxes": 34,
-    "cylinders": 4,
+    "triangles": 26948,
+    "parts": 236,
+    "boxes": 259,
+    "cylinders": 30,
     "wheelSegments": 12,
     "wheels": [
       "wheel_rear_left",
@@ -34,11 +34,15 @@
       "wheel_front_right"
     ],
     "claydashExport": "completed",
-    "game": "rail-display",
-    "detailPass": 1,
-    "sheetPanels": 4,
-    "sheetBends": 3,
-    "pivot": "axle-local"
+    "game": "rail-passenger",
+    "detailPass": 2,
+    "sheetPanels": 1,
+    "sheetBends": 0,
+    "pivot": "axle-local",
+    "source": "data/vehicle/rail/azur-classique/model.claydash",
+    "doors": "eight-independent-sliding-leaves",
+    "interior": "walkable-aisle",
+    "floorHeight": 1.025
   },
   "researchId": "vehicle-r01",
   "sound": {

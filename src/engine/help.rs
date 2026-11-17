@@ -36,7 +36,7 @@ impl CornerIcons {
             Self {
                 right: 16.,
                 bottom: 58.,
-                column_width: 56.,
+                column_width: 88.,
                 gap: 12.,
             }
         }

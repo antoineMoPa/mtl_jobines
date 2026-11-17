@@ -153,7 +153,7 @@ mod browser {
                             }
                             MobileAction::Map => self.set_overlay(Overlay::Map),
                             MobileAction::Menu => self.set_overlay(Overlay::Menu),
-                            MobileAction::Phone if !self.world.is_driving() => {
+                            MobileAction::Phone => {
                                 if let Some(palette) = &mut self.palette {
                                     palette.open_job_feed();
                                 }

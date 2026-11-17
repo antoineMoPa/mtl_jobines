@@ -47,7 +47,7 @@ impl Palette {
         }
         let mut icons = super::super::help::CornerIcons::new(walking);
         let mobile = super::super::app::mobile_enabled();
-        let phone_anchor = (walking && !mobile).then(|| icons.place(88.));
+        let phone_anchor = (!mobile).then(|| icons.place(88.));
         let help_anchor = icons.place(56.);
         if game_overlay == Overlay::Driving && !self.is_open() && !mobile {
             super::super::help::indicator(&ctx, &self.help_icon, help_visible, help_anchor);
