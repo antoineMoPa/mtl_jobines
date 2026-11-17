@@ -2,6 +2,7 @@ use std::{error::Error, path::Path, process};
 
 mod assets;
 mod formatting;
+mod game_build;
 mod sources;
 #[cfg(test)]
 mod tests;
@@ -25,6 +26,10 @@ fn run() -> Result<()> {
         return assets::generate(root);
     }
     match args.as_slice() {
+        [command] if command == "game-build" => return game_build::build(root),
+        [command, rest @ ..] if command == "game-run" => {
+            return game_build::run(root, rest.strip_prefix(&["--".into()]).unwrap_or(rest));
+        }
         [command] if command == "web-check" => return web_release::check(root),
         [command] if command == "web-project-create" => {
             return web_release::create_project(root);
@@ -46,7 +51,7 @@ fn run() -> Result<()> {
         ["--check"] => (false, true),
         ["--staged", "--check"] | ["--check", "--staged"] => (true, true),
         _ => {
-            return Err("Usage: cargo xtask [assets | web-check | web-project-create | web-deploy [--dry-run] | [--staged] [--check]]".into());
+            return Err("Usage: cargo xtask [assets | game-build | game-run [-- game args] | web-check | web-project-create | web-deploy [--dry-run] | [--staged] [--check]]".into());
         }
     };
     clean(root, staged, check)

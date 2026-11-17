@@ -109,6 +109,14 @@ impl Traffic {
             interacted: HashMap::new(),
         }
     }
+    pub(super) fn bicycle_red_light(&self, end: Vec3, heading: Vec3) -> bool {
+        self.graph.signals.iter().any(|signal| {
+            !self.failed_junctions.contains(&signal.junction)
+                && signal.position.distance(end) < 18.
+                && signal.forward.dot(heading) > 0.4
+                && !signals::is_green(signal, self.time)
+        })
+    }
     fn random(&mut self, count: usize) -> usize {
         self.seed = self.seed.wrapping_mul(6364136223846793005).wrapping_add(1);
         (self.seed >> 32) as usize % count.max(1)
@@ -560,6 +568,7 @@ impl Traffic {
                     brake: speed > limit + 0.3 || limit < 0.1,
                     steering: steering.clamp(-1., 1.),
                     handbrake: driver.stopped,
+                    boost: false,
                 },
             ));
         }

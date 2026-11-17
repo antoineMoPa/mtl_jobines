@@ -4,6 +4,8 @@ mod buildings;
 pub mod catalog;
 mod contacts;
 mod crowd;
+mod cycling_pose;
+mod cyclists;
 mod illumination;
 pub mod pedestrian_catalog;
 pub mod pedestrian_gait;
@@ -37,7 +39,8 @@ use crate::hermes::Hermes;
 use glam::Vec3;
 use opencity::runtime::Mesh;
 use player::Pedestrian;
-pub const PEDESTRIAN_CAPACITY: usize = crowd::CAPACITY + crowd::KIOSK_CAPACITY + 5;
+pub const PEDESTRIAN_CAPACITY: usize =
+    crowd::CAPACITY + crowd::KIOSK_CAPACITY + cyclists::CAPACITY + 5;
 pub use player::WalkControls;
 pub use player::TURN_SPEED as WALK_TURN_SPEED;
 pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
@@ -68,6 +71,7 @@ pub struct DynamicWorld {
     props: props::Props,
     traffic: traffic::Traffic,
     crowd: crowd::Crowd,
+    cyclists: cyclists::Cyclists,
     service_passengers: service_passengers::ServicePassengers,
     buildings: buildings::Buildings,
     building_candidates: Vec<usize>,
@@ -130,6 +134,7 @@ impl DynamicWorld {
             sound_geography_timer: 0.,
             traffic: traffic::Traffic::new_near(hermes.traffic_paths(), prop_center),
             crowd: crowd::Crowd::new(hermes.walking_paths()),
+            cyclists: cyclists::Cyclists::new(hermes),
             service_passengers: Default::default(),
             buildings: buildings::Buildings::new(hermes.city()),
             building_candidates: Vec::new(),
@@ -148,6 +153,9 @@ impl DynamicWorld {
         if vehicle_lineup {
             world.add_vehicle_lineup(hermes);
         }
+        world
+            .cyclists
+            .populate(hermes, &mut world.vehicles, prop_center);
         world.vehicle_spawns = world
             .vehicles
             .iter()
@@ -179,6 +187,12 @@ impl DynamicWorld {
             world.player_position(),
             &world.vehicles,
             &world.props,
+        );
+        world.cyclists.update_poses(
+            &world.vehicles,
+            world.player_vehicle.0,
+            world.is_driving(),
+            world.season,
         );
         Ok(world)
     }
@@ -368,6 +382,7 @@ impl DynamicWorld {
                 })
             {
                 self.traffic.release(index);
+                self.cyclists.release(index);
                 self.player_vehicle = VehicleId(index);
                 self.pedestrian = None;
                 self.vehicle_notice = 4.;
@@ -472,12 +487,18 @@ impl DynamicWorld {
             center_velocity,
         );
         stage!(0);
-        let ai = self.traffic.controls(
+        let mut ai = self.traffic.controls(
             hermes.city(),
             &self.vehicles,
             self.pedestrian.as_ref().map(|p| p.position),
             dt,
         );
+        ai.extend(self.cyclists.controls(
+            &self.traffic,
+            &self.vehicles,
+            center,
+            self.player_vehicle.0,
+        ));
         stage!(1);
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
             let signal = if driving && i == self.player_vehicle.0 {
@@ -600,6 +621,12 @@ impl DynamicWorld {
         if self.player_position().z < -40. {
             self.reset_player(hermes);
         }
+        self.cyclists.update_poses(
+            &self.vehicles,
+            self.player_vehicle.0,
+            self.is_driving(),
+            self.season,
+        );
         stage!(7);
     }
     #[cfg(any(not(target_arch = "wasm32"), test))]
@@ -610,12 +637,28 @@ impl DynamicWorld {
     pub fn traffic_physics_counts(&self) -> [usize; 3] {
         self.traffic.physics_counts(self.vehicles.len())
     }
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn preview_bicycle_pose(&mut self, pedal: f32, steering: f32, standing: f32) {
+        self.vehicles[self.player_vehicle.0].riding_stand = standing;
+        self.vehicles[self.player_vehicle.0].pedal_angle = pedal;
+        self.vehicles[self.player_vehicle.0].steering = steering;
+        self.cyclists.update_poses(
+            &self.vehicles,
+            self.player_vehicle.0,
+            self.is_driving(),
+            self.season,
+        );
+    }
     pub fn pedestrian_instances(&self) -> impl Iterator<Item = crowd::Instance<'_>> + '_ {
         self.pedestrian
             .iter()
             .map(|player| player.instance(self.season))
             .chain(self.crowd.instances(self.player_position()))
             .chain(self.service_passengers.instances())
+            .chain(
+                self.cyclists
+                    .instances(&self.vehicles, self.player_position()),
+            )
     }
     pub fn waiting_service_passengers(&self) -> impl Iterator<Item = Vec3> + '_ {
         self.service_passengers.waiting_positions()

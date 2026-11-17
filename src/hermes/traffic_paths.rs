@@ -123,6 +123,118 @@ impl TrafficPaths {
         });
         id
     }
+    /// Directed cycling paths: dedicated lanes where present, ordinary streets otherwise.
+    pub fn for_bicycles(city: &City) -> (Self, Vec<bool>) {
+        let mut graph = Self::default();
+        let mut dedicated = Vec::new();
+        for road in &city.roads {
+            if road.definition.role != RoadRole::Ordinary {
+                continue;
+            }
+            for forward in [true, false] {
+                if !road.segment.permits_travel(forward) {
+                    continue;
+                }
+                let candidates: Vec<_> = road
+                    .definition
+                    .elements
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, e)| {
+                        matches!(e.kind, RoadElementKind::BikeLane | RoadElementKind::CarLane)
+                            && road
+                                .definition
+                                .lane_direction(*i)
+                                .is_some_and(|d| d.permits(forward))
+                    })
+                    .collect();
+                let lane = candidates
+                    .iter()
+                    .filter(|(_, e)| e.kind == RoadElementKind::BikeLane)
+                    .map(|(i, _)| *i)
+                    .next()
+                    .or_else(|| {
+                        if forward {
+                            candidates.last().map(|(i, _)| *i)
+                        } else {
+                            candidates.first().map(|(i, _)| *i)
+                        }
+                    });
+                let Some(lane) = lane else { continue };
+                let bike = road.definition.elements[lane].kind == RoadElementKind::BikeLane;
+                let mut points: Vec<_> = (0..=64)
+                    .filter_map(|i| {
+                        let t = i as f32 / 64.;
+                        let p = opencity::map::element_position(
+                            &road.segment,
+                            &road.definition,
+                            lane,
+                            t,
+                        )?;
+                        Some(Vec3::new(p.x, p.y, road.segment.height_at(t)) * METERS_PER_UNIT)
+                    })
+                    .collect();
+                if points.len() < 2 {
+                    continue;
+                }
+                if !forward {
+                    points.reverse();
+                }
+                let id = graph.push(points, SpeedClass::Local);
+                graph.paths[id].start_ref = if forward {
+                    road.segment.start_ref.clone()
+                } else {
+                    road.segment.end_ref.clone()
+                };
+                graph.paths[id].end_ref = if forward {
+                    road.segment.end_ref.clone()
+                } else {
+                    road.segment.start_ref.clone()
+                };
+                dedicated.push(bike);
+            }
+        }
+        let count = graph.paths.len();
+        let mut starts = HashMap::<String, Vec<usize>>::new();
+        for (id, p) in graph.paths.iter().enumerate() {
+            if let Some(r) = &p.start_ref {
+                starts.entry(r.clone()).or_default().push(id);
+            }
+        }
+        for i in 0..count {
+            let Some(reference) = graph.paths[i].end_ref.as_ref() else {
+                continue;
+            };
+            let candidates = starts.get(reference).cloned().unwrap_or_default();
+            let (a, heading) = graph.paths[i].sample(graph.paths[i].length);
+            for j in candidates {
+                if i == j {
+                    continue;
+                }
+                let (b, outgoing) = graph.paths[j].sample(0.);
+                if heading.dot(outgoing) < -0.5 || (a.z - b.z).abs() > 1. {
+                    continue;
+                }
+                let reach = a.distance(b).max(1.) * 0.5;
+                let controls = [a, a + heading * reach, b - outgoing * reach, b];
+                let points = (0..=16)
+                    .map(|k| {
+                        let t = k as f32 / 16.;
+                        let u = 1. - t;
+                        controls[0] * u * u * u
+                            + controls[1] * 3. * u * u * t
+                            + controls[2] * 3. * u * t * t
+                            + controls[3] * t * t * t
+                    })
+                    .collect();
+                let connector = graph.push(points, SpeedClass::Junction);
+                graph.paths[connector].next.push(j);
+                graph.paths[i].next.push(connector);
+                dedicated.push(dedicated[j]);
+            }
+        }
+        (graph, dedicated)
+    }
     pub fn new(city: &City, program: &opencity::Program) -> Self {
         let mut graph = Self::default();
         let projection = opencity::map::project(program);

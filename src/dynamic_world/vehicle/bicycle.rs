@@ -62,7 +62,11 @@ mod tests {
                     dt,
                 );
             }
-            assert!((5. ..9.1).contains(&bike.velocity.x), "{:?}", bike.velocity);
+            assert!(
+                (8. ..12.1).contains(&bike.velocity.x),
+                "{:?}",
+                bike.velocity
+            );
             assert!(bike.roll.abs() < 0.05);
             assert!((bike.position.z - bike.ride_height()).abs() < 0.02);
             assert!(bike.wheel_angle > 10.);
@@ -162,5 +166,59 @@ mod asset_tests {
             .any(|p| p[3] == 255));
         assert_eq!(definition.config.sound.engine_gain, 0.);
         assert_eq!(definition.config.sound.horn.gain, 0.);
+    }
+}
+
+#[cfg(test)]
+mod sprint_tests {
+    use super::*;
+    #[test]
+    fn bicycle_shift_sprint_is_faster_and_blends_to_standing_then_back() {
+        let city = City::from_program(
+            &opencity::parse("road r: carlane; end r(-30,0,30,0);").unwrap(),
+            None,
+        )
+        .unwrap();
+        let model = super::super::super::catalog::definitions()
+            .iter()
+            .position(|d| d.is_bicycle())
+            .unwrap();
+        let ride = |boost| {
+            let mut bike = Vehicle::spawn(&city);
+            bike.set_catalog_model(Some(model));
+            bike.position = Vec3::new(-2000., 0., bike.ride_height());
+            bike.yaw = 0.;
+            for _ in 0..1200 {
+                bike.step(
+                    &city,
+                    Controls {
+                        throttle: 1.,
+                        boost,
+                        ..Default::default()
+                    },
+                    1. / 60.,
+                );
+            }
+            bike
+        };
+        let normal = ride(false);
+        let mut sprint = ride(true);
+        assert!(
+            normal.velocity.x > 9.,
+            "normal cycling speed {}",
+            normal.velocity.x
+        );
+        assert!(
+            sprint.velocity.x > normal.velocity.x * 1.3,
+            "{} vs {}",
+            sprint.velocity.x,
+            normal.velocity.x
+        );
+        assert!(sprint.riding_stand > 0.99);
+        assert!(normal.riding_stand < 0.01);
+        for _ in 0..90 {
+            sprint.step(&city, Controls::default(), 1. / 60.);
+        }
+        assert!(sprint.riding_stand < 0.01);
     }
 }

@@ -51,7 +51,12 @@ impl VehicleScenery {
         player_pose_delta: Mat4,
         stage: Option<super::fabula::Stage<'_>>,
     ) {
-        self.pedestrians.update_with_stage(renderer, world, stage);
+        self.pedestrians.update_with_stage_and_player_pose(
+            renderer,
+            world,
+            stage,
+            player_pose_delta,
+        );
         if stage.is_some() && self.cutscene_cached {
             return;
         }

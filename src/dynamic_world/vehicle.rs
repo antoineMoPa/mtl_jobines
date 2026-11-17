@@ -43,6 +43,7 @@ pub struct Controls {
     pub brake: bool,
     pub steering: f32,
     pub handbrake: bool,
+    pub boost: bool,
 }
 pub struct Vehicle {
     pub(super) route_signal: crate::hermes::RouteSignal,
@@ -60,6 +61,8 @@ pub struct Vehicle {
     pub roll: f32,
     pub steering: f32,
     pub wheel_angle: f32,
+    pub pedal_angle: f32,
+    pub riding_stand: f32,
     pub surface: SurfaceKind,
     pub grounded: bool,
     pub collisions: u64,
@@ -137,6 +140,8 @@ impl Vehicle {
             roll: 0.,
             steering: 0.,
             wheel_angle: 0.,
+            pedal_angle: 0.,
+            riding_stand: 0.,
             surface: SurfaceKind::Asphalt,
             grounded: true,
             collisions: 0,
@@ -246,6 +251,10 @@ impl Vehicle {
         self.steering += (steering - self.steering) * (1. - (-8. * dt).exp());
         self.body_lean *= (-6. * dt).exp();
         self.body_lean_rate = Vec2::ZERO;
+        if self.is_bicycle() && input.throttle > 0. && !input.brake && !input.handbrake {
+            self.pedal_angle +=
+                (speed.max(0.) / (0.339 * 2.3)).min(9. + 4. * self.riding_stand) * dt;
+        }
         self.wheel_angle += speed * dt
             / self
                 .definition()
@@ -271,6 +280,12 @@ impl Vehicle {
     }
 
     fn step_substep(&mut self, city: &City, input: Controls, dt: f32, buildings: Option<&[usize]>) {
+        let stance = if self.is_bicycle() && input.boost {
+            1.
+        } else {
+            0.
+        };
+        self.riding_stand += (stance - self.riding_stand) * (1. - (-8. * dt).exp());
         let previous_position = self.position;
         let previous_orientation = self.orientation();
         let suspension = super::suspension::profile(self);
@@ -362,6 +377,10 @@ impl Vehicle {
             - self.body_lean_rate * suspension.lean_damping)
             * dt;
         self.body_lean += self.body_lean_rate * dt;
+        if self.is_bicycle() && input.throttle > 0. && !input.brake && !input.handbrake {
+            self.pedal_angle +=
+                (speed.max(0.) / (0.339 * 2.3)).min(9. + 4. * self.riding_stand) * dt;
+        }
         self.wheel_angle += speed
             / self
                 .definition()
@@ -386,19 +405,18 @@ impl Vehicle {
         .clamp(-1., 1.);
         let tire_count = self.tire_count();
         let braking = input.brake || input.handbrake || (self.is_bicycle() && input.throttle < 0.);
+        let sprint = self.is_bicycle() && input.boost;
+        let acceleration = self.definition().map_or(FORWARD_MOTOR_ACCELERATION, |d| {
+            d.config.physics.acceleration
+        }) * if sprint { 1.7 } else { 1. };
+        let max_speed = self
+            .definition()
+            .map_or(FORWARD_MOTOR_CUTOFF, |d| d.config.physics.max_speed)
+            * if sprint { 1.45 } else { 1. };
         let motor = if braking {
             0.
         } else if throttle >= 0. {
-            self.definition().map_or(FORWARD_MOTOR_ACCELERATION, |d| {
-                d.config.physics.acceleration
-            }) * throttle
-                * (1.
-                    - (speed.max(0.)
-                        / self
-                            .definition()
-                            .map_or(FORWARD_MOTOR_CUTOFF, |d| d.config.physics.max_speed))
-                    .powi(2))
-                .max(0.)
+            acceleration * throttle * (1. - (speed.max(0.) / max_speed).powi(2)).max(0.)
         } else {
             7.5 * throttle * (1. - ((-speed).max(0.) / 10.).powi(2)).max(0.)
         };

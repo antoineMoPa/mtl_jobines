@@ -13,8 +13,8 @@
   },
   "physics": {
     "mass": 105,
-    "maxSpeed": 9,
-    "acceleration": 2.2,
+    "maxSpeed": 12.0,
+    "acceleration": 3.8,
     "friction": 0.85,
     "maxSteerAngle": 0.55,
     "heightOffset": 0.339,
@@ -33,9 +33,11 @@
   },
   "qa": {
     "claydashExport": "completed",
-    "triangles": 99260,
+    "triangles": 96252,
     "packager": "bike-share",
     "spokeTriangles": 4,
-    "basket": false
+    "basket": false,
+    "kickstand": false,
+    "pedals": "articulated"
   }
 }

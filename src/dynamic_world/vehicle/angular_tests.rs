@@ -29,6 +29,7 @@ fn free_tumble_conserves_world_momentum_and_energy_at_both_frame_rates() {
             car.step(
                 &city,
                 Controls {
+                    boost: false,
                     steering: 1.,
                     throttle: 1.,
                     brake: true,

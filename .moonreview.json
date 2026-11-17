@@ -2,8 +2,8 @@
   "targets": [
     {
       "name": "Game UI",
-      "build": "cargo build --release --bin mtl_jobines",
-      "run": "cargo run --release --bin mtl_jobines"
+      "build": "cargo xtask game-build",
+      "run": "cargo xtask game-run"
     },
     {
       "name": "OpenCity UI",

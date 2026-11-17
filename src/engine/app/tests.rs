@@ -262,6 +262,7 @@ fn direction_keys_brake_opposing_motion_then_accelerate_either_way() {
 #[test]
 fn space_handbrake_and_shift_sprint_are_independent() {
     let (driving, walking) = movement_controls(&HashSet::from([KeyCode::Space]), 10.);
+    assert!(!driving.boost);
     assert!(driving.handbrake);
     assert!(!driving.brake);
     assert!(!walking.run);
@@ -270,6 +271,7 @@ fn space_handbrake_and_shift_sprint_are_independent() {
         let (driving, walking) = movement_controls(&HashSet::from([key]), 10.);
         assert!(!driving.handbrake);
         assert!(!driving.brake);
+        assert!(driving.boost);
         assert!(walking.run);
         assert!(!walking.jump);
     }

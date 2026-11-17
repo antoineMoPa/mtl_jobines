@@ -650,6 +650,7 @@ fn airborne_rotation_preserves_angular_momentum_without_tire_authority() {
         vehicle.step(
             &city,
             Controls {
+                boost: false,
                 steering: 1.,
                 throttle: 1.,
                 brake: true,

@@ -114,6 +114,15 @@ impl PedestrianScenery {
         world: &DynamicWorld,
         stage: Option<super::fabula::Stage<'_>>,
     ) {
+        self.update_with_stage_and_player_pose(renderer, world, stage, Mat4::IDENTITY);
+    }
+    pub fn update_with_stage_and_player_pose(
+        &mut self,
+        renderer: &Renderer,
+        world: &DynamicWorld,
+        stage: Option<super::fabula::Stage<'_>>,
+        player_delta: Mat4,
+    ) {
         if stage.is_none() {
             self.frozen_poses.clear();
         }
@@ -126,7 +135,12 @@ impl PedestrianScenery {
                 .as_ref()
                 .filter(|_| index == 0 && !world.is_driving())
                 .and_then(|s| s.player());
-            let transform = if let (Some(s), Some(c)) = (stage, staged) {
+            let transform = if world.is_driving()
+                && world.player().is_bicycle()
+                && actor.model == pedestrian_catalog::player_model(world.season())
+            {
+                player_delta * actor.transform
+            } else if let (Some(s), Some(c)) = (stage, staged) {
                 s.anchor.render_delta(c.offset, c.yaw) * actor.transform
             } else {
                 actor.transform

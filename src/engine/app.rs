@@ -71,6 +71,7 @@ fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkCont
         steering: (held(KeyCode::KeyA) || held(KeyCode::ArrowLeft)) as u8 as f32
             - (held(KeyCode::KeyD) || held(KeyCode::ArrowRight)) as u8 as f32,
         handbrake: held(KeyCode::Space),
+        boost: held(KeyCode::ShiftLeft) || held(KeyCode::ShiftRight),
     };
     let walking = WalkControls {
         forward: direction,

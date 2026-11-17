@@ -8,6 +8,7 @@ impl DynamicWorld {
         }
         let index = self.player_vehicle.0;
         self.traffic.release(index);
+        self.cyclists.release(index);
         let vehicle = &mut self.vehicles[index];
         // Adjust chassis height through the shared model setter so tires stay on
         // the same ground, including bridges. Keep heading and driving momentum.

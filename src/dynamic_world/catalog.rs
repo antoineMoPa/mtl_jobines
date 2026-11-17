@@ -79,12 +79,16 @@ enum PartRole {
     RearWheel,
     FrontWheel,
     Steering,
+    Crank,
+    Pedal,
 }
 fn part_role(name: &str) -> Result<PartRole, String> {
     match name {
         "wheel_front" | "wheel_front_left" | "wheel_front_right" => Ok(PartRole::FrontWheel),
         "wheel_rear" | "wheel_rear_left" | "wheel_rear_right" | "wheel_middle_left"
         | "wheel_middle_right" => Ok(PartRole::RearWheel),
+        "crank_arm_-1" | "crank_arm_1" => Ok(PartRole::Crank),
+        "pedal_-1" | "pedal_1" => Ok(PartRole::Pedal),
         "bicycle_steering" => Ok(PartRole::Steering),
         name if name.starts_with("wheel_") => Err(format!("Unknown wheel role: {name}")),
         _ => Ok(PartRole::Body),
@@ -209,6 +213,19 @@ fn headlight_vertex(vertex: &Vertex) -> bool {
 }
 fn game_vector(p: [f32; 3]) -> Vec3 {
     Vec3::new(p[0], -p[2], p[1])
+}
+impl Part {
+    fn animated_pivot(&self, vehicle: &super::Vehicle) -> Vec3 {
+        if self.role == PartRole::FrontWheel && vehicle.is_bicycle() {
+            let stem = Vec3::new(0.35, 0., 0.90) - Vec3::Z * vehicle.ride_height();
+            stem + Quat::from_rotation_z(vehicle.steering) * (self.pivot - stem)
+        } else if self.role == PartRole::Pedal {
+            let crank = super::cycling_pose::CRANK - Vec3::Z * vehicle.ride_height();
+            crank + Quat::from_rotation_y(vehicle.pedal_angle) * (self.pivot - crank)
+        } else {
+            self.pivot
+        }
+    }
 }
 impl Definition {
     pub fn is_bicycle(&self) -> bool {
@@ -646,6 +663,8 @@ impl Definition {
             .map(|part| {
                 let rotation = match part.role {
                     PartRole::Body => lean,
+                    PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
+                    PartRole::Pedal => Quat::IDENTITY,
                     PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
                     PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
                     PartRole::FrontWheel => {
@@ -658,7 +677,7 @@ impl Definition {
                     if part.role == PartRole::Body {
                         Vec3::ZERO
                     } else {
-                        part.pivot
+                        part.animated_pivot(vehicle)
                     },
                 )
             })
@@ -681,6 +700,8 @@ impl Definition {
         for part in &self.parts {
             let q = match part.role {
                 PartRole::Body => lean,
+                PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
+                PartRole::Pedal => Quat::IDENTITY,
                 PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
                 PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
                 PartRole::FrontWheel => {
@@ -694,7 +715,7 @@ impl Definition {
                     + if part.role == PartRole::Body {
                         Vec3::ZERO
                     } else {
-                        part.pivot
+                        part.animated_pivot(vehicle)
                     };
                 v.position =
                     ((orientation * local + vehicle.position) / super::METERS_PER_UNIT).to_array();
@@ -1487,5 +1508,29 @@ mod tests {
     fn wheel_names_are_an_explicit_contract() {
         assert_eq!(part_role("wheel_front_left").unwrap(), PartRole::FrontWheel);
         assert!(part_role("wheel_frnot_left").is_err());
+    }
+}
+
+#[cfg(test)]
+mod cycling_tests {
+    use super::*;
+    #[test]
+    fn bicycle_rendered_pedal_centers_match_rider_contact_targets() {
+        let world = super::super::DynamicWorld::new(&crate::hermes::Hermes::test_map());
+        let def = definitions().iter().find(|d| d.is_bicycle()).unwrap();
+        for frame in 0..24 {
+            let mut bike = super::super::Vehicle::spawn(crate::hermes::Hermes::test_map().city());
+            bike.set_catalog_model(world.player().definition);
+            bike.pedal_angle = frame as f32 * std::f32::consts::TAU / 24.;
+            for part in def.parts.iter().filter(|p| p.role == PartRole::Pedal) {
+                let side = if part.pivot.y > 0. { 0 } else { 1 };
+                let rendered = part.animated_pivot(&bike) + Vec3::Z * bike.ride_height();
+                let target = super::super::cycling_pose::pedal_position(side, bike.pedal_angle);
+                assert!(
+                    rendered.distance(target) < 0.0001,
+                    "{rendered:?} vs {target:?}"
+                );
+            }
+        }
     }
 }
