@@ -251,9 +251,15 @@ impl Vehicle {
         self.steering += (steering - self.steering) * (1. - (-8. * dt).exp());
         self.body_lean *= (-6. * dt).exp();
         self.body_lean_rate = Vec2::ZERO;
-        if self.is_bicycle() && input.throttle > 0. && !input.brake && !input.handbrake {
-            self.pedal_angle +=
-                (speed.max(0.) / (0.339 * 2.3)).min(9. + 4. * self.riding_stand) * dt;
+        if self.is_bicycle()
+            && input.throttle.abs() > 0.
+            && input.throttle * speed >= 0.
+            && !input.brake
+            && !input.handbrake
+        {
+            self.pedal_angle += (speed / (0.339 * 2.3))
+                .clamp(-9. - 4. * self.riding_stand, 9. + 4. * self.riding_stand)
+                * dt;
         }
         self.wheel_angle += speed * dt
             / self
@@ -377,9 +383,15 @@ impl Vehicle {
             - self.body_lean_rate * suspension.lean_damping)
             * dt;
         self.body_lean += self.body_lean_rate * dt;
-        if self.is_bicycle() && input.throttle > 0. && !input.brake && !input.handbrake {
-            self.pedal_angle +=
-                (speed.max(0.) / (0.339 * 2.3)).min(9. + 4. * self.riding_stand) * dt;
+        if self.is_bicycle()
+            && input.throttle.abs() > 0.
+            && input.throttle * speed >= 0.
+            && !input.brake
+            && !input.handbrake
+        {
+            self.pedal_angle += (speed / (0.339 * 2.3))
+                .clamp(-9. - 4. * self.riding_stand, 9. + 4. * self.riding_stand)
+                * dt;
         }
         self.wheel_angle += speed
             / self
@@ -397,14 +409,10 @@ impl Vehicle {
     ) {
         let forward = Vec2::new(self.yaw.cos(), self.yaw.sin());
         let speed = velocity.dot(forward);
-        let throttle = if self.is_bicycle() {
-            input.throttle.max(0.)
-        } else {
-            input.throttle
-        }
-        .clamp(-1., 1.);
+        let throttle = input.throttle.clamp(-1., 1.);
         let tire_count = self.tire_count();
-        let braking = input.brake || input.handbrake || (self.is_bicycle() && input.throttle < 0.);
+        let braking =
+            input.brake || input.handbrake || (self.is_bicycle() && throttle * speed < -0.5);
         let sprint = self.is_bicycle() && input.boost;
         let acceleration = self.definition().map_or(FORWARD_MOTOR_ACCELERATION, |d| {
             d.config.physics.acceleration
@@ -417,6 +425,11 @@ impl Vehicle {
             0.
         } else if throttle >= 0. {
             acceleration * throttle * (1. - (speed.max(0.) / max_speed).powi(2)).max(0.)
+        } else if self.is_bicycle() {
+            acceleration
+                * 0.65
+                * throttle
+                * (1. - ((-speed).max(0.) / (max_speed * 0.4)).powi(2)).max(0.)
         } else {
             7.5 * throttle * (1. - ((-speed).max(0.) / 10.).powi(2)).max(0.)
         };

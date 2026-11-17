@@ -139,6 +139,7 @@ fn a_slow_cone_bump_topples_one_weighted_body_and_resets_after_departure() {
         kind: crate::props::Kind::Cone,
         position: Vec3::ZERO,
         heading: 0.,
+        sign: None,
     };
     let mut props = Props::from_parts_near(vec![placement.parts()], Vec3::ZERO);
     let mut car = Vehicle::spawn(hermes.city());
@@ -174,6 +175,7 @@ fn a_second_pass_pushes_a_fallen_cone_instead_of_ignoring_it() {
         kind: crate::props::Kind::Cone,
         position: Vec3::ZERO,
         heading: 0.,
+        sign: None,
     };
     let mut props = Props::from_parts_near(vec![placement.parts()], Vec3::ZERO);
     strike(&mut props, hermes.city());
@@ -206,6 +208,7 @@ fn distant_copies_share_model_storage_and_only_nearby_collision_is_resident() {
                 kind: crate::props::Kind::Cone,
                 position: Vec3::X * (i as f32 * 2.),
                 heading: 0.,
+                sign: None,
             }
             .parts()
         })

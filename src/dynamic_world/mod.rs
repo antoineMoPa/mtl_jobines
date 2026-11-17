@@ -478,6 +478,18 @@ impl DynamicWorld {
         } else {
             Vec3::ZERO
         };
+        self.cyclists
+            .refresh(hermes, &mut self.vehicles, center, dt);
+        while self.vehicle_spawns.len() < self.vehicles.len() {
+            let v = &self.vehicles[self.vehicle_spawns.len()];
+            self.vehicle_spawns.push(SpawnPoint {
+                point: (v.position.truncate() / METERS_PER_UNIT).to_array(),
+                heading: Some(v.yaw),
+            });
+        }
+        for (id, start) in self.cyclists.take_spawns() {
+            self.vehicle_spawns[id] = start;
+        }
         self.props.update_focus(center);
         self.traffic.update_prop_focus(center);
         self.traffic.select_physics(
@@ -509,7 +521,7 @@ impl DynamicWorld {
             vehicle.update_route_signal(signal, dt);
             vehicle.sound_running = false;
             vehicle.sound_cooldown = (vehicle.sound_cooldown - dt).max(0.);
-            if self.traffic.inactive(i) {
+            if self.traffic.inactive(i) || self.cyclists.inactive(i) {
                 continue;
             }
             let controls = if driving && i == self.player_vehicle.0 {
@@ -742,6 +754,9 @@ impl DynamicWorld {
         }
     }
     fn vehicle_in_render_range(&self, index: usize, vehicle: &Vehicle) -> bool {
+        if self.cyclists.inactive(index) {
+            return false;
+        }
         let distance =
             if index != self.player_vehicle.0 && (1..=self.parked_vehicle_count).contains(&index) {
                 parked::RENDER_DISTANCE

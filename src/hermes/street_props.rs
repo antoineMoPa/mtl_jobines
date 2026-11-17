@@ -117,6 +117,7 @@ fn automatic_parts(kind: Kind, position: [f32; 3], heading: f32) -> Vec<Part> {
         kind,
         position: Vec3::from_array(position),
         heading: heading.to_degrees(),
+        sign: None,
     }
     .parts();
     for part in &mut parts {

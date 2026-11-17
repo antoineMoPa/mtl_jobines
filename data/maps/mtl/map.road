@@ -84,7 +84,7 @@ road cross_street:
     sidewalk carlane middle carlane sidewalk;
 end
 
-# Paired curbside bike lanes on the two connected streets east of junction_9.
+# Paired curbside bike lanes on the local and full-length district cycling corridors.
 road cycling_street:
     sidewalk bikelane carlane middle carlane bikelane sidewalk;
 end
@@ -2494,53 +2494,53 @@ east_clover_city_approach = cross_street(east_clover_city_landing, 14.8, 7.53333
 grade(east_clover_city_approach, 0.102001, 0.102001);
 grade(east_clover_city_link, 0.102001, 0.102001);
 
-district_street_x_0_1 = cross_street(junction_42, 2.472166667, 11.031500000, 3.583633333, 11.031500000, district_junction_1_1);
+district_street_x_0_1 = cycling_street(junction_42, 2.472166667, 11.031500000, 3.583633333, 11.031500000, district_junction_1_1);
 grade(district_street_x_0_1, 0.102001000, 0.102001000);
 district_street_y_0_1 = cross_street(junction_42, 1.360700000, 11.571000000, 1.360700000, 12.110500000, district_junction_0_2);
 grade(district_street_y_0_1, 0.102001000, 0.102001000);
-district_street_x_0_2 = cross_street(district_junction_0_2, 2.472166667, 12.650000000, 3.583633333, 12.650000000, district_junction_1_2);
+district_street_x_0_2 = cycling_street(district_junction_0_2, 2.472166667, 12.650000000, 3.583633333, 12.650000000, district_junction_1_2);
 grade(district_street_x_0_2, 0.102001000, 0.102001000);
 district_street_y_0_2 = cross_street(district_junction_0_2, 1.360700000, 13.233333333, 1.360700000, 13.816666667, district_junction_0_3);
 grade(district_street_y_0_2, 0.102001000, 0.102001000);
-district_street_x_0_3 = cross_street(district_junction_0_3, 2.472166667, 14.400000000, 3.583633333, 14.400000000, district_junction_1_3);
+district_street_x_0_3 = cycling_street(district_junction_0_3, 2.472166667, 14.400000000, 3.583633333, 14.400000000, district_junction_1_3);
 grade(district_street_x_0_3, 0.102001000, 0.102001000);
-district_street_x_1_1 = cross_street(district_junction_1_1, 5.828633333, 11.031500000, 6.962166667, 11.031500000, district_junction_2_1);
+district_street_x_1_1 = cycling_street(district_junction_1_1, 5.828633333, 11.031500000, 6.962166667, 11.031500000, district_junction_2_1);
 grade(district_street_x_1_1, 0.102001000, 0.102001000);
 district_street_y_1_1 = cross_street(district_junction_1_1, 4.695100000, 11.571000000, 4.695100000, 12.110500000, district_junction_1_2);
 grade(district_street_y_1_1, 0.102001000, 0.102001000);
-district_street_x_1_2 = cross_street(district_junction_1_2, 5.828633333, 12.650000000, 6.962166667, 12.650000000, district_junction_2_2);
+district_street_x_1_2 = cycling_street(district_junction_1_2, 5.828633333, 12.650000000, 6.962166667, 12.650000000, district_junction_2_2);
 grade(district_street_x_1_2, 0.102001000, 0.102001000);
 district_street_y_1_2 = cross_street(district_junction_1_2, 4.695100000, 13.233333333, 4.695100000, 13.816666667, district_junction_1_3);
 grade(district_street_y_1_2, 0.102001000, 0.102001000);
-district_street_x_1_3 = cross_street(district_junction_1_3, 5.828633333, 14.400000000, 6.962166667, 14.400000000, district_junction_2_3);
+district_street_x_1_3 = cycling_street(district_junction_1_3, 5.828633333, 14.400000000, 6.962166667, 14.400000000, district_junction_2_3);
 grade(district_street_x_1_3, 0.102001000, 0.102001000);
 district_street_x_2_0 = cross_street(district_junction_2_0, 10.330466667, 8.000000000, 12.565233333, 8.000000000, district_junction_3_0);
 grade(district_street_x_2_0, 0.102001000, 0.102001000);
 district_street_y_2_0 = cross_street(district_junction_2_0, 8.095700000, 9.010500000, 8.095700000, 10.021000000, district_junction_2_1);
 grade(district_street_y_2_0, 0.102001000, 0.102001000);
-district_street_x_2_1 = cross_street(district_junction_2_1, 10.330466667, 11.031500000, 12.565233333, 11.031500000, district_junction_3_1);
+district_street_x_2_1 = cycling_street(district_junction_2_1, 10.330466667, 11.031500000, 12.565233333, 11.031500000, district_junction_3_1);
 grade(district_street_x_2_1, 0.102001000, 0.102001000);
 district_street_y_2_1 = cross_street(district_junction_2_1, 8.095700000, 11.571000000, 8.095700000, 12.110500000, district_junction_2_2);
 grade(district_street_y_2_1, 0.102001000, 0.102001000);
-district_street_x_2_2 = cross_street(district_junction_2_2, 10.330466667, 12.650000000, 12.565233333, 12.650000000, district_junction_3_2);
+district_street_x_2_2 = cycling_street(district_junction_2_2, 10.330466667, 12.650000000, 12.565233333, 12.650000000, district_junction_3_2);
 grade(district_street_x_2_2, 0.102001000, 0.102001000);
 district_street_y_2_2 = cross_street(district_junction_2_2, 8.095700000, 13.233333333, 8.095700000, 13.816666667, district_junction_2_3);
 grade(district_street_y_2_2, 0.102001000, 0.102001000);
-district_street_x_2_3 = cross_street(district_junction_2_3, 10.330466667, 14.400000000, 12.565233333, 14.400000000, district_junction_3_3);
+district_street_x_2_3 = cycling_street(district_junction_2_3, 10.330466667, 14.400000000, 12.565233333, 14.400000000, district_junction_3_3);
 grade(district_street_x_2_3, 0.102001000, 0.102001000);
 district_street_x_3_0 = cross_street(district_junction_3_0, 16.933333333, 8.000000000, 19.066666667, 8.000000000, district_junction_4_0);
 grade(district_street_x_3_0, 0.102001000, 0.102001000);
 district_street_y_3_0 = cross_street(district_junction_3_0, 14.800000000, 9.010500000, 14.800000000, 10.021000000, district_junction_3_1);
 grade(district_street_y_3_0, 0.102001000, 0.102001000);
-district_street_x_3_1 = cross_street(district_junction_3_1, 16.933333333, 11.031500000, 19.066666667, 11.031500000, district_junction_4_1);
+district_street_x_3_1 = cycling_street(district_junction_3_1, 16.933333333, 11.031500000, 19.066666667, 11.031500000, district_junction_4_1);
 grade(district_street_x_3_1, 0.102001000, 0.102001000);
 district_street_y_3_1 = cross_street(district_junction_3_1, 14.800000000, 11.571000000, 14.800000000, 12.110500000, district_junction_3_2);
 grade(district_street_y_3_1, 0.102001000, 0.102001000);
-district_street_x_3_2 = cross_street(district_junction_3_2, 16.933333333, 12.650000000, 19.066666667, 12.650000000, district_junction_4_2);
+district_street_x_3_2 = cycling_street(district_junction_3_2, 16.933333333, 12.650000000, 19.066666667, 12.650000000, district_junction_4_2);
 grade(district_street_x_3_2, 0.102001000, 0.102001000);
 district_street_y_3_2 = cross_street(district_junction_3_2, 14.800000000, 13.233333333, 14.800000000, 13.816666667, district_junction_3_3);
 grade(district_street_y_3_2, 0.102001000, 0.102001000);
-district_street_x_3_3 = cross_street(district_junction_3_3, 16.933333333, 14.400000000, 19.066666667, 14.400000000, district_junction_4_3);
+district_street_x_3_3 = cycling_street(district_junction_3_3, 16.933333333, 14.400000000, 19.066666667, 14.400000000, district_junction_4_3);
 grade(district_street_x_3_3, 0.102001000, 0.102001000);
 district_street_y_4_0 = cross_street(district_junction_4_0, 21.200000000, 9.010500000, 21.200000000, 10.021000000, district_junction_4_1);
 grade(district_street_y_4_0, 0.102001000, 0.102001000);
@@ -3270,7 +3270,7 @@ elevation(district_downtown_039, 0.1000009);
 
 placed_building_16 = building(1.3388432, "study_03", { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: sandstone, seed: 334 }, 7.0765877, 20.3310070, 7.0765872, 18.1580124, 9.1437931, 18.1580162, 9.1437941, 20.3310089);
 
-elevation(placed_building_16, 0.1000);
+elevation(placed_building_16, 0.0990);
 
 
 
@@ -3906,9 +3906,9 @@ scattered_cone_299 = prop(cone, 2.2014082, 0.1287634, { heading: 18, elevation: 
 # service_south_segment
 scattered_cone_300 = prop(cone, 1.0410493, 0.0943617, { heading: 144, elevation: 0.1020000 });
 
-placed_building_18 = building(0.0945000, { material: red_brick, floor_height: 0.0315000, use: unspecified, family: heritage, palette: sandstone, seed: 334 }, 7.5078855, 15.2928314, 7.9894371, 15.2928314, 7.9894371, 16.3713055, 7.5078855, 16.3713055);
 
-elevation(placed_building_18, 0.1010);
+
+
 
 
 

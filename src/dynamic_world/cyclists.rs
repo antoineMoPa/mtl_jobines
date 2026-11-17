@@ -9,7 +9,7 @@ use crate::hermes::{
     Hermes,
 };
 use glam::{Mat4, Vec3};
-pub(super) const CAPACITY: usize = 12;
+pub(super) const CAPACITY: usize = 24;
 struct Cyclist {
     vehicle: usize,
     path: usize,
@@ -22,6 +22,9 @@ pub(super) struct Cyclists {
     riders: Vec<Cyclist>,
     poses: Vec<(usize, usize, [Mat4; JOINT_LIMIT])>,
     serial: usize,
+    free: Vec<usize>,
+    spawns: Vec<(usize, SpawnPoint)>,
+    refill: f32,
 }
 impl Cyclists {
     pub fn new(hermes: &Hermes) -> Self {
@@ -32,6 +35,9 @@ impl Cyclists {
             riders: Vec::new(),
             poses: Vec::new(),
             serial: 0,
+            free: Vec::new(),
+            spawns: Vec::new(),
+            refill: 0.,
         }
     }
     pub fn release(&mut self, id: usize) {
@@ -59,52 +65,83 @@ impl Cyclists {
             .iter()
             .position(|d| d.is_bicycle())
             .unwrap();
-        let mut candidates: Vec<_> = self
-            .graph
-            .paths
-            .iter()
-            .enumerate()
-            .filter(|(i, p)| self.dedicated[*i] && p.speed != SpeedClass::Junction && p.length > 8.)
-            .collect();
-        candidates.sort_by(|a, b| {
-            a.1.sample(a.1.project(center).0)
-                .0
-                .distance_squared(center)
-                .total_cmp(&b.1.sample(b.1.project(center).0).0.distance_squared(center))
-        });
-        for (path, p) in candidates {
-            for fraction in [0.25, 0.65] {
-                if self.riders.len() >= CAPACITY {
-                    return;
+        let mut candidates = Vec::new();
+        for (path, p) in self.graph.paths.iter().enumerate() {
+            if !self.dedicated[path] || p.speed == SpeedClass::Junction || p.length < 24. {
+                continue;
+            }
+            let mut distance = 12.;
+            while distance < p.length - 12. {
+                let (point, heading) = p.sample(distance);
+                if point.distance(center) < 400. {
+                    candidates.push((path, point, heading));
                 }
-                let (point, heading) = p.sample(p.length * fraction);
-                if vehicles.iter().any(|v| {
-                    v.position.truncate().distance(point.truncate()) < 8.
-                        && (v.position.z - point.z).abs() < 3.
-                }) {
-                    continue;
-                }
-                let Ok(mut bike) = Vehicle::spawn_at(
-                    hermes.city(),
-                    SpawnPoint {
-                        point: (point.truncate() / METERS_PER_UNIT).to_array(),
-                        heading: Some(heading.y.atan2(heading.x)),
-                    },
-                ) else {
-                    continue;
-                };
-                bike.set_catalog_model(Some(model));
-                let id = vehicles.len();
-                vehicles.push(bike);
-                self.riders.push(Cyclist {
-                    vehicle: id,
-                    path,
-                    next: None,
-                    model: self.serial % pedestrian_catalog::CROWD_MODEL_COUNT,
-                });
-                self.serial += 1;
+                distance += 32.;
             }
         }
+        candidates.sort_by(|a, b| {
+            a.1.distance_squared(center)
+                .total_cmp(&b.1.distance_squared(center))
+        });
+        for (path, point, heading) in candidates {
+            if self.riders.len() >= CAPACITY {
+                break;
+            }
+            if vehicles.iter().any(|v| {
+                v.position.truncate().distance(point.truncate()) < 10.
+                    && (v.position.z - point.z).abs() < 3.
+            }) {
+                continue;
+            }
+            let start = SpawnPoint {
+                point: (point.truncate() / METERS_PER_UNIT).to_array(),
+                heading: Some(heading.y.atan2(heading.x)),
+            };
+            let Ok(mut bike) = Vehicle::spawn_at(hermes.city(), start) else {
+                continue;
+            };
+            bike.set_catalog_model(Some(model));
+            let id = if let Some(id) = self.free.pop() {
+                vehicles[id] = bike;
+                id
+            } else {
+                let id = vehicles.len();
+                vehicles.push(bike);
+                id
+            };
+            self.spawns.push((id, start));
+            self.riders.push(Cyclist {
+                vehicle: id,
+                path,
+                next: None,
+                model: self.serial % pedestrian_catalog::CROWD_MODEL_COUNT,
+            });
+            self.serial += 1;
+        }
+    }
+    pub fn inactive(&self, id: usize) -> bool {
+        self.free.contains(&id)
+    }
+    pub fn take_spawns(&mut self) -> Vec<(usize, SpawnPoint)> {
+        std::mem::take(&mut self.spawns)
+    }
+    pub fn refresh(&mut self, hermes: &Hermes, vehicles: &mut Vec<Vehicle>, center: Vec3, dt: f32) {
+        self.refill -= dt;
+        if self.refill > 0. {
+            return;
+        }
+        self.refill = 2.;
+        self.riders.retain(|r| {
+            if vehicles[r.vehicle].position.distance(center) < 550. {
+                true
+            } else {
+                self.free.push(r.vehicle);
+                vehicles[r.vehicle].position.z = -1000.;
+                vehicles[r.vehicle].velocity = Vec3::ZERO;
+                false
+            }
+        });
+        self.populate(hermes, vehicles, center);
     }
     pub fn controls(
         &mut self,
@@ -162,13 +199,14 @@ impl Cyclists {
                     && ahead < 3. + speed * 0.8
                     && (delta - forward * ahead).truncate().length() < v.width() * 0.5 + 0.55
             });
-            let red =
-                path.length - distance < 4. + speed && traffic.bicycle_red_light(end, forward);
+            let red = path.speed != SpeedClass::Junction
+                && path.length - distance < 4. + speed
+                && traffic.bicycle_red_light(path.sample(path.length).0, forward);
             let blocked = obstacle
                 || red
                 || (r.next.is_none() && path.next.is_empty() && path.length - distance < 2.);
             let desired = if path.speed == SpeedClass::Junction {
-                3.
+                2.5
             } else {
                 5.
             };
@@ -295,5 +333,104 @@ mod tests {
                 .count()
                 > 1
         );
+    }
+}
+
+#[cfg(test)]
+mod intersection_tests {
+    use super::*;
+    #[test]
+    fn cyclists_clear_a_signalized_four_way_junction_instead_of_stopping_inside_it() {
+        let hermes=Hermes::test_map_from_source("road cycle: sidewalk bikelane carlane middle carlane bikelane sidewalk; end road street: sidewalk carlane middle carlane sidewalk; end a=map_point(-1,0); b=map_point(0,0); c=map_point(1,0); d=map_point(0,-1); e=map_point(0,1); west=cycle(a,-0.67,0,-0.33,0,b); east=street(b,0.33,0,0.67,0,c); south=street(d,0,-0.67,0,-0.33,b); north=street(b,0,0.33,0,0.67,e); intersection4(b,street); land(-2,-2,2,-2,2,2,-2,2);");
+        let mut cyclists = Cyclists::new(&hermes);
+        let mut vehicles = vec![Vehicle::spawn(hermes.city())];
+        vehicles[0].position = Vec3::new(-150., -150., 1.);
+        cyclists.populate(&hermes, &mut vehicles, Vec3::ZERO);
+        assert!(cyclists.riders.len() >= 4);
+        let mut traffic = super::super::traffic::Traffic::new(hermes.traffic_paths());
+        for frame in 0..6000 {
+            traffic.time = frame as f32 / 60.;
+            for (id, input) in cyclists.controls(&traffic, &vehicles, Vec3::ZERO, 0) {
+                vehicles[id].step(hermes.city(), input, 1. / 60.);
+            }
+            super::super::contacts::resolve_with_contacts(&mut vehicles);
+        }
+        for rider in &cyclists.riders {
+            let bike = &vehicles[rider.vehicle];
+            assert!(
+                bike.position.truncate().length() > 20.,
+                "cyclist {} stuck in intersection at {:?} on path {}",
+                rider.vehicle,
+                bike.position,
+                rider.path
+            );
+        }
+    }
+    #[test]
+    fn cyclists_spawn_along_lanes_and_relocate_to_the_players_new_neighborhood() {
+        let hermes=Hermes::test_map_from_source("road r: sidewalk bikelane carlane middle carlane bikelane sidewalk; end first=r(-3,0,3,0); second=r(-3,10,3,10); land(-4,-2,4,-2,4,12,-4,12);");
+        let mut cyclists = Cyclists::new(&hermes);
+        let mut vehicles = vec![Vehicle::spawn(hermes.city())];
+        vehicles[0].position = Vec3::new(-350., -100., 1.);
+        cyclists.populate(&hermes, &mut vehicles, Vec3::ZERO);
+        let slots = vehicles.len();
+        assert!(cyclists.riders.len() > 12);
+        for r in &cyclists.riders {
+            let path = &cyclists.graph.paths[r.path];
+            let along = path.project(vehicles[r.vehicle].position).0;
+            assert!(along >= 11. && path.length - along >= 11.);
+        }
+        cyclists.refresh(&hermes, &mut vehicles, Vec3::new(0., 1000., 0.), 3.);
+        assert!(cyclists.riders.len() > 12);
+        assert_eq!(vehicles.len(), slots, "reuse retired cyclist slots");
+        assert!(cyclists
+            .riders
+            .iter()
+            .all(|r| vehicles[r.vehicle].position.y > 900.));
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod report_78_tests {
+    use super::*;
+    #[test]
+    fn report_78_cyclists_do_not_remain_stuck_at_junction_7() {
+        let hermes = Hermes::load_with_game_data(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/maps/mtl/map.road"),
+            None,
+        )
+        .unwrap();
+        let junction = Vec3::new(163.88, 157.6, 10.2);
+        let mut cycles = Cyclists::new(&hermes);
+        let mut vehicles = vec![Vehicle::spawn(hermes.city())];
+        vehicles[0].position = Vec3::new(-1000., -1000., 0.);
+        cycles.populate(&hermes, &mut vehicles, junction);
+        assert!(!cycles.riders.is_empty());
+        let mut traffic = super::super::traffic::Traffic::new(hermes.traffic_paths());
+        let mut stalled = vec![0.; vehicles.len()];
+        for frame in 0..5400 {
+            traffic.time = frame as f32 / 60.;
+            for (id, input) in cycles.controls(&traffic, &vehicles, junction, 0) {
+                vehicles[id].step(hermes.city(), input, 1. / 60.);
+            }
+            super::super::contacts::resolve_with_contacts(&mut vehicles);
+            for r in &cycles.riders {
+                let bike = &vehicles[r.vehicle];
+                if bike.position.distance(junction) < 15. && bike.velocity.truncate().length() < 0.2
+                {
+                    stalled[r.vehicle] += 1. / 60.;
+                } else {
+                    stalled[r.vehicle] = 0.;
+                }
+                assert!(
+                    stalled[r.vehicle] < 30.,
+                    "report 78 rider {} stalled at {:?}, path {}, next {:?}",
+                    r.vehicle,
+                    bike.position,
+                    r.path,
+                    r.next
+                );
+            }
+        }
     }
 }

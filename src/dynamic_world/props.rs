@@ -918,6 +918,7 @@ mod tests {
             kind: crate::props::Kind::RandomTree,
             position: Vec3::ZERO,
             heading: 0.,
+            sign: None,
         };
         let mut props = Props::from_parts_near(vec![placement.parts()], Vec3::ZERO);
         assert_eq!(props.authored_instances(Vec3::ZERO).len(), 1);
@@ -934,6 +935,7 @@ mod tests {
             kind: crate::props::Kind::Tree,
             position: Vec3::ZERO,
             heading: 0.,
+            sign: None,
         };
         let props = Props::from_parts_near(vec![placement.parts()], Vec3::ZERO);
         assert!(props.blocked(Vec3::new(0., 0., 0.5)));

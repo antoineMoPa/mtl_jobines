@@ -194,6 +194,28 @@ impl TrafficPaths {
                 dedicated.push(bike);
             }
         }
+        // Reserve a proper turning area before the shared junction center.
+        // Lane endpoints at the center made tiny, unrideable corner connectors.
+        for path in &mut graph.paths {
+            let inset = 6_f32.min(path.length * 0.3);
+            let from = if path.start_ref.is_some() { inset } else { 0. };
+            let to = path.length - if path.end_ref.is_some() { inset } else { 0. };
+            let mut points = vec![path.sample(from).0];
+            let mut along = 0.;
+            for pair in path.points.windows(2) {
+                along += pair[0].distance(pair[1]);
+                if along > from && along < to {
+                    points.push(pair[1]);
+                }
+            }
+            points.push(path.sample(to).0);
+            path.points = points;
+            path.length = to - from;
+            path.bounds = path.points.iter().fold(
+                [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)],
+                |b, p| [b[0].min(*p), b[1].max(*p)],
+            );
+        }
         let count = graph.paths.len();
         let mut starts = HashMap::<String, Vec<usize>>::new();
         for (id, p) in graph.paths.iter().enumerate() {
@@ -605,5 +627,30 @@ impl TrafficPaths {
             graph.paths[i].next = next;
         }
         graph
+    }
+}
+
+#[cfg(test)]
+mod cycling_map_tests {
+    use super::*;
+    #[test]
+    fn saint_laurent_saint_denis_and_report_79_have_continuous_bike_lane_corridors() {
+        let source = include_str!("../../data/maps/mtl/map.road");
+        let program = opencity::parse(source).unwrap();
+        let projection = opencity::map::project(&program);
+        for row in [1, 2, 3] {
+            for col in 0..4 {
+                let name = format!("district_street_x_{col}_{row}");
+                let road = projection
+                    .segments
+                    .iter()
+                    .find(|s| s.name.as_deref() == Some(name.as_str()))
+                    .unwrap();
+                assert_eq!(
+                    road.road_name, "cycling_street",
+                    "missing cycling profile on {name}"
+                );
+            }
+        }
     }
 }

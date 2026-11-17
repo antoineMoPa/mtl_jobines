@@ -1,4 +1,4 @@
-//! Visible progress for Moon's native release build without changing rustc flags.
+//! Visible progress for Moon's incremental native game build.
 use std::{
     collections::HashMap,
     path::Path,
@@ -11,12 +11,17 @@ use std::{
 use crate::Result;
 
 pub fn build(root: &Path) -> Result<()> {
-    eprintln!(
-        "[game build] Building native release game; Cargo's crate count is not a time estimate."
-    );
+    eprintln!("[game build] Building incremental local game (app opt=1, world/map opt=3).");
     let started = Instant::now();
     let mut child = cargo(root)
-        .args(["build", "--release", "--bin", "mtl_jobines", "--timings"])
+        .args([
+            "build",
+            "--profile",
+            "dev",
+            "--bin",
+            "mtl_jobines",
+            "--timings",
+        ])
         .env("CARGO_TERM_PROGRESS_WHEN", "never")
         .spawn()?;
     let cargo_pid = child.id();
@@ -67,7 +72,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
     eprintln!("[game run] Launching game; Cargo will verify the build is still current.");
     let mut command = cargo(root);
     command
-        .args(["run", "--release", "--bin", "mtl_jobines", "--"])
+        .args(["run", "--profile", "dev", "--bin", "mtl_jobines", "--"])
         .args(args);
     // Cargo resolves the executable correctly even with a custom target directory.
     // Replacing xtask also preserves Ctrl-C and the game's exit status.

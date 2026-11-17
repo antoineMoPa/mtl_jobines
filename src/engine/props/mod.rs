@@ -199,6 +199,7 @@ impl Document {
                 kind: self.kind,
                 position: p.extend(self.ground(city, p)?),
                 heading: 0.,
+                sign: opencity::props::SignDesign::for_kind(self.kind),
             }),
         })
     }
@@ -216,6 +217,7 @@ impl Document {
                     heading: 0.,
                     offsets: BTreeMap::new(),
                     hidden: BTreeSet::new(),
+                    sign: opencity::props::SignDesign::for_kind(self.kind),
                 },
             },
         })

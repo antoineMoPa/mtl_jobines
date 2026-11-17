@@ -12,7 +12,9 @@ default-members = [".", "crates/mtl_world"]
 resolver = "2"
 
 [lib]
-crate-type = ["rlib", "cdylib"]
+# Native variants need hashed rlib filenames to coexist in Cargo's shared cache.
+# The web build explicitly requests cdylib output with cargo rustc.
+crate-type = ["rlib"]
 
 [dependencies]
 mtl_world = { path = "crates/mtl_world" }
@@ -51,6 +53,17 @@ naga = { version = "30", features = ["wgsl-in"] }
 # Keep debug assertions and symbols while avoiding minute-long native startup.
 [profile.dev]
 opt-level = 1
+incremental = true
+
+# Moon launches use this incremental profile instead of reoptimizing the whole
+# application at release level after every edit.
+[profile.dev.package.mtl_jobines]
+debug = 1
+
+# Keep simulation and geometry fast even in the local incremental game build.
+[profile.dev.package.mtl_world]
+opt-level = 3
+debug = 1
 
 # Dependencies change rarely; omit their debug data to reduce compile/link work.
 # Workspace code keeps its own debug symbols and optimized geometry paths.
@@ -59,4 +72,5 @@ debug = 0
 
 # Keep geometry optimized while reducing editor compile/link debug-data work.
 [profile.dev.package.opencity]
+opt-level = 3
 debug = 1

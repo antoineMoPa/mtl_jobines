@@ -42,7 +42,7 @@ mod tests {
     }
 
     #[test]
-    fn bicycle_has_two_contacts_pedals_brakes_and_does_not_reverse_under_power() {
+    fn bicycle_has_two_contacts_pedals_and_service_brakes() {
         for dt in [1. / 120., 1. / 30.] {
             let (city, mut bike) = setup();
             assert_eq!(
@@ -74,7 +74,7 @@ mod tests {
                 bike.step(
                     &city,
                     Controls {
-                        throttle: -1.,
+                        brake: true,
                         ..Default::default()
                     },
                     dt,
@@ -220,5 +220,53 @@ mod sprint_tests {
             sprint.step(&city, Controls::default(), 1. / 60.);
         }
         assert!(sprint.riding_stand < 0.01);
+    }
+}
+
+#[cfg(test)]
+mod backpedal_tests {
+    use super::*;
+    #[test]
+    fn bicycle_can_backpedal_reverse_and_change_direction_after_braking() {
+        let city = City::from_program(
+            &opencity::parse("road r: carlane; end r(-30,0,30,0);").unwrap(),
+            None,
+        )
+        .unwrap();
+        for dt in [1. / 120., 1. / 30.] {
+            let mut bike = Vehicle::spawn(&city);
+            bike.set_catalog_model(
+                super::super::super::catalog::definitions()
+                    .iter()
+                    .position(|d| d.is_bicycle()),
+            );
+            bike.position = Vec3::new(0., 0., bike.ride_height());
+            bike.yaw = 0.;
+            for _ in 0..(6. / dt) as usize {
+                bike.step(
+                    &city,
+                    Controls {
+                        throttle: -1.,
+                        ..Default::default()
+                    },
+                    dt,
+                );
+            }
+            assert!(bike.velocity.x < -2. && bike.velocity.x > -5.);
+            assert!(bike.pedal_angle < -5. && bike.wheel_angle < -5.);
+            let phase = bike.pedal_angle;
+            for _ in 0..(10. / dt) as usize {
+                bike.step(
+                    &city,
+                    Controls {
+                        throttle: 1.,
+                        ..Default::default()
+                    },
+                    dt,
+                );
+            }
+            assert!(bike.velocity.x > 5.);
+            assert!(bike.pedal_angle > phase);
+        }
     }
 }

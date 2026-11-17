@@ -16,8 +16,8 @@ if [[ "${BUNDLE_GAME_DATA:-0}" == "1" ]]; then
   export MTL_JOBINES_BUNDLED_GAME_DATA="$dist_dir/default.game-data.gz"
 fi
 
-cargo build --manifest-path "$repo_dir/Cargo.toml" --locked --release \
-  --target wasm32-unknown-unknown --lib
+cargo rustc --manifest-path "$repo_dir/Cargo.toml" -p mtl_jobines --locked --release \
+  --target wasm32-unknown-unknown --lib --crate-type cdylib
 
 mkdir -p "$dist_dir/pkg"
 wasm-bindgen "$repo_dir/target/wasm32-unknown-unknown/release/mtl_jobines.wasm" \
