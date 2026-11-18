@@ -115,6 +115,41 @@ fn native_underground_metro_station_and_boarding_views() {
             .unwrap();
         }
     }
+    drop(meshes);
+    assert!(world.preview_metro_tunnel(&hermes));
+    vehicles.update(&renderer, &world);
+    let mut meshes = vec![&ground, &station];
+    meshes.extend(vehicles.visible());
+    let (eye, look) = world
+        .metro_camera()
+        .expect("aboard preview must use inside camera");
+    let side = look - eye;
+    let along = glam::Vec3::new(-side.y, side.x, 0.);
+    for (name, look) in [
+        ("metro-tunnel-window", look),
+        ("metro-tunnel-window-angle", look + along),
+    ] {
+        for msaa in [false, true] {
+            renderer.set_antialiasing(msaa);
+            let png = renderer
+                .report_screenshot(
+                    &meshes,
+                    eye,
+                    look,
+                    0.,
+                    hermes.minimap_view(eye.truncate().to_array(), 0.),
+                )
+                .unwrap();
+            std::fs::write(
+                folder.join(format!(
+                    "{name}-{}.png",
+                    if msaa { "msaa" } else { "single" }
+                )),
+                png,
+            )
+            .unwrap();
+        }
+    }
     std::fs::write(folder.join("metro-map.svg"), hermes.minimap_svg()).unwrap();
 }
 

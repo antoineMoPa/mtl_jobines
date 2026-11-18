@@ -328,6 +328,27 @@ mod tests;
 
 #[cfg(any(test, feature = "test-support"))]
 impl super::DynamicWorld {
+    pub fn preview_metro_tunnel(&mut self, hermes: &Hermes) -> bool {
+        if !self.preview_metro_station(hermes, crate::hermes::metro::StationId::Acadie) {
+            return false;
+        }
+        self.metro.distance += 60.;
+        self.metro.dwell = 0.;
+        self.metro.train.as_mut().unwrap().metro_doors = 0.;
+        self.metro.place();
+        self.metro.aboard = true;
+        self.metro.rider = 0;
+        let car = self.metro.train.as_ref().unwrap();
+        let position = car.position - Vec3::Z * car.ride_height()
+            + Quat::from_rotation_z(car.yaw)
+                * Vec3::new(-6., 0., 1.025 + super::player::HALF_HEIGHT);
+        self.pedestrian = Some(Pedestrian::new(
+            hermes.city(),
+            position,
+            car.yaw - std::f32::consts::FRAC_PI_2,
+        ));
+        true
+    }
     pub fn preview_metro_station(
         &mut self,
         hermes: &Hermes,

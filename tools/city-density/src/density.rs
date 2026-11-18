@@ -15,6 +15,8 @@ mod green;
 mod infill;
 mod junctions;
 mod plan;
+#[cfg(test)]
+mod style_tests;
 pub(crate) use green::export as export_green;
 use plan::Plan;
 type Polygon = Vec<[f32; 2]>;
@@ -148,6 +150,16 @@ pub fn build(base: &str) -> Result<(), Box<dyn Error>> {
 pub fn fill(base: &str) -> Result<(), Box<dyn Error>> {
     run(base, false, Plan::SourceCity)
 }
+/// Confirm a comment-preserving installation has exactly the audited candidate's statements.
+pub fn verify_install(base: &str, map: &str) -> Result<(), Box<dyn Error>> {
+    let candidate = opencity::parse(&fs::read_to_string(format!("{base}/dense.road"))?)?;
+    let installed = opencity::parse(&fs::read_to_string(map)?)?;
+    if installed != candidate {
+        return Err("installed map differs from the audited candidate".into());
+    }
+    println!("Installed map statements match the audited candidate");
+    Ok(())
+}
 pub fn inner_loop(base: &str) -> Result<(), Box<dyn Error>> {
     run(base, false, Plan::InnerLoop)
 }
@@ -169,7 +181,7 @@ fn run(base: &str, pack: bool, plan: Plan) -> Result<(), Box<dyn Error>> {
         .iter()
         .filter(|f| {
             f.kind == LandscapeKind::Building
-                && (plan == Plan::InnerLoop || f.name.as_deref().is_some_and(generated))
+                && plan.may_remove(f.name.as_deref().is_some_and(generated))
                 && green.overlaps(&f.points, None, true)
         })
         .filter_map(|f| f.name.clone())
@@ -362,7 +374,12 @@ fn run(base: &str, pack: bool, plan: Plan) -> Result<(), Box<dyn Error>> {
         .filter(|(id, _)| index.overlaps(&index.polygons[*id], Some(*id), false))
         .count();
     if conflicts != 0 {
-        return Err(format!("{conflicts} building/road overlaps").into());
+        let names: Vec<_> = lots
+            .iter()
+            .filter(|(id, _)| index.overlaps(&index.polygons[*id], Some(*id), false))
+            .filter_map(|(_, f)| f.name.as_deref())
+            .collect();
+        return Err(format!("{conflicts} building/road overlaps: {names:?}").into());
     }
     eprintln!("Adding street rows after packing {grown} lots");
     let (infill, infill_count) = infill::build(
@@ -380,7 +397,11 @@ fn run(base: &str, pack: bool, plan: Plan) -> Result<(), Box<dyn Error>> {
         &mut index,
         &green,
         plan,
-        budget.saturating_sub(infill_count),
+        if plan == Plan::InnerLoop {
+            0
+        } else {
+            budget.saturating_sub(infill_count)
+        },
     )?;
     let mut output = Vec::new();
     for s in p.statements {
@@ -425,7 +446,7 @@ fn run(base: &str, pack: bool, plan: Plan) -> Result<(), Box<dyn Error>> {
             continue;
         }
         let id = final_index.insert(f.points.clone());
-        if plan == Plan::InnerLoop || f.name.as_deref().is_some_and(generated) {
+        if f.name.as_deref().is_some_and(generated) {
             if green.overlaps(&f.points, None, true) {
                 return Err("final building intrudes into green space".into());
             }
@@ -433,16 +454,21 @@ fn run(base: &str, pack: bool, plan: Plan) -> Result<(), Box<dyn Error>> {
                 .as_deref()
                 .is_some_and(|n| n.starts_with("generated_area_"))
             {
-                audited.push(id);
+                audited.push((id, f.name.clone().unwrap_or_default()));
             }
         }
     }
-    let final_conflicts = audited
+    let conflicting_names: Vec<_> = audited
         .iter()
-        .filter(|&&id| final_index.overlaps(&final_index.polygons[id], Some(id), false))
-        .count();
+        .filter(|(id, _)| final_index.overlaps(&final_index.polygons[*id], Some(*id), false))
+        .map(|(_, name)| name.as_str())
+        .collect();
+    let final_conflicts = conflicting_names.len();
     if final_conflicts != 0 {
-        return Err(format!("{final_conflicts} final building/road overlaps").into());
+        return Err(format!(
+            "{final_conflicts} final building/road overlaps: {conflicting_names:?}"
+        )
+        .into());
     }
     fs::write(format!("{base}/dense.road"), source)?;
     let mut counts = BTreeMap::<&str, usize>::new();
@@ -483,7 +509,7 @@ fn run(base: &str, pack: bool, plan: Plan) -> Result<(), Box<dyn Error>> {
         "new_block_buildings":block_count,
         "final_building_road_overlaps":final_conflicts,
         "final_generated_buildings_in_green_space":0,
-        "non_generated_map_content":"verified unchanged except explicit park removals",
+        "non_generated_map_content":"verified unchanged",
         "removed_park_building_names": removed.iter().collect::<std::collections::BTreeSet<_>>(),
         "existing_lots_left_for_terrain":terrain_skips,
         "removed_park_buildings":removed.len(),

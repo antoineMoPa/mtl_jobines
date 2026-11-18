@@ -63,18 +63,24 @@ than surveyed parcels. Attribution: OpenStreetMap contributors, ODbL.
 
 Use `inner-loop WORK_DIRECTORY` for the current compact Montreal map, with the same frozen
 input names. Copy `data/maps/mtl/green-spaces.road` alongside the map and elevation image.
-This explicit plan maps `cross_street` and `cycling_street` to residential frontage and
-block interiors, with 2–4 storey brick apartments and 6–20 storey mixed-use downtown buildings
-around Bonaventure. It stays inside the interstate ring and leaves the mountain footprint
-and the large Parc Jarry block west of Jean-Talon station clear. Existing buildings that
-intersect either reservation are removed, including named buildings inside authored blocks.
-Roads, terrain, props, and other buildings retain their authored geometry.
+This additive plan maps `cross_street` and `cycling_street` to street-facing infill, with
+2–4 storey brick apartments and 6–20 storey mixed-use buildings around Bonaventure.
+It adds buildings in frontage gaps and leaves block interiors open. Existing buildings,
+including those on mountain edges, retain their exact placements and definitions.
+The mountain reservation prevents new construction; Parc Jarry sits behind the existing
+west-side apartment row near Jean-Talon station, without replacing any homes.
+The downtown grid extends east to x=23.8, with taller mixed-use facades throughout that
+column. The next column reaches x=25.4 and uses 4–6 storey brick heritage facades. Its civic
+forecourt clusters the existing old city hall (`study_09`), domed cathedral (`study_12`)
+and old-town chateau (`study_20`) models. Both avenues join the ring access at proper
+four-way junctions; subdivisions retain the original access geometry.
 
 Parking and pedestrian paving, station excavations/roofs, trees and other authored fixtures
 also reserve land. Every serialized new footprint is checked against those reservations,
-roads and buildings. The final inner-loop audit checks **all** buildings against both parks.
-Review the removed building names in `report.json` before installing the result. Keep source
-comments and concurrent map edits when transferring the approved building changes.
+roads, buildings and both parks. The inner-loop plan never removes existing buildings.
+Keep source comments and concurrent map edits when transferring the new buildings. Run
+`verify-install WORK_DIRECTORY data/maps/mtl/map.road` to compare installed statements
+with the audited candidate; comments and formatting can differ.
 
 The runtime cache has a 20 million vertex limit; check the generated scene before installing.
 This tool enables OpenCity's render-materials feature because current runtime tree texture

@@ -14,12 +14,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         ["pack", directory] => density::build(directory)?,
         ["fill", directory] => density::fill(directory)?,
         ["inner-loop", directory] => density::inner_loop(directory)?,
+        ["verify-install", directory, map] => density::verify_install(directory, map)?,
         ["extract-green", pbf, calibration, output] => {
             density::export_green(pbf, calibration, output)?
         }
         _ => {
             return Err(
-                "Use pack DIR, fill DIR, inner-loop DIR, or extract-green PBF CALIBRATION OUTPUT"
+                "Use pack DIR, fill DIR, inner-loop DIR, verify-install DIR MAP, or extract-green PBF CALIBRATION OUTPUT"
                     .into(),
             )
         }

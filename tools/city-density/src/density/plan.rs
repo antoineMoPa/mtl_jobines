@@ -7,6 +7,12 @@ pub(super) enum Plan {
     InnerLoop,
 }
 impl Plan {
+    pub fn may_remove(self, generated: bool) -> bool {
+        match self {
+            Self::SourceCity => generated,
+            Self::InnerLoop => false,
+        }
+    }
     pub fn street(self, name: &str) -> bool {
         match self {
             Self::SourceCity => matches!(name, "sd_street" | "urban_arterial"),
@@ -23,7 +29,7 @@ impl Plan {
         match self {
             Self::SourceCity => true,
             // Stay inside the ring and behind the existing frontage/access roads.
-            Self::InnerLoop => (-10.2..25.5).contains(&p[0]) && (0.35..22.).contains(&p[1]),
+            Self::InnerLoop => (-10.2..26.0).contains(&p[0]) && (0.35..22.).contains(&p[1]),
         }
     }
     pub fn cell(self) -> f32 {
@@ -60,7 +66,7 @@ impl Plan {
             let material = if seed % 4 == 0 { "concrete" } else { "brick" };
             return (height, format!("use:{use_kind},material:{material}"));
         }
-        let downtown = (8.3..23.).contains(&p[0]) && (7.5..15.7).contains(&p[1]);
+        let downtown = (8.3..24.35).contains(&p[0]) && (7.5..15.7).contains(&p[1]);
         if downtown {
             let (family, material, palette, floors) = match seed % 5 {
                 0 => ("heritage", "red_brick", "brownstone", 6),
@@ -70,6 +76,15 @@ impl Plan {
                 _ => ("concrete_frame", "concrete", "concrete", 8),
             };
             (floors as f32 * 0.0325, format!("use:mixed_use,material:{material},family:{family},palette:{palette},floor_height:0.0325,ground:retail,glazing:teal,front_edge:0,seed:{seed}"))
+        } else if (24.35..26.).contains(&p[0]) && (7.5..15.7).contains(&p[1]) {
+            // The next block is a brick civic quarter around the landmark forecourt.
+            let material = if seed % 3 == 0 {
+                "brown_brick"
+            } else {
+                "red_brick"
+            };
+            let floors = 4 + seed % 3;
+            (floors as f32 * 0.0325, format!("use:mixed_use,material:{material},family:heritage,palette:brownstone,floor_height:0.0325,ground:retail,front_edge:0,seed:{seed}"))
         } else {
             let material = if seed % 3 == 0 {
                 "brown_brick"
@@ -85,6 +100,97 @@ impl Plan {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn eastern_grid_is_connected_and_preserves_the_ring_access_curve() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/maps/mtl");
+        let program =
+            opencity::parse(&std::fs::read_to_string(root.join("map.road")).unwrap()).unwrap();
+        let projection = opencity::map::project(&program);
+        let junctions = opencity::map::intersections(&program, &projection);
+        for (row, arms) in [3, 4, 4, 3].into_iter().enumerate() {
+            let name = format!("district_east_junction_{row}");
+            let junction = junctions.iter().find(|j| j.point_ref == name).unwrap();
+            assert_eq!(junction.kind.arm_count(), arms);
+            let attached = projection
+                .segments
+                .iter()
+                .filter(|r| {
+                    r.start_ref.as_deref() == Some(&name) || r.end_ref.as_deref() == Some(&name)
+                })
+                .count();
+            assert_eq!(attached, arms, "{name} must have connected arms");
+            assert!((junction.position.x - 23.8).abs() < 0.00001);
+        }
+        let left = projection
+            .segments
+            .iter()
+            .find(|r| r.name.as_deref() == Some("district_east_access"))
+            .unwrap();
+        let right = projection
+            .segments
+            .iter()
+            .find(|r| r.name.as_deref() == Some("east_access_continuation"))
+            .unwrap();
+        let split = 0.7275714923095185_f32;
+        let controls = [
+            [21.2_f32, 12.65_f32],
+            [22.4, 12.65],
+            [23.6, 12.],
+            [24.75, 12.],
+        ];
+        for i in 0..=100 {
+            let t = i as f32 / 100.;
+            let u = 1. - t;
+            let weights = [u * u * u, 3. * t * u * u, 3. * t * t * u, t * t * t];
+            let expected =
+                [0, 1].map(|axis| (0..4).map(|j| controls[j][axis] * weights[j]).sum::<f32>());
+            let actual = if t <= split {
+                left.point_at(t / split)
+            } else {
+                right.point_at((t - split) / (1. - split))
+            };
+            assert!((actual.x - expected[0]).hypot(actual.y - expected[1]) < 0.00001);
+        }
+    }
+    #[test]
+    fn canonical_city_keeps_the_original_homes_and_jarry_is_behind_them() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/maps/mtl");
+        let source = std::fs::read_to_string(root.join("map.road")).unwrap();
+        assert!(!source.contains("generated_area_interior_"));
+        let features = opencity::project_landscape_features(&opencity::parse(&source).unwrap());
+        for id in 38..=56 {
+            let name = format!("west_apartment_{id}");
+            assert!(
+                features
+                    .features
+                    .iter()
+                    .any(|f| f.name.as_deref() == Some(&name)),
+                "{name} must remain"
+            );
+        }
+        let parks = opencity::project_landscape_features(
+            &opencity::parse(&std::fs::read_to_string(root.join("green-spaces.road")).unwrap())
+                .unwrap(),
+        );
+        let jarry = parks
+            .features
+            .iter()
+            .find(|f| f.name.as_deref() == Some("parc_jarry"))
+            .unwrap();
+        let mut reservation = super::super::Index::default();
+        reservation.insert(jarry.points.clone());
+        for building in features
+            .features
+            .iter()
+            .filter(|f| f.kind == opencity::LandscapeKind::Building)
+        {
+            assert!(
+                !reservation.overlaps(&building.points, None, true),
+                "Parc Jarry overlaps {:?}",
+                building.name
+            );
+        }
+    }
     #[test]
     fn station_openings_and_authored_fixtures_remain_clear() {
         let p = opencity::parse(
@@ -107,6 +213,8 @@ mod tests {
     #[test]
     fn inner_ring_maps_local_streets_and_downtown_scale() {
         let plan = Plan::InnerLoop;
+        assert!(!plan.may_remove(false));
+        assert!(!plan.may_remove(true));
         assert!(plan.street("cycling_street"));
         assert!(plan.street("cross_street"));
         assert!(!plan.street("metro_track"));
