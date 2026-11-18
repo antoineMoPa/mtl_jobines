@@ -4,7 +4,9 @@
 
 ![MTL Jobines splash screen showing a snowy Montréal street](web/boot.png)
 
-![Gameplay highlights](docs/gameplay-highlights.gif)
+<p align="center">
+  <img src="docs/gameplay-highlights.gif" alt="Gameplay highlights">
+</p>
 
 # building from source
 
