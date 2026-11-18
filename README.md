@@ -8,6 +8,10 @@
   <img src="docs/gameplay-highlights.gif" alt="Gameplay highlights">
 </p>
 
+# playing
+
+Play here: [mtl-jobines.pages.dev/](https://mtl-jobines.pages.dev/)
+
 # building from source
 
 ```
