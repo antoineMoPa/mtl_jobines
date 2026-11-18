@@ -170,7 +170,13 @@ pub(super) fn show(
                         } else {
                             (ctx.content_rect().width() - 72.).clamp(120., 360.)
                         });
-                        ui.label(RichText::new(objective.label()).color(Color32::BLACK).font(
+                        let label = match kairos.vehicle_return_seconds() {
+                            Some(seconds) => format!(
+                                "Retourne à ton véhicule avant la fin de la jobine ({seconds} s)"
+                            ),
+                            None => objective.label().to_owned(),
+                        };
+                        ui.label(RichText::new(label).color(Color32::BLACK).font(
                             egui::FontId::new(
                                 if mobile { 15. } else { 24. },
                                 egui::FontFamily::Name(MONEY_FONT.into()),

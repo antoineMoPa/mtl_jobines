@@ -103,6 +103,7 @@ struct Game {
     proxy: winit::event_loop::EventLoopProxy<GameEvent>,
     hermes: Hermes,
     kairos: Kairos,
+    mission_vehicle: Option<crate::dynamic_world::VehicleId>,
     world: DynamicWorld,
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
@@ -315,6 +316,7 @@ impl Game {
             #[cfg(target_arch = "wasm32")]
             proxy,
             hermes,
+            mission_vehicle: None,
             kairos: {
                 #[cfg(test)]
                 {
@@ -396,6 +398,13 @@ impl Game {
             self.accumulator = 0.;
             return;
         }
+        let driving_mission_vehicle = self.driving_mission_vehicle();
+        if self
+            .kairos
+            .vehicle_return_expired(driving_mission_vehicle, elapsed)
+        {
+            self.abandon_mission();
+        }
         self.accumulator += elapsed;
         self.game_time += elapsed;
         let f = glam::Vec2::new(self.world.player().yaw.cos(), self.world.player().yaw.sin());
@@ -418,14 +427,17 @@ impl Game {
                 self.orbit -= step_turn;
             }
             self.world.step(&self.hermes, input, walk, DT);
-            self.try_service();
+            if driving_mission_vehicle {
+                self.try_service();
+            }
             self.accumulator -= DT;
         }
         if self.world.take_service_finished() {
             self.service_completed();
         }
         let cleared = self.world.take_snow_events();
-        if !cleared.is_empty()
+        if driving_mission_vehicle
+            && !cleared.is_empty()
             && self.kairos.active_id() == Some(crate::kairos::MissionId::Snowplow)
         {
             let was_complete = self.kairos.is_complete();

@@ -180,7 +180,10 @@ impl Default for PlayerProgress {
     }
 }
 
+const VEHICLE_RETURN_SECONDS: f32 = 10.;
+
 pub struct Kairos {
+    return_seconds: Option<f32>,
     active: Option<Box<dyn Mission>>,
     progress: PlayerProgress,
     dirty: bool,
@@ -192,6 +195,7 @@ impl Default for Kairos {
     fn default() -> Self {
         Self {
             active: None,
+            return_seconds: None,
             progress: PlayerProgress::default(),
             dirty: false,
             writable: true,
@@ -239,6 +243,7 @@ impl Kairos {
     }
 
     pub fn accept(&mut self, id: MissionId) {
+        self.return_seconds = None;
         self.active = Some(match id {
             MissionId::Taxi => Box::new(taxi::TaxiMission::default()),
             MissionId::Bus => Box::new(bus::BusMission::default()),
@@ -248,6 +253,21 @@ impl Kairos {
 
     pub fn abandon(&mut self) {
         self.active = None;
+        self.return_seconds = None;
+    }
+
+    pub fn vehicle_return_expired(&mut self, driving_assigned: bool, elapsed: f32) -> bool {
+        if self.active.is_none() || driving_assigned || self.is_complete() {
+            self.return_seconds = None;
+            return false;
+        }
+        let remaining = self.return_seconds.get_or_insert(VEHICLE_RETURN_SECONDS);
+        *remaining -= elapsed;
+        *remaining <= 0.
+    }
+
+    pub fn vehicle_return_seconds(&self) -> Option<u32> {
+        self.return_seconds.map(|seconds| seconds.ceil() as u32)
     }
 
     pub fn active_id(&self) -> Option<MissionId> {

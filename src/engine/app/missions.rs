@@ -135,6 +135,7 @@ impl Game {
         if id != MissionId::Taxi {
             self.hermes.clear_taxi_run();
         }
+        self.mission_vehicle = Some(self.world.player_vehicle_id());
         self.change_season(id.season());
         self.refresh_mission_route();
         self.keys.clear();
@@ -157,6 +158,15 @@ impl Game {
         }
     }
 
+    pub(super) fn driving_mission_vehicle(&self) -> bool {
+        self.world.is_driving()
+            && self.mission_vehicle == Some(self.world.player_vehicle_id())
+            && self
+                .kairos
+                .active_id()
+                .is_some_and(|id| self.world.player_model_id() == Some(id.vehicle_id()))
+    }
+
     pub(super) fn try_service(&mut self) {
         let (Some(id), Some(site), Some(plan)) = (
             self.kairos.active_id(),
@@ -165,10 +175,7 @@ impl Game {
         ) else {
             return;
         };
-        if !self.world.is_driving()
-            || self.world.player().velocity.length() >= 1.
-            || self.world.player_model_id() != Some(id.vehicle_id())
-        {
+        if self.world.player().velocity.length() >= 1. {
             return;
         }
         let Some(target) = self.hermes.mission_site(site) else {
@@ -233,5 +240,37 @@ impl Game {
                 .spawn_service_passenger(id, point + Vec3::X * (index as f32 * 0.6));
         }
         self.scene_dirty = true;
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mission_vehicle_return_resumes_or_expires_during_play() {
+        let mut game = Game::new(Hermes::test_map());
+        game.activate_mission_now(MissionId::Snowplow);
+        assert!(game.driving_mission_vehicle());
+        assert!(game.world.toggle_vehicle(&game.hermes));
+        game.simulate(0.25);
+        assert_eq!(game.kairos.vehicle_return_seconds(), Some(10));
+
+        game.set_overlay(Overlay::Menu);
+        game.simulate(10.);
+        assert_eq!(game.kairos.vehicle_return_seconds(), Some(10));
+        game.set_overlay(Overlay::Driving);
+        assert!(game.world.toggle_vehicle(&game.hermes));
+        game.simulate(0.1);
+        assert_eq!(game.kairos.vehicle_return_seconds(), None);
+        assert_eq!(game.kairos.active_id(), Some(MissionId::Snowplow));
+
+        assert!(game.world.toggle_vehicle(&game.hermes));
+        game.simulate(1.);
+        assert_eq!(game.kairos.vehicle_return_seconds(), Some(9));
+        game.simulate(9.);
+        assert_eq!(game.kairos.active_id(), None);
+        assert_eq!(game.kairos.vehicle_return_seconds(), None);
+        assert_eq!(game.world.season(), crate::season::Season::Summer);
     }
 }

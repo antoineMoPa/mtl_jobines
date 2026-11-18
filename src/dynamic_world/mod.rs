@@ -255,6 +255,9 @@ impl DynamicWorld {
     pub fn player(&self) -> &Vehicle {
         &self.vehicles[self.player_vehicle.0]
     }
+    pub fn player_vehicle_id(&self) -> VehicleId {
+        self.player_vehicle
+    }
     pub fn player_model_id(&self) -> Option<&str> {
         self.player()
             .definition()
