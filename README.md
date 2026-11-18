@@ -4,6 +4,15 @@
 
 ![MTL Jobines splash screen showing a snowy Montréal street](web/boot.png)
 
+MTL_Jobine is a Montreal-inspired open world game where the player can work different small jobs
+around town.
+
+It features:
+* working metro (subway) system
+* winter / summer / night / day modes
+* npc traffic (bike, pedestrian, vehicles)
+* a complex grid network defined in .road language (from my opencity repo)
+
 <p align="center">
   <img src="docs/gameplay-highlights.gif" alt="Gameplay highlights">
 </p>
