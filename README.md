@@ -4,7 +4,7 @@
 
 ![MTL Jobines splash screen showing a snowy Montréal street](web/boot.png)
 
-MTL_Jobine is a Montreal-inspired open world game where the player can work different small jobs
+mtl_jobines is a Montreal-inspired open world game where the player can work different small jobs
 around town.
 
 It features:
