@@ -3,7 +3,7 @@
 use std::{
     env, fs,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 use crate::Result;
@@ -164,9 +164,9 @@ fn compatible_node() -> Option<PathBuf> {
     None
 }
 
-fn run(root: &Path, program: &str, args: &[&str], uses_node: bool) -> Result<()> {
+fn command(root: &Path, program: &str, uses_node: bool) -> Result<Command> {
     let mut command = Command::new(program);
-    command.args(args).current_dir(root);
+    command.current_dir(root);
     if env::var_os("WRANGLER_LOG_PATH").is_none() {
         command.env(
             "WRANGLER_LOG_PATH",
@@ -192,7 +192,13 @@ fn run(root: &Path, program: &str, args: &[&str], uses_node: bool) -> Result<()>
         )?;
         command.env("PATH", search_path);
     }
+    Ok(command)
+}
+
+fn run(mut command: Command, args: &[&str]) -> Result<()> {
+    let program = command.get_program().to_string_lossy().into_owned();
     let status = command
+        .args(args)
         .status()
         .map_err(|error| format!("Could not run {program}: {error}"))?;
     if !status.success() {
@@ -201,40 +207,60 @@ fn run(root: &Path, program: &str, args: &[&str], uses_node: bool) -> Result<()>
     Ok(())
 }
 
-fn wrangler(root: &Path, args: &[&str], dry_run: bool) -> Result<()> {
-    let (program, mut command_args) = match env::var("WRANGLER_BIN") {
-        Ok(binary) => (binary, Vec::new()),
-        Err(_) => ("npx".to_owned(), vec!["--yes", "wrangler"]),
-    };
-    command_args.extend_from_slice(args);
-    if dry_run {
-        println!("Dry run: {program} {}", command_args.join(" "));
-        return Ok(());
+// Resolve once per release. An exact package spec gives each update its own
+// npx installation directory, so updates never rewrite the previous release.
+fn wrangler(root: &Path) -> Result<Command> {
+    if let Ok(binary) = env::var("WRANGLER_BIN") {
+        return command(root, &binary, true);
     }
-    run(root, &program, &command_args, true)
+    let output = command(root, "npm", true)?
+        .args(["view", "wrangler@latest", "version", "--prefer-online"])
+        .stderr(Stdio::inherit())
+        .output()?;
+    if !output.status.success() {
+        return Err(format!(
+            "Could not resolve the latest Wrangler version: {}",
+            output.status
+        )
+        .into());
+    }
+    let version = std::str::from_utf8(&output.stdout)?.trim();
+    if version.is_empty() || version.split_whitespace().count() != 1 {
+        return Err(format!("Unexpected Wrangler version from npm: {version:?}").into());
+    }
+    let mut npx = command(root, "npx", true)?;
+    npx.args(["--yes", &format!("wrangler@{version}")]);
+    Ok(npx)
 }
 
 pub fn create_project(root: &Path) -> Result<()> {
     let project = project_name();
     let branch = format!("--production-branch={}", production_branch());
-    wrangler(
-        root,
+    run(
+        wrangler(root)?,
         &["pages", "project", "create", &project, &branch],
-        false,
     )
 }
 
 pub fn deploy(root: &Path, dry_run: bool) -> Result<()> {
-    run(root, "bash", &["scripts/build-web.sh"], false)?;
+    let mut uploader = wrangler(root)?;
+    let mut version_check = command(root, &uploader.get_program().to_string_lossy(), true)?;
+    version_check.args(uploader.get_args());
+    run(version_check, &["--version"])?;
+    run(command(root, "bash", false)?, &["scripts/build-web.sh"])?;
     check(root)?;
     let project = project_name();
     let project_arg = format!("--project-name={project}");
     let branch_arg = format!("--branch={}", production_branch());
     let args = ["pages", "deploy", "web/dist", &project_arg, &branch_arg];
     if dry_run {
-        wrangler(root, &["--version"], false)?;
-        wrangler(root, &args, true)?;
+        uploader.args(args);
+        println!(
+            "Dry run: {:?} {:?}",
+            uploader.get_program(),
+            uploader.get_args().collect::<Vec<_>>()
+        );
         return Ok(());
     }
-    wrangler(root, &args, false)
+    run(uploader, &args)
 }

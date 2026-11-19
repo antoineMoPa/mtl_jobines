@@ -34,6 +34,7 @@ fn local_irradiance(world:vec3<f32>,normal:vec3<f32>)->vec3<f32> {
     return irradiance;
 }
 fn shade_local_surface(v:Output,front:bool,coverage:f32,surface:SurfaceData)->vec4<f32> {
+    if v.surface.x == 4.0 {return shade_river(v,surface);}
     var seasonal=surface;
     seasonal.snow=winter_coverage(v,surface);
     if v.surface.x>0.5 && v.surface.x<1.5 {

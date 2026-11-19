@@ -31,9 +31,10 @@ fn decode(bytes: &[u8]) -> (Vec<u8>, u32, u32) {
 }
 pub(super) fn shader() -> String {
     format!(
-        "{}\n{}\n{}\n{}\n{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
         opencity::runtime::GAME_SHADER,
         include_str!("snow.wgsl"),
+        include_str!("water.wgsl"),
         include_str!("local_lights.wgsl"),
         include_str!("commerce.wgsl"),
         include_str!("graffiti.wgsl"),
@@ -59,7 +60,7 @@ impl Commerce {
                 view_formats: &[],
             })
         };
-        let signs = texture("approved commerce signs", 512, 128, 10);
+        let signs = texture("commerce signs and foam thresholds", 512, 128, 11);
         for (layer, art) in ART.iter().enumerate() {
             let (source, w, h) = decode(art);
             let mut scaled = vec![0; 512 * 128 * 4];
@@ -95,6 +96,29 @@ impl Commerce {
             );
         }
         let (pixels, w, h) = decode(include_bytes!("../../assets/commerce/interiors.png"));
+        // Alpha stays linear in an sRGB texture. Reuse a free array layer to
+        // keep the world pipeline within WebGPU's 16 sampled-texture limit.
+        let mask = include_bytes!("../../assets/terrain/foam-threshold.r8");
+        let foam: Vec<u8> = mask.iter().flat_map(|&rank| [0, 0, 0, rank]).collect();
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &signs,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x: 0, y: 0, z: 10 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            &foam,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(128 * 4),
+                rows_per_image: Some(128),
+            },
+            wgpu::Extent3d {
+                width: 128,
+                height: 128,
+                depth_or_array_layers: 1,
+            },
+        );
         let rooms = texture("two virtual commerce layers", w, h, 1);
         queue.write_texture(
             rooms.as_image_copy(),
@@ -180,7 +204,6 @@ impl Commerce {
         entries.extend(opencity::runtime::tree_textures::TreeTextures::layout(8));
         entries.extend(opencity::runtime::tree_textures::TreeImpostors::layout(10));
         entries.extend(super::grass::layout());
-
         let models = super::model_textures::ModelTextures::new(device);
         models.sync(queue);
         let (grass, grass_sampler) = super::grass::upload(device, queue);
