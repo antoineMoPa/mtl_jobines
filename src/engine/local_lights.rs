@@ -13,6 +13,7 @@ struct LightGrid {
     origin: [f32; 4],
     lights: [LocalLight; MAX_LIGHTS],
     cells: [[u32; 4]; GRID * GRID],
+    wakes: [[f32; 4]; 32],
 }
 fn grid(sources: &[LocalLight], center: Vec3) -> LightGrid {
     let mut result = LightGrid::zeroed();
@@ -57,6 +58,7 @@ fn grid(sources: &[LocalLight], center: Vec3) -> LightGrid {
 pub(super) struct LocalLights {
     pub buffer: wgpu::Buffer,
     sources: RefCell<Vec<LocalLight>>,
+    pub wakes: std::cell::Cell<[[f32; 4]; 32]>,
 }
 impl LocalLights {
     pub fn new(device: &wgpu::Device) -> Self {
@@ -68,17 +70,16 @@ impl LocalLights {
                 mapped_at_creation: false,
             }),
             sources: RefCell::new(Vec::new()),
+            wakes: Default::default(),
         }
     }
     pub fn set(&self, sources: Vec<LocalLight>) {
         self.sources.replace(sources);
     }
     pub fn upload(&self, queue: &wgpu::Queue, center: Vec3) {
-        queue.write_buffer(
-            &self.buffer,
-            0,
-            bytemuck::bytes_of(&grid(&self.sources.borrow(), center)),
-        );
+        let mut data = grid(&self.sources.borrow(), center);
+        data.wakes = self.wakes.get();
+        queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(&data));
     }
 }
 

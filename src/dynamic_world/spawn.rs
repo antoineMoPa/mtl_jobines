@@ -66,11 +66,26 @@ impl FromStr for SpawnPoint {
 }
 impl Vehicle {
     pub fn spawn_at(city: &City, start: SpawnPoint) -> Result<Self, String> {
-        let support = city
+        Self::spawn_supported(city, start, false)
+    }
+    pub(super) fn spawn_supported(
+        city: &City,
+        start: SpawnPoint,
+        water: bool,
+    ) -> Result<Self, String> {
+        let mut support = city
             .surface_at(start.point, f32::INFINITY)
             .ok_or_else(|| "Selected start has no ground or road support".to_string())?;
         if support.kind == opencity::runtime::SurfaceKind::Water {
-            return Err("Selected start is in water".into());
+            if !water {
+                return Err("Selected start is in water".into());
+            }
+            support.height = city
+                .elevation
+                .as_ref()
+                .and_then(|e| e.spec.water_level)
+                .ok_or("Missing water level")?;
+            support.gradient = [0.; 2];
         }
         if city.building_collision(
             start.point,
@@ -142,6 +157,7 @@ impl Vehicle {
             aircraft_gear: 0.,
             aircraft_rates: Vec3::ZERO,
             aircraft_surfaces: Vec3::ZERO,
+            float_phase: 0.,
             pedal_angle: 0.,
             riding_stand: 0.,
             surface: support.kind,

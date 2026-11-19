@@ -67,6 +67,7 @@ pub struct Vehicle {
     pub(super) aircraft_gear: f32,
     pub(super) aircraft_rates: Vec3,
     pub(super) aircraft_surfaces: Vec3,
+    pub(super) float_phase: f32,
     pub pedal_angle: f32,
     pub riding_stand: f32,
     pub surface: SurfaceKind,
@@ -150,6 +151,7 @@ impl Vehicle {
             aircraft_gear: 0.,
             aircraft_rates: Vec3::ZERO,
             aircraft_surfaces: Vec3::ZERO,
+            float_phase: 0.,
             pedal_angle: 0.,
             riding_stand: 0.,
             surface: SurfaceKind::Asphalt,
@@ -203,6 +205,10 @@ impl Vehicle {
     }
     pub(super) fn aircraft_model(&self) -> Option<super::aircraft::Model> {
         super::aircraft::Model::from_id(&self.definition()?.config.research_id)
+    }
+    pub fn is_boat(&self) -> bool {
+        self.definition()
+            .is_some_and(|d| d.config.vehicle_kind == super::catalog::VehicleKind::Boat)
     }
     pub fn is_aircraft(&self) -> bool {
         self.aircraft_model().is_some()
@@ -316,7 +322,11 @@ impl Vehicle {
         // Keep angular response and tire impulses stable for variable frame lengths.
         let steps = (dt / (1. / 120.)).ceil().max(1.) as usize;
         let sub_dt = dt / steps as f32;
-        if let Some(model) = self.aircraft_model() {
+        if self.is_boat() {
+            for _ in 0..steps {
+                super::boats::step(self, city, input, sub_dt);
+            }
+        } else if let Some(model) = self.aircraft_model() {
             let physics = model.physics();
             for _ in 0..steps {
                 physics.step(self, city, input, sub_dt);

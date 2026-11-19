@@ -78,3 +78,6 @@ data/maps/mtl/models/house-manor.glb
 data/maps/mtl/models/fuel-station.glb
 opencity/assets/fonts/pt-sans-bold.ttf
 opencity/assets/fonts/OFL.md
+data/vehicle/boat/voile/model.glb
+data/vehicle/boat/cabine/model.glb
+data/vehicle/boat/runabout/model.glb

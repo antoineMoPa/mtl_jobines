@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "name": "Vedette de poche",
+  "researchId": "vehicle-boat-cabine",
+  "category": "Boat",
+  "vehicleKind": "boat",
+  "roadVehicle": false,
+  "model": "model.glb",
+  "dimensions": {
+    "length": 6.83,
+    "width": 2.45,
+    "height": 2.22
+  },
+  "physics": {
+    "mass": 1850,
+    "maxSpeed": 9,
+    "acceleration": 2.3,
+    "friction": 1,
+    "maxSteerAngle": 0.55,
+    "heightOffset": 0.35,
+    "wheelRadius": 0.15,
+    "wheelbase": 5.1225000000000005,
+    "track": 1.9600000000000002
+  },
+  "qa": {
+    "claydashExport": "completed"
+  }
+}

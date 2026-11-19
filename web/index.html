@@ -56,7 +56,16 @@
       }
       document.getElementById('loading-message').textContent = 'Preparing the city…';
       await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
-      start();
+      if (new URLSearchParams(location.search).get('client') === 'cpp') {
+        const response = await fetch('./vehicle-return.wasm');
+        if (!response.ok) throw new Error(`Could not load C++ client: HTTP ${response.status}`);
+        const { instance } = await WebAssembly.instantiate(await response.arrayBuffer());
+        const rule = instance.exports.mtl_vehicle_return_v1;
+        if (typeof rule !== 'function') throw new Error('Missing C++ vehicle-return rule');
+        game.start_with_client(rule);
+      } else {
+        start();
+      }
       installMobileControls(game, canvas);
     } catch (error) {
       fail(error);

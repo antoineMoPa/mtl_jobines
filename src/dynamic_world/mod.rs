@@ -2,6 +2,7 @@
 //! the owner of vehicles, players, traffic, or future mission objects.
 mod aircraft;
 pub(crate) mod airport;
+mod boats;
 mod buildings;
 pub mod catalog;
 mod contacts;
@@ -43,7 +44,7 @@ use glam::Vec3;
 use opencity::runtime::Mesh;
 use player::Pedestrian;
 pub const PEDESTRIAN_CAPACITY: usize =
-    crowd::CAPACITY + crowd::KIOSK_CAPACITY + cyclists::CAPACITY + 5;
+    crowd::CAPACITY + crowd::KIOSK_CAPACITY + cyclists::CAPACITY + 9;
 pub use player::WalkControls;
 pub use player::TURN_SPEED as WALK_TURN_SPEED;
 pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
@@ -64,6 +65,8 @@ pub struct DynamicWorld {
     sound_geography_timer: f32,
     metro: metro::Metro,
     airport: airport::Airport,
+    boat_routes: Vec<boats::Patrol>,
+    wakes: boats::Wakes,
     vehicles: Vec<Vehicle>,
     // Authored parking occupies the slots after the initial player, before traffic.
     parked_vehicle_count: usize,
@@ -147,6 +150,8 @@ impl DynamicWorld {
             airport: airport::Airport::new(hermes.city())?,
             vehicles: vec![vehicle],
             parked_vehicle_count: 0,
+            boat_routes: Vec::new(),
+            wakes: Default::default(),
             player_vehicle: VehicleId(0),
             vehicle_notice: 4.,
             pedestrian: None,
@@ -163,6 +168,7 @@ impl DynamicWorld {
         world
             .cyclists
             .populate(hermes, &mut world.vehicles, prop_center);
+        world.populate_boats(hermes);
         world.vehicle_spawns = world
             .vehicles
             .iter()
@@ -285,7 +291,10 @@ impl DynamicWorld {
         }
     }
     pub fn player_foot_motion(&self) -> Option<pedestrian_gait::FootMotion> {
-        self.pedestrian.as_ref().map(Pedestrian::foot_motion)
+        self.pedestrian
+            .as_ref()
+            .filter(|p| !p.swimming)
+            .map(Pedestrian::foot_motion)
     }
     pub fn is_driving(&self) -> bool {
         self.pedestrian.is_none()
@@ -416,6 +425,7 @@ impl DynamicWorld {
             {
                 self.traffic.release(index);
                 self.cyclists.release(index);
+                self.boat_routes.retain(|route| route.vehicle != index);
                 self.player_vehicle = VehicleId(index);
                 self.pedestrian = None;
                 self.vehicle_notice = 4.;
@@ -438,9 +448,12 @@ impl DynamicWorld {
     pub fn reset_player(&mut self, hermes: &Hermes) {
         self.metro.aboard = false;
         let definition = self.player().definition;
-        self.vehicles[self.player_vehicle.0] =
-            Vehicle::spawn_at(hermes.city(), self.vehicle_spawns[self.player_vehicle.0])
-                .expect("validated parking position");
+        self.vehicles[self.player_vehicle.0] = Vehicle::spawn_supported(
+            hermes.city(),
+            self.vehicle_spawns[self.player_vehicle.0],
+            true,
+        )
+        .expect("validated parking position");
         self.vehicles[self.player_vehicle.0].set_catalog_model(definition);
         self.pedestrian = self
             .walking_spawn
@@ -549,6 +562,11 @@ impl DynamicWorld {
             center,
             self.player_vehicle.0,
         ));
+        ai.extend(
+            self.boat_routes
+                .iter_mut()
+                .map(|route| (route.vehicle, route.controls(&self.vehicles[route.vehicle]))),
+        );
         stage!(1);
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
             let signal = if driving && i == self.player_vehicle.0 {
@@ -575,6 +593,10 @@ impl DynamicWorld {
             vehicle.sound_controls = controls;
             vehicle.sound_running =
                 (driving && i == self.player_vehicle.0) || ai.iter().any(|(id, _)| *id == i);
+            if vehicle.is_boat() {
+                vehicle.step(hermes.city(), controls, dt);
+                continue;
+            }
             if i != self.player_vehicle.0
                 && (self.traffic.step_lane(i, vehicle, controls, dt)
                     || self
@@ -635,6 +657,7 @@ impl DynamicWorld {
             self.crowd
                 .player_move(hermes.city(), before, player.position, dt, &self.vehicles);
         }
+        self.step_wakes(dt);
         stage!(4);
         self.props.step(dt);
         stage!(5);
@@ -709,6 +732,7 @@ impl DynamicWorld {
             .map(|player| player.instance(self.season))
             .chain(self.crowd.instances(self.player_position()))
             .chain(self.service_passengers.instances())
+            .chain(self.boat_crew())
             .chain(
                 self.cyclists
                     .instances(&self.vehicles, self.player_position()),

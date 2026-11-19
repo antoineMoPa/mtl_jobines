@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "name": "Canot à moteur",
+  "researchId": "vehicle-boat-runabout",
+  "category": "Boat",
+  "vehicleKind": "boat",
+  "roadVehicle": false,
+  "model": "model.glb",
+  "dimensions": {
+    "length": 5.37,
+    "width": 2.11,
+    "height": 1.65
+  },
+  "physics": {
+    "mass": 670,
+    "maxSpeed": 13,
+    "acceleration": 3.8,
+    "friction": 1,
+    "maxSteerAngle": 0.55,
+    "heightOffset": 0.35,
+    "wheelRadius": 0.15,
+    "wheelbase": 4.0275,
+    "track": 1.688
+  },
+  "qa": {
+    "claydashExport": "completed"
+  }
+}

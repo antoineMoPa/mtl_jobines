@@ -15,6 +15,7 @@ pub enum VehicleKind {
     Motorized,
     Bicycle,
     Aircraft,
+    Boat,
 }
 
 pub const SNOWPLOW_ID: &str = "vehicle-j03";
@@ -433,7 +434,7 @@ impl Definition {
             || !p.track.is_finite()
             || match config.vehicle_kind {
                 VehicleKind::Bicycle => p.track != 0.,
-                VehicleKind::Motorized | VehicleKind::Aircraft => p.track <= 0.,
+                VehicleKind::Motorized | VehicleKind::Aircraft | VehicleKind::Boat => p.track <= 0.,
             }
             || p.max_steer_angle >= std::f32::consts::FRAC_PI_2
         {
@@ -961,6 +962,14 @@ pub fn definitions() -> &'static [Definition] {
         }
         definitions
             .extend(super::aircraft::Model::ALL.map(|model| model.definition(texture_layer)));
+        for (cfg, glb) in [
+            asset!("boat/voile"),
+            asset!("boat/cabine"),
+            asset!("boat/runabout"),
+        ] {
+            definitions
+                .push(Definition::load(cfg, glb, texture_layer).expect("bundled Claydash boat"));
+        }
         definitions
     })
 }
@@ -1638,7 +1647,7 @@ mod tests {
 
     #[test]
     fn every_export_loads_with_authored_running_gear_and_si_data() {
-        assert_eq!(definitions().len(), 14);
+        assert_eq!(definitions().len(), 17);
         assert_eq!(
             definitions()
                 .iter()
@@ -1663,6 +1672,10 @@ mod tests {
                         .filter(|p| p.role == PartRole::AircraftGear(gear));
                     assert_eq!(parts.count(), 4, "strut, tire and two hubs");
                 }
+                continue;
+            }
+            if def.config.vehicle_kind == VehicleKind::Boat {
+                assert!(!def.config.road_vehicle);
                 continue;
             }
             let wheels = def

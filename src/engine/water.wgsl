@@ -85,7 +85,24 @@ fn shade_river(v: Output, surface: SurfaceData) -> vec4<f32> {
     let t = camera.eye_time.w;
     let footprint = 100.0 * max(length(surface.world_dx.xy), length(surface.world_dy.xy));
     let water = river_surface(p, t, footprint);
-    let slope = water.xy;
+    var wake = 0.0;
+    for (var i=0u; i<32u; i++) {
+        let packet=light_grid.wakes[i];
+        if packet.w==0.0 {break;}
+        let delta=p-packet.xy;
+        if dot(delta,delta)>16.0 {continue;}
+        let forward=vec2(cos(packet.z),sin(packet.z));
+        let along=-dot(delta,forward);
+        let lateral=abs(dot(delta,vec2(-forward.y,forward.x)));
+        let size=abs(packet.w);
+        let reach=select(0.75,2.8,packet.w>0.0);
+        let spread=select(0.09,0.50,packet.w>0.0);
+        let ridge=abs(lateral-(size*0.32+along*spread));
+        let coverage=(1.0-smoothstep(0.04,0.08+0.15*size,ridge))
+            *smoothstep(-0.24,0.02,along)*(1.0-smoothstep(0.15,reach,along));
+        wake=max(wake,coverage*min(1.0,2.0*size));
+    }
+    let slope = water.xy*(1.0+0.5*wake);
     let n = vec3(-slope, 1.0) * inverseSqrt(1.0 + dot(slope, slope));
     let eye = camera.eye_time.xyz - v.world;
     let distance = length(eye);
@@ -108,7 +125,7 @@ fn shade_river(v: Output, surface: SurfaceData) -> vec4<f32> {
     let lit = mix(body, environment, fresnel) + sunlight * glint * (0.14 + fresnel);
     let foamLight = vec3(0.87, 0.93, 0.94) * (mix(vec3(0.024, 0.032, 0.048),
         vec3(0.58, 0.65, 0.74), daylight) + sunlight*(0.22 + 0.45*max(sun.z, 0.0)) + local);
-    let foamed = mix(lit, foamLight, water.z);
+    let foamed = mix(lit, foamLight, max(water.z,wake*(0.32+0.45*threshold_rank(p*0.45))));
     let fog = (1.0 - exp(-distance*0.025)*(1.0 - smoothstep(5.8, 7.6, distance))) * (1.0 - camera.daylight_sky.y);
     let sky = textureSampleLevel(sky_environment, sky_sampler, -view, 0.0).rgb;
     return vec4(filmic_display(mix(foamed, sky, fog) * camera.sun_exposure.w), 1.0);

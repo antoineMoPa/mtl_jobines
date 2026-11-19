@@ -1541,6 +1541,11 @@ impl ApplicationHandler<GameEvent> for Game {
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn run() -> Result<(), String> {
+    run_with_client(None)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn run_with_client(rule: Option<crate::VehicleReturnFn>) -> Result<(), String> {
     let args: Vec<_> = std::env::args().collect();
     let start = args
         .iter()
@@ -1569,6 +1574,7 @@ pub fn run() -> Result<(), String> {
         return native_startup::run(
             path,
             option("--game-data"),
+            rule,
             start,
             args.iter().any(|arg| arg == "--profile-shutdown"),
         );
@@ -1669,7 +1675,7 @@ fn web_status(error: Option<&str>) {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn start_web() -> Result<(), String> {
+pub fn start_web(rule: Option<js_sys::Function>) -> Result<(), String> {
     use winit::platform::web::EventLoopExtWebSys;
     let hermes = Hermes::embedded()?;
     let search = web_sys::window()
@@ -1688,7 +1694,25 @@ pub fn start_web() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     let proxy = event_loop.create_proxy();
     mobile::connect(proxy.clone());
-    event_loop.spawn_app(Game::new_at(hermes, start, proxy)?);
+    let mut game = Game::new_at(hermes, start, proxy)?;
+    if let Some(rule) = rule {
+        game.kairos
+            .set_vehicle_return_rule(move |away, previous, elapsed| {
+                let value = rule
+                    .call3(
+                        &wasm_bindgen::JsValue::UNDEFINED,
+                        &u32::from(away).into(),
+                        &previous.into(),
+                        &elapsed.into(),
+                    )
+                    .unwrap_or_else(|error| wasm_bindgen::throw_val(error));
+                value
+                    .as_f64()
+                    .unwrap_or_else(|| wasm_bindgen::throw_str("client rule must return seconds"))
+                    as f32
+            });
+    }
+    event_loop.spawn_app(game);
     Ok(())
 }
 

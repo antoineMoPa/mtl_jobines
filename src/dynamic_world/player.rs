@@ -78,6 +78,8 @@ pub struct Pedestrian {
     jump: Jump,
     jump_held: bool,
     gait: Gait,
+    pub(super) swimming: bool,
+    swim_phase: f32,
 }
 pub(super) fn blocked_by_vehicle(position: Vec3, vehicle: &Vehicle) -> bool {
     let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
@@ -124,6 +126,8 @@ impl Pedestrian {
             vertical_speed: 0.,
             jump: Jump::Grounded,
             jump_held: false,
+            swimming: false,
+            swim_phase: 0.,
             gait: Gait::new_player(
                 &pedestrian_catalog::definitions()[MODEL],
                 position - Vec3::Z * HALF_HEIGHT,
@@ -153,6 +157,17 @@ impl Pedestrian {
             .map(|offset| vehicle.position.truncate() + offset),
         );
         for point in candidates {
+            if vehicle.is_boat() {
+                if let Some(level) = super::boats::water(city, point) {
+                    let position = point.extend(level);
+                    if !blocked(position) && !Self::blocked(city, position) {
+                        let mut person = Self::new(city, position, vehicle.yaw);
+                        person.swimming = true;
+                        person.swim_pose();
+                        return Some(person);
+                    }
+                }
+            }
             let Some(ground) = footing(
                 city,
                 point.extend(vehicle.position.z - vehicle.ride_height()),
@@ -205,6 +220,9 @@ impl Pedestrian {
         for _ in 0..steps {
             self.step_once(city, input, dt / steps as f32, &blocked);
         }
+        if self.swimming {
+            self.swim_pose();
+        }
     }
     pub(super) fn step_supported(
         &mut self,
@@ -220,6 +238,9 @@ impl Pedestrian {
         let steps = (dt / (1. / 120.)).ceil().max(1.) as usize;
         for _ in 0..steps {
             self.step_once_supported(city, input, dt / steps as f32, &blocked, &support);
+        }
+        if self.swimming {
+            self.swim_pose();
         }
     }
     fn step_once(
@@ -239,6 +260,9 @@ impl Pedestrian {
         blocked: &impl Fn(Vec3) -> bool,
         support: &impl Fn(Vec3) -> Option<super::pedestrian_gait::Ground>,
     ) {
+        if self.water_step(city, input, dt, blocked, support) {
+            return;
+        }
         let ground_at = |p| support(p).or_else(|| footing(city, p, false));
         let model = &pedestrian_catalog::definitions()[MODEL];
         let target = input.forward.clamp(-1., 1.) * if input.run { RUN_SPEED } else { WALK_SPEED };
@@ -362,11 +386,116 @@ impl Pedestrian {
         let distance = accepted.truncate().length();
         self.speed = distance / dt * if self.speed < 0. { -1. } else { 1. };
     }
+    pub(super) fn swim_speed(&self) -> f32 {
+        self.speed.abs()
+    }
+    fn water_step(
+        &mut self,
+        city: &City,
+        input: WalkControls,
+        dt: f32,
+        blocked: &impl Fn(Vec3) -> bool,
+        support: &impl Fn(Vec3) -> Option<super::pedestrian_gait::Ground>,
+    ) -> bool {
+        let Some(level) = city
+            .elevation
+            .as_ref()
+            .and_then(|e| e.spec.water_level)
+            .map(|z| z * METERS_PER_UNIT)
+        else {
+            return false;
+        };
+        let xy = self.position.truncate();
+        let yaw = self.yaw + input.turn * TURN_SPEED * dt;
+        let target = input.forward.clamp(-1., 1.) * if input.run { 2.3 } else { 1.4 };
+        let speed = self.speed + (target - self.speed) * (1. - (-3. * dt).exp());
+        let next = xy + Vec2::from_angle(yaw) * speed * dt;
+        if !self.swimming {
+            let foot = self.position - Vec3::Z * HALF_HEIGHT;
+            if foot.z > level + 0.35
+                || support(foot).is_some()
+                || (self.jump.is_airborne() && self.vertical_speed > 0.)
+            {
+                return false;
+            }
+            if super::boats::water(city, next).is_none()
+                || blocked(next.extend(level))
+                || Self::blocked(city, next.extend(level))
+            {
+                return false;
+            }
+            self.swimming = true;
+            self.vertical_speed = 0.;
+            self.jump = Jump::Grounded;
+        }
+        self.yaw = yaw;
+        self.jump_held = input.jump;
+        if let Some(z) = super::boats::water(city, next) {
+            let position = next.extend(z);
+            if !blocked(position) && !Self::blocked(city, position) {
+                self.position = position;
+                self.speed = speed
+            } else {
+                self.speed = 0.;
+            }
+        } else if let Some(bank) = footing(city, next.extend(level), false) {
+            let standing = bank.point + Vec3::Z * HALF_HEIGHT;
+            if !blocked(standing) && !Self::blocked(city, standing) {
+                self.position = standing;
+                self.swimming = false;
+                self.gait.land(
+                    &pedestrian_catalog::definitions()[MODEL],
+                    bank.point,
+                    yaw,
+                    |p| footing(city, p, false),
+                );
+            }
+        }
+        self.swim_phase =
+            (self.swim_phase + dt * (2.3 + 1.5 * self.speed.abs())) % std::f32::consts::TAU;
+        true
+    }
+    fn swim_pose(&mut self) {
+        use glam::{Mat4, Quat};
+        let def = &pedestrian_catalog::definitions()[MODEL];
+        let mut locals = def.rest.clone();
+        let crawl = (self.speed.abs() / 1.2).min(1.);
+        let phase = self.swim_phase;
+        for (side, offset, sign) in [("L", 0., 1.), ("R", std::f32::consts::PI, -1.)] {
+            let a = phase + offset;
+            let arm = Quat::from_rotation_z(sign * 0.40)
+                * Quat::from_rotation_x(a - std::f32::consts::PI);
+            let scull =
+                Quat::from_rotation_z(sign * 0.85) * Quat::from_rotation_x(-0.8 + 0.42 * a.sin());
+            locals[def.node(&format!("UpperArm_{side}"))].rotation = scull.slerp(arm, crawl);
+            locals[def.node(&format!("Forearm_{side}"))].rotation =
+                Quat::from_rotation_x(-0.32 - 0.97 * (-a.sin()).max(0.));
+            let kick = phase * 3. + offset;
+            locals[def.node(&format!("Thigh_{side}"))].rotation =
+                Quat::from_rotation_x(0.26 * kick.sin());
+            locals[def.node(&format!("Shin_{side}"))].rotation =
+                Quat::from_rotation_x(0.17 + 0.23 * kick.cos().max(0.));
+        }
+        locals[def.node("Neck")].rotation *= Quat::from_rotation_x(-0.51 * crawl);
+        let hip = def.rest[def.node("Hips")].translation;
+        let root = Mat4::from_translation(Vec3::Y * (-0.55 + 0.59 * crawl + 0.026 * phase.sin()))
+            * Mat4::from_rotation_x(1.45 * crawl)
+            * Mat4::from_rotation_y(0.23 * phase.sin() * crawl)
+            * Mat4::from_translation(-hip);
+        let worlds = def.worlds(&locals, root, &vec![None; locals.len()]);
+        for (i, &node) in def.joints.iter().enumerate() {
+            self.gait.palette[i] = worlds[node] * def.inverse_bind[i];
+        }
+    }
     pub(super) fn instance(&self, season: crate::season::Season) -> Instance<'_> {
         Instance {
             model: pedestrian_catalog::player_model(season),
             transform: pedestrian_catalog::instance_transform(
-                self.position - Vec3::Z * HALF_HEIGHT,
+                if self.swimming {
+                    self.position
+                } else {
+                    self.position - Vec3::Z * HALF_HEIGHT
+                },
                 self.yaw,
             ),
             opacity: 1.,

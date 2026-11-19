@@ -68,6 +68,7 @@ impl VehicleScenery {
                 .update(&renderer.queue, [center.x, center.y], &world.snow);
         }
         renderer.local_lights.set(world.local_lights());
+        renderer.local_lights.wakes.set(world.water_wakes());
         for part in self.models.iter_mut().flatten() {
             part.transforms.clear();
         }

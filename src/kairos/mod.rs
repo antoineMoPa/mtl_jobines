@@ -180,10 +180,17 @@ impl Default for PlayerProgress {
     }
 }
 
-const VEHICLE_RETURN_SECONDS: f32 = 10.;
+fn default_vehicle_return(away: bool, previous: f32, elapsed: f32) -> f32 {
+    if !away {
+        return -1.;
+    }
+    let remaining = if previous < 0. { 10. } else { previous };
+    (remaining - elapsed).max(0.)
+}
 
 pub struct Kairos {
     return_seconds: Option<f32>,
+    vehicle_return_rule: Box<dyn Fn(bool, f32, f32) -> f32>,
     active: Option<Box<dyn Mission>>,
     progress: PlayerProgress,
     dirty: bool,
@@ -196,6 +203,7 @@ impl Default for Kairos {
         Self {
             active: None,
             return_seconds: None,
+            vehicle_return_rule: Box::new(default_vehicle_return),
             progress: PlayerProgress::default(),
             dirty: false,
             writable: true,
@@ -256,14 +264,16 @@ impl Kairos {
         self.return_seconds = None;
     }
 
+    /// Supply the client countdown rule. A negative result clears the timer, zero expires it.
+    pub fn set_vehicle_return_rule(&mut self, rule: impl Fn(bool, f32, f32) -> f32 + 'static) {
+        self.vehicle_return_rule = Box::new(rule);
+    }
+
     pub fn vehicle_return_expired(&mut self, driving_assigned: bool, elapsed: f32) -> bool {
-        if self.active.is_none() || driving_assigned || self.is_complete() {
-            self.return_seconds = None;
-            return false;
-        }
-        let remaining = self.return_seconds.get_or_insert(VEHICLE_RETURN_SECONDS);
-        *remaining -= elapsed;
-        *remaining <= 0.
+        let away = self.active.is_some() && !driving_assigned && !self.is_complete();
+        let seconds = (self.vehicle_return_rule)(away, self.return_seconds.unwrap_or(-1.), elapsed);
+        self.return_seconds = (seconds >= 0.).then_some(seconds);
+        seconds == 0.
     }
 
     pub fn vehicle_return_seconds(&self) -> Option<u32> {
@@ -370,6 +380,27 @@ impl Kairos {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn client_rule_controls_displayed_countdown_and_expiry() {
+        let mut kairos = Kairos::test_session();
+        kairos.set_vehicle_return_rule(|away, previous, elapsed| {
+            if !away {
+                -1.
+            } else if previous < 0. {
+                2.5
+            } else {
+                (previous - elapsed).max(0.)
+            }
+        });
+        kairos.accept(MissionId::Taxi);
+        assert!(!kairos.vehicle_return_expired(false, 0.));
+        assert_eq!(kairos.vehicle_return_seconds(), Some(3));
+        assert!(!kairos.vehicle_return_expired(true, 1.));
+        assert_eq!(kairos.vehicle_return_seconds(), None);
+        assert!(!kairos.vehicle_return_expired(false, 0.));
+        assert!(kairos.vehicle_return_expired(false, 3.));
+    }
 
     #[test]
     fn intro_viewed_survives_save_and_old_saves_default_to_unseen() {

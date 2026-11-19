@@ -13,11 +13,13 @@ struct NativeApp {
     start: Option<SpawnPoint>,
     profile_shutdown: bool,
     startup_error: Option<String>,
+    rule: Option<crate::VehicleReturnFn>,
 }
 
 pub(super) fn run(
     path: PathBuf,
     game_data: Option<PathBuf>,
+    rule: Option<crate::VehicleReturnFn>,
     start: Option<SpawnPoint>,
     profile_shutdown: bool,
 ) -> Result<(), String> {
@@ -34,6 +36,7 @@ pub(super) fn run(
         start,
         profile_shutdown,
         startup_error: None,
+        rule,
     };
     let result = event_loop
         .run_app(&mut app)
@@ -139,6 +142,13 @@ impl ApplicationHandler<GameEvent> for NativeApp {
                 match result {
                     Some(Ok(hermes)) => match Game::new_at(hermes, self.start) {
                         Ok(mut game) => {
+                            if let Some(rule) = self.rule {
+                                game.kairos.set_vehicle_return_rule(
+                                    move |away, previous, elapsed| {
+                                        rule(u32::from(away), previous, elapsed)
+                                    },
+                                );
+                            }
                             game.live_reload = Some(reload::LiveReload::new(self.path.clone()));
                             game.profile_shutdown = self.profile_shutdown;
                             game.resumed(event_loop);

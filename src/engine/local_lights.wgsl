@@ -3,7 +3,7 @@ struct LocalLight {
     color_intensity:vec4<f32>, beam:vec4<f32>,
 };
 struct LightGrid {
-    origin:vec4<f32>, lights:array<LocalLight,128>, cells:array<vec4<u32>,256>,
+    origin:vec4<f32>, lights:array<LocalLight,128>, cells:array<vec4<u32>,256>, wakes:array<vec4<f32>,32>,
 };
 @group(0) @binding(1) var<uniform> light_grid:LightGrid;
 fn local_irradiance(world:vec3<f32>,normal:vec3<f32>)->vec3<f32> {

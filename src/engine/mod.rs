@@ -53,6 +53,8 @@ mod vehicle_scenery;
 mod vehicle_textures;
 #[cfg(not(target_arch = "wasm32"))]
 pub use app::run;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use app::run_with_client;
 #[cfg(target_arch = "wasm32")]
 pub use app::start_web;
 
