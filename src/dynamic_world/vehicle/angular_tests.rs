@@ -34,6 +34,7 @@ fn free_tumble_conserves_world_momentum_and_energy_at_both_frame_rates() {
                     throttle: 1.,
                     brake: true,
                     handbrake: true,
+                    ..Controls::default()
                 },
                 dt,
             );

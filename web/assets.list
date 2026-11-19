@@ -71,6 +71,8 @@ opencity/assets/props/bench.glb
 opencity/assets/props/lamp.glb
 opencity/assets/props/bin.glb
 data/vehicle/bicycle/velo-partage/model.glb
+data/vehicle/aircraft/estuaire-airliner/model.glb
+data/vehicle/aircraft/fleche-jet/model.glb
 data/maps/mtl/models/house-garden.glb
 data/maps/mtl/models/house-manor.glb
 data/maps/mtl/models/fuel-station.glb

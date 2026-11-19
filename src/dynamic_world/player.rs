@@ -83,9 +83,20 @@ pub(super) fn blocked_by_vehicle(position: Vec3, vehicle: &Vehicle) -> bool {
     let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
     let left = Vec2::new(-forward.y, forward.x);
     let relative = position - vehicle.position;
+    let half_width = if vehicle.is_aircraft() {
+        vehicle
+            .definition()
+            .expect("aircraft model")
+            .config
+            .physics
+            .track
+            / 1.78
+    } else {
+        vehicle.width() * 0.5
+    };
     relative.z.abs() < 1.5
         && relative.truncate().dot(forward).abs() < vehicle.length() * 0.5 + RADIUS
-        && relative.truncate().dot(left).abs() < vehicle.width() * 0.5 + RADIUS
+        && relative.truncate().dot(left).abs() < half_width + RADIUS
 }
 impl Pedestrian {
     pub(super) fn at(city: &City, start: super::SpawnPoint) -> Result<Self, String> {
@@ -132,13 +143,16 @@ impl Pedestrian {
     ) -> Option<Self> {
         let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
         let left = Vec2::new(-forward.y, forward.x);
-        for offset in [
-            left * (vehicle.width() * 0.5 + 0.9),
-            -left * (vehicle.width() * 0.5 + 0.9),
-            -forward * (vehicle.length() * 0.5 + 0.9),
-            forward * (vehicle.length() * 0.5 + 0.9),
-        ] {
-            let point = vehicle.position.truncate() + offset;
+        let candidates = vehicle.aircraft_boarding_point().into_iter().chain(
+            [
+                left * (vehicle.width() * 0.5 + 0.9),
+                -left * (vehicle.width() * 0.5 + 0.9),
+                -forward * (vehicle.length() * 0.5 + 0.9),
+                forward * (vehicle.length() * 0.5 + 0.9),
+            ]
+            .map(|offset| vehicle.position.truncate() + offset),
+        );
+        for point in candidates {
             let Some(ground) = footing(
                 city,
                 point.extend(vehicle.position.z - vehicle.ride_height()),

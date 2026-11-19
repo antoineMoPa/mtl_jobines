@@ -568,7 +568,7 @@ impl Traffic {
                     brake: speed > limit + 0.3 || limit < 0.1,
                     steering: steering.clamp(-1., 1.),
                     handbrake: driver.stopped,
-                    boost: false,
+                    ..Controls::default()
                 },
             ));
         }

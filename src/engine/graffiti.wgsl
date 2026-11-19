@@ -1,11 +1,11 @@
 // Two monochrome paint masks: R=shade, G=highlight, A=coverage. Colors stay runtime data.
-@group(3) @binding(3) var graffiti_masks:texture_2d_array<f32>;
-@group(3) @binding(4) var graffiti_sampler:sampler;
+@group(3) @binding(3) var cutout_atlas:texture_2d_array<f32>;
+@group(3) @binding(4) var cutout_sampler:sampler;
 struct PaintSettings {color_override:vec4<f32>,ranges:vec4<f32>};
 @group(3) @binding(5) var<uniform> paint_settings:PaintSettings;
 @fragment fn fs_graffiti(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
     let packed=u32(v.surface.w);
-    let tex=textureSample(graffiti_masks,graffiti_sampler,v.fence_uv,i32(packed&1u));
+    let tex=textureSample(cutout_atlas,cutout_sampler,v.fence_uv,i32(packed&1u));
     let seed=f32((packed>>17u)&127u);
     let opacity=mix(paint_settings.ranges.x,paint_settings.ranges.y,f32((packed>>1u)&255u)/255.0);
     let wash=mix(paint_settings.ranges.z,paint_settings.ranges.w,f32((packed>>9u)&255u)/255.0);

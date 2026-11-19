@@ -5,6 +5,79 @@ use rapier3d::{
     parry::query::{contact, ContactManifold, DefaultQueryDispatcher, PersistentQueryDispatcher},
     prelude::*,
 };
+fn contact_parts<'a>(
+    v: &'a Vehicle,
+    chassis: &'a Cuboid,
+) -> impl Iterator<Item = (Isometry<f32>, &'a dyn Shape)> + 'a {
+    let orientation = v.orientation();
+    let pose = move |local: Vec3, rotation: glam::Quat| {
+        let p = v.position + orientation * local;
+        let q: glam::Quat = orientation * rotation;
+        Isometry::from_parts(
+            Translation::new(p.x, p.y, p.z),
+            Rotation::new_unchecked(rapier3d::na::Quaternion::new(q.w, q.x, q.y, q.z)),
+        )
+    };
+    let aircraft = v
+        .definition()
+        .filter(|d| d.config.vehicle_kind == super::catalog::VehicleKind::Aircraft);
+    let road = aircraft.is_none().then(|| {
+        (
+            pose(
+                Vec3::Z * (v.height() * 0.5 - v.ride_height()),
+                glam::Quat::IDENTITY,
+            ),
+            chassis as &dyn Shape,
+        )
+    });
+    road.into_iter()
+        .chain(aircraft.into_iter().flat_map(move |d| {
+            d.aircraft_hulls(v)
+                .map(move |(pivot, rotation, shape)| (pose(pivot, rotation), shape))
+        }))
+}
+
+fn contact_patch(
+    a: &Vehicle,
+    b: &Vehicle,
+) -> Option<(
+    Isometry<f32>,
+    Isometry<f32>,
+    rapier3d::parry::query::Contact,
+    ContactManifold<(), ()>,
+)> {
+    let chassis =
+        |v: &Vehicle| Cuboid::new(vector![v.length() * 0.5, v.width() * 0.5, v.height() * 0.5]);
+    let box_a = chassis(a);
+    let box_b = chassis(b);
+    let mut deepest = 0.;
+    let mut patch = None;
+    for (pose_a, shape_a) in contact_parts(a, &box_a) {
+        for (pose_b, shape_b) in contact_parts(b, &box_b) {
+            if let Ok(Some(hit)) = contact(&pose_a, shape_a, &pose_b, shape_b, 0.) {
+                if hit.dist < deepest {
+                    deepest = hit.dist;
+                    patch = Some((pose_a, shape_a, pose_b, shape_b, hit));
+                }
+            }
+        }
+    }
+    let (pose_a, shape_a, pose_b, shape_b, hit) = patch?;
+    let mut manifold = ContactManifold::new();
+    DefaultQueryDispatcher
+        .contact_manifold_convex_convex(
+            &pose_a.inv_mul(&pose_b),
+            shape_a,
+            shape_b,
+            None,
+            None,
+            0.,
+            &mut manifold,
+        )
+        .ok()?;
+    Some((pose_a, pose_b, hit, manifold))
+}
+
 #[cfg(test)]
 pub(super) fn resolve(vehicles: &mut [Vehicle]) {
     let _ = resolve_with_contacts(vehicles);
@@ -18,46 +91,10 @@ pub(super) fn resolve_with_contacts(vehicles: &mut [Vehicle]) -> Vec<(usize, usi
             if a.position.distance_squared(b.position) > (a.length() + b.length()).powi(2) {
                 continue;
             }
-            let center = |v: &Vehicle| {
-                v.position + v.orientation() * Vec3::Z * (v.height() * 0.5 - v.ride_height())
-            };
-            let pose = |v: &Vehicle| {
-                let p = center(v);
-                let q = v.orientation();
-                Isometry::from_parts(
-                    Translation::new(p.x, p.y, p.z),
-                    Rotation::new_unchecked(rapier3d::na::Quaternion::new(q.w, q.x, q.y, q.z)),
-                )
-            };
-            let shape = |v: &Vehicle| {
-                Cuboid::new(vector![v.length() * 0.5, v.width() * 0.5, v.height() * 0.5])
-            };
-            let pose_a = pose(a);
-            let pose_b = pose(b);
-            let shape_a = shape(a);
-            let shape_b = shape(b);
-            let Ok(Some(hit)) = contact(&pose_a, &shape_a, &pose_b, &shape_b, 0.) else {
+            let Some((pose_a, pose_b, hit, manifold)) = contact_patch(a, b) else {
                 continue;
             };
-            if hit.dist >= 0. {
-                continue;
-            }
             let n = Vec3::new(hit.normal1.x, hit.normal1.y, hit.normal1.z);
-            let mut manifold = ContactManifold::<(), ()>::new();
-            if DefaultQueryDispatcher
-                .contact_manifold_convex_convex(
-                    &pose_a.inv_mul(&pose_b),
-                    &shape_a,
-                    &shape_b,
-                    None,
-                    None,
-                    0.,
-                    &mut manifold,
-                )
-                .is_err()
-            {
-                continue;
-            }
             contacts.push((i, j));
             let inv_a = 1. / a.mass();
             let inv_b = 1. / b.mass();
@@ -108,6 +145,50 @@ pub(super) fn resolve_with_contacts(vehicles: &mut [Vehicle]) -> Vec<(usize, usi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aircraft_clear_a_bike_in_open_space_but_contact_the_fuselage_and_gear() {
+        use super::super::{aircraft::Model, catalog};
+        let hermes = crate::hermes::Hermes::test_map();
+        let bike_id = catalog::definitions()
+            .iter()
+            .position(|d| d.is_bicycle())
+            .unwrap();
+        for model in Model::ALL {
+            let vehicle = |id| {
+                let mut v = Vehicle::spawn(hermes.city());
+                v.set_catalog_model(Some(id));
+                v.yaw = 0.72;
+                v
+            };
+            let plane = vehicle(model.catalog_index());
+            let bike = vehicle(bike_id);
+            // The top of the bike overlaps the deployed tire by 25 cm.
+            let wheel_height = -plane.ride_height() - bike.height() + bike.ride_height() + 0.25;
+            for &(x, y, height, gear, should_hit) in &[
+                (0.30, 0.36, 0., 0., false),    // beside the nose
+                (0., 0., 0., 0., true),         // fuselage
+                (-0.11, 0.33, -0.62, 0., true), // wing
+                (-0.11, 0.33, -3., 0., false),  // below the wing
+                (0.32, 0., wheel_height, 0., true),
+                (0.32, 0., wheel_height, 1., false),
+            ] {
+                let mut plane = vehicle(model.catalog_index());
+                let mut bike = vehicle(bike_id);
+                plane.position = Vec3::new(9., 13., 20.);
+                plane.roll = 0.14;
+                plane.aircraft_gear = gear;
+                let local = Vec3::new(x * plane.length(), y * plane.width(), height);
+                bike.position = plane.position + plane.orientation() * local;
+                let mut vehicles = [plane, bike];
+                assert_eq!(
+                    !resolve_with_contacts(&mut vehicles).is_empty(),
+                    should_hit,
+                    "{model:?} at {local:?}, gear {gear}"
+                );
+            }
+        }
+    }
 
     fn kinetic_energy(cars: &[Vehicle]) -> f32 {
         cars.iter()

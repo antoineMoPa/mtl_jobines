@@ -32,8 +32,12 @@ impl ParkedVehicle {
                 .map_err(|error| format!("Invalid parked vehicle model literal: {error}"))?;
             let model = catalog::definitions()
                 .iter()
-                .position(|d| d.config.research_id == id && d.config.road_vehicle)
-                .ok_or_else(|| format!("Unknown parked road vehicle: {id}"))?;
+                .position(|d| {
+                    d.config.research_id == id
+                        && (d.config.road_vehicle
+                            || d.config.vehicle_kind == catalog::VehicleKind::Aircraft)
+                })
+                .ok_or_else(|| format!("Unknown parked vehicle: {id}"))?;
             let start = format!("{x},{y},{heading}").parse::<SpawnPoint>()?;
             parked.push(Self { model, start });
         }
@@ -169,12 +173,13 @@ mod tests {
         let path = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
         let mut world = DynamicWorld::new(&hermes);
-        assert_eq!(hermes.parked_vehicles().len(), 85);
-        assert_eq!(world.vehicles.len() - world.traffic.count(), 86);
-        // The first twelve visitors remain on the landmark lot; the rest belong
-        // to the detached-house driveways. Every authored parked car must fit.
-        assert_eq!(world.parked_vehicle_count, 85);
+        assert_eq!(hermes.parked_vehicles().len(), 87);
+        // The first twelve visitors are at the sphere, then the driveway cars
+        // and the two airport aircraft. Cyclists and traffic follow these slots.
+        assert_eq!(world.parked_vehicle_count, 87);
+        assert!(world.vehicles[86..=87].iter().all(Vehicle::is_aircraft));
         for (i, vehicle) in world.vehicles.iter().enumerate().skip(1).take(85) {
+            assert!(!vehicle.is_aircraft());
             assert!(
                 world.clear_vehicle_position(&hermes, vehicle, Some(i)),
                 "blocked driveway car {i}"

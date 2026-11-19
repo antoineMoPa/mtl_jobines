@@ -50,8 +50,11 @@ impl Hermes {
             .landscape
             .iter()
             .filter_map(|feature| {
-                let title = title(feature.model.as_deref()?)?;
                 let id = feature.name.clone()?;
+                let title = match id.as_str() {
+                    "airport_concourse" => "YULPET",
+                    _ => title(feature.model.as_deref()?)?,
+                };
                 if feature.points.is_empty() {
                     return None;
                 }

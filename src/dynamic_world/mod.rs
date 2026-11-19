@@ -1,5 +1,7 @@
 //! Mutable game entities. OpenCity's City snapshot is static geography, not
 //! the owner of vehicles, players, traffic, or future mission objects.
+mod aircraft;
+pub(crate) mod airport;
 mod buildings;
 pub mod catalog;
 mod contacts;
@@ -61,6 +63,7 @@ pub struct DynamicWorld {
     sound_foliage: f32,
     sound_geography_timer: f32,
     metro: metro::Metro,
+    airport: airport::Airport,
     vehicles: Vec<Vehicle>,
     // Authored parking occupies the slots after the initial player, before traffic.
     parked_vehicle_count: usize,
@@ -141,6 +144,7 @@ impl DynamicWorld {
             buildings: buildings::Buildings::new(hermes.city()),
             building_candidates: Vec::new(),
             metro: metro::Metro::new(hermes),
+            airport: airport::Airport::new(hermes.city())?,
             vehicles: vec![vehicle],
             parked_vehicle_count: 0,
             player_vehicle: VehicleId(0),
@@ -342,7 +346,12 @@ impl DynamicWorld {
             0.
         };
         let mut distances = [f32::INFINITY; CAR_VOICES];
-        for (id, v) in self.vehicles.iter().enumerate() {
+        for (id, v) in self
+            .vehicles
+            .iter()
+            .chain(self.airport.planes())
+            .enumerate()
+        {
             if self.traffic.inactive(id) || (!v.sound_running && v.velocity.length_squared() < 0.25)
             {
                 continue;
@@ -396,7 +405,9 @@ impl DynamicWorld {
                 .iter()
                 .enumerate()
                 .filter(|(_, vehicle)| {
-                    vehicle.velocity.length() <= 3. && vehicle.entry_distance(player.position) <= 2.
+                    (!vehicle.is_aircraft() || vehicle.grounded)
+                        && vehicle.velocity.length() <= 3.
+                        && vehicle.entry_distance(player.position) <= 2.
                 })
                 .min_by(|(_, a), (_, b)| {
                     a.entry_distance(player.position)
@@ -410,7 +421,9 @@ impl DynamicWorld {
                 self.vehicle_notice = 4.;
                 return true;
             }
-        } else if self.player().velocity.length() <= 3. {
+        } else if self.player().velocity.length() <= 3.
+            && (!self.player().is_aircraft() || self.player().grounded)
+        {
             self.pedestrian = Pedestrian::beside_if(hermes.city(), self.player(), |position| {
                 self.props.blocked(position)
                     || self
@@ -468,6 +481,7 @@ impl DynamicWorld {
             };
         }
         self.metro.step(dt, self.pedestrian.as_mut());
+        self.airport.step(hermes.city(), dt);
         self.vehicle_notice = (self.vehicle_notice - dt).max(0.);
         if self.traffic.needs_refill(dt) {
             self.populate_traffic(hermes);
@@ -569,6 +583,10 @@ impl DynamicWorld {
             {
                 continue;
             }
+            if vehicle.is_aircraft() {
+                vehicle.step(hermes.city(), controls, dt);
+                continue;
+            }
             let before = vehicle.position;
             let reach =
                 vehicle.length().hypot(vehicle.width()) * 0.5 + vehicle.velocity.length() * dt + 1.;
@@ -654,7 +672,7 @@ impl DynamicWorld {
                 ));
             }
         }
-        if self.player_position().z < -40. {
+        if self.player_position().z < -40. && !(driving && self.player().is_aircraft()) {
             self.reset_player(hermes);
         }
         self.cyclists.update_poses(
@@ -781,12 +799,14 @@ impl DynamicWorld {
         if self.cyclists.inactive(index) {
             return false;
         }
-        let distance =
-            if index != self.player_vehicle.0 && (1..=self.parked_vehicle_count).contains(&index) {
-                parked::RENDER_DISTANCE
-            } else {
-                450.
-            };
+        let distance = if vehicle.is_aircraft() {
+            2300.
+        } else if index != self.player_vehicle.0 && (1..=self.parked_vehicle_count).contains(&index)
+        {
+            parked::RENDER_DISTANCE
+        } else {
+            450.
+        };
         vehicle.position.distance_squared(self.player_position())
             <= crate::performance::draw_radius(distance).powi(2)
     }
@@ -813,8 +833,12 @@ impl DynamicWorld {
                 self.metro
                     .cars()
                     .filter(|train| train.position.distance(self.player_position()) < 450.)
+                    .chain(self.airport.planes().filter(|plane| {
+                        plane.position.distance_squared(self.player_position())
+                            < crate::performance::draw_radius(2300.).powi(2)
+                    }))
                     .map(|v| {
-                        let id = v.definition.expect("metro model");
+                        let id = v.definition.expect("authored transport model");
                         (
                             id,
                             catalog::definitions()[id].part_transforms(v),

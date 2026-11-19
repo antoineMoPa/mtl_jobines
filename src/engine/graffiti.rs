@@ -80,11 +80,11 @@ fn next_mip(source: &[u8], width: u32, height: u32) -> Vec<u8> {
 impl PaintTexture {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("graffiti shade highlight coverage masks"),
+            label: Some("paint and fence cutouts"),
             size: wgpu::Extent3d {
                 width: 512,
                 height: 256,
-                depth_or_array_layers: 2,
+                depth_or_array_layers: ART.len() as u32 + 1,
             },
             mip_level_count: 10,
             sample_count: 1,
@@ -93,7 +93,9 @@ impl PaintTexture {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        for (layer, bytes) in ART.iter().enumerate() {
+        // The fence shares this mipmapped cutout atlas (layer 2).
+        let fence = include_bytes!("../../assets/props/airport-fence.png").as_slice();
+        for (layer, bytes) in ART.into_iter().chain([fence]).enumerate() {
             let mut pixels = decode(bytes);
             let (mut w, mut h) = (512, 256);
             for level in 0..10 {

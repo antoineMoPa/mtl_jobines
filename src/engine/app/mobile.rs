@@ -56,6 +56,22 @@ impl Input {
     pub(super) fn with_keyboard(&self, keyboard: &HashSet<KeyCode>) -> HashSet<KeyCode> {
         self.keys.union(keyboard).copied().collect()
     }
+    #[cfg(target_arch = "wasm32")]
+    pub(super) fn with_aircraft_keyboard(&self, keyboard: &HashSet<KeyCode>) -> HashSet<KeyCode> {
+        let mut keys = keyboard.clone();
+        for key in &self.keys {
+            keys.extend(match key {
+                KeyCode::ArrowUp => &[KeyCode::KeyW][..],
+                KeyCode::ArrowDown => &[KeyCode::KeyS, KeyCode::ArrowUp],
+                KeyCode::ArrowLeft => &[KeyCode::KeyA, KeyCode::ArrowLeft],
+                KeyCode::ArrowRight => &[KeyCode::KeyD, KeyCode::ArrowRight],
+                KeyCode::ShiftLeft => &[KeyCode::ArrowDown],
+                KeyCode::Space => &[KeyCode::Space],
+                _ => &[],
+            });
+        }
+        keys
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -141,9 +157,7 @@ mod browser {
                             MobileAction::Vehicle => {
                                 self.mobile.clear();
                                 if self.world.toggle_vehicle(&self.hermes) {
-                                    self.orbit = 0.;
-                                    self.camera_pitch = 0.;
-                                    self.hood = false;
+                                    self.reset_boarding_camera();
                                 } else {
                                     canvas_attribute(
                                         "data-mobile-notice",

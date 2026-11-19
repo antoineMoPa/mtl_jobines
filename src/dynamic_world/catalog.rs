@@ -14,6 +14,7 @@ pub enum VehicleKind {
     #[default]
     Motorized,
     Bicycle,
+    Aircraft,
 }
 
 pub const SNOWPLOW_ID: &str = "vehicle-j03";
@@ -83,9 +84,69 @@ enum PartRole {
     Steering,
     Crank,
     Pedal,
+    AircraftGear(Gear),
+    FlightControl(Surface, Vec3),
 }
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Surface {
+    LeftAileron,
+    RightAileron,
+    Elevator,
+    Rudder,
+}
+
+impl Surface {
+    fn from_node(name: &str) -> Option<Self> {
+        match name {
+            "Left Aileron" => Some(Self::LeftAileron),
+            "Right Aileron" => Some(Self::RightAileron),
+            "Left Elevator" | "Right Elevator" => Some(Self::Elevator),
+            "Rudder" => Some(Self::Rudder),
+            _ => None,
+        }
+    }
+    fn rotation(self, axis: Vec3, vehicle: &super::Vehicle) -> Quat {
+        let deflection = vehicle.aircraft_surfaces;
+        let angle = match self {
+            Self::LeftAileron => -deflection.x * 0.42,
+            Self::RightAileron => deflection.x * 0.42,
+            Self::Elevator => -deflection.y * 0.44,
+            Self::Rudder => -deflection.z * 0.50,
+        };
+        Quat::from_axis_angle(axis, angle)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Gear {
+    Nose,
+    Left,
+    Right,
+}
+
+impl Gear {
+    fn hinge(self, length: f32, track: f32) -> Vec3 {
+        let radius = track / 1.78;
+        let (x, y) = match self {
+            Self::Nose => (0.32 * length, 0.),
+            Self::Left => (-0.055 * length, track * 0.5),
+            Self::Right => (-0.055 * length, -track * 0.5),
+        };
+        Vec3::new(x, y, -0.76 * radius)
+    }
+}
+
 fn part_role(name: &str) -> Result<PartRole, String> {
     match name {
+        "Gear strut nose" | "Tire nose" | "Hub nose -1" | "Hub nose 1" => {
+            Ok(PartRole::AircraftGear(Gear::Nose))
+        }
+        "Gear strut main left" | "Tire main left" | "Hub main left -1" | "Hub main left 1" => {
+            Ok(PartRole::AircraftGear(Gear::Left))
+        }
+        "Gear strut main right" | "Tire main right" | "Hub main right -1" | "Hub main right 1" => {
+            Ok(PartRole::AircraftGear(Gear::Right))
+        }
         "metro_door_left_front_forward" | "metro_door_left_rear_forward" => {
             Ok(PartRole::MetroDoorForward)
         }
@@ -156,7 +217,22 @@ fn excludes_snow(name: &str, role: PartRole) -> bool {
         || name.starts_with("steering_")
         || matches!(name, "plow_control_console" | "steering_column")
 }
+struct AircraftHull {
+    pivot: Vec3,
+    role: PartRole,
+    shape: rapier3d::prelude::SharedShape,
+}
+
+fn folded_gear_pivot(pivot: Vec3, fraction: f32) -> Vec3 {
+    pivot - Vec3::Z * (pivot.z * fraction.powi(2))
+}
+
+fn gear_rotation(fraction: f32) -> Quat {
+    Quat::from_rotation_y(fraction * std::f32::consts::FRAC_PI_2)
+}
+
 pub struct Definition {
+    aircraft_hulls: Vec<AircraftHull>,
     pub config: Config,
     pub texture_png: Option<Vec<u8>>,
     parts: Vec<Part>,
@@ -227,6 +303,8 @@ impl Part {
         if self.role == PartRole::FrontWheel && vehicle.is_bicycle() {
             let stem = Vec3::new(0.35, 0., 0.90) - Vec3::Z * vehicle.ride_height();
             stem + Quat::from_rotation_z(vehicle.steering) * (self.pivot - stem)
+        } else if matches!(self.role, PartRole::AircraftGear(_)) {
+            folded_gear_pivot(self.pivot, vehicle.aircraft_gear)
         } else if self.role == PartRole::Pedal {
             let crank = super::cycling_pose::CRANK - Vec3::Z * vehicle.ride_height();
             crank + Quat::from_rotation_y(vehicle.pedal_angle) * (self.pivot - crank)
@@ -236,6 +314,29 @@ impl Part {
     }
 }
 impl Definition {
+    pub(super) fn aircraft_hulls<'a>(
+        &'a self,
+        vehicle: &'a super::Vehicle,
+    ) -> impl Iterator<Item = (Vec3, Quat, &'a dyn rapier3d::prelude::Shape)> {
+        self.aircraft_hulls.iter().map(move |hull| {
+            let (pivot, rotation) = match hull.role {
+                PartRole::AircraftGear(_) => (
+                    folded_gear_pivot(hull.pivot, vehicle.aircraft_gear),
+                    gear_rotation(vehicle.aircraft_gear),
+                ),
+                PartRole::FlightControl(control, axis) => {
+                    (hull.pivot, control.rotation(axis, vehicle))
+                }
+                _ => (
+                    Vec3::ZERO,
+                    Quat::from_rotation_y(-vehicle.body_lean.x)
+                        * Quat::from_rotation_x(vehicle.body_lean.y),
+                ),
+            };
+            (pivot, rotation, hull.shape.as_ref())
+        })
+    }
+
     pub fn is_bicycle(&self) -> bool {
         self.config.vehicle_kind == VehicleKind::Bicycle
     }
@@ -300,6 +401,13 @@ impl Definition {
     }
     fn load(config: &[u8], bytes: &[u8], texture_layer: u32) -> Result<Self, String> {
         let config: Config = serde_json::from_slice(config).map_err(|e| e.to_string())?;
+        Self::load_config(config, bytes, texture_layer)
+    }
+    pub(super) fn load_config(
+        config: Config,
+        bytes: &[u8],
+        texture_layer: u32,
+    ) -> Result<Self, String> {
         config.sound.validate()?;
         let p = &config.physics;
         if !config.research_id.starts_with("vehicle-")
@@ -325,7 +433,7 @@ impl Definition {
             || !p.track.is_finite()
             || match config.vehicle_kind {
                 VehicleKind::Bicycle => p.track != 0.,
-                VehicleKind::Motorized => p.track <= 0.,
+                VehicleKind::Motorized | VehicleKind::Aircraft => p.track <= 0.,
             }
             || p.max_steer_angle >= std::f32::consts::FRAC_PI_2
         {
@@ -358,23 +466,46 @@ impl Definition {
                 }),
             _ => None,
         };
+        let mut aircraft_hulls = Vec::new();
         let mut parts = Vec::new();
         let mut rear_lenses = Vec::new();
         fn walk(
             node: gltf::Node<'_>,
             parent: Mat4,
             binary: &[u8],
-            ride: f32,
+            config: &Config,
             paint: Option<[f32; 4]>,
             texture_layer: u32,
+            aircraft_hulls: &mut Vec<AircraftHull>,
             parts: &mut Vec<Part>,
             rear_lenses: &mut Vec<Vertex>,
         ) -> Result<(), String> {
             let transform = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
             if let Some(mesh) = node.mesh() {
-                let role = part_role(node.name().unwrap_or("body"))?;
-                let pivot =
-                    game_vector(transform.transform_point3(Vec3::ZERO).to_array()) - Vec3::Z * ride;
+                let name = node.name().unwrap_or("body");
+                let role = if let Some(control) = Surface::from_node(name) {
+                    let axis = if control == Surface::Rudder {
+                        Vec3::Y
+                    } else {
+                        Vec3::Z
+                    };
+                    PartRole::FlightControl(
+                        control,
+                        game_vector(transform.transform_vector3(axis).to_array()),
+                    )
+                } else {
+                    part_role(name)?
+                };
+                let ride = config.physics.height_offset;
+                let pivot = match role {
+                    PartRole::AircraftGear(gear) => {
+                        gear.hinge(config.dimensions.length, config.physics.track)
+                    }
+                    _ => {
+                        game_vector(transform.transform_point3(Vec3::ZERO).to_array())
+                            - Vec3::Z * ride
+                    }
+                };
                 let mut vertices = Vec::new();
                 for primitive in mesh.primitives() {
                     if primitive.mode() != gltf::mesh::Mode::Triangles {
@@ -498,6 +629,33 @@ impl Definition {
                         });
                     }
                 }
+                // Keep each structural mesh separate before the render batching below.
+                // Glazing, paint, and door trim follow the fuselage surface.
+                let name = node.name().unwrap_or("");
+                if config.vehicle_kind == VehicleKind::Aircraft
+                    && ![
+                        "Cabin window",
+                        "Windscreen",
+                        "Livery",
+                        "Boarding door",
+                        "Hub ",
+                    ]
+                    .iter()
+                    .any(|prefix| name.starts_with(prefix))
+                {
+                    use rapier3d::prelude::{Point, SharedShape};
+                    let mut points: Vec<_> =
+                        vertices.iter().map(|v| Point::from(v.position)).collect();
+                    points.sort_unstable_by(|a, b| {
+                        a.x.total_cmp(&b.x)
+                            .then(a.y.total_cmp(&b.y))
+                            .then(a.z.total_cmp(&b.z))
+                    });
+                    points.dedup();
+                    let shape = SharedShape::convex_hull(&points)
+                        .ok_or_else(|| format!("Invalid aircraft contact hull for {name}"))?;
+                    aircraft_hulls.push(AircraftHull { pivot, role, shape });
+                }
                 if excludes_snow(node.name().unwrap_or(""), role) {
                     for vertex in &mut vertices {
                         if vertex.surface[0] < 0. && !headlight_vertex(vertex) {
@@ -547,9 +705,10 @@ impl Definition {
                     child,
                     transform,
                     binary,
-                    ride,
+                    config,
                     paint,
                     texture_layer,
+                    aircraft_hulls,
                     parts,
                     rear_lenses,
                 )?;
@@ -561,9 +720,10 @@ impl Definition {
                 node,
                 Mat4::IDENTITY,
                 binary,
-                config.physics.height_offset,
+                &config,
                 paint,
                 texture_layer,
+                &mut aircraft_hulls,
                 &mut parts,
                 &mut rear_lenses,
             )?;
@@ -606,7 +766,7 @@ impl Definition {
                 vertices: body,
             },
         );
-        if rear_lenses.is_empty() && config.vehicle_kind != VehicleKind::Bicycle {
+        if rear_lenses.is_empty() && config.vehicle_kind == VehicleKind::Motorized {
             return Err(format!("Missing authored rear lenses: {}", config.name));
         }
         let mut headlights = Vec::new();
@@ -644,6 +804,7 @@ impl Definition {
         Ok(Self {
             config,
             texture_png,
+            aircraft_hulls,
             parts: articulated,
             rear_lenses,
             headlights,
@@ -671,6 +832,8 @@ impl Definition {
             .map(|part| {
                 let rotation = match part.role {
                     PartRole::Body => lean,
+                    PartRole::FlightControl(control, axis) => control.rotation(axis, vehicle),
+                    PartRole::AircraftGear(_) => gear_rotation(vehicle.aircraft_gear),
                     PartRole::MetroDoorForward | PartRole::MetroDoorBackward => Quat::IDENTITY,
                     PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
                     PartRole::Pedal => Quat::IDENTITY,
@@ -716,6 +879,8 @@ impl Definition {
         for part in &self.parts {
             let q = match part.role {
                 PartRole::Body => lean,
+                PartRole::FlightControl(control, axis) => control.rotation(axis, vehicle),
+                PartRole::AircraftGear(_) => gear_rotation(vehicle.aircraft_gear),
                 PartRole::MetroDoorForward | PartRole::MetroDoorBackward => Quat::IDENTITY,
                 PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
                 PartRole::Pedal => Quat::IDENTITY,
@@ -794,6 +959,8 @@ pub fn definitions() -> &'static [Definition] {
                 definition.add_rear_plate(texture_layer);
             }
         }
+        definitions
+            .extend(super::aircraft::Model::ALL.map(|model| model.definition(texture_layer)));
         definitions
     })
 }
@@ -1421,8 +1588,57 @@ mod tests {
         assert_eq!(ids, ["vehicle-12", "vehicle-v2-01", "vehicle-v2-09"]);
     }
     #[test]
-    fn every_export_loads_with_axle_local_wheels_and_si_data() {
-        assert_eq!(definitions().len(), 12);
+    fn aircraft_render_parts_hinge_with_the_commanded_surfaces() {
+        let hermes = crate::hermes::Hermes::test_map();
+        for model in super::super::aircraft::Model::ALL {
+            let mut plane = super::super::Vehicle::spawn(hermes.city());
+            plane.set_catalog_model(Some(model.catalog_index()));
+            plane.position = Vec3::ZERO;
+            plane.yaw = 0.;
+            let def = plane.definition().unwrap();
+            let neutral = def.part_transforms(&plane);
+            plane.aircraft_surfaces = Vec3::ONE;
+            let actuated = def.part_transforms(&plane);
+            let mut moving = 0;
+            for (i, part) in def.parts.iter().enumerate() {
+                let PartRole::FlightControl(surface, axis) = part.role else {
+                    assert_eq!(neutral[i], actuated[i]);
+                    continue;
+                };
+                moving += 1;
+                for hinge in [Vec3::ZERO, axis] {
+                    assert!(
+                        neutral[i]
+                            .transform_point3(hinge)
+                            .distance(actuated[i].transform_point3(hinge))
+                            < 1e-5
+                    );
+                }
+                // The panel centroid lies aft of the hinge.
+                let center = part
+                    .vertices
+                    .iter()
+                    .map(|v| Vec3::from_array(v.position))
+                    .sum::<Vec3>()
+                    / part.vertices.len() as f32;
+                let motion =
+                    actuated[i].transform_point3(center) - neutral[i].transform_point3(center);
+                assert!(
+                    match surface {
+                        Surface::LeftAileron | Surface::Elevator => motion.z > 0.,
+                        Surface::RightAileron => motion.z < 0.,
+                        Surface::Rudder => motion.y > 0.,
+                    },
+                    "{model:?} {surface:?}: {motion:?}"
+                );
+            }
+            assert_eq!(moving, 5);
+        }
+    }
+
+    #[test]
+    fn every_export_loads_with_authored_running_gear_and_si_data() {
+        assert_eq!(definitions().len(), 14);
         assert_eq!(
             definitions()
                 .iter()
@@ -1439,6 +1655,16 @@ mod tests {
             assert!(def.config.research_id.starts_with("vehicle-"));
             assert!(!def.config.category.is_empty());
             assert_eq!(def.config.qa["claydashExport"], "completed");
+            if def.config.vehicle_kind == VehicleKind::Aircraft {
+                for gear in [Gear::Nose, Gear::Left, Gear::Right] {
+                    let parts = def
+                        .parts
+                        .iter()
+                        .filter(|p| p.role == PartRole::AircraftGear(gear));
+                    assert_eq!(parts.count(), 4, "strut, tire and two hubs");
+                }
+                continue;
+            }
             let wheels = def
                 .parts
                 .iter()

@@ -8,6 +8,15 @@ pub(super) struct OrbitDrag {
 }
 
 impl Game {
+    pub(super) fn scroll_chase_camera(&mut self, steps: f32) {
+        let closest = if self.world.is_driving() && self.world.player().is_aircraft() {
+            MIN_AIRCRAFT_CHASE_ZOOM
+        } else {
+            DEFAULT_CHASE_ZOOM
+        };
+        self.zoom = (self.zoom * (-steps * 0.1).exp()).clamp(closest, 3.);
+    }
+
     pub(super) fn begin_orbit_drag(&mut self, origin: [f32; 2]) {
         if self.simulation_paused() {
             return;

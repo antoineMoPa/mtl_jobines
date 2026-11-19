@@ -217,7 +217,7 @@ impl Cyclists {
                     brake: blocked || speed > desired + 0.5,
                     steering,
                     handbrake: false,
-                    boost: false,
+                    ..Controls::default()
                 },
             ));
         }

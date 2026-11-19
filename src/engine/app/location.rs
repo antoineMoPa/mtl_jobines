@@ -26,17 +26,32 @@ impl Game {
         }
     }
 
-    pub(super) fn finish_location_change(&mut self) {
+    pub(super) fn reset_boarding_camera(&mut self) {
         self.orbit = 0.;
-        self.zoom = DEFAULT_CHASE_ZOOM;
         self.camera_pitch = 0.;
         self.hood = false;
+        let plane = self.world.player();
+        if self.world.is_driving() && plane.is_aircraft() {
+            self.zoom = AIRCRAFT_CHASE_ZOOM;
+            let p = plane.position / METERS_PER_UNIT;
+            let forward = Vec3::new(plane.yaw.cos(), plane.yaw.sin(), 0.);
+            let (offset, _) = aircraft_chase(plane.length(), forward, self.zoom, 0.);
+            self.eye = self.world.camera_eye(&self.hermes, p, p + offset);
+            self.camera_anchor = p;
+        } else {
+            self.zoom = self.zoom.max(DEFAULT_CHASE_ZOOM);
+        }
+    }
+
+    pub(super) fn finish_location_change(&mut self) {
+        self.zoom = DEFAULT_CHASE_ZOOM;
         let p = self.world.player_position() / METERS_PER_UNIT;
         let yaw = self.world.player_yaw();
         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
         self.eye =
             p - forward * (0.15 * DEFAULT_CHASE_ZOOM) + Vec3::Z * (0.075 * DEFAULT_CHASE_ZOOM);
         self.camera_anchor = p;
+        self.reset_boarding_camera();
         self.hermes.update_navigation(p.to_array());
         self.scene_dirty = true;
         self.set_overlay(Overlay::Driving);

@@ -1,5 +1,6 @@
 //! Static map/navigation access. OpenCity owns authored roads and geometry;
 //! Hermes owns navigation, routing and the game’s map presentation.
+mod airport_fence;
 mod building_style;
 pub mod commerce_mesh;
 mod commerce_props;
@@ -402,6 +403,7 @@ impl Hermes {
             .expect("static map mesh");
         metro::MetroMap::from_city(&self.city).open_portals(&mut world);
         world.vertices.append(&mut self.landmark_mesh.vertices);
+        crate::dynamic_world::airport::append_scenery(&self.city, &mut world);
         let details = self.details.take_scenery(&self.city);
         eprintln!(
             "Prepared {} world vertices and {} detail vertices",
@@ -436,6 +438,12 @@ impl Hermes {
         groups.extend(frontage.into_iter().map(|mesh| vec![mesh]));
         groups.extend(commerce_mesh::prop_groups(&self.city));
         groups.extend(orange_sign::meshes(&self.city));
+        groups.extend(crate::dynamic_world::airport::prop_groups(&self.city));
+        groups.extend(
+            airport_fence::panels(&self.city)
+                .into_iter()
+                .map(|panel| vec![panel]),
+        );
         groups
     }
     pub fn prop_parts(&self) -> Vec<Vec<crate::props::Part>> {
@@ -446,6 +454,16 @@ impl Hermes {
             crate::props::visible_placements(&self.authored_props, &self.city)
                 .into_iter()
                 .map(|(_, _, p)| p.parts()),
+        );
+        groups.extend(
+            crate::dynamic_world::airport::prop_groups(&self.city)
+                .into_iter()
+                .map(|parts| parts.into_iter().map(crate::props::Part::baked).collect()),
+        );
+        groups.extend(
+            airport_fence::panels(&self.city)
+                .into_iter()
+                .map(|panel| vec![crate::props::Part::baked(panel)]),
         );
         groups
     }

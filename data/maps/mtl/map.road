@@ -7678,3 +7678,32 @@ elevation(generated_area_infill_665, 0.0980010);
 generated_area_infill_666 = building(0.1300000, { use: mixed_use, material: brown_brick, family: heritage, palette: brownstone, floor_height: 0.0325, ground: retail, front_edge: 0, seed: 42 }, 25.5165558, 14.1005449, 25.5164375, 14.3995447, 25.8964386, 14.3996954, 25.8965569, 14.1006956);
 
 elevation(generated_area_infill_666, 0.0980010);
+
+# YULPET. Heights account for the landscape surface offset (0.02).
+airport_shore = land(-5.12, -2.86, -0.36, -2.86, 0.65, -3.57, 5.12, -3.57, 5.12, -21.80, -5.12, -21.80);
+elevation(airport_shore, 0.121);
+airport_west_runway = concrete(-4.325, -21.15, -3.675, -21.15, -3.675, -5.15, -4.325, -5.15);
+elevation(airport_west_runway, 0.122001);
+airport_east_runway = concrete(3.675, -21.15, 4.325, -21.15, 4.325, -5.15, 3.675, -5.15);
+elevation(airport_east_runway, 0.122001);
+airport_west_taxiway = concrete(-3.28, -20.25, -2.78, -20.25, -2.78, -6.05, -3.28, -6.05);
+elevation(airport_west_taxiway, 0.122001);
+airport_east_taxiway = concrete(2.78, -20.25, 3.28, -20.25, 3.28, -6.05, 2.78, -6.05);
+elevation(airport_east_taxiway, 0.122001);
+airport_north_links = concrete(-3.675, -6.05, 3.675, -6.05, 3.675, -5.55, -3.675, -5.55);
+elevation(airport_north_links, 0.122001);
+airport_west_south_link = concrete(-3.675, -20.75, -2.78, -20.75, -2.78, -20.25, -3.675, -20.25);
+elevation(airport_west_south_link, 0.122001);
+airport_east_south_link = concrete(2.78, -20.75, 3.675, -20.75, 3.675, -20.25, 2.78, -20.25);
+elevation(airport_east_south_link, 0.122001);
+airport_apron = concrete(-1.6, -5.55, 1.45, -5.55, 1.45, -3.97, -1.6, -3.97);
+elevation(airport_apron, 0.122001);
+airport_concourse = building(0.077, { material: concrete, family: curtain_wall, palette: chalk, front_edge: 2 }, -1.41, -4.48, -0.23, -4.48, -0.23, -4.08, -1.41, -4.08);
+elevation(airport_concourse, 0.102001);
+airport_tower = building(0.23, { material: concrete, family: civic, palette: chalk }, -1.78, -4.50, -1.51, -4.50, -1.51, -4.22, -1.78, -4.22);
+elevation(airport_tower, 0.102001);
+airport_access_end = map_point(0.38, -3.97);
+airport_access = cross_street(junction_3, 0.4834, -3.6379, 0.38, -3.827, airport_access_end);
+grade(airport_access, 0.1020, 0.102001);
+parked_vehicle("vehicle-air-estuaire", 0.87, -4.79, 0);
+parked_vehicle("vehicle-air-fleche", -0.81, -4.86, 0);

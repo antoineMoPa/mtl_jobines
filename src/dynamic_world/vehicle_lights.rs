@@ -163,7 +163,7 @@ mod tests {
                     assert_eq!(vertex.surface[3] as u32 & bit != 0, selected);
                     lit += usize::from(selected);
                 }
-                if car.is_bicycle() {
+                if car.is_bicycle() || car.is_aircraft() {
                     assert_eq!(lit, 0);
                 } else {
                     assert!(lit > 0);
@@ -192,7 +192,8 @@ mod tests {
         for (id, definition) in catalog::definitions().iter().enumerate() {
             car.set_catalog_model(Some(id));
             assert!(
-                definition.rear_lenses().is_empty() == definition.is_bicycle(),
+                definition.rear_lenses().is_empty()
+                    == (definition.is_bicycle() || car.is_aircraft()),
                 "{}",
                 definition.config.name
             );

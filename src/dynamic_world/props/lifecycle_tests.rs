@@ -180,7 +180,7 @@ fn a_second_pass_pushes_a_fallen_cone_instead_of_ignoring_it() {
     let mut props = Props::from_parts_near(vec![placement.parts()], Vec3::ZERO);
     strike(&mut props, hermes.city());
     let handle = props.items[0].debris.unwrap();
-    props.debris_bodies[handle].set_translation(vector![0., 0., 0.5], true);
+    props.debris_bodies[handle].set_translation(vector![0., 0., props.items[0].half.z], true);
     props.debris_bodies[handle].set_linvel(vector![0., 0., 0.], true);
     props.debris_bodies[handle].set_angvel(vector![0., 0., 0.], true);
     props.step(1. / 120.);
@@ -222,4 +222,73 @@ fn distant_copies_share_model_storage_and_only_nearby_collision_is_resident() {
     assert!(props.colliders.len() <= 3);
     assert_eq!(props.authored_instances(Vec3::ZERO).len(), 1);
     assert!(props.debris_bodies.is_empty());
+}
+
+#[test]
+fn airport_fence_stops_gentle_contacts_and_detaches_only_the_struck_quad() {
+    let mut hermes = crate::hermes::Hermes::test_map_from_source(
+        "airport_shore=land(-6,-22,6,-22,6,-2,-6,-2); player_start(0,-10,0);",
+    );
+    let (static_world, _) = hermes.take_geometry();
+    assert!(!static_world
+        .vertices
+        .iter()
+        .any(|v| v.surface[0] == SurfaceKind::Fence as u32 as f32));
+    let groups = hermes.prop_parts();
+    let center_of = |panel: &Mesh| {
+        let a = Vec3::from_array(panel.vertices[0].position);
+        let b = Vec3::from_array(panel.vertices[2].position);
+        (a + b) * (METERS_PER_UNIT * 0.5)
+    };
+    let index = groups
+        .iter()
+        .position(|parts| {
+            let vertices = &parts[0].mesh.vertices;
+            vertices.len() == 6
+                && vertices[0].surface[0] == SurfaceKind::Fence as u32 as f32
+                && vertices[0].position[0] == -5.
+                && vertices[0].position[1] < -10.
+        })
+        .unwrap();
+    let at = center_of(&groups[index][0].mesh);
+    let neighbor = center_of(&groups[index + 1][0].mesh);
+    let appearance: Vec<_> = groups[index][0]
+        .mesh
+        .vertices
+        .iter()
+        .map(|v| v.surface)
+        .collect();
+    let mut props = Props::from_parts_near(groups, at);
+    assert!(props.blocked(at) && props.blocked(neighbor));
+    let city = hermes.city();
+    let mut car = Vehicle::spawn_at(
+        city,
+        crate::dynamic_world::SpawnPoint {
+            point: ((at.truncate() - glam::Vec2::X * 5.) / METERS_PER_UNIT).to_array(),
+            heading: Some(0.),
+        },
+    )
+    .unwrap();
+    let before = car.position;
+    for speed in [1., 12.] {
+        car.position = before + Vec3::X * 10.;
+        car.velocity = Vec3::X * speed;
+        props.vehicle_move(&mut car, before, city);
+        if speed == 1. {
+            assert!(car.position.x < at.x && props.blocked(at));
+        }
+    }
+    assert_eq!(props.damaged_groups().collect::<Vec<_>>(), [index]);
+    assert!(!props.blocked(at) && props.blocked(neighbor));
+    props.step(1. / 120.);
+    let mut debris = Mesh::default();
+    props.append_moving(&mut debris, at);
+    assert_eq!(
+        debris
+            .vertices
+            .iter()
+            .map(|v| v.surface)
+            .collect::<Vec<_>>(),
+        appearance
+    );
 }

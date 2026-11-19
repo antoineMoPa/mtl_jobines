@@ -71,12 +71,12 @@ impl Props {
     fn cone_shape() -> ColliderBuilder {
         ColliderBuilder::compound(vec![
             (
-                Isometry3::translation(0., 0., -0.4725),
-                SharedShape::cuboid(0.25, 0.25, 0.0275),
+                Isometry3::translation(0., 0., -0.945),
+                SharedShape::cuboid(0.5, 0.5, 0.055),
             ),
             (
-                Isometry3::translation(0., 0., 0.005),
-                SharedShape::capsule_z(0.30, 0.13),
+                Isometry3::translation(0., 0., 0.01),
+                SharedShape::capsule_z(0.60, 0.26),
             ),
         ])
     }
@@ -591,11 +591,11 @@ impl Props {
             );
         } else if cone {
             for collider in [
-                ColliderBuilder::cuboid(0.25, 0.25, 0.0275)
-                    .translation(vector![0., 0., -0.4725])
+                ColliderBuilder::cuboid(0.5, 0.5, 0.055)
+                    .translation(vector![0., 0., -0.945])
                     .mass(3.2),
-                ColliderBuilder::capsule_z(0.30, 0.13)
-                    .translation(vector![0., 0., 0.005])
+                ColliderBuilder::capsule_z(0.60, 0.26)
+                    .translation(vector![0., 0., 0.01])
                     .mass(0.8),
             ] {
                 self.debris_colliders.insert_with_parent(

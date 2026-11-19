@@ -191,12 +191,25 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
     if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v,du,dv);}
     if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front,du,dv,dx,dy,surface);}
     if v.surface.x>39.5 {return commerce_color(v,du,dv,dx,dy);}
+    if v.surface.x==11.0 && v.surface.w==2.0 {
+        let tex=textureSampleGrad(cutout_atlas,cutout_sampler,v.fence_uv,2,du,dv);
+        if tex.a<0.35 {discard;}
+        var fence=v;
+        // The shared mask atlas stores raw PNG channels in a linear texture.
+        fence.color=pow(tex.rgb,vec3<f32>(2.2));
+        return shade_local_surface(fence,front,tex.a,surface);
+    }
     var coverage=1.0;
     if v.surface.x>10.5&&v.surface.x<11.5 {coverage=fence_coverage(v.fence_uv,v.surface.w,footprint);if coverage<0.5 {discard;}}
     return shade_local_surface(v,front,coverage,surface);
 }
 @fragment fn fs_shadow_game(v:ShadowOutput) {
     let footprint=fwidth(v.fence_uv);
+    if v.kind_pattern.x==11.0 && v.kind_pattern.y==2.0 {
+        let tex=textureSampleGrad(cutout_atlas,cutout_sampler,v.fence_uv,2,dpdx(v.fence_uv),dpdy(v.fence_uv));
+        if tex.a<0.35 {discard;}
+        return;
+    }
     if v.kind_pattern.x>=15.0 && v.kind_pattern.x<=23.0 {tree_shadow(v);return;}
     // Thin applied decals do not cast a second rectangular shadow on their shell.
     if v.kind_pattern.x>39.5&&v.kind_pattern.x<40.5 {discard;}

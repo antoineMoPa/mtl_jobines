@@ -131,6 +131,9 @@ mod tests {
         let mut world = DynamicWorld::new(&hermes);
         for model in 0..super::super::catalog::definitions().len() {
             let definition = &super::super::catalog::definitions()[model];
+            if definition.config.vehicle_kind == super::super::catalog::VehicleKind::Aircraft {
+                continue;
+            }
             assert_eq!(
                 definition.headlights().len(),
                 if definition.is_bicycle() { 1 } else { 2 },

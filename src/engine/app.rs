@@ -31,6 +31,8 @@ use winit::{
 };
 pub(super) const DT: f32 = 1. / 120.;
 const DEFAULT_CHASE_ZOOM: f32 = 0.45;
+const AIRCRAFT_CHASE_ZOOM: f32 = 0.30;
+const MIN_AIRCRAFT_CHASE_ZOOM: f32 = 0.12;
 const CAMERA_ORBIT_SENSITIVITY: f32 = 0.005;
 const CAMERA_PITCH_SENSITIVITY: f32 = 0.003;
 const CAMERA_RETURN_RATE: f32 = 1.0;
@@ -59,6 +61,17 @@ mod native_startup;
 #[cfg(not(target_arch = "wasm32"))]
 mod reload;
 mod startup;
+/// Eye and aim offsets in map units. Size the view by airframe length so the
+/// jet and airliner occupy a similar portion of the frame.
+fn aircraft_chase(length: f32, forward: Vec3, zoom: f32, orbit_pitch: f32) -> (Vec3, Vec3) {
+    let scale = length / METERS_PER_UNIT;
+    let distance = 1.43 * scale * zoom / AIRCRAFT_CHASE_ZOOM;
+    let elevation = 0.15 + orbit_pitch;
+    let eye = (-forward * elevation.cos() + Vec3::Z * elevation.sin()) * distance;
+    let aim = (forward * 2.8 + Vec3::Z * 0.10) * scale;
+    (eye, aim)
+}
+
 fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkControls) {
     let held = |key| keys.contains(&key);
     let forward = held(KeyCode::KeyW) || held(KeyCode::ArrowUp);
@@ -72,6 +85,7 @@ fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkCont
             - (held(KeyCode::KeyD) || held(KeyCode::ArrowRight)) as u8 as f32,
         handbrake: held(KeyCode::Space),
         boost: held(KeyCode::ShiftLeft) || held(KeyCode::ShiftRight),
+        ..Controls::default()
     };
     let walking = WalkControls {
         forward: direction,
@@ -81,6 +95,19 @@ fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkCont
     };
     (driving, walking)
 }
+fn aircraft_controls(keys: &HashSet<KeyCode>) -> Controls {
+    let held = |key| f32::from(u8::from(keys.contains(&key)));
+    Controls {
+        throttle: held(KeyCode::KeyW),
+        brake: keys.contains(&KeyCode::KeyS),
+        steering: held(KeyCode::KeyA) - held(KeyCode::KeyD),
+        aircraft_pitch: held(KeyCode::ArrowDown) - held(KeyCode::ArrowUp),
+        aircraft_yaw: held(KeyCode::ArrowLeft) - held(KeyCode::ArrowRight),
+        handbrake: keys.contains(&KeyCode::Space),
+        ..Controls::default()
+    }
+}
+
 enum GameEvent {
     #[cfg(target_arch = "wasm32")]
     Mobile(mobile::Event),
@@ -410,10 +437,22 @@ impl Game {
         let f = glam::Vec2::new(self.world.player().yaw.cos(), self.world.player().yaw.sin());
         let speed = self.world.player().velocity.truncate().dot(f);
         #[cfg(not(target_arch = "wasm32"))]
-        let (input, keyboard_walk) = movement_controls(&self.keys, speed);
+        let keys = &self.keys;
         #[cfg(target_arch = "wasm32")]
-        let (input, keyboard_walk) =
-            movement_controls(&self.mobile.with_keyboard(&self.keys), speed);
+        let merged = self.mobile.with_keyboard(&self.keys);
+        #[cfg(target_arch = "wasm32")]
+        let keys = &merged;
+        let (mut input, keyboard_walk) = movement_controls(keys, speed);
+        if self.world.is_driving() && self.world.player().is_aircraft() {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                input = aircraft_controls(keys);
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                input = aircraft_controls(&self.mobile.with_aircraft_keyboard(&self.keys));
+            }
+        }
         while self.accumulator >= DT {
             self.previous_car_position = self.world.player().position;
             self.previous_car_orientation = self.world.player().orientation();
@@ -583,22 +622,53 @@ impl Game {
             self.orbit *= (-elapsed * CAMERA_RETURN_RATE).exp();
             self.camera_pitch *= (-elapsed * CAMERA_RETURN_RATE).exp();
         }
-        let heading = if self.world.is_driving() {
+        let plane = self.world.player();
+        let flight_chase =
+            self.world.is_driving() && plane.is_aircraft() && !plane.grounded && !self.hood;
+        let nose = glam::Vec2::new(render_yaw.cos(), render_yaw.sin());
+        let heading = if flight_chase && plane.velocity.truncate().dot(nose) > 2. {
+            plane.velocity.y.atan2(plane.velocity.x)
+        } else if self.world.is_driving() {
             render_yaw
         } else {
             self.world.player_yaw()
         } + self.orbit;
         let forward = Vec3::new(heading.cos(), heading.sin(), 0.);
-        let look = p + Vec3::new(0., 0., 0.014) + forward * 0.045;
-        let target_eye = if self.hood && self.world.is_driving() {
-            p + forward * 0.009 + Vec3::Z * 0.011
+        let aircraft = self
+            .world
+            .is_driving()
+            .then(|| self.world.player())
+            .filter(|vehicle| vehicle.is_aircraft());
+        let (target_eye, look) = if let Some(plane) = aircraft {
+            if self.hood {
+                let cockpit = Vec3::new(plane.length() * 0.38, 0., plane.height() * 0.16);
+                let eye = p + render_orientation * cockpit / METERS_PER_UNIT;
+                (eye, eye + render_orientation * Vec3::X * 0.25)
+            } else {
+                let (eye, aim) =
+                    aircraft_chase(plane.length(), forward, self.zoom, self.camera_pitch);
+                (p + eye, p + aim)
+            }
         } else {
-            p - forward * (0.15 * self.zoom * self.camera_pitch.cos())
-                + Vec3::Z * ((0.075 + 0.15 * self.camera_pitch.sin()) * self.zoom)
+            let eye = if self.hood && self.world.is_driving() {
+                p + forward * 0.009 + Vec3::Z * 0.011
+            } else {
+                p + (-forward * (0.15 * self.camera_pitch.cos())
+                    + Vec3::Z * (0.075 + 0.15 * self.camera_pitch.sin()))
+                    * self.zoom
+            };
+            (eye, p + Vec3::Z * 0.014 + forward * 0.045)
         };
         if !paused {
-            self.eye += p - self.camera_anchor;
-            self.eye = self.eye.lerp(target_eye, 1. - (-elapsed * 6.).exp());
+            let travel = p - self.camera_anchor;
+            if flight_chase {
+                // Follow horizontal travel while allowing a little heave through a climb.
+                self.eye += Vec3::new(travel.x, travel.y, travel.z * 0.7);
+                self.eye = self.eye.lerp(target_eye, 1. - (-elapsed * 2.8).exp());
+            } else {
+                self.eye += travel;
+                self.eye = self.eye.lerp(target_eye, 1. - (-elapsed * 6.).exp());
+            }
         }
         if !self.fabula.active() {
             self.camera_anchor = p;
@@ -1354,9 +1424,7 @@ impl ApplicationHandler<GameEvent> for Game {
                             match key {
                                 KeyCode::KeyF => {
                                     if self.world.toggle_vehicle(&self.hermes) {
-                                        self.orbit = 0.;
-                                        self.camera_pitch = 0.;
-                                        self.hood = false;
+                                        self.reset_boarding_camera();
                                     }
                                 }
                                 KeyCode::Tab => self.hood = !self.hood,
@@ -1415,7 +1483,7 @@ impl ApplicationHandler<GameEvent> for Game {
                         window.request_redraw();
                     }
                 } else {
-                    self.zoom = (self.zoom * (-y * 0.1).exp()).clamp(0.45, 3.0);
+                    self.scroll_chase_camera(y);
                 }
             }
             WindowEvent::MouseInput {

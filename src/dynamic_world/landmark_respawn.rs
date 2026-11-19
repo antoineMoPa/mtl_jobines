@@ -424,9 +424,10 @@ mod tests {
             .landscape
             .iter()
             .filter(|f| {
-                f.model
-                    .as_deref()
-                    .is_some_and(|id| id.starts_with("study_"))
+                f.name.as_deref() == Some("airport_concourse")
+                    || f.model
+                        .as_deref()
+                        .is_some_and(|id| id.starts_with("study_"))
             })
             .count();
         assert_eq!(landmarks.len(), models);

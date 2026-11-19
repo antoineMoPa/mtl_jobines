@@ -42,6 +42,8 @@ pub struct Controls {
     pub throttle: f32,
     pub brake: bool,
     pub steering: f32,
+    pub aircraft_pitch: f32,
+    pub aircraft_yaw: f32,
     pub handbrake: bool,
     pub boost: bool,
 }
@@ -62,6 +64,9 @@ pub struct Vehicle {
     pub steering: f32,
     pub wheel_angle: f32,
     pub metro_doors: f32,
+    pub(super) aircraft_gear: f32,
+    pub(super) aircraft_rates: Vec3,
+    pub(super) aircraft_surfaces: Vec3,
     pub pedal_angle: f32,
     pub riding_stand: f32,
     pub surface: SurfaceKind,
@@ -142,6 +147,9 @@ impl Vehicle {
             steering: 0.,
             wheel_angle: 0.,
             metro_doors: 0.,
+            aircraft_gear: 0.,
+            aircraft_rates: Vec3::ZERO,
+            aircraft_surfaces: Vec3::ZERO,
             pedal_angle: 0.,
             riding_stand: 0.,
             surface: SurfaceKind::Asphalt,
@@ -158,6 +166,9 @@ impl Vehicle {
     pub(super) fn set_catalog_model(&mut self, definition: Option<usize>) {
         let previous_height = self.ride_height();
         self.definition = definition;
+        self.aircraft_gear = 0.;
+        self.aircraft_rates = Vec3::ZERO;
+        self.aircraft_surfaces = Vec3::ZERO;
         // Keep tire ground contact when selecting a model with another chassis height.
         self.position.z += self.ride_height() - previous_height;
         self.body_lean = Vec2::ZERO;
@@ -190,6 +201,12 @@ impl Vehicle {
         self.definition()
             .map_or(RIDE_HEIGHT, |d| d.config.physics.height_offset)
     }
+    pub(super) fn aircraft_model(&self) -> Option<super::aircraft::Model> {
+        super::aircraft::Model::from_id(&self.definition()?.config.research_id)
+    }
+    pub fn is_aircraft(&self) -> bool {
+        self.aircraft_model().is_some()
+    }
     pub fn is_bicycle(&self) -> bool {
         self.definition().is_some_and(|d| d.is_bicycle())
     }
@@ -204,7 +221,7 @@ impl Vehicle {
         self.definition()
             .map_or(WHEELBASE, |d| d.config.physics.wheelbase)
     }
-    fn half_track(&self) -> f32 {
+    pub(super) fn half_track(&self) -> f32 {
         self.definition()
             .map_or(HALF_TRACK, |d| d.config.physics.track * 0.5)
     }
@@ -213,7 +230,23 @@ impl Vehicle {
             (self.length().powi(2) + self.width().powi(2)) / 12.
         })
     }
+    pub(super) fn aircraft_boarding_point(&self) -> Option<Vec2> {
+        let model = self.aircraft_model()?;
+        let radius = self.definition()?.config.physics.track / 1.78;
+        let forward = Vec2::new(self.yaw.cos(), self.yaw.sin());
+        let left = Vec2::new(-forward.y, forward.x);
+        Some(
+            self.position.truncate()
+                + forward * (self.length() * model.door_fraction())
+                + left * (radius + 0.85),
+        )
+    }
+
     pub(super) fn entry_distance(&self, point: Vec3) -> f32 {
+        if let Some(door) = self.aircraft_boarding_point() {
+            let height = self.position.z - self.ride_height() + super::player::HALF_HEIGHT;
+            return point.distance(door.extend(height));
+        }
         let delta = point - self.position;
         let f = Vec2::new(self.yaw.cos(), self.yaw.sin());
         let l = Vec2::new(-f.y, f.x);
@@ -280,10 +313,18 @@ impl Vehicle {
         if !dt.is_finite() || dt <= 0. {
             return;
         }
-        // Keep the suspension and tire impulses stable when a caller uses larger frames.
+        // Keep angular response and tire impulses stable for variable frame lengths.
         let steps = (dt / (1. / 120.)).ceil().max(1.) as usize;
-        for _ in 0..steps {
-            self.step_substep(city, input, dt / steps as f32, buildings);
+        let sub_dt = dt / steps as f32;
+        if let Some(model) = self.aircraft_model() {
+            let physics = model.physics();
+            for _ in 0..steps {
+                physics.step(self, city, input, sub_dt);
+            }
+        } else {
+            for _ in 0..steps {
+                self.step_substep(city, input, sub_dt, buildings);
+            }
         }
     }
 

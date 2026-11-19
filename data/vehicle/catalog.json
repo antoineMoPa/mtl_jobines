@@ -70,5 +70,17 @@
     "path": "bicycle/velo-partage",
     "researchId": "vehicle-bike-share",
     "roadVehicle": true
+  },
+  {
+    "name": "Estuaire Airliner",
+    "path": "aircraft/estuaire-airliner",
+    "researchId": "vehicle-air-estuaire",
+    "roadVehicle": false
+  },
+  {
+    "name": "Flèche Jet",
+    "path": "aircraft/fleche-jet",
+    "researchId": "vehicle-air-fleche",
+    "roadVehicle": false
   }
 ]

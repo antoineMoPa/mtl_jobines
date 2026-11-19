@@ -1,6 +1,37 @@
 use super::*;
 
 #[test]
+fn aircraft_default_chase_frames_the_airframe_and_the_horizon() {
+    let mut game = Game::new(Hermes::test_map());
+    for (id, def) in crate::dynamic_world::catalog::definitions()
+        .iter()
+        .enumerate()
+    {
+        if def.config.category != "Aircraft" {
+            continue;
+        }
+        game.world.switch_vehicle(id);
+        game.finish_location_change();
+        let plane = game.world.player();
+        let forward = Vec3::new(plane.yaw.cos(), plane.yaw.sin(), 0.);
+        let offset = (game.eye - plane.position / METERS_PER_UNIT) * METERS_PER_UNIT;
+        let length = plane.length();
+        assert!((1.35..1.5).contains(&(-offset.dot(forward) / length)));
+        let (_, aim) = aircraft_chase(plane.length(), forward, game.zoom, 0.);
+        assert!(aim.dot(forward) * METERS_PER_UNIT > plane.length() * 2.);
+        let sight = aim * METERS_PER_UNIT - offset;
+        assert!(sight.z.atan2(sight.truncate().length()).abs() < 0.055);
+        game.scroll_chase_camera(1.);
+        assert!(game.zoom < AIRCRAFT_CHASE_ZOOM);
+        game.scroll_chase_camera(100.);
+        let (closest, _) = aircraft_chase(length, forward, game.zoom, 0.);
+        assert!((0.55..0.60).contains(&(-closest.dot(forward) * METERS_PER_UNIT / length)));
+        game.scroll_chase_camera(-1.);
+        assert!(game.zoom > MIN_AIRCRAFT_CHASE_ZOOM);
+    }
+}
+
+#[test]
 fn fast_car_render_pose_advances_between_physics_steps() {
     let mut game = Game::new(Hermes::test_map());
     game.set_overlay(Overlay::Driving);
@@ -631,4 +662,25 @@ fn season_palette_actions_update_the_live_world_and_reset_on_map_reload() {
     game.apply_palette_action(PaletteAction::Season(Season::Summer));
     assert_eq!(game.world.season(), Season::Summer);
     assert!(game.world.snow.cells.is_empty());
+}
+
+#[test]
+fn aircraft_keys_split_pitch_roll_yaw_and_power() {
+    let input = aircraft_controls(&HashSet::from([
+        KeyCode::ArrowUp,
+        KeyCode::ArrowLeft,
+        KeyCode::KeyD,
+    ]));
+    assert_eq!(input.throttle, 0.);
+    assert_eq!(input.aircraft_pitch, -1.);
+    assert_eq!(input.steering, -1.);
+    assert_eq!(input.aircraft_yaw, 1.);
+    let input = aircraft_controls(&HashSet::from([
+        KeyCode::KeyW,
+        KeyCode::ArrowDown,
+        KeyCode::Space,
+    ]));
+    assert_eq!(input.throttle, 1.);
+    assert_eq!(input.aircraft_pitch, 1.);
+    assert!(input.handbrake);
 }

@@ -655,6 +655,7 @@ fn airborne_rotation_preserves_angular_momentum_without_tire_authority() {
                 throttle: 1.,
                 brake: true,
                 handbrake: true,
+                ..Controls::default()
             },
             1. / 120.,
         );
