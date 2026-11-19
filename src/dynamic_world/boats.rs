@@ -230,10 +230,35 @@ pub(super) fn step(v: &mut Vehicle, city: &City, input: Controls, dt: f32) {
     v.grounded = true;
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Wake {
+    origin_direction: [f32; 4],
+    // Half-width scale, lateral spread per metre, trail length in metres, opacity.
+    shape: [f32; 4],
+}
+
+impl Wake {
+    fn boat(stern: Vec2, velocity: Vec2, width: f32) -> Self {
+        let speed = velocity.length();
+        let direction = velocity / speed;
+        let fast = (speed / 12.).min(1.);
+        Self {
+            origin_direction: [stern.x, stern.y, direction.x, direction.y],
+            shape: [
+                width * 0.4 * speed.min(2.),
+                0.5 - 0.41 * fast,
+                2.8 + 3.2 * fast,
+                1.,
+            ],
+        }
+    }
+}
+
 /// Short-lived foam packets stay at their emission positions while the vessel turns.
 #[derive(Default)]
 pub(super) struct Wakes {
-    packets: std::collections::VecDeque<([f32; 4], f32)>,
+    packets: std::collections::VecDeque<(Wake, f32)>,
     interval: f32,
 }
 impl DynamicWorld {
@@ -256,10 +281,9 @@ impl DynamicWorld {
             if v.is_boat() && speed > 0.35 && center.distance_squared(v.position) < 180_f32.powi(2)
             {
                 let stern = v.position.truncate() - Vec2::from_angle(v.yaw) * v.length() * 0.42;
-                wakes.packets.push_back((
-                    [stern.x, stern.y, v.yaw, v.width() * 0.4 * speed.min(2.)],
-                    0.,
-                ));
+                wakes
+                    .packets
+                    .push_back((Wake::boat(stern, v.velocity.truncate(), v.width()), 0.));
             }
         }
         if let Some(p) = self
@@ -268,19 +292,23 @@ impl DynamicWorld {
             .filter(|p| p.swimming && p.swim_speed() > 0.22)
         {
             let feet = p.position.truncate() - Vec2::from_angle(p.yaw) * 0.7;
-            wakes
-                .packets
-                .push_back(([feet.x, feet.y, p.yaw, -0.32], 0.));
+            wakes.packets.push_back((
+                Wake {
+                    origin_direction: [feet.x, feet.y, p.yaw.cos(), p.yaw.sin()],
+                    shape: [-0.32, 0.09, 0.75, 1.],
+                },
+                0.,
+            ));
         }
         while wakes.packets.len() > 32 {
             wakes.packets.pop_front();
         }
     }
-    pub fn water_wakes(&self) -> [[f32; 4]; 32] {
-        let mut data = [[0.; 4]; 32];
+    pub fn water_wakes(&self) -> [Wake; 32] {
+        let mut data = [Wake::default(); 32];
         for (slot, (point, age)) in data.iter_mut().zip(&self.wakes.packets) {
             *slot = *point;
-            slot[3] *= 1. - age / 3.;
+            slot.shape[3] *= 1. - age / 3.;
         }
         data
     }
@@ -289,6 +317,18 @@ impl DynamicWorld {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
+    #[test]
+    fn fast_wakes_follow_the_course_with_longer_narrower_foam_lines() {
+        let course = Vec2::from_angle(1.1);
+        let slow = Wake::boat(Vec2::ZERO, course, 2.);
+        let fast = Wake::boat(Vec2::ZERO, course * 12., 2.);
+        assert!(fast.shape[1] < slow.shape[1]);
+        assert!(fast.shape[2] > slow.shape[2]);
+        assert!(
+            Vec2::new(fast.origin_direction[2], fast.origin_direction[3]).distance(course) < 1e-6
+        );
+    }
+
     #[test]
     fn montreal_fleet_can_be_boarded_driven_and_left_in_water() {
         let path =
@@ -341,7 +381,7 @@ mod tests {
             );
         }
         assert!(world.player_position().distance(before) > 0.4);
-        assert!(world.water_wakes().iter().any(|p| p[3] < 0.));
+        assert!(world.water_wakes().iter().any(|p| p.shape[0] < 0.));
         assert!(world
             .pedestrian
             .as_ref()

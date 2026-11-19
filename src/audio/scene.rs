@@ -360,33 +360,45 @@ impl Spatial {
         }
         let speed = car.velocity.truncate().length();
         let sound = car.sound;
-        let ratios = sound.gear_ratios;
-        let wheel_rpm = speed * 60. / (std::f32::consts::TAU * car.wheel_radius);
-        let coupled = wheel_rpm * ratios[self.gear] * sound.final_drive;
-        if sound.engine == EngineKind::Electric {
-            self.gear = 0;
-            self.shifting = 0.;
-        } else if self.shifting <= 0. {
-            let old = self.gear;
-            if coupled > sound.redline_rpm * 0.78 && self.gear < ratios.len() - 1 {
-                self.gear += 1;
-            } else if coupled < sound.idle_rpm * 1.65 && self.gear > 0 {
-                self.gear -= 1;
-            }
-            if old != self.gear {
-                self.shifting = 0.22;
-            }
-        }
-        self.shifting = (self.shifting - BLOCK as f32 / RATE as f32).max(0.);
-        let load = car.throttle.abs() * if self.shifting > 0. { 0.12 } else { 1. };
         let (idle, redline, exhaust, body) = (
             sound.idle_rpm,
             sound.redline_rpm,
             sound.exhaust_gain,
             sound.body_gain,
         );
-        let rpm =
-            (wheel_rpm * ratios[self.gear] * sound.final_drive + load * 380.).clamp(idle, redline);
+        let (rpm, load) = if let Some(max_speed) = car.boat_max_speed {
+            self.gear = 0;
+            self.shifting = 0.;
+            let load = car.throttle.abs().min(1.);
+            let cruise = (speed / max_speed).min(1.);
+            (
+                idle + (redline - idle) * (0.65 * load + 0.35 * cruise),
+                load,
+            )
+        } else {
+            let ratios = sound.gear_ratios;
+            let wheel_rpm = speed * 60. / (std::f32::consts::TAU * car.wheel_radius);
+            let coupled = wheel_rpm * ratios[self.gear] * sound.final_drive;
+            if sound.engine == EngineKind::Electric {
+                self.gear = 0;
+                self.shifting = 0.;
+            } else if self.shifting <= 0. {
+                let old = self.gear;
+                if coupled > sound.redline_rpm * 0.78 && self.gear < ratios.len() - 1 {
+                    self.gear += 1;
+                } else if coupled < sound.idle_rpm * 1.65 && self.gear > 0 {
+                    self.gear -= 1;
+                }
+                if old != self.gear {
+                    self.shifting = 0.22;
+                }
+            }
+            self.shifting = (self.shifting - BLOCK as f32 / RATE as f32).max(0.);
+            let load = car.throttle.abs() * if self.shifting > 0. { 0.12 } else { 1. };
+            let rpm = (wheel_rpm * ratios[self.gear] * sound.final_drive + load * 380.)
+                .clamp(idle, redline);
+            (rpm, load)
+        };
         let right = Vec3::new(-car.yaw.sin(), car.yaw.cos(), 0.);
         let slip = car.velocity.dot(right).abs();
         let rough = match car.surface {

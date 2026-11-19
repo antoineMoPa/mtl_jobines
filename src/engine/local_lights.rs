@@ -1,5 +1,5 @@
 //! A compact world grid keeps fragment work proportional to nearby emitters.
-use crate::dynamic_world::LocalLight;
+use crate::dynamic_world::{LocalLight, Wake, Waterline};
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
 use std::cell::RefCell;
@@ -13,7 +13,8 @@ struct LightGrid {
     origin: [f32; 4],
     lights: [LocalLight; MAX_LIGHTS],
     cells: [[u32; 4]; GRID * GRID],
-    wakes: [[f32; 4]; 32],
+    wakes: [Wake; 32],
+    hulls: [Waterline; 8],
 }
 fn grid(sources: &[LocalLight], center: Vec3) -> LightGrid {
     let mut result = LightGrid::zeroed();
@@ -58,7 +59,8 @@ fn grid(sources: &[LocalLight], center: Vec3) -> LightGrid {
 pub(super) struct LocalLights {
     pub buffer: wgpu::Buffer,
     sources: RefCell<Vec<LocalLight>>,
-    pub wakes: std::cell::Cell<[[f32; 4]; 32]>,
+    pub wakes: std::cell::Cell<[Wake; 32]>,
+    pub hulls: std::cell::Cell<[Waterline; 8]>,
 }
 impl LocalLights {
     pub fn new(device: &wgpu::Device) -> Self {
@@ -71,6 +73,7 @@ impl LocalLights {
             }),
             sources: RefCell::new(Vec::new()),
             wakes: Default::default(),
+            hulls: Default::default(),
         }
     }
     pub fn set(&self, sources: Vec<LocalLight>) {
@@ -78,6 +81,7 @@ impl LocalLights {
     }
     pub fn upload(&self, queue: &wgpu::Queue, center: Vec3) {
         let mut data = grid(&self.sources.borrow(), center);
+        data.hulls = self.hulls.get();
         data.wakes = self.wakes.get();
         queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(&data));
     }

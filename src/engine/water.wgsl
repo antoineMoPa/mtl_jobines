@@ -80,6 +80,29 @@ fn river_surface(p: vec2<f32>, t: f32, footprint: f32) -> vec3<f32> {
     return vec3(swell.xy + detail + 0.041*current.yz*dot(bend, detail), coverage);
 }
 
+// The bounds reject open water before walking a nearby convex waterline.
+fn inside_waterline(p: vec2<f32>) -> bool {
+    for (var i = 0u; i < 8u; i++) {
+        let bounds = light_grid.hulls[i].bounds;
+        if bounds.x == bounds.z { break; }
+        if any(p < bounds.xy) || any(p > bounds.zw) { continue; }
+        var previous = light_grid.hulls[i].pairs[15].zw;
+        var inside = true;
+        for (var j = 0u; j < 16u; j++) {
+            let pair = light_grid.hulls[i].pairs[j];
+            let a = pair.xy - previous;
+            let b = pair.zw - pair.xy;
+            if dot(vec2(-a.y,a.x), p-previous) < 0.0 || dot(vec2(-b.y,b.x), p-pair.xy) < 0.0 {
+                inside = false;
+                break;
+            }
+            previous = pair.zw;
+        }
+        if inside { return true; }
+    }
+    return false;
+}
+
 fn shade_river(v: Output, surface: SurfaceData) -> vec4<f32> {
     let p = v.world.xy * 100.0;
     let t = camera.eye_time.w;
@@ -88,19 +111,19 @@ fn shade_river(v: Output, surface: SurfaceData) -> vec4<f32> {
     var wake = 0.0;
     for (var i=0u; i<32u; i++) {
         let packet=light_grid.wakes[i];
-        if packet.w==0.0 {break;}
-        let delta=p-packet.xy;
-        if dot(delta,delta)>16.0 {continue;}
-        let forward=vec2(cos(packet.z),sin(packet.z));
-        let along=-dot(delta,forward);
-        let lateral=abs(dot(delta,vec2(-forward.y,forward.x)));
-        let size=abs(packet.w);
-        let reach=select(0.75,2.8,packet.w>0.0);
-        let spread=select(0.09,0.50,packet.w>0.0);
+        if packet.shape.w == 0.0 {break;}
+        let delta = p - packet.origin_direction.xy;
+        let reach = packet.shape.z;
+        if dot(delta,delta) > (reach+1.5)*(reach+1.5) {continue;}
+        let forward = packet.origin_direction.zw;
+        let along = -dot(delta,forward);
+        let lateral = abs(dot(delta,vec2(-forward.y,forward.x)));
+        let size = abs(packet.shape.x);
+        let spread = packet.shape.y;
         let ridge=abs(lateral-(size*0.32+along*spread));
         let coverage=(1.0-smoothstep(0.04,0.08+0.15*size,ridge))
             *smoothstep(-0.24,0.02,along)*(1.0-smoothstep(0.15,reach,along));
-        wake=max(wake,coverage*min(1.0,2.0*size));
+        wake=max(wake,coverage*min(1.0,2.0*size)*packet.shape.w);
     }
     let slope = water.xy*(1.0+0.5*wake);
     let n = vec3(-slope, 1.0) * inverseSqrt(1.0 + dot(slope, slope));

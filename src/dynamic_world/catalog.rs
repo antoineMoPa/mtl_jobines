@@ -80,6 +80,7 @@ enum PartRole {
     Body,
     MetroDoorForward,
     MetroDoorBackward,
+    Outboard,
     RearWheel,
     FrontWheel,
     Steering,
@@ -159,6 +160,17 @@ fn part_role(name: &str) -> Result<PartRole, String> {
         | "wheel_middle_right" => Ok(PartRole::RearWheel),
         "crank_arm_-1" | "crank_arm_1" => Ok(PartRole::Crank),
         "pedal_-1" | "pedal_1" => Ok(PartRole::Pedal),
+        "Outboard leg"
+        | "Outboard powerhead"
+        | "Cowling cap"
+        | "Cowling flash -1"
+        | "Cowling flash 1"
+        | "Anti-ventilation plate"
+        | "Gearcase"
+        | "Skeg"
+        | "Propeller blade 0"
+        | "Propeller blade 1"
+        | "Propeller blade 2" => Ok(PartRole::Outboard),
         "bicycle_steering" => Ok(PartRole::Steering),
         name if name.starts_with("wheel_") => Err(format!("Unknown wheel role: {name}")),
         _ => Ok(PartRole::Body),
@@ -234,6 +246,7 @@ fn gear_rotation(fraction: f32) -> Quat {
 
 pub struct Definition {
     aircraft_hulls: Vec<AircraftHull>,
+    pub water_hull: Option<super::water_hull::WaterHull>,
     pub config: Config,
     pub texture_png: Option<Vec<u8>>,
     parts: Vec<Part>,
@@ -467,6 +480,7 @@ impl Definition {
                 }),
             _ => None,
         };
+        let mut shell_points = Vec::new();
         let mut aircraft_hulls = Vec::new();
         let mut parts = Vec::new();
         let mut rear_lenses = Vec::new();
@@ -477,6 +491,7 @@ impl Definition {
             config: &Config,
             paint: Option<[f32; 4]>,
             texture_layer: u32,
+            shell_points: &mut Vec<rapier3d::prelude::Point<f32>>,
             aircraft_hulls: &mut Vec<AircraftHull>,
             parts: &mut Vec<Part>,
             rear_lenses: &mut Vec<Vertex>,
@@ -499,6 +514,8 @@ impl Definition {
                 };
                 let ride = config.physics.height_offset;
                 let pivot = match role {
+                    // Swivel at the aft face of the fixed transom bracket.
+                    PartRole::Outboard => Vec3::new(-2.43, 0., 0.27 - ride),
                     PartRole::AircraftGear(gear) => {
                         gear.hinge(config.dimensions.length, config.physics.track)
                     }
@@ -633,6 +650,13 @@ impl Definition {
                 // Keep each structural mesh separate before the render batching below.
                 // Glazing, paint, and door trim follow the fuselage surface.
                 let name = node.name().unwrap_or("");
+                if config.vehicle_kind == VehicleKind::Boat && super::water_hull::hull_panel(name) {
+                    shell_points.extend(
+                        vertices
+                            .iter()
+                            .map(|v| rapier3d::prelude::Point::from(v.position)),
+                    );
+                }
                 if config.vehicle_kind == VehicleKind::Aircraft
                     && ![
                         "Cabin window",
@@ -709,6 +733,7 @@ impl Definition {
                     config,
                     paint,
                     texture_layer,
+                    shell_points,
                     aircraft_hulls,
                     parts,
                     rear_lenses,
@@ -724,6 +749,7 @@ impl Definition {
                 &config,
                 paint,
                 texture_layer,
+                &mut shell_points,
                 &mut aircraft_hulls,
                 &mut parts,
                 &mut rear_lenses,
@@ -735,7 +761,7 @@ impl Definition {
         // Every fixed panel shares the body's transform; upload it as one rigid part.
         let mut body = Vec::new();
         let mut shadow_body = Vec::new();
-        let mut articulated = Vec::new();
+        let mut articulated: Vec<Part> = Vec::new();
         for part in parts {
             if part.role == PartRole::Body {
                 let caster = part.shadow_vertices.as_deref().unwrap_or(&part.vertices);
@@ -750,6 +776,16 @@ impl Definition {
                         .copied(),
                 );
                 body.extend(part.vertices);
+            } else if part.role == PartRole::Outboard {
+                // The cowling, leg and prop share a single swivel and draw call.
+                if let Some(motor) = articulated
+                    .iter_mut()
+                    .find(|p| p.role == PartRole::Outboard)
+                {
+                    motor.vertices.extend(part.vertices);
+                } else {
+                    articulated.push(part);
+                }
             } else {
                 articulated.push(part);
             }
@@ -803,6 +839,11 @@ impl Definition {
             }
         }
         Ok(Self {
+            water_hull: if config.vehicle_kind == VehicleKind::Boat {
+                Some(super::water_hull::WaterHull::new(shell_points)?)
+            } else {
+                None
+            },
             config,
             texture_png,
             aircraft_hulls,
@@ -839,6 +880,7 @@ impl Definition {
                     PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
                     PartRole::Pedal => Quat::IDENTITY,
                     PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
+                    PartRole::Outboard => Quat::from_rotation_z(-vehicle.steering),
                     PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
                     PartRole::FrontWheel => {
                         Quat::from_rotation_z(vehicle.steering)
@@ -886,6 +928,7 @@ impl Definition {
                 PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
                 PartRole::Pedal => Quat::IDENTITY,
                 PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
+                PartRole::Outboard => Quat::from_rotation_z(-vehicle.steering),
                 PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
                 PartRole::FrontWheel => {
                     Quat::from_rotation_z(vehicle.steering)
@@ -1596,6 +1639,35 @@ mod tests {
         ids.sort();
         assert_eq!(ids, ["vehicle-12", "vehicle-v2-01", "vehicle-v2-09"]);
     }
+    #[test]
+    fn runabout_outboard_turns_about_its_fixed_transom_bracket() {
+        let hermes = crate::hermes::Hermes::test_map();
+        let mut boat = super::super::Vehicle::spawn(hermes.city());
+        let model = definitions()
+            .iter()
+            .position(|d| d.config.research_id == "vehicle-boat-runabout")
+            .unwrap();
+        boat.set_catalog_model(Some(model));
+        let def = &definitions()[model];
+        assert_eq!(def.parts.len(), 2);
+        assert_eq!(def.parts[1].role, PartRole::Outboard);
+        let straight = def.part_transforms(&boat);
+        for angle in [-0.5, 0.5] {
+            boat.steering = angle;
+            let turned = def.part_transforms(&boat);
+            assert_eq!(straight[0], turned[0]);
+            let relative = straight[1].inverse() * turned[1];
+            assert!(relative.transform_point3(Vec3::ZERO).length() < 1e-4);
+            assert!(
+                relative.transform_vector3(Vec3::X).distance(Vec3::new(
+                    angle.cos(),
+                    -angle.sin(),
+                    0.
+                )) < 1e-4
+            );
+        }
+    }
+
     #[test]
     fn aircraft_render_parts_hinge_with_the_commanded_surfaces() {
         let hermes = crate::hermes::Hermes::test_map();

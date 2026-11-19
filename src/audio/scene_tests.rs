@@ -594,3 +594,24 @@ fn reused_engine_starts_at_requested_pitch_in_web_renderer() {
         .all(|value| value.is_finite() && value.abs() < 1.));
     assert!(samples.iter().any(|value| value.abs() > 0.01));
 }
+
+#[test]
+fn boat_revs_rise_continuously_through_the_speed_range() {
+    let mut voice = Spatial::new(0);
+    let mut boat = Car {
+        id: 7,
+        throttle: 0.8,
+        boat_max_speed: Some(13.),
+        ..Car::default()
+    };
+    let mut previous = 0.;
+    for step in 0..=130 {
+        boat.velocity = Vec3::X * step as f32 * 0.1;
+        voice.car(boat, &Frame::default());
+        let rpm = get(&voice.parameters.rpm);
+        assert!(rpm > previous);
+        assert_eq!(get(&voice.parameters.load), 0.8);
+        assert_eq!(voice.shifting, 0.);
+        previous = rpm;
+    }
+}

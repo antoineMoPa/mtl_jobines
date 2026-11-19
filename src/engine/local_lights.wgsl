@@ -2,8 +2,10 @@ struct LocalLight {
     position_range:vec4<f32>, direction_outer:vec4<f32>,
     color_intensity:vec4<f32>, beam:vec4<f32>,
 };
+struct Waterline { bounds:vec4<f32>, pairs:array<vec4<f32>,16>, };
+struct Wake { origin_direction:vec4<f32>, shape:vec4<f32>, };
 struct LightGrid {
-    origin:vec4<f32>, lights:array<LocalLight,128>, cells:array<vec4<u32>,256>, wakes:array<vec4<f32>,32>,
+    origin:vec4<f32>, lights:array<LocalLight,128>, cells:array<vec4<u32>,256>, wakes:array<Wake,32>, hulls:array<Waterline,8>,
 };
 @group(0) @binding(1) var<uniform> light_grid:LightGrid;
 fn local_irradiance(world:vec3<f32>,normal:vec3<f32>)->vec3<f32> {

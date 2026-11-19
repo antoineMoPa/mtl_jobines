@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open World Engine</title><style>
+*{box-sizing:border-box}body{margin:0;background:#152521;color:#f2f2e8;font:16px/1.5 system-ui,sans-serif;display:grid;grid-template-rows:1fr auto;height:100dvh}
+canvas{width:100%;height:100%;min-height:0;display:block;outline-offset:-3px}output{padding:.6rem 1rem}
+</style></head><body><canvas id="game" tabindex="0" aria-label="Game world"></canvas>
+<output id="status" aria-live="polite">Loading game…</output>
+<script type="module">
+import init, * as engine from '../pkg/mtl_jobines.js';
+const status = document.querySelector('#status');
+async function read(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw Error(url + ' (HTTP ' + response.status + ')');
+    return response;
+}
+try {
+    await init();
+    for (const path of engine.owe_asset_paths().split('\n')) {
+        const response = await read('../' + path);
+        engine.install_asset(path, new Uint8Array(await response.arrayBuffer()));
+    }
+    engine.owe_install_assets();
+    const pack = await (await read('game.pack.json')).text();
+    document.title = JSON.parse(pack).title;
+    const mod = await (await read('game.wasm')).arrayBuffer();
+    const {instance} = await WebAssembly.instantiate(mod, {env: {
+        owe_call_v1(pointer) {
+            const packet = new Uint8Array(instance.exports.memory.buffer, pointer, 180);
+            return engine.owe_call_v1(packet);
+        }
+    }});
+    engine.owe_start_v1(pack, instance.exports.owe_client_resume_v1);
+    document.querySelector('#game').focus();
+} catch (error) { status.textContent = 'Could not start game: ' + error; console.error(error); }
+</script></body></html>

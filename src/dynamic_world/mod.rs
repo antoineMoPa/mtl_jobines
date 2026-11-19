@@ -3,6 +3,9 @@
 mod aircraft;
 pub(crate) mod airport;
 mod boats;
+pub use boats::Wake;
+mod water_hull;
+pub use water_hull::Waterline;
 mod buildings;
 pub mod catalog;
 mod contacts;
@@ -67,6 +70,7 @@ pub struct DynamicWorld {
     airport: airport::Airport,
     boat_routes: Vec<boats::Patrol>,
     wakes: boats::Wakes,
+    pub water_level: Option<f32>,
     vehicles: Vec<Vehicle>,
     // Authored parking occupies the slots after the initial player, before traffic.
     parked_vehicle_count: usize,
@@ -152,6 +156,11 @@ impl DynamicWorld {
             parked_vehicle_count: 0,
             boat_routes: Vec::new(),
             wakes: Default::default(),
+            water_level: hermes
+                .city()
+                .elevation
+                .as_ref()
+                .and_then(|e| e.spec.water_level),
             player_vehicle: VehicleId(0),
             vehicle_notice: 4.,
             pedestrian: None,
@@ -394,6 +403,10 @@ impl DynamicWorld {
                     .map_or_else(crate::audio::VehicleSound::default, |definition| {
                         definition.config.sound
                     }),
+                boat_max_speed: v
+                    .definition()
+                    .filter(|d| d.config.vehicle_kind == catalog::VehicleKind::Boat)
+                    .map(|d| d.config.physics.max_speed),
                 wheel_radius: v
                     .definition()
                     .map_or(0.32, |definition| definition.config.physics.wheel_radius),

@@ -194,3 +194,72 @@ fn native_service_roof_lights_and_shared_paint_variants() {
         );
     }
 }
+
+#[test]
+#[ignore = "requires a native GPU adapter"]
+fn native_boat_waterlines_cut_the_ocean_at_the_rendered_pose() {
+    use opencity::runtime::{Mesh, SurfaceKind};
+    let hermes = Hermes::test_map();
+    let mut world = DynamicWorld::new(&hermes);
+    let mut renderer = pollster::block_on(Renderer::new(None, 640, 480)).unwrap();
+    renderer.daylight = Some(1.);
+    let mut vehicles = VehicleScenery::new(&renderer);
+    for (model, boat) in catalog::definitions()
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.water_hull.is_some())
+    {
+        world.preview_vehicle_lamps(model, Controls::default());
+        let mut p = world.player_position() / METERS_PER_UNIT;
+        p.z -= boat.config.physics.height_offset / METERS_PER_UNIT;
+        world.water_level = Some(p.z);
+        // Interpolation includes translation and attitude relative to the simulated pose.
+        let offset = Vec3::new(0.08, -0.05, 0.);
+        let pose = Mat4::from_translation(p + offset)
+            * Mat4::from_rotation_y(0.08)
+            * Mat4::from_rotation_x(-0.12)
+            * Mat4::from_translation(-p);
+        vehicles.update_with_player_pose(&renderer, &world, pose);
+        p += offset;
+        let mut ocean = Mesh::default();
+        ocean.quad(
+            [[-0.4, -0.4], [0.4, -0.4], [0.4, 0.4], [-0.4, 0.4]]
+                .map(|[x, y]| [p.x + x, p.y + y, p.z]),
+            [0.025, 0.15, 0.2],
+            SurfaceKind::Water,
+        );
+        let ocean = renderer.upload(&ocean);
+        let eye = p + Vec3::new(-0.015, -0.017, 0.068);
+        let capture = |meshes: &[&GpuMesh]| {
+            let png = renderer
+                .report_screenshot(meshes, eye, p, 1., hermes.minimap_view([p.x, p.y], 0.))
+                .unwrap();
+            let mut reader = png::Decoder::new(png.as_slice()).read_info().unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            reader.next_frame(&mut pixels).unwrap();
+            pixels
+        };
+        let masked = capture(&[&ocean]);
+        let empty = capture(&[]);
+        renderer.local_lights.hulls.set(Default::default());
+        let water = capture(&[&ocean]);
+        let pixel = |image: &[u8], x: usize, y: usize| -> [u8; 4] {
+            let offset: usize = 4 * (640 * y + x);
+            image[offset..offset + 4].try_into().unwrap()
+        };
+        for (x, y) in [(318, 238), (322, 242)] {
+            assert_eq!(
+                pixel(&masked, x, y),
+                pixel(&empty, x, y),
+                "wet interior of {}",
+                boat.config.name
+            );
+            assert_ne!(pixel(&masked, x, y), pixel(&water, x, y));
+        }
+        assert_eq!(
+            pixel(&masked, 100, 100),
+            pixel(&water, 100, 100),
+            "open water outside hull"
+        );
+    }
+}

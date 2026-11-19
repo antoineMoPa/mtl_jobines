@@ -72,7 +72,23 @@ impl VehicleScenery {
         for part in self.models.iter_mut().flatten() {
             part.transforms.clear();
         }
+        let mut hulls = [crate::dynamic_world::Waterline::default(); 8];
+        let mut hull_slots = hulls.iter_mut();
         for (model, transforms, opacity, headlights, player, paint) in world.vehicle_instances() {
+            if let (Some(hull), Some(level)) =
+                (&catalog::definitions()[model].water_hull, world.water_level)
+            {
+                let pose = if player {
+                    player_pose_delta * transforms[0]
+                } else {
+                    transforms[0]
+                };
+                if let Some(line) = hull.waterline(pose, level) {
+                    if let Some(slot) = hull_slots.next() {
+                        *slot = line;
+                    }
+                }
+            }
             for (part, transform) in self.models[model].iter_mut().zip(transforms) {
                 let transform = if player {
                     player_pose_delta * transform
@@ -89,6 +105,7 @@ impl VehicleScenery {
                 part.transforms.push(columns);
             }
         }
+        renderer.local_lights.hulls.set(hulls);
         for part in self.models.iter_mut().flatten() {
             renderer.update_instances(&mut part.mesh, &part.transforms);
         }

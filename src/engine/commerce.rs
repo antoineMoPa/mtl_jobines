@@ -43,7 +43,7 @@ pub(super) fn shader() -> String {
     )
 }
 impl Commerce {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, montreal_actors: bool) -> Self {
         let texture = |label, width, height, layers| {
             device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
@@ -207,7 +207,11 @@ impl Commerce {
         let models = super::model_textures::ModelTextures::new(device);
         models.sync(queue);
         let (grass, grass_sampler) = super::grass::upload(device, queue);
-        let (vehicle_albedo, vehicle_sampler) = super::vehicle_textures::upload(device, queue);
+        let (vehicle_albedo, vehicle_sampler) = if montreal_actors {
+            super::vehicle_textures::upload(device, queue)
+        } else {
+            super::vehicle_textures::upload_pngs(device, queue, std::iter::empty())
+        };
         let trees = opencity::runtime::tree_textures::TreeTextures::new(device, queue);
         let impostors = opencity::runtime::tree_textures::TreeImpostors::new(device, queue);
         let graffiti = super::graffiti::PaintTexture::new(device, queue);

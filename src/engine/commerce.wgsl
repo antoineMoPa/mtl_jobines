@@ -188,6 +188,7 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
 @fragment fn fs_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
     let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);let dx=dpdx(v.world);let dy=dpdy(v.world);
     let surface=prepare_surface(v);let footprint=fwidth(v.fence_uv);
+    if v.surface.x == 4.0 && inside_waterline(v.world.xy) {discard;}
     if v.surface.x>=24.0 && v.surface.x<=29.0 {return tree_image_color(v,du,dv);}
     if v.surface.x>=15.0 && v.surface.x<=23.0 {return tree_color(v,front,du,dv,dx,dy,surface);}
     if v.surface.x>39.5 {return commerce_color(v,du,dv,dx,dy);}
@@ -205,6 +206,7 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
 }
 @fragment fn fs_shadow_game(v:ShadowOutput) {
     let footprint=fwidth(v.fence_uv);
+    if v.kind_pattern.x == 4.0 && inside_waterline(v.fence_uv) {discard;}
     if v.kind_pattern.x==11.0 && v.kind_pattern.y==2.0 {
         let tex=textureSampleGrad(cutout_atlas,cutout_sampler,v.fence_uv,2,dpdx(v.fence_uv),dpdy(v.fence_uv));
         if tex.a<0.35 {discard;}

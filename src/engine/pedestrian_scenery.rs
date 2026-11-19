@@ -16,13 +16,16 @@ pub(super) struct Resources {
     sampler: wgpu::Sampler,
 }
 impl Resources {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, montreal_actors: bool) -> Self {
+        let models = if montreal_actors {
+            pedestrian_catalog::definitions()
+        } else {
+            &[]
+        };
         let (texture, sampler) = super::vehicle_textures::upload_pngs(
             device,
             queue,
-            pedestrian_catalog::definitions()
-                .iter()
-                .map(|d| d.texture_png.as_slice()),
+            models.iter().map(|d| d.texture_png.as_slice()),
         );
         let poses = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("pedestrian bone palettes"),

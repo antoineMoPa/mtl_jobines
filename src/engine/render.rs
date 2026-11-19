@@ -136,7 +136,8 @@ fn material_vertices(source: &[Vertex]) -> (Cow<'_, [Vertex]>, u32, u32) {
     };
     let masked = |triangle: &[Vertex]| {
         triangle.iter().any(|v| {
-            v.surface[0] == SurfaceKind::Fence as u32 as f32
+            v.surface[0] == SurfaceKind::Water as u32 as f32
+                || v.surface[0] == SurfaceKind::Fence as u32 as f32
                 || (15.0..=23.0).contains(&v.surface[0])
                 || (24.0..=29.0).contains(&v.surface[0])
                 || v.surface[0] >= crate::hermes::commerce_mesh::SIGN
@@ -155,7 +156,16 @@ fn material_vertices(source: &[Vertex]) -> (Cow<'_, [Vertex]>, u32, u32) {
     }
     let opaque_count = vertices.len() as u32;
     for triangle in source.chunks_exact(3).filter(|t| masked(t) && !paint(t)) {
-        vertices.extend_from_slice(triangle);
+        if triangle[0].surface[0] == SurfaceKind::Water as u32 as f32 {
+            // The masked shadow pass receives UVs, so pass the water's world XY there.
+            vertices.extend(triangle.iter().map(|v| {
+                let mut water = *v;
+                water.surface[1..3].copy_from_slice(&v.position[..2]);
+                water
+            }));
+        } else {
+            vertices.extend_from_slice(triangle);
+        }
     }
     let paint_start = vertices.len() as u32;
     for triangle in source.chunks_exact(3).filter(|t| paint(t)) {
@@ -403,6 +413,15 @@ fn world_pipelines(
 
 impl Renderer {
     pub async fn new(window: Option<Arc<Window>>, width: u32, height: u32) -> Result<Self, String> {
+        Self::with_catalog(window, width, height, true).await
+    }
+
+    pub(super) async fn with_catalog(
+        window: Option<Arc<Window>>,
+        width: u32,
+        height: u32,
+        montreal_actors: bool,
+    ) -> Result<Self, String> {
         let samples = 1;
         let descriptor = match &window {
             Some(window) => {
@@ -529,7 +548,8 @@ impl Renderer {
             mapped_at_creation: false,
         });
         let local_lights = super::local_lights::LocalLights::new(&device);
-        let pedestrians = super::pedestrian_scenery::Resources::new(&device, &queue);
+        let pedestrians =
+            super::pedestrian_scenery::Resources::new(&device, &queue, montreal_actors);
         let mut camera_bindings = vec![
             wgpu::BindGroupEntry {
                 binding: 0,
@@ -581,7 +601,7 @@ impl Renderer {
             layout: &shadow_layout,
             entries: &shadow_bindings,
         });
-        let commerce = Commerce::new(&device, &queue);
+        let commerce = Commerce::new(&device, &queue, montreal_actors);
         let [pipeline, opaque_pipeline, graffiti_pipeline, shadow_pipeline, opaque_shadow_pipeline, vehicle_pipeline, vehicle_shadow_pipeline, pedestrian_pipeline, pedestrian_shadow_pipeline] =
             world_pipelines(
                 &device,
@@ -1020,6 +1040,18 @@ impl Renderer {
         time: f32,
         navigation: MinimapView,
     ) {
+        self.render_scene(target, meshes, eye, look, time, Some(navigation));
+    }
+
+    pub(super) fn render_scene(
+        &self,
+        target: &wgpu::TextureView,
+        meshes: &[&GpuMesh],
+        eye: Vec3,
+        look: Vec3,
+        time: f32,
+        navigation: Option<MinimapView>,
+    ) {
         self.commerce.models.sync(&self.queue);
         self.contact_texture
             .set_enabled(&self.queue, self.contact_debris);
@@ -1308,7 +1340,9 @@ impl Renderer {
                 writes
             }),
         );
-        if !self.cinematic && (!super::app::mobile_enabled() || self.overlay == Overlay::Map) {
+        if let Some(navigation) = navigation.filter(|_| {
+            !self.cinematic && (!super::app::mobile_enabled() || self.overlay == Overlay::Map)
+        }) {
             self.hud.render(
                 &self.queue,
                 &mut encoder,
@@ -1356,6 +1390,7 @@ mod tests {
             SurfaceKind::Asphalt,
             SurfaceKind::Fence,
             SurfaceKind::Building,
+            SurfaceKind::Water,
         ]
         .into_iter()
         .enumerate()
@@ -1370,19 +1405,20 @@ mod tests {
             }
         }
         let (vertices, opaque, paint_start) = material_vertices(&mesh.vertices);
-        assert_eq!(paint_start, 9);
+        assert_eq!(paint_start, 12);
         assert_eq!(opaque, 6);
-        assert_eq!(vertices.len(), 9);
+        assert_eq!(vertices.len(), 12);
         assert_eq!(
             vertices
                 .iter()
                 .map(|v| v.position[0] as usize)
                 .collect::<Vec<_>>(),
-            vec![0, 0, 0, 2, 2, 2, 1, 1, 1]
+            vec![0, 0, 0, 2, 2, 2, 1, 1, 1, 3, 3, 3]
         );
         assert!(vertices[6..]
             .iter()
-            .all(|v| v.surface[0] == SurfaceKind::Fence as u32 as f32));
+            .all(|v| v.surface[0] == SurfaceKind::Water as u32 as f32
+                || v.surface[0] == SurfaceKind::Fence as u32 as f32));
         mesh.vertices.truncate(3);
         let (vertices, opaque, paint_start) = material_vertices(&mesh.vertices);
         assert_eq!(paint_start, 3);

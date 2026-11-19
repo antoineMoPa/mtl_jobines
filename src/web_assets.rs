@@ -54,9 +54,27 @@ mod browser {
 
     #[wasm_bindgen]
     pub fn install_assets() -> Result<(), JsValue> {
+        install(PATHS.lines())
+    }
+
+    #[wasm_bindgen]
+    pub fn owe_asset_paths() -> String {
+        PATHS
+            .lines()
+            .filter(|p| p.starts_with("opencity/") || *p == "assets/terrain/grass.png")
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[wasm_bindgen]
+    pub fn owe_install_assets() -> Result<(), JsValue> {
+        install(owe_asset_paths().lines())
+    }
+
+    fn install<'a>(paths: impl Iterator<Item = &'a str>) -> Result<(), JsValue> {
         PENDING.with(|pending| {
             let mut pending = pending.borrow_mut();
-            if pending.len() != PATHS.lines().count() {
+            if !paths.into_iter().all(|path| pending.contains_key(path)) {
                 return Err(JsValue::from_str(
                     "Web asset count does not match the build",
                 ));

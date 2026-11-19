@@ -27,6 +27,7 @@ mod lighting;
 mod local_lights;
 mod map_ui;
 mod model_textures;
+mod owe;
 mod palette;
 mod pedestrian_scenery;
 mod prop_scenery;
