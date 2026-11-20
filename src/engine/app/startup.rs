@@ -3,6 +3,8 @@ use super::*;
 impl Game {
     pub(super) fn finish_startup(&mut self, mut renderer: Renderer) {
         eprintln!("GPU: {}", renderer.adapter_name);
+        renderer.sky_settings = super::super::lighting::SkySettings::montreal();
+        renderer.montreal_grade = true;
         renderer.configure_graffiti(super::super::graffiti::Settings::default());
         let started = Instant::now();
         eprintln!("Preparing static scenery...");

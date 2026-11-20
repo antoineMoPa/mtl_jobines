@@ -25,6 +25,7 @@ use std::{
 pub(super) const RATE: u32 = 24_000;
 const BLOCK: usize = 256;
 const OUTPUT_GAIN: f32 = 1.6;
+const SIREN_PERIOD: f32 = 3.8;
 const VOICES: usize = CAR_VOICES + IMPACT_VOICES + 2;
 
 pub(super) struct Bridge {
@@ -55,6 +56,8 @@ struct Parameters {
     machinery_gain: AtomicU32,
     muffler_step: AtomicU32,
     horn_gain: AtomicU32,
+    siren_gain: AtomicU32,
+    siren_offset: AtomicU32,
     horn_reset: AtomicBool,
     engine_reset: AtomicBool,
     horn_frequency_a: AtomicU32,
@@ -69,7 +72,7 @@ struct ImpactTexture {
     debris_filter: f32,
 }
 impl Material {
-    fn texture(self) -> ImpactTexture {
+    fn texture(self, broken: bool) -> ImpactTexture {
         let (pressure_decay, crush_decay, debris_decay, debris_filter) = match self {
             Self::Hard => (28., 18., 9., 0.13),
             Self::Body => (18., 11., 6., 0.19),
@@ -77,7 +80,10 @@ impl Material {
             Self::Lamp => (26., 20., 5., 0.22),
             Self::Timber => (22., 10., 4.4, 0.12),
             Self::Asphalt => (55., 29., 15., 0.33),
+            // Sudden pressure release with a short, bright air tail.
+            Self::Rubber if broken => (95., 60., 18., 0.55),
             Self::Rubber => (62., 46., 22., 0.065),
+            Self::Gunshot => (82., 58., 19., 0.86),
             Self::Glass => (91., 31., 9., 0.72),
         };
         ImpactTexture {
@@ -89,7 +95,7 @@ impl Material {
     }
 }
 fn impact_parameters(p: &Parameters, material: Material, broken: bool) {
-    let texture = material.texture();
+    let texture = material.texture(broken);
     put(&p.pressure_decay, texture.pressure_decay);
     put(&p.crush_decay, texture.crush_decay);
     put(&p.debris_decay, texture.debris_decay);
@@ -118,6 +124,9 @@ struct Synth {
     pulse: f32,
     horn_phase: [f32; 2],
     horn_level: f32,
+    siren_level: f32,
+    siren_clock: f32,
+    siren_phase: f32,
 }
 impl Synth {
     fn new(parameters: Arc<Parameters>, kind: usize, seed: u32) -> Self {
@@ -137,6 +146,9 @@ impl Synth {
             pulse: 0.,
             horn_phase: [0.; 2],
             horn_level: 0.,
+            siren_level: 0.,
+            siren_clock: 0.,
+            siren_phase: 0.,
         }
     }
     fn noise(&mut self) -> f32 {
@@ -145,6 +157,25 @@ impl Synth {
         self.seed ^= self.seed << 5;
         self.seed as f32 / u32::MAX as f32 * 2. - 1.
     }
+    fn siren_sample(&mut self) -> f32 {
+        let gain = get(&self.parameters.siren_gain);
+        self.siren_level += (gain - self.siren_level) * 0.001;
+        if self.siren_level < 0.00001 {
+            return 0.;
+        }
+        self.siren_clock += 1. / RATE as f32;
+        if self.siren_clock >= SIREN_PERIOD {
+            self.siren_clock -= SIREN_PERIOD;
+        }
+        let sweep = self.siren_clock * (std::f32::consts::TAU / SIREN_PERIOD);
+        let hz = 780. - 225. * sweep.cos();
+        self.siren_phase = (self.siren_phase + hz / RATE as f32).fract();
+        let angle = self.siren_phase * std::f32::consts::TAU;
+        (angle.sin() + 0.12 * (2. * angle).sin() + 0.045 * (3. * angle).sin())
+            * self.siren_level
+            * 0.18
+    }
+
     fn sample(&mut self) -> f32 {
         if self.parameters.engine_reset.swap(false, Ordering::Relaxed) {
             // A recycled slot starts at the new engine's pitch, not a glide
@@ -155,6 +186,8 @@ impl Synth {
         }
         if self.parameters.horn_reset.load(Ordering::Relaxed) {
             self.horn_level = 0.;
+            self.siren_level = 0.;
+            self.siren_clock = get(&self.parameters.siren_offset);
             self.parameters.horn_reset.store(false, Ordering::Relaxed);
         }
         if self.gain < 0.000001 && get(&self.parameters.gain) == 0. {
@@ -228,6 +261,7 @@ impl Synth {
                     })
                     * self.horn_level;
             }
+            horn += self.siren_sample();
             let road = self.low * get(&self.parameters.rolling) * 0.65
                 + (self.mid - self.low) * get(&self.parameters.scrub) * 0.5;
             motor + road
@@ -358,6 +392,10 @@ impl Spatial {
             self.id = car.id;
             self.gear = 0;
             self.shifting = 0.;
+            put(
+                &self.parameters.siren_offset,
+                (car.id % 19) as f32 * (SIREN_PERIOD / 19.),
+            );
             self.parameters.horn_reset.store(true, Ordering::Relaxed);
             self.parameters.engine_reset.store(true, Ordering::Relaxed);
         }
@@ -517,6 +555,7 @@ impl Mix {
     fn clear_transients(&mut self) {
         for voice in &self.voices[..CAR_VOICES] {
             put(&voice.parameters.horn_gain, 0.);
+            put(&voice.parameters.siren_gain, 0.);
             voice.parameters.horn_reset.store(true, Ordering::Relaxed);
         }
         for i in 0..IMPACT_VOICES {
@@ -592,6 +631,24 @@ impl Mix {
                 put(&voice.parameters.gain, 0.);
             }
         }
+        // Reserve headroom for cruisers at comparable distances. A faraway siren
+        // makes little difference to the level of the one passing the listener.
+        let mut closest_power = 0_f32;
+        let mut total_power = 0.;
+        for car in frame
+            .cars
+            .iter()
+            .filter(|car| car.siren && car.id != usize::MAX)
+        {
+            let power = 1. / car.position.distance_squared(frame.eye).max(1.);
+            closest_power = closest_power.max(power);
+            total_power += power;
+        }
+        let siren_gain = if total_power > 0. {
+            frame.settings.horns * (closest_power / total_power).sqrt()
+        } else {
+            0.
+        };
         // Source identity survives nearest-distance rank swaps and overtaking.
         for car in frame
             .cars
@@ -608,6 +665,10 @@ impl Mix {
                         .position(|voice| voice.id == usize::MAX)
                 });
             if let Some(slot) = slot {
+                put(
+                    &self.voices[slot].parameters.siren_gain,
+                    if car.siren { siren_gain } else { 0. },
+                );
                 self.voices[slot].car(car, &frame);
                 self.voices[slot].present = true;
             }

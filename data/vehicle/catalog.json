@@ -82,5 +82,23 @@
     "path": "aircraft/fleche-jet",
     "researchId": "vehicle-air-fleche",
     "roadVehicle": false
+  },
+  {
+    "name": "Dériveur",
+    "path": "boat/voile",
+    "researchId": "vehicle-boat-voile",
+    "roadVehicle": false
+  },
+  {
+    "name": "Vedette de poche",
+    "path": "boat/cabine",
+    "researchId": "vehicle-boat-cabine",
+    "roadVehicle": false
+  },
+  {
+    "name": "Canot à moteur",
+    "path": "boat/runabout",
+    "researchId": "vehicle-boat-runabout",
+    "roadVehicle": false
   }
 ]

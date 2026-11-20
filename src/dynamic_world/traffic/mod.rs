@@ -1,6 +1,9 @@
 //! Nearby physical traffic: lane pursuit, signals, following, and collision recovery.
+mod abandoned;
 mod lod;
 mod models;
+mod police;
+pub use police::{ChaseStatus, Crime};
 mod signals;
 pub use signals::SignalBatch;
 #[cfg(test)]
@@ -11,7 +14,7 @@ use glam::Vec3;
 use opencity::runtime::City;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-const TARGET: usize = 36;
+pub(super) const TARGET: usize = 36;
 const SPAWN_RADIUS: f32 = 180.;
 const RETAIN_RADIUS: f32 = 240.;
 fn snowplow(vehicle: &Vehicle) -> bool {
@@ -56,10 +59,12 @@ impl Driver {
     }
 }
 pub(super) struct Traffic {
+    chase: police::Chase,
     season: crate::season::Season,
     graph: Arc<TrafficPaths>,
     drivers: Vec<Driver>,
     inactive: Vec<usize>,
+    abandoned: Vec<usize>,
     spawns: Vec<(usize, SpawnPoint)>,
     pub(super) time: f32,
     seed: u64,
@@ -84,9 +89,11 @@ impl Traffic {
             graph.signals.iter().map(models::instantiate).unzip();
         Self {
             season: Default::default(),
+            chase: Default::default(),
             graph: graph.clone(),
             drivers: Vec::new(),
             inactive: Vec::new(),
+            abandoned: Vec::new(),
             spawns: Vec::new(),
             time: 0.,
             seed: 7193,
@@ -159,7 +166,7 @@ impl Traffic {
             });
             candidates.into_iter().take(2).collect()
         };
-        retire.retain(|&id| id != player);
+        retire.retain(|&id| id != player && self.chase.patrol(id).is_none());
         self.drivers.retain(|d| !retire.contains(&d.vehicle));
         for id in retire {
             if !self.interacted.contains_key(&id) {
@@ -173,7 +180,9 @@ impl Traffic {
     pub fn populate(&mut self, city: &City, vehicles: &mut Vec<Vehicle>, center: Vec3) {
         let vacant = &mut self.inactive;
         self.drivers.retain(|d| {
-            if vehicles[d.vehicle].position.distance(center) > RETAIN_RADIUS {
+            if self.chase.patrol(d.vehicle).is_none()
+                && vehicles[d.vehicle].position.distance(center) > RETAIN_RADIUS
+            {
                 // Player interaction leaves a persistent physical vehicle behind.
                 // Only ordinary traffic may be hidden and its slot recycled.
                 if !self.interacted.contains_key(&d.vehicle) {
@@ -215,6 +224,7 @@ impl Traffic {
             .enumerate()
             .filter(|(_, d)| {
                 d.config.road_vehicle
+                    && (self.chase.stars == 0 || d.config.research_id != police::CRUISER)
                     && !d.is_bicycle()
                     && (d.config.dimensions.length < 6.
                         || d.config.category == "bus"
@@ -321,11 +331,20 @@ impl Traffic {
                 .push(Driver::new(index, path, distance, self.time));
         }
     }
+    pub(super) fn is_patrol(&self, index: usize) -> bool {
+        self.chase.patrol(index).is_some()
+    }
+    pub fn driven_slots(&self) -> impl Iterator<Item = (usize, f32)> + '_ {
+        self.drivers.iter().map(|d| (d.vehicle, self.fade(d)))
+    }
+    fn fade(&self, driver: &Driver) -> f32 {
+        ((self.time - driver.spawned_at) / 0.8).clamp(0., 1.)
+    }
     pub fn opacity(&self, index: usize) -> f32 {
         self.drivers
             .iter()
             .find(|d| d.vehicle == index)
-            .map_or(1., |d| ((self.time - d.spawned_at) / 0.8).clamp(0., 1.))
+            .map_or(1., |d| self.fade(d))
     }
     pub fn inactive(&self, index: usize) -> bool {
         self.inactive.contains(&index)
@@ -338,6 +357,8 @@ impl Traffic {
         self.drivers.len()
     }
     pub fn release(&mut self, index: usize) {
+        self.chase.release(index);
+        self.abandoned.retain(|&id| id != index);
         self.drivers.retain(|d| d.vehicle != index);
     }
     pub fn controls(
@@ -361,12 +382,43 @@ impl Traffic {
         let mut result = Vec::with_capacity(self.drivers.len());
         for i in 0..self.drivers.len() {
             let path = self.drivers[i].path;
-            if self.drivers[i].next.is_none() && !self.graph.paths[path].next.is_empty() {
+            let responding = self.chase.patrol(self.drivers[i].vehicle);
+            let patrol = responding.is_some();
+            if let Some(index) = responding {
+                let unit = &mut self.chase.patrols[index];
+                if unit.officer.is_none() {
+                    if let Some(controls) = unit.vehicle_controls(city, vehicles, dt) {
+                        self.drivers[i].stopped = false;
+                        self.drivers[i].stranded = 0.;
+                        result.push((unit.vehicle, controls));
+                        continue;
+                    }
+                }
+                let order = self
+                    .chase
+                    .order(path, self.drivers[i].distance, &self.graph);
+                self.chase.patrols[index].road_blocked =
+                    self.drivers[i].stopped || matches!(order, police::LaneOrder::Unreachable);
+                self.drivers[i].next = order.next();
+            } else if self.drivers[i].next.is_none() && !self.graph.paths[path].next.is_empty() {
                 let choice = self.random(self.graph.paths[path].next.len());
                 self.drivers[i].next = Some(self.graph.paths[path].next[choice]);
             }
             let driver = &mut self.drivers[i];
             let car = &vehicles[driver.vehicle];
+            if responding.is_some_and(|i| self.chase.patrols[i].officer.is_some()) {
+                driver.target_speed = 0.;
+                driver.clearance = 0.;
+                result.push((
+                    driver.vehicle,
+                    Controls {
+                        brake: true,
+                        handbrake: true,
+                        ..Default::default()
+                    },
+                ));
+                continue;
+            }
             let ground = car.position - Vec3::Z * car.ride_height();
             let forward = Vec3::new(car.yaw.cos(), car.yaw.sin(), 0.);
             let (distance, error) = match driver.motion {
@@ -445,20 +497,44 @@ impl Traffic {
                 .definition()
                 .map_or(0.52, |d| d.config.physics.max_steer_angle);
             let lookahead = (3.5 + speed * 0.7).clamp(wheelbase.max(3.5), 16.);
+            // A queue ahead of a siren can clear the intersection once it is physically free.
+            let clearing_for_patrol = self.chase.patrols.iter().any(|p| {
+                let unit = &vehicles[p.vehicle];
+                let behind = car.position - unit.position;
+                !patrol
+                    && p.officer.is_none()
+                    && (0. ..30.).contains(&behind.dot(forward))
+                    && behind.z.abs() < 2.
+                    && forward.truncate().perp_dot(behind.truncate()).abs() < 2.
+                    && (car.yaw - unit.yaw).cos() > 0.85
+            });
+            let wait_for_signal = !patrol && !clearing_for_patrol;
             let mut target = path.sample(driver.distance + lookahead).0;
-            let mut limit = path.speed.meters_per_second();
+            let road_speed = |class: SpeedClass| {
+                if patrol {
+                    police::pursuit_speed(class)
+                } else {
+                    class.meters_per_second()
+                }
+            };
+            let mut limit = road_speed(path.speed);
             if snowplow(car) {
                 limit = limit.min(20. / 3.6);
             }
-            let mut clearance = f32::INFINITY;
+            let mut clearance = if patrol {
+                self.chase
+                    .order(driver.path, driver.distance, &self.graph)
+                    .clearance(driver.distance)
+            } else {
+                f32::INFINITY
+            };
             if let Some(next) = driver.next {
                 let next_path = &self.graph.paths[next];
                 // Brake ahead of lower speed roads and bends, not after entering them.
                 limit = limit.min(
-                    (next_path.speed.meters_per_second().powi(2) + 2. * 3. * remaining.max(0.))
-                        .sqrt(),
+                    (road_speed(next_path.speed).powi(2) + 2. * 3. * remaining.max(0.)).sqrt(),
                 );
-                if let Some(signal) = next_path.signal {
+                if let Some(signal) = next_path.signal.filter(|_| wait_for_signal) {
                     let junction = self.graph.signals[signal].junction;
                     let permitted = if self.failed_junctions.contains(&junction) {
                         self.crossing.get(&junction) == Some(&driver.vehicle)
@@ -483,7 +559,7 @@ impl Traffic {
                 {
                     clearance = clearance.min((remaining - car.length() * 0.5 - 1.5).max(0.));
                 }
-                if next_path.turn == Turn::Left {
+                if wait_for_signal && next_path.turn == Turn::Left {
                     if let Some(signal) = next_path.signal {
                         if !self
                             .failed_junctions
@@ -516,8 +592,11 @@ impl Traffic {
             // Pure pursuit with the same speed-dependent steering range as Vehicle.
             let steering_angle = (2. * wheelbase * angle.sin() / aim.length().max(1.)).atan();
             let steering = steering_angle * (1. + speed * 0.025) / max_steer;
-            limit = limit
-                .min((2.5 / (2. * angle.sin().abs() / aim.length().max(1.)).max(0.0001)).sqrt());
+            limit = limit.min(
+                ((if patrol { 5. } else { 2.5 })
+                    / (2. * angle.sin().abs() / aim.length().max(1.)).max(0.0001))
+                .sqrt(),
+            );
             for (index, other) in vehicles.iter().enumerate() {
                 if index == driver.vehicle {
                     continue;
@@ -543,6 +622,10 @@ impl Traffic {
                         clearance.min((delta.dot(forward) - car.length() * 0.5 - 2.).max(0.));
                 }
             }
+            if responding.is_some_and(|i| self.chase.patrols[i].pull_over) {
+                clearance =
+                    clearance.min((car.position.distance(self.chase.last_known) - 14.).max(0.));
+            }
             limit = limit.min((2. * 3. * clearance).sqrt());
             if clearance < 0.5 || driver.stopped {
                 limit = 0.;
@@ -561,7 +644,7 @@ impl Traffic {
                 driver.vehicle,
                 Controls {
                     throttle: if speed < limit - 0.3 {
-                        ((limit - speed) * 0.4).min(0.7)
+                        ((limit - speed) * 0.4).min(if patrol { 1. } else { 0.7 })
                     } else {
                         0.
                     },

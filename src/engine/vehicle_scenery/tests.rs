@@ -263,3 +263,141 @@ fn native_boat_waterlines_cut_the_ocean_at_the_rendered_pose() {
         );
     }
 }
+
+#[test]
+#[ignore = "requires a native GPU adapter"]
+fn native_driver_and_door_states() {
+    let hermes = Hermes::test_map_from_source(
+        "pad=concrete(-2,-2,2,-2,2,2,-2,2); elevation(pad,0.1); player_start(0,0,0);",
+    );
+    let mut world = DynamicWorld::new(&hermes);
+    let mut renderer = pollster::block_on(Renderer::new(None, 800, 540)).unwrap();
+    let ground = hermes
+        .city()
+        .mesh(
+            opencity::runtime::Region::radius([0., 0.], 1.).unwrap(),
+            0.02,
+        )
+        .unwrap();
+    let ground = renderer.upload(&ground);
+    renderer.set_antialiasing(true);
+    renderer.daylight = Some(1.);
+    renderer.sky_settings.solar_hour = Some(12.);
+    let mut vehicles = VehicleScenery::new(&renderer);
+    for id in [
+        "vehicle-v2-09",
+        "vehicle-v2-01",
+        "vehicle-12",
+        "vehicle-j03",
+        "vehicle-j05",
+        "vehicle-r01",
+        "vehicle-r02",
+        "vehicle-air-estuaire",
+        "vehicle-j07",
+        "vehicle-j02",
+        "vehicle-air-fleche",
+    ] {
+        let model = catalog::definitions()
+            .iter()
+            .position(|d| d.config.research_id == id)
+            .unwrap();
+        world.switch_vehicle(model);
+        let mut images = Vec::new();
+        for state in ["closed", "open"] {
+            if state == "open" {
+                assert!(world.toggle_door());
+            }
+            for _ in 0..24 {
+                world.step(&hermes, Default::default(), Default::default(), 1. / 60.);
+            }
+            vehicles.update(&renderer, &world);
+            let v = world.player();
+            let look = (v.position + Vec3::X * v.length() * 0.13 + Vec3::Z * v.height() * 0.26)
+                / METERS_PER_UNIT;
+            let eye = look + Vec3::new(0.57, 0.81, 0.32) * v.length() / METERS_PER_UNIT;
+            let png = renderer
+                .report_screenshot(
+                    &std::iter::once(&ground)
+                        .chain(vehicles.visible())
+                        .collect::<Vec<_>>(),
+                    eye,
+                    look,
+                    0.,
+                    hermes.minimap_view([0., 0.], 0.),
+                )
+                .unwrap();
+            if let Some(dir) = std::env::var_os("DOOR_CAPTURE") {
+                std::fs::create_dir_all(&dir).unwrap();
+                std::fs::write(
+                    std::path::Path::new(&dir).join(format!("{id}-{state}.png")),
+                    &png,
+                )
+                .unwrap();
+            }
+            images.push(png);
+        }
+        assert_ne!(images[0], images[1], "{id}");
+    }
+}
+
+#[test]
+#[ignore = "requires a native GPU adapter and the Montréal map"]
+fn native_zombie_street_doors() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
+    let mut hermes = Hermes::load_with_game_data(&path, None).unwrap();
+    let mut world = DynamicWorld::new(&hermes);
+    let prior: Vec<_> = world
+        .vehicle_instances()
+        .map(|(_, parts, ..)| parts[0].w_axis.truncate())
+        .collect();
+    world.set_zombie_mode(hermes.city(), true);
+    let center = world.player_position() / METERS_PER_UNIT;
+    let cars: Vec<_> = world
+        .vehicle_instances()
+        .map(|(_, parts, ..)| parts)
+        .filter(|parts| !prior.contains(&parts[0].w_axis.truncate()))
+        .map(|parts| {
+            let chassis = parts[0];
+            let side = parts
+                .iter()
+                .find_map(|part| {
+                    let forward = (chassis.inverse() * *part).x_axis;
+                    (forward.y.abs() > 0.8).then(|| -forward.y.signum())
+                })
+                .expect("every abandoned car has an open door");
+            (chassis, side)
+        })
+        .collect();
+    assert!(cars.len() >= 3);
+    let (target, side) = cars
+        .into_iter()
+        .min_by(|(a, _), (b, _)| {
+            a.w_axis
+                .truncate()
+                .distance_squared(center)
+                .total_cmp(&b.w_axis.truncate().distance_squared(center))
+        })
+        .unwrap();
+    let p = target.w_axis.truncate() + Vec3::Z * 0.008;
+    let eye = p + target.transform_vector3(Vec3::new(6., 5. * side, 2.8));
+    let mut renderer = pollster::block_on(Renderer::new(None, 1100, 700)).unwrap();
+    renderer.set_antialiasing(true);
+    renderer.daylight = Some(1.);
+    renderer.sky_settings.solar_hour = Some(15.);
+    renderer.zombie_mode = true;
+    let scenery = super::super::scenery::Scenery::new(&renderer, &mut hermes);
+    let mut vehicles = VehicleScenery::new(&renderer);
+    for _ in 0..70 {
+        world.step(&hermes, Default::default(), Default::default(), 1. / 60.);
+    }
+    vehicles.update(&renderer, &world);
+    let mut meshes = scenery.visible([p.x, p.y]);
+    meshes.extend(vehicles.visible());
+    let png = renderer
+        .report_screenshot(&meshes, eye, p, 0., hermes.minimap_view([p.x, p.y], 0.))
+        .unwrap();
+    if let Some(dir) = std::env::var_os("DOOR_CAPTURE") {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(std::path::Path::new(&dir).join("zombie-street.png"), png).unwrap();
+    }
+}

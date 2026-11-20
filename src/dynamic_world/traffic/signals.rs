@@ -70,6 +70,7 @@ impl Traffic {
         self.crossing.retain(|junction, owner| {
             self.drivers.iter().any(|driver| {
                 driver.vehicle == *owner
+                    && self.chase.patrol(*owner).is_none()
                     && (self.graph.paths[driver.path].junction == Some(*junction)
                         || driver
                             .next
@@ -89,6 +90,7 @@ impl Traffic {
             let (along, error) = path.project(car.position - Vec3::Z * car.ride_height());
             let to_line = path.length - along - car.length() * 0.5 - 1.5;
             if failed
+                && self.chase.patrol(driver.vehicle).is_none()
                 && path.junction.is_none()
                 && error < 2.
                 && to_line < 1.5

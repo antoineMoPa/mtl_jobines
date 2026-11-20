@@ -107,11 +107,29 @@ pub(super) fn load_portraits(ctx: &egui::Context) -> Portraits {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct Vitals {
+    health: u8,
+    stars: u8,
+    searching: bool,
+}
+
+impl Vitals {
+    pub(super) fn from_world(world: &crate::dynamic_world::DynamicWorld) -> Self {
+        Self {
+            health: world.player_health(),
+            stars: world.wanted_stars(),
+            searching: world.chase_status() == crate::dynamic_world::ChaseStatus::Searching,
+        }
+    }
+}
+
 pub(super) fn show(
     ctx: &egui::Context,
     open: &mut bool,
     kairos: &Kairos,
     overlay: Overlay,
+    vitals: Option<Vitals>,
     phone_anchor: Option<egui::Vec2>,
     portraits: Option<&Portraits>,
 ) -> Option<super::palette::PaletteAction> {
@@ -120,7 +138,7 @@ pub(super) fn show(
     }
     let money_top = 8.;
     let mobile = super::app::mobile_enabled();
-    egui::Area::new(egui::Id::new("job_money"))
+    let status = egui::Area::new(egui::Id::new("job_money"))
         .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-20., money_top))
         .show(ctx, |ui| {
             let amount = format!("{}$", kairos.money_cents() / 100);
@@ -132,24 +150,99 @@ pub(super) fn show(
                 ),
                 Color32::PLACEHOLDER,
             );
-            let (rect, _) =
-                ui.allocate_exact_size(galley.size() + egui::vec2(4., 4.), egui::Sense::hover());
+            let cash_size = galley.size() + egui::vec2(4., 4.);
+            let hearts = vitals.map(|v| {
+                let heart = ui.painter().layout_no_wrap(
+                    "♥".into(),
+                    egui::FontId::proportional(if mobile { 18. } else { 25. }),
+                    Color32::PLACEHOLDER,
+                );
+                (v.health, heart)
+            });
+            let mut size = cash_size;
+            if let Some((_, heart)) = &hearts {
+                size.x = size.x.max(4. * (heart.size().x + 2.));
+                size.y += heart.size().y + 2.;
+            }
+            let stars = vitals.map_or(0, |v| v.stars);
+            let stride = if mobile { 16. } else { 22. };
+            if stars > 0 {
+                size.x = size.x.max(5. * stride);
+                size.y += stride;
+            }
+            let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
             let painter = ui.painter();
+            if stars > 0 {
+                for slot in 0..5 {
+                    let center = rect.right_bottom()
+                        - egui::vec2((4.5 - slot as f32) * stride, stride * 0.5);
+                    let points: [egui::Pos2; 10] = std::array::from_fn(|i| {
+                        let angle = std::f32::consts::PI * (i as f32 / 5. - 0.5);
+                        center
+                            + egui::Vec2::angled(angle)
+                                * stride
+                                * if i % 2 == 0 { 0.47 } else { 0.22 }
+                    });
+                    let fill = if slot >= stars {
+                        Color32::from_rgb(102, 107, 114)
+                    } else if vitals.is_some_and(|v| v.searching) {
+                        Color32::from_rgb(178, 148, 84)
+                    } else {
+                        Color32::from_rgb(255, 204, 66)
+                    };
+                    let mut mesh = egui::Mesh::default();
+                    mesh.colored_vertex(center, fill);
+                    for point in points {
+                        mesh.colored_vertex(point, fill);
+                    }
+                    for i in 0..10 {
+                        mesh.add_triangle(0, i + 1, (i + 1) % 10 + 1);
+                    }
+                    painter.add(mesh);
+                    painter.add(egui::Shape::closed_line(
+                        points.to_vec(),
+                        egui::Stroke::new(1.3, INK),
+                    ));
+                }
+            }
+            let cash = rect.right_top() - egui::vec2(cash_size.x, 0.);
             for offset in [
                 egui::vec2(0., 0.),
                 egui::vec2(0., 4.),
                 egui::vec2(4., 0.),
                 egui::vec2(4., 4.),
             ] {
-                painter.galley(rect.min + offset, galley.clone(), INK);
+                painter.galley(cash + offset, galley.clone(), INK);
             }
-            painter.galley(rect.min + egui::vec2(2., 2.), galley, MONEY_GREEN);
+            painter.galley(cash + egui::vec2(2., 2.), galley, MONEY_GREEN);
+            if let Some((hp, heart)) = hearts {
+                let stride = heart.size().x + 2.;
+                for slot in 0..4 {
+                    let pos = egui::pos2(
+                        rect.right() - (4 - slot) as f32 * stride + 1.,
+                        rect.top() + cash_size.y + 1.,
+                    );
+                    for offset in [(-1., -1.), (-1., 1.), (1., -1.), (1., 1.)] {
+                        painter.galley(pos + egui::vec2(offset.0, offset.1), heart.clone(), INK);
+                    }
+                    let color = if hp > slot * 25 {
+                        Color32::from_rgb(241, 93, 96)
+                    } else {
+                        HUD_PAPER
+                    };
+                    painter.galley(pos, heart.clone(), color);
+                }
+            }
         });
     if let Some(objective) = kairos.objective() {
         egui::Area::new(egui::Id::new("job_objective"))
             .anchor(
                 egui::Align2::RIGHT_TOP,
-                egui::vec2(-20., money_top + if mobile { 48. } else { 76. }),
+                egui::vec2(
+                    -20.,
+                    money_top
+                        + (status.response.rect.height() + 6.).max(if mobile { 48. } else { 76. }),
+                ),
             )
             .show(ctx, |ui| {
                 egui::Frame::new()
@@ -410,6 +503,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn outcome_titles_follow_death_and_confirmed_arrest() {
+        use crate::dynamic_world::ChaseStatus::*;
+        let ctx = egui::Context::default();
+        install_font(&ctx);
+        let size = egui::vec2(360., 640.);
+        for (health, chase, expected) in [
+            (0, Clear, Some("Mangé")),
+            (100, Arrested, Some("Busted")),
+            (0, Arrested, Some("Busted")),
+            (100, Reported(crate::dynamic_world::Crime::Gunshot), None),
+            (100, Pursued, None),
+            (100, Searching, None),
+            (100, Surrendering, None),
+            (100, Clear, None),
+        ] {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                    ..Default::default()
+                },
+                |ui| player_status(ui.ctx(), size, health, chase),
+            );
+            output.textures_delta.clear();
+            let title = output.shapes.iter().find_map(|shape| match &shape.shape {
+                egui::Shape::Text(t) => Some(t.galley.text()),
+                _ => None,
+            });
+            assert_eq!(title, expected);
+        }
+    }
+
+    #[test]
     fn phone_button_opens_feed_and_zombie_card_selects_mission() {
         let ctx = egui::Context::default();
         install_font(&ctx);
@@ -430,6 +555,7 @@ mod tests {
                         &mut open,
                         &kairos,
                         Overlay::Driving,
+                        None,
                         Some(egui::vec2(-20., -20.)),
                         None,
                     ) {
@@ -476,4 +602,32 @@ mod tests {
         ));
         assert!(!open);
     }
+}
+
+pub(super) fn player_status(
+    ctx: &egui::Context,
+    scene_size: egui::Vec2,
+    health: u8,
+    status: crate::dynamic_world::ChaseStatus,
+) {
+    if status == crate::dynamic_world::ChaseStatus::Arrested {
+        outcome_banner(ctx, scene_size, "Busted", Color32::from_rgb(143, 197, 255));
+    } else if health == 0 {
+        outcome_banner(ctx, scene_size, "Mangé", Color32::from_rgb(255, 110, 94));
+    }
+}
+
+fn outcome_banner(ctx: &egui::Context, scene_size: egui::Vec2, title: &str, color: Color32) {
+    let center = (scene_size * 0.5).to_pos2();
+    let size = (scene_size.y * 0.16)
+        .min(scene_size.x * 0.22)
+        .clamp(24., 112.);
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Foreground,
+        egui::Id::new("player outcome"),
+    ));
+    let band = egui::Rect::from_center_size(center, egui::vec2(scene_size.x, size * 1.45));
+    painter.rect_filled(band, 0., Color32::from_black_alpha(165));
+    let font = egui::FontId::new(size, egui::FontFamily::Name(MONEY_FONT.into()));
+    painter.text(center, egui::Align2::CENTER_CENTER, title, font, color);
 }

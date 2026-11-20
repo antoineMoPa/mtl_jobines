@@ -524,6 +524,9 @@ impl Hermes {
             .map(|&p| self.minimap.map_uv(p))
             .collect()
     }
+    pub fn map_uv(&self, point: [f32; 2]) -> [f32; 2] {
+        self.minimap.map_uv(point)
+    }
     pub fn minimap_view(&self, point: [f32; 2], heading: f32) -> MinimapView {
         let mut view = self.minimap.view(point, heading);
         view.destination_uv = self

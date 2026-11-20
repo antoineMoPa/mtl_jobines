@@ -1,5 +1,9 @@
 //! Embedded, shared web/native vehicle assets. GLB: +X nose, +Y up, +Z right, metres.
 //! Exact wheel_* names select axle-local spin/steering; other nodes belong to the sprung body.
+mod door_mesh;
+mod shot_mesh;
+use super::doors::{self, Door, Motion};
+use super::vehicle::tire::{Wheel, FLAT_HEIGHT};
 use glam::{Mat4, Quat, Vec3};
 #[cfg(test)]
 use opencity::runtime::Mesh;
@@ -78,8 +82,7 @@ pub struct Config {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum PartRole {
     Body,
-    MetroDoorForward,
-    MetroDoorBackward,
+    Door(Door, f32),
     Outboard,
     RearWheel,
     FrontWheel,
@@ -148,12 +151,6 @@ fn part_role(name: &str) -> Result<PartRole, String> {
         }
         "Gear strut main right" | "Tire main right" | "Hub main right -1" | "Hub main right 1" => {
             Ok(PartRole::AircraftGear(Gear::Right))
-        }
-        "metro_door_left_front_forward" | "metro_door_left_rear_forward" => {
-            Ok(PartRole::MetroDoorForward)
-        }
-        "metro_door_left_front_backward" | "metro_door_left_rear_backward" => {
-            Ok(PartRole::MetroDoorBackward)
         }
         "wheel_front" | "wheel_front_left" | "wheel_front_right" => Ok(PartRole::FrontWheel),
         "wheel_rear" | "wheel_rear_left" | "wheel_rear_right" | "wheel_middle_left"
@@ -245,6 +242,8 @@ fn gear_rotation(fraction: f32) -> Quat {
 }
 
 pub struct Definition {
+    pub(super) road_wheels: Option<[usize; 4]>,
+    shot_meshes: OnceLock<Vec<rapier3d::prelude::TriMesh>>,
     aircraft_hulls: Vec<AircraftHull>,
     pub water_hull: Option<super::water_hull::WaterHull>,
     pub config: Config,
@@ -313,6 +312,18 @@ fn game_vector(p: [f32; 3]) -> Vec3 {
     Vec3::new(p[0], -p[2], p[1])
 }
 impl Part {
+    fn opaque_shadow_vertices(&self) -> impl Iterator<Item = Vertex> + '_ {
+        self.shadow_vertices
+            .as_deref()
+            .unwrap_or(&self.vertices)
+            .chunks_exact(3)
+            .filter(|t| {
+                t.iter()
+                    .all(|v| v.surface[1] >= 0.999 && !headlight_vertex(v))
+            })
+            .flatten()
+            .copied()
+    }
     fn animated_pivot(&self, vehicle: &super::Vehicle) -> Vec3 {
         if self.role == PartRole::FrontWheel && vehicle.is_bicycle() {
             let stem = Vec3::new(0.35, 0., 0.90) - Vec3::Z * vehicle.ride_height();
@@ -714,15 +725,20 @@ impl Definition {
                         rear_lenses.push(vertex);
                     }
                 } else {
-                    parts.push(Part {
-                        role,
-                        pivot,
-                        vertices,
-                        shadow_vertices: match shadow_role(node.name().unwrap_or("")) {
-                            ShadowRole::Interior => Some(Vec::new()),
-                            ShadowRole::Exterior => None,
+                    door_mesh::separate(
+                        config,
+                        name,
+                        Part {
+                            role,
+                            pivot,
+                            vertices,
+                            shadow_vertices: match shadow_role(node.name().unwrap_or("")) {
+                                ShadowRole::Interior => Some(Vec::new()),
+                                ShadowRole::Exterior => None,
+                            },
                         },
-                    });
+                        parts,
+                    );
                 }
             }
             for child in node.children() {
@@ -764,18 +780,23 @@ impl Definition {
         let mut articulated: Vec<Part> = Vec::new();
         for part in parts {
             if part.role == PartRole::Body {
-                let caster = part.shadow_vertices.as_deref().unwrap_or(&part.vertices);
-                shadow_body.extend(
-                    caster
-                        .chunks_exact(3)
-                        .filter(|t| {
-                            t.iter()
-                                .all(|v| v.surface[1] >= 0.999 && !headlight_vertex(v))
-                        })
-                        .flatten()
-                        .copied(),
-                );
+                shadow_body.extend(part.opaque_shadow_vertices());
                 body.extend(part.vertices);
+            } else if matches!(part.role, PartRole::Door(..)) {
+                if let Some(group) = articulated.iter_mut().find(|g| g.role == part.role) {
+                    group
+                        .shadow_vertices
+                        .as_mut()
+                        .unwrap()
+                        .extend(part.opaque_shadow_vertices());
+                    group.vertices.extend(part.vertices);
+                } else {
+                    articulated.push(Part {
+                        pivot: Vec3::ZERO,
+                        shadow_vertices: Some(part.opaque_shadow_vertices().collect()),
+                        ..part
+                    });
+                }
             } else if part.role == PartRole::Outboard {
                 // The cowling, leg and prop share a single swivel and draw call.
                 if let Some(motor) = articulated
@@ -839,6 +860,8 @@ impl Definition {
             }
         }
         Ok(Self {
+            road_wheels: Self::road_wheel_parts(&config, &articulated),
+            shot_meshes: OnceLock::new(),
             water_hull: if config.vehicle_kind == VehicleKind::Boat {
                 Some(super::water_hull::WaterHull::new(shell_points)?)
             } else {
@@ -861,48 +884,60 @@ impl Definition {
             .iter()
             .map(|part| part.shadow_vertices.as_deref().unwrap_or(&part.vertices))
     }
+    fn door_transform(&self, vehicle: &super::Vehicle, door: Door, leaf: f32) -> Mat4 {
+        let manual = vehicle.doors.fraction(door);
+        if manual == 0. && vehicle.metro_doors == 0. {
+            return Mat4::IDENTITY;
+        }
+        let opening = doors::opening(&self.config.research_id, door).expect("mapped door");
+        let fraction = if opening.motion == Motion::Metro && door.side() > 0. {
+            manual.max(vehicle.metro_doors)
+        } else {
+            manual
+        };
+        opening.transform(door, fraction, leaf)
+    }
+    fn part_transform(&self, index: usize, vehicle: &super::Vehicle, lean: Quat) -> Mat4 {
+        let part = &self.parts[index];
+        let rotation = match part.role {
+            PartRole::Body => return Mat4::from_quat(lean),
+            PartRole::FlightControl(control, axis) => control.rotation(axis, vehicle),
+            PartRole::AircraftGear(_) => gear_rotation(vehicle.aircraft_gear),
+            PartRole::Door(door, leaf) => {
+                return Mat4::from_quat(lean) * self.door_transform(vehicle, door, leaf)
+            }
+            PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
+            PartRole::Pedal => Quat::IDENTITY,
+            PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
+            PartRole::Outboard => Quat::from_rotation_z(-vehicle.steering),
+            PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
+            PartRole::FrontWheel => {
+                Quat::from_rotation_z(vehicle.steering) * Quat::from_rotation_y(vehicle.wheel_angle)
+            }
+        };
+        let pivot = part.animated_pivot(vehicle);
+        if vehicle.flat_tires.contains(&true)
+            && self
+                .wheel_at_part(index)
+                .is_some_and(|w| vehicle.is_flat(w))
+        {
+            // Compress vertically after spin, so the flat stays against the road.
+            return Mat4::from_translation(pivot)
+                * Mat4::from_scale(Vec3::new(1., 1., FLAT_HEIGHT))
+                * Mat4::from_quat(rotation);
+        }
+        Mat4::from_rotation_translation(rotation, pivot)
+    }
+
     pub fn part_transforms(&self, vehicle: &super::Vehicle) -> Vec<Mat4> {
         let body = Mat4::from_scale_rotation_translation(
             Vec3::splat(1. / super::METERS_PER_UNIT),
             vehicle.orientation(),
             vehicle.position / super::METERS_PER_UNIT,
         );
-        let lean = Quat::from_rotation_y(-vehicle.body_lean.x)
-            * Quat::from_rotation_x(vehicle.body_lean.y);
-        self.parts
-            .iter()
-            .map(|part| {
-                let rotation = match part.role {
-                    PartRole::Body => lean,
-                    PartRole::FlightControl(control, axis) => control.rotation(axis, vehicle),
-                    PartRole::AircraftGear(_) => gear_rotation(vehicle.aircraft_gear),
-                    PartRole::MetroDoorForward | PartRole::MetroDoorBackward => Quat::IDENTITY,
-                    PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
-                    PartRole::Pedal => Quat::IDENTITY,
-                    PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
-                    PartRole::Outboard => Quat::from_rotation_z(-vehicle.steering),
-                    PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
-                    PartRole::FrontWheel => {
-                        Quat::from_rotation_z(vehicle.steering)
-                            * Quat::from_rotation_y(vehicle.wheel_angle)
-                    }
-                };
-                body * Mat4::from_rotation_translation(
-                    rotation,
-                    if part.role == PartRole::Body {
-                        Vec3::ZERO
-                    } else {
-                        part.animated_pivot(vehicle)
-                            + Vec3::X
-                                * vehicle.metro_doors
-                                * match part.role {
-                                    PartRole::MetroDoorForward => 0.7,
-                                    PartRole::MetroDoorBackward => -0.7,
-                                    _ => 0.,
-                                }
-                    },
-                )
-            })
+        let lean = vehicle.cabin_lean();
+        (0..self.parts.len())
+            .map(|i| body * self.part_transform(i, vehicle, lean))
             .collect()
     }
     #[cfg(test)]
@@ -916,15 +951,14 @@ impl Definition {
         output
             .vertices
             .reserve(self.parts.iter().map(|p| p.vertices.len()).sum());
-        let lean = Quat::from_rotation_y(-vehicle.body_lean.x)
-            * Quat::from_rotation_x(vehicle.body_lean.y);
+        let lean = vehicle.cabin_lean();
         let orientation = vehicle.orientation();
-        for part in &self.parts {
+        for (index, part) in self.parts.iter().enumerate() {
             let q = match part.role {
                 PartRole::Body => lean,
                 PartRole::FlightControl(control, axis) => control.rotation(axis, vehicle),
                 PartRole::AircraftGear(_) => gear_rotation(vehicle.aircraft_gear),
-                PartRole::MetroDoorForward | PartRole::MetroDoorBackward => Quat::IDENTITY,
+                PartRole::Door(..) => lean,
                 PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
                 PartRole::Pedal => Quat::IDENTITY,
                 PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
@@ -935,24 +969,29 @@ impl Definition {
                         * Quat::from_rotation_y(vehicle.wheel_angle)
                 }
             };
+            let flat = self
+                .wheel_at_part(index)
+                .is_some_and(|w| vehicle.is_flat(w));
             for vertex in &part.vertices {
                 let mut v = *vertex;
-                let local = q * Vec3::from_array(v.position)
-                    + if part.role == PartRole::Body {
-                        Vec3::ZERO
-                    } else {
-                        part.animated_pivot(vehicle)
-                            + Vec3::X
-                                * vehicle.metro_doors
-                                * match part.role {
-                                    PartRole::MetroDoorForward => 0.7,
-                                    PartRole::MetroDoorBackward => -0.7,
-                                    _ => 0.,
-                                }
-                    };
+                let mut point = Vec3::from_array(v.position);
+                if let PartRole::Door(door, leaf) = part.role {
+                    let transform = self.door_transform(vehicle, door, leaf);
+                    point = transform.transform_point3(point);
+                    v.normal = transform.transform_vector3(v.normal.into()).to_array();
+                }
+                let mut local = q * point;
+                let mut normal = q * Vec3::from(v.normal);
+                if flat {
+                    local.z *= FLAT_HEIGHT;
+                    normal.z /= FLAT_HEIGHT;
+                }
+                if part.role != PartRole::Body {
+                    local += part.animated_pivot(vehicle);
+                }
                 v.position =
                     ((orientation * local + vehicle.position) / super::METERS_PER_UNIT).to_array();
-                v.normal = (orientation * q * Vec3::from_array(v.normal)).to_array();
+                v.normal = (orientation * normal).to_array();
                 output.vertices.push(v);
             }
         }
@@ -1050,7 +1089,10 @@ mod tests {
             {
                 assert!(shadow.len() <= camera.len());
                 saved += camera.len() - shadow.len();
-                if index > 0 {
+                if matches!(
+                    definition.parts[index].role,
+                    PartRole::FrontWheel | PartRole::RearWheel
+                ) {
                     assert_eq!(
                         camera.as_ptr(),
                         shadow.as_ptr(),
@@ -1065,13 +1107,40 @@ mod tests {
         );
     }
     #[test]
-    fn authored_lenses_are_moved_once_without_adding_or_dropping_source_triangles() {
+    fn door_cuts_and_separate_lenses_preserve_the_authored_surface_area() {
         for (definition, (_, bytes)) in definitions().iter().zip(assets()) {
             let glb = gltf::Gltf::from_slice(bytes).unwrap();
-            let source_vertices: usize = glb
-                .meshes()
-                .flat_map(|m| m.primitives())
-                .map(|p| p.indices().unwrap().count())
+            fn area(a: Vec3, b: Vec3, c: Vec3) -> f64 {
+                0.5 * (b - a).cross(c - a).length() as f64
+            }
+            let source_area: f64 = glb
+                .nodes()
+                .filter_map(|node| node.mesh().map(|mesh| (node, mesh)))
+                .map(|(node, mesh)| {
+                    let transform = Mat4::from_cols_array_2d(&node.transform().matrix());
+                    mesh.primitives()
+                        .map(|primitive| {
+                            let reader = primitive.reader(|_| glb.blob.as_deref());
+                            let points: Vec<_> = reader
+                                .read_positions()
+                                .unwrap()
+                                .map(|p| transform.transform_point3(p.into()))
+                                .collect();
+                            let indices: Vec<_> =
+                                reader.read_indices().unwrap().into_u32().collect();
+                            indices
+                                .chunks_exact(3)
+                                .map(|i| {
+                                    area(
+                                        points[i[0] as usize],
+                                        points[i[1] as usize],
+                                        points[i[2] as usize],
+                                    )
+                                })
+                                .sum::<f64>()
+                        })
+                        .sum::<f64>()
+                })
                 .sum();
             let lamp_vertices: usize = glb
                 .nodes()
@@ -1085,15 +1154,26 @@ mod tests {
                 "{}",
                 definition.config.name
             );
-            assert_eq!(
-                definition
-                    .parts
-                    .iter()
-                    .map(|part| part.vertices.len())
-                    .sum::<usize>()
-                    + definition.rear_lenses.len(),
-                source_vertices + if definition.is_bicycle() { 0 } else { 6 },
-                "{}",
+            let surface_area: f64 = definition
+                .part_vertices()
+                .chain([definition.rear_lenses.as_slice()])
+                .flat_map(|vertices| vertices.chunks_exact(3))
+                .map(|t| {
+                    area(
+                        t[0].position.into(),
+                        t[1].position.into(),
+                        t[2].position.into(),
+                    )
+                })
+                .sum();
+            let plate_area = if definition.is_bicycle() {
+                0.
+            } else {
+                0.30 * 0.15
+            };
+            assert!(
+                (surface_area - source_area - plate_area).abs() < 0.0001,
+                "{} lost or duplicated geometry: {surface_area} vs {source_area}",
                 definition.config.name
             );
             assert!(
@@ -1624,7 +1704,7 @@ mod tests {
                     definition
                         .parts
                         .iter()
-                        .skip(1)
+                        .filter(|p| matches!(p.role, PartRole::FrontWheel | PartRole::RearWheel))
                         .flat_map(|p| &p.vertices)
                         .all(|v| v.surface[2].floor() == 0.),
                     "wheels must retain authored rubber and rim colors"

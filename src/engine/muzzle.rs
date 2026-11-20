@@ -42,10 +42,9 @@ impl Equipment {
         sprites: &mut Vec<ImpactVertex>,
     ) {
         renderer.update_instances(&mut self.gpu, &[pose.to_cols_array_2d()]);
-        renderer
-            .local_lights
-            .flash
-            .set(flash.draw(sprites, pose, self.tip, camera));
+        if let Some(light) = flash.draw(sprites, pose, self.tip, camera) {
+            renderer.local_lights.flash.set(Some(light));
+        }
     }
 }
 
@@ -62,6 +61,12 @@ pub(super) struct MuzzleFlash {
     fresh: bool,
 }
 impl MuzzleFlash {
+    pub fn handgun_at(age: f32) -> Self {
+        let mut flash = Self::default();
+        flash.ignite(FlashStyle::Handgun);
+        flash.age = age;
+        flash
+    }
     pub fn ignite(&mut self, style: FlashStyle) {
         self.length = match style {
             FlashStyle::Rifle => 0.48,

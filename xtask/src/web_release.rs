@@ -10,20 +10,30 @@ use crate::Result;
 
 const MAX_FILE_BYTES: u64 = 25 * 1024 * 1024;
 const MAX_FILES: usize = 20_000;
-const REQUIRED: &[&str] = &[
+const WEB_SOURCES: &[&str] = &[
     "index.html",
     "game/index.html",
     "intro/intro.css",
     "intro/language.js",
-    "intro/boulevard.webp",
+    "intro/gallery.js",
+    "intro/orange-julep.webp",
+    "intro/opencity-routes.webp",
+    "intro/mtl-objets.webp",
+    "intro/claydash-deriveur.webp",
+    "intro/centre-ville.webp",
+    "intro/aeroport.webp",
     "intro/plex.webp",
     "intro/lampadaire.webp",
     "intro/taxi.webp",
     "intro/snowplow.webp",
     "intro/acadie.webp",
+    "intro/mode-zombie.webp",
+    "intro/carte-montreal.webp",
     "boot.png",
     "mobile-controls.js",
     "mobile-controls.css",
+];
+const REQUIRED: &[&str] = &[
     "assets/fonts/pt-sans-bold.ttf",
     "assets/fonts/OFL.txt",
     "pkg/mtl_jobines.js",
@@ -35,6 +45,12 @@ pub fn check(root: &Path) -> Result<()> {
     let dist = root.join("web/dist");
     if !dist.is_dir() {
         return Err("Web build is missing; run make build first".into());
+    }
+    for file in WEB_SOURCES {
+        let built = dist.join(file);
+        if !built.is_file() || fs::read(root.join("web").join(file))? != fs::read(built)? {
+            return Err(format!("Web release is missing or has an outdated copy of {file}").into());
+        }
     }
     for file in REQUIRED {
         if !dist.join(file).is_file() {

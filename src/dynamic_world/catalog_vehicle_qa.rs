@@ -169,6 +169,13 @@ pub(super) fn textured_truck(
     let body = &definition.parts[0].vertices;
     let textured: Vec<_> = body[..body.len() - 6]
         .iter()
+        .chain(
+            definition
+                .parts
+                .iter()
+                .filter(|p| matches!(p.role, PartRole::Door(..)))
+                .flat_map(|p| &p.vertices),
+        )
         .filter(|v| v.surface[0] < 0.)
         .collect();
     assert!(textured.len() > 10_000);

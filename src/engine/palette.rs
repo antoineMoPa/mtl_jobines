@@ -519,6 +519,28 @@ impl Palette {
                     super::fabula::show(ui.ctx(), playback, cutscene_waiting_for_gesture);
                 return;
             }
+            if let Some(progress) = world.arrest_progress() {
+                let rect = ctx.content_rect();
+                super::job_feed::player_status(
+                    &ctx,
+                    rect.size(),
+                    world.player_health(),
+                    world.chase_status(),
+                );
+                // Fade the street and title together over the last half-second.
+                let fade = ((progress - 0.86) / 0.14).clamp(0., 1.);
+                ctx.layer_painter(egui::LayerId::new(
+                    egui::Order::Tooltip,
+                    egui::Id::new("arrest fade"),
+                ))
+                .rect_filled(
+                    rect,
+                    0.,
+                    egui::Color32::from_black_alpha((fade * 255.) as u8),
+                );
+                ctx.set_cursor_icon(egui::CursorIcon::None);
+                return;
+            }
             self.foot_motion
                 .show(ui.ctx(), foot_motion, view_projection);
             selected = self.show_panels(
@@ -529,16 +551,20 @@ impl Palette {
                 city,
                 kairos,
                 !world.is_driving(),
+                (world.zombie_mode() || world.wanted_stars() > 0)
+                    .then(|| super::job_feed::Vitals::from_world(world)),
                 help_visible,
                 game_overlay,
                 menu_selection,
             );
-            if world.zombie_mode()
-                && game_overlay == Overlay::Driving
-                && !*help_visible
-                && !self.is_open()
-            {
-                zombie_health(&ctx, renderer, world, view_projection);
+            if game_overlay == Overlay::Driving && !*help_visible && !self.is_open() {
+                super::job_feed::player_status(
+                    &ctx,
+                    egui::vec2(renderer.config.width as f32, renderer.scene_height() as f32)
+                        / ctx.pixels_per_point(),
+                    world.player_health(),
+                    world.chase_status(),
+                );
             }
             if scene_cursor == egui::CursorIcon::Crosshair {
                 weapon_reticle(&ctx, renderer);
@@ -575,82 +601,6 @@ impl Palette {
         selected
     }
 }
-fn zombie_health(
-    ctx: &egui::Context,
-    renderer: &Renderer,
-    world: &crate::dynamic_world::DynamicWorld,
-    projection: glam::Mat4,
-) {
-    use egui::{Align2, Color32, FontId, Rect};
-    let size = egui::vec2(renderer.config.width as f32, renderer.scene_height() as f32)
-        / ctx.pixels_per_point();
-    let painter = ctx.layer_painter(egui::LayerId::new(
-        egui::Order::Middle,
-        egui::Id::new("zombie health"),
-    ));
-    let meter = |rect: Rect, fraction: f32, color| {
-        painter.rect_filled(rect.expand(1.), 2., Color32::BLACK);
-        painter.rect_filled(rect, 1., Color32::from_gray(65));
-        let fill =
-            Rect::from_min_size(rect.min, egui::vec2(rect.width() * fraction, rect.height()));
-        painter.rect_filled(fill, 1., color);
-    };
-    for (head, fraction) in world.zombie_health_meters() {
-        let clip = projection * (head / crate::dynamic_world::METERS_PER_UNIT).extend(1.);
-        if clip.w <= 0. || clip.z < 0. || clip.z > clip.w {
-            continue;
-        }
-        let at = egui::pos2(
-            size.x * (0.5 + 0.5 * clip.x / clip.w),
-            size.y * (0.5 - 0.5 * clip.y / clip.w),
-        );
-        meter(
-            Rect::from_center_size(at, egui::vec2(32., 4.)),
-            fraction,
-            Color32::from_rgb(177, 208, 112),
-        );
-    }
-    let hp = world.player_health();
-    let panel = Rect::from_center_size(egui::pos2(size.x * 0.5, 29.), egui::vec2(144., 36.));
-    painter.rect_filled(panel, 4., Color32::from_black_alpha(205));
-    painter.text(
-        panel.left_top() + egui::vec2(9., 4.),
-        Align2::LEFT_TOP,
-        format!("Vie   {hp} / 100"),
-        FontId::proportional(13.),
-        Color32::WHITE,
-    );
-    meter(
-        Rect::from_min_size(
-            panel.left_bottom() + egui::vec2(9., -11.),
-            egui::vec2(126., 5.),
-        ),
-        hp as f32 / 100.,
-        Color32::from_rgb(248, 140, 97),
-    );
-    if hp == 0 {
-        let banner = Rect::from_center_size(
-            egui::pos2(size.x * 0.5, size.y * 0.5),
-            egui::vec2(244., 78.),
-        );
-        painter.rect_filled(banner, 5., Color32::from_black_alpha(225));
-        painter.text(
-            banner.center() - egui::vec2(0., 12.),
-            Align2::CENTER_CENTER,
-            "Vous avez succombé",
-            FontId::proportional(21.),
-            Color32::WHITE,
-        );
-        painter.text(
-            banner.center() + egui::vec2(0., 16.),
-            Align2::CENTER_CENTER,
-            "R · Réapparaître",
-            FontId::proportional(15.),
-            Color32::LIGHT_GRAY,
-        );
-    }
-}
-
 pub(super) fn weapon_reticle(ctx: &egui::Context, renderer: &Renderer) {
     let scale = 0.5 / ctx.pixels_per_point();
     let center = egui::pos2(

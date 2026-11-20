@@ -382,7 +382,7 @@ pub(super) fn impact(
     previous: &[Vec3],
     vehicles: &[Vehicle],
     dt: f32,
-) -> Option<Vec3> {
+) -> Option<(usize, Vec3)> {
     for (id, vehicle) in vehicles.iter().enumerate() {
         let speed = vehicle.velocity.length();
         if speed < 1.2 || !speed.is_finite() {
@@ -427,7 +427,7 @@ pub(super) fn impact(
             }
         }
         if enter <= exit && enter <= 1. && exit >= 0. {
-            return Some(vehicle.velocity);
+            return Some((id, vehicle.velocity));
         }
     }
     None

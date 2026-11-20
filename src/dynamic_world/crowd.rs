@@ -162,6 +162,7 @@ pub(crate) struct Crowd {
     step_number: u64,
     refill: f32,
     previous_vehicles: Vec<Vec3>,
+    pub(super) vehicle_knockdowns: Vec<usize>,
     pub(super) zombies: bool,
     kiosk_checked: bool,
     kiosk_spawned: bool,
@@ -211,11 +212,12 @@ fn collide_queue(
     serial: &mut u32,
     city: &City,
     vehicles: &[Vehicle],
-    mut impact: impl FnMut(Vec3) -> Option<Vec3>,
+    vehicle_knockdowns: &mut Vec<usize>,
+    mut impact: impl FnMut(Vec3) -> Option<(Option<usize>, Vec3)>,
 ) {
     let mut index = 0;
     while index < actors.len() {
-        let Some(velocity) = impact(actors[index].position) else {
+        let Some((vehicle, velocity)) = impact(actors[index].position) else {
             index += 1;
             continue;
         };
@@ -256,6 +258,9 @@ fn collide_queue(
         };
         if velocity != Vec3::ZERO {
             walker.fall(city, vehicles, velocity);
+            if let Some(id) = vehicle {
+                vehicle_knockdowns.push(id);
+            }
         }
         walkers.push(walker);
         *serial = serial.wrapping_add(1);
@@ -306,6 +311,7 @@ impl Crowd {
             step_number: 0,
             refill: 0.,
             previous_vehicles: Vec::new(),
+            vehicle_knockdowns: Vec::new(),
             zombies: false,
             kiosk_checked: false,
             kiosk_spawned: false,
@@ -404,6 +410,15 @@ impl Crowd {
             self.serial = self.serial.wrapping_add(1);
         }
     }
+    pub(super) fn overlaps_vehicle(&self, car: &Vehicle) -> bool {
+        self.walkers
+            .iter()
+            .any(|w| super::player::blocked_by_vehicle(w.position, car))
+            || self
+                .kiosk_actors
+                .iter()
+                .any(|a| super::player::blocked_by_vehicle(a.position, car))
+    }
     pub fn player_move(
         &mut self,
         city: &City,
@@ -430,7 +445,8 @@ impl Crowd {
             &mut self.serial,
             city,
             vehicles,
-            |position| ragdoll::walking_impact(position, before, after, dt),
+            &mut self.vehicle_knockdowns,
+            |position| ragdoll::walking_impact(position, before, after, dt).map(|v| (None, v)),
         );
     }
     pub fn step(
@@ -474,6 +490,7 @@ impl Crowd {
         dt: f32,
         mut profile: Option<&mut [u64; 13]>,
     ) {
+        self.vehicle_knockdowns.clear();
         let setup_started = profile.as_ref().map(|_| web_time::Instant::now());
         // A public world step can also be used by tools; bound displacement before
         // collision sampling even if a tool sends a long frame.
@@ -502,11 +519,13 @@ impl Crowd {
             &mut self.serial,
             city,
             vehicles,
+            &mut self.vehicle_knockdowns,
             |position| {
                 if self.zombies {
-                    Some(Vec3::ZERO)
+                    Some((None, Vec3::ZERO))
                 } else {
                     ragdoll::impact(position, &self.previous_vehicles, vehicles, dt)
+                        .map(|(id, v)| (Some(id), v))
                 }
             },
         );
@@ -602,10 +621,11 @@ impl Crowd {
             }
             let impact_started = profile.as_ref().map(|_| web_time::Instant::now());
             if walker.immunity <= 0. {
-                if let Some(velocity) =
+                if let Some((id, velocity)) =
                     ragdoll::impact(walker.position, &self.previous_vehicles, vehicles, dt)
                 {
                     walker.fall(city, vehicles, velocity);
+                    self.vehicle_knockdowns.push(id);
                     continue;
                 }
             }

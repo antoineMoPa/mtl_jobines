@@ -1,5 +1,6 @@
 // Approved mobile control icons, embedded so the web game needs no icon CDN.
 const icons = {
+  "door": '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 12 9 4h11v16H3Z M4 12h16 M15 15h3"/></svg>',
   "map": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z M9 3v15 M15 6v15\"/></svg>",
   "phone": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"6\" y=\"2.5\" width=\"12\" height=\"19\" rx=\"3\"/><path d=\"M10 6h4 M11 18h2\"/></svg>",
   "menu": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"6\" y=\"4\" width=\"4\" height=\"16\" rx=\"1\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"14\" y=\"4\" width=\"4\" height=\"16\" rx=\"1\" fill=\"currentColor\" stroke=\"none\"/></svg>",
@@ -31,6 +32,7 @@ export function installMobileControls(api, canvas) {
       ${button('map', 'map', 'Carte')}
       ${button('phone', 'phone', 'Tél.')}
       ${button('menu', 'menu', 'Menu')}
+      ${button('door', 'door', 'Portière')}
     </nav>
     <div class="mobile-directions" role="group" aria-label="Déplacement">
       ${button('forward', 'forward', 'Avancer', 'direction up')}
@@ -42,13 +44,11 @@ export function installMobileControls(api, canvas) {
     <div class="mobile-actions" role="group" aria-label="Actions">
       ${button('secondary', 'jump', 'Sauter')}
       ${button('primary', 'run', 'Courir', 'primary')}
-    </div>
-    <output class="mobile-notice" role="status" aria-live="polite" hidden></output>`;
+    </div>`;
   document.body.append(root);
   const buttons = Object.fromEntries([...root.querySelectorAll('button')].map(b => [b.id.slice(7), b]));
   const holds = new Map();
   let state = 'hidden';
-  let noticeTimer;
   const holdActions = {
     walking: { forward: A.Forward, backward: A.Backward, left: A.Left, right: A.Right, secondary: A.Jump, primary: A.Run },
     driving: { forward: A.Forward, backward: A.Backward, left: A.Left, right: A.Right, secondary: A.Jump, primary: A.Forward },
@@ -105,7 +105,7 @@ export function installMobileControls(api, canvas) {
       for (const id of [...holds.keys()]) if (typeof id === 'string' && holds.get(id).button === b) release(id);
     });
   }
-  for (const [key, action] of Object.entries({ map: A.Map, phone: A.Phone, menu: A.Menu, vehicle: A.Vehicle })) {
+  for (const [key, action] of Object.entries({ map: A.Map, phone: A.Phone, menu: A.Menu, vehicle: A.Vehicle, door: A.Door })) {
     buttons[key].addEventListener('pointerdown', event => event.preventDefault());
     buttons[key].addEventListener('click', () => {
       if (!available()) return;
@@ -135,17 +135,8 @@ export function installMobileControls(api, canvas) {
       buttons.backward.setAttribute('aria-label', driving ? 'Freiner / reculer' : 'Reculer');
     }
     root.hidden = !available();
-    const notice = canvas.dataset.mobileNotice;
-    if (notice) {
-      const output = root.querySelector('output');
-      output.textContent = notice;
-      output.hidden = false;
-      clearTimeout(noticeTimer);
-      noticeTimer = setTimeout(() => { output.hidden = true; }, 2200);
-      canvas.removeAttribute('data-mobile-notice');
-    }
   }
-  new MutationObserver(render).observe(canvas, { attributes: true, attributeFilter: ['data-mobile-mode', 'data-mobile-notice'] });
+  new MutationObserver(render).observe(canvas, { attributes: true, attributeFilter: ['data-mobile-mode'] });
   function configure() {
     reset();
     api.mobile_set_enabled(viewport.matches);

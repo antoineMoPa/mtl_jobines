@@ -12,6 +12,8 @@ mod contacts;
 mod crowd;
 mod cycling_pose;
 mod cyclists;
+mod doors;
+mod drivers;
 mod illumination;
 pub mod pedestrian_catalog;
 pub mod pedestrian_gait;
@@ -39,7 +41,7 @@ mod street_tests;
 mod suspension;
 mod traffic;
 pub use spawn::SpawnPoint;
-pub use traffic::SignalBatch;
+pub use traffic::{ChaseStatus, Crime, SignalBatch};
 #[cfg(test)]
 mod handbrake_tests;
 mod vehicle;
@@ -50,7 +52,7 @@ use glam::Vec3;
 use opencity::runtime::Mesh;
 use player::Pedestrian;
 pub const PEDESTRIAN_CAPACITY: usize =
-    crowd::CAPACITY + crowd::KIOSK_CAPACITY + cyclists::CAPACITY + 9;
+    crowd::CAPACITY + crowd::KIOSK_CAPACITY + cyclists::CAPACITY + traffic::TARGET + 1 + 9 + 4;
 pub use player::WalkControls;
 pub use player::TURN_SPEED as WALK_TURN_SPEED;
 pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
@@ -85,6 +87,7 @@ pub struct DynamicWorld {
     snow_events: Vec<crate::kairos::SnowCell>,
     props: props::Props,
     traffic: traffic::Traffic,
+    dispatch_view: Option<glam::Mat4>,
     crowd: crowd::Crowd,
     cyclists: cyclists::Cyclists,
     service_passengers: service_passengers::ServicePassengers,
@@ -147,6 +150,7 @@ impl DynamicWorld {
             sound_serial: 0,
             sound_foliage: 0.15,
             sound_geography_timer: 0.,
+            dispatch_view: None,
             traffic: traffic::Traffic::new_near(hermes.traffic_paths(), prop_center),
             crowd: crowd::Crowd::new(hermes.walking_paths()),
             cyclists: cyclists::Cyclists::new(hermes),
@@ -213,12 +217,7 @@ impl DynamicWorld {
             &world.vehicles,
             &world.props,
         );
-        world.cyclists.update_poses(
-            &world.vehicles,
-            world.player_vehicle.0,
-            world.is_driving(),
-            world.season,
-        );
+        world.update_riders();
         Ok(world)
     }
     fn populate_traffic(&mut self, hermes: &Hermes) {
@@ -258,7 +257,7 @@ impl DynamicWorld {
     ) -> bool {
         let vehicle = &self.vehicles[self.player_vehicle.0];
         self.service_passengers
-            .begin(board, alight, vehicle, sidewalk, bus)
+            .begin(board, alight, self.player_vehicle.0, vehicle, sidewalk, bus)
     }
     pub fn take_service_finished(&mut self) -> bool {
         self.service_passengers.take_finished()
@@ -273,6 +272,7 @@ impl DynamicWorld {
         self.traffic
             .set_season(season, &mut self.vehicles, self.player_vehicle.0);
         self.populate_traffic(hermes);
+        self.update_riders();
     }
     pub fn player(&self) -> &Vehicle {
         &self.vehicles[self.player_vehicle.0]
@@ -368,7 +368,9 @@ impl DynamicWorld {
             .chain(self.airport.planes())
             .enumerate()
         {
-            if self.traffic.inactive(id) || (!v.sound_running && v.velocity.length_squared() < 0.25)
+            let siren = self.traffic.is_patrol(id);
+            if self.traffic.inactive(id)
+                || (!siren && !v.sound_running && v.velocity.length_squared() < 0.25)
             {
                 continue;
             }
@@ -377,7 +379,13 @@ impl DynamicWorld {
                 continue;
             }
             let player = self.is_driving() && id == self.player_vehicle.0;
-            let rank = if player { -1. } else { distance };
+            let rank = if player {
+                -40_000.
+            } else if siren {
+                distance - 20_000.
+            } else {
+                distance
+            };
             let Some(slot) = distances.iter().position(|d| rank < *d) else {
                 continue;
             };
@@ -409,6 +417,7 @@ impl DynamicWorld {
                     .definition()
                     .map_or(0.32, |definition| definition.config.physics.wheel_radius),
                 horn: false,
+                siren,
                 player,
                 engine_on: v.sound_running,
             };
@@ -434,11 +443,21 @@ impl DynamicWorld {
                         .total_cmp(&b.entry_distance(player.position))
                 })
             {
+                let car = &mut self.vehicles[index];
+                car.doors.claim();
+                if let Some(door) = car.nearest_door(player.position) {
+                    car.doors.use_door(door);
+                }
+                let occupied = self.traffic.driven_slots().any(|(id, _)| id == index);
                 self.traffic.release(index);
                 self.cyclists.release(index);
                 self.boat_routes.retain(|route| route.vehicle != index);
                 self.player_vehicle = VehicleId(index);
                 self.pedestrian = None;
+                if occupied {
+                    self.report_crime(Crime::VehicleTheft);
+                }
+                self.update_riders();
                 return true;
             }
         } else if !self.player().is_aircraft() || self.player().grounded {
@@ -449,11 +468,19 @@ impl DynamicWorld {
                         .iter()
                         .any(|v| player::blocked_by_vehicle(position, v))
             });
-            return self.pedestrian.is_some();
+            if let Some(player) = &self.pedestrian {
+                let car = &mut self.vehicles[self.player_vehicle.0];
+                if let Some(door) = car.nearest_door(player.position) {
+                    car.doors.use_door(door);
+                }
+                self.update_riders();
+                return true;
+            }
         }
         false
     }
     pub fn reset_player(&mut self, hermes: &Hermes) {
+        self.clear_chase();
         self.health = melee::PLAYER_HEALTH;
         self.crowd.cancel_bites();
         self.metro.aboard = false;
@@ -468,6 +495,7 @@ impl DynamicWorld {
         self.pedestrian = self
             .walking_spawn
             .map(|start| Pedestrian::at(hermes.city(), start).expect("validated walking start"));
+        self.update_riders();
     }
     pub fn step(&mut self, hermes: &Hermes, input: Controls, walk: WalkControls, dt: f32) {
         self.step_inner(hermes, input, walk, dt, None);
@@ -493,6 +521,10 @@ impl DynamicWorld {
         if !dt.is_finite() || dt <= 0. {
             return;
         }
+        if self.chase_status() == ChaseStatus::Arrested {
+            self.step_chase(hermes, self.player_position(), dt);
+            return;
+        }
         let mut mark = profile.as_ref().map(|_| web_time::Instant::now());
         macro_rules! stage {
             ($index:expr) => {
@@ -505,6 +537,7 @@ impl DynamicWorld {
         self.metro.step(dt, self.pedestrian.as_mut());
         self.airport.step(hermes.city(), dt);
         if self.traffic.needs_refill(dt) {
+            self.refresh_abandoned_cars(hermes.city(), self.zombie_mode());
             self.populate_traffic(hermes);
         }
         self.sound_geography_timer -= dt;
@@ -537,8 +570,10 @@ impl DynamicWorld {
         } else {
             Vec3::ZERO
         };
-        self.cyclists
-            .refresh(hermes, &mut self.vehicles, center, dt);
+        if !self.zombie_mode() {
+            self.cyclists
+                .refresh(hermes, &mut self.vehicles, center, dt);
+        }
         while self.vehicle_spawns.len() < self.vehicles.len() {
             let v = &self.vehicles[self.vehicle_spawns.len()];
             self.vehicle_spawns.push(SpawnPoint {
@@ -582,6 +617,7 @@ impl DynamicWorld {
             } else {
                 crate::hermes::RouteSignal::Off
             };
+            vehicle.doors.step(dt);
             vehicle.update_route_signal(signal, dt);
             vehicle.sound_running = false;
             vehicle.sound_cooldown = (vehicle.sound_cooldown - dt).max(0.);
@@ -636,6 +672,7 @@ impl DynamicWorld {
         }
         stage!(2);
         let contacts = contacts::resolve_with_contacts(&mut self.vehicles);
+        self.patrol_contact(&contacts);
         self.traffic
             .record_contacts(&contacts, self.player_vehicle.0);
         stage!(3);
@@ -690,7 +727,19 @@ impl DynamicWorld {
                 dt,
             );
         }
+        if driving
+            && self
+                .crowd
+                .vehicle_knockdowns
+                .contains(&self.player_vehicle.0)
+        {
+            self.report_crime(Crime::PedestrianHit);
+        }
+        self.step_chase(hermes, center, dt);
         stage!(6);
+        if let Some((index, door)) = self.service_passengers.access {
+            self.vehicles[index].doors.use_door(door);
+        }
         self.service_passengers.step(dt);
         self.traffic.step_debris(dt);
         if self.season == crate::season::Season::Winter {
@@ -707,12 +756,7 @@ impl DynamicWorld {
         if self.player_position().z < -40. && !(driving && self.player().is_aircraft()) {
             self.reset_player(hermes);
         }
-        self.cyclists.update_poses(
-            &self.vehicles,
-            self.player_vehicle.0,
-            self.is_driving(),
-            self.season,
-        );
+        self.update_riders();
         stage!(7);
     }
     #[cfg(any(not(target_arch = "wasm32"), test))]
@@ -728,6 +772,9 @@ impl DynamicWorld {
         self.vehicles[self.player_vehicle.0].riding_stand = standing;
         self.vehicles[self.player_vehicle.0].pedal_angle = pedal;
         self.vehicles[self.player_vehicle.0].steering = steering;
+        self.update_riders();
+    }
+    fn update_riders(&mut self) {
         self.cyclists.update_poses(
             &self.vehicles,
             self.player_vehicle.0,
@@ -741,7 +788,8 @@ impl DynamicWorld {
             .map(|player| player.instance(self.season))
             .chain(self.crowd.instances(self.player_position()))
             .chain(self.service_passengers.instances())
-            .chain(self.boat_crew())
+            .chain(self.seated_drivers())
+            .chain(self.officer_instances())
             .chain(
                 self.cyclists
                     .instances(&self.vehicles, self.player_position()),
@@ -846,6 +894,12 @@ impl DynamicWorld {
     pub fn vehicle_instances(
         &self,
     ) -> impl Iterator<Item = (usize, Vec<glam::Mat4>, f32, bool, bool, u8)> + '_ {
+        self.vehicle_instances_with_patrol()
+            .map(|(instance, _)| instance)
+    }
+    pub fn vehicle_instances_with_patrol(
+        &self,
+    ) -> impl Iterator<Item = ((usize, Vec<glam::Mat4>, f32, bool, bool, u8), bool)> + '_ {
         self.vehicles
             .iter()
             .enumerate()
@@ -853,12 +907,15 @@ impl DynamicWorld {
             .filter_map(|(index, v)| {
                 v.definition.map(|id| {
                     (
-                        id,
-                        catalog::definitions()[id].part_transforms(v),
-                        self.traffic.opacity(index),
-                        v.sound_running,
-                        index == self.player_vehicle.0,
-                        catalog::definitions()[id].paint_variant(index),
+                        (
+                            id,
+                            catalog::definitions()[id].part_transforms(v),
+                            self.traffic.opacity(index),
+                            v.sound_running,
+                            index == self.player_vehicle.0,
+                            catalog::definitions()[id].paint_variant(index),
+                        ),
+                        self.traffic.is_patrol(index),
                     )
                 })
             })
@@ -873,12 +930,15 @@ impl DynamicWorld {
                     .map(|v| {
                         let id = v.definition.expect("authored transport model");
                         (
-                            id,
-                            catalog::definitions()[id].part_transforms(v),
-                            1.,
+                            (
+                                id,
+                                catalog::definitions()[id].part_transforms(v),
+                                1.,
+                                false,
+                                false,
+                                0,
+                            ),
                             false,
-                            false,
-                            0,
                         )
                     }),
             )

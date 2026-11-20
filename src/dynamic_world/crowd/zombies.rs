@@ -36,7 +36,7 @@ impl Crowd {
             let facing = glam::Vec2::from_angle(w.yaw).dot(delta);
             let in_reach =
                 distance <= 0.98 && to_player.z.abs() <= 0.43 && facing >= distance * 0.55;
-            if in_reach && w.stagger <= 0. {
+            if in_reach && distance <= 0.86 && w.stagger <= 0. {
                 w.gait.melee.start(Attack::Bite);
             }
             if w.gait.melee.advance(dt) && in_reach {
@@ -46,6 +46,7 @@ impl Crowd {
         contacts
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub(in crate::dynamic_world) fn health_meters(
         &self,
         center: Vec3,
@@ -225,10 +226,6 @@ pub(super) fn pursue(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dynamic_world::{
-        melee::{Attack, ZOMBIE_HEALTH},
-        player::HALF_HEIGHT,
-    };
     #[test]
     fn zombie_mode_gates_hits_pursuit_and_knockout() {
         let h = crate::hermes::Hermes::test_map();

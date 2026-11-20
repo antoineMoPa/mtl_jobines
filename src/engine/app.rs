@@ -64,6 +64,14 @@ mod native_startup;
 #[cfg(not(target_arch = "wasm32"))]
 mod reload;
 mod startup;
+/// At default zoom the taxi sits 6.3 m ahead and 2.55 m below the eye.
+fn ground_chase(p: Vec3, forward: Vec3, zoom: f32, pitch: f32) -> (Vec3, Vec3) {
+    let scale = zoom / DEFAULT_CHASE_ZOOM / METERS_PER_UNIT;
+    let eye = p + (-forward * (6.3 * pitch.cos()) + Vec3::Z * (2.55 + 6.3 * pitch.sin())) * scale;
+    let aim = p + (forward * 6.0 + Vec3::Z * 1.4) / METERS_PER_UNIT;
+    (eye, aim)
+}
+
 /// Eye and aim offsets in map units. Size the view by airframe length so the
 /// jet and airliner occupy a similar portion of the frame.
 fn aircraft_chase(length: f32, forward: Vec3, zoom: f32, orbit_pitch: f32) -> (Vec3, Vec3) {
@@ -73,6 +81,22 @@ fn aircraft_chase(length: f32, forward: Vec3, zoom: f32, orbit_pitch: f32) -> (V
     let eye = (-forward * elevation.cos() + Vec3::Z * elevation.sin()) * distance;
     let aim = (forward * 2.8 + Vec3::Z * 0.10) * scale;
     (eye, aim)
+}
+
+/// Ease sideways from the current lens, pulling back just enough to frame the arrest.
+fn arrest_view(start: (Vec3, Vec3), focus: Vec3, forward: Vec3, progress: f32) -> (Vec3, Vec3) {
+    let t = progress.clamp(0., 1.);
+    let glide = t * t * (3. - 2. * t);
+    let arm = (start.0 - focus).truncate();
+    let heading = if arm.length() * METERS_PER_UNIT > 2. {
+        arm.y.atan2(arm.x)
+    } else {
+        (-forward.y).atan2(-forward.x)
+    };
+    let distance = (arm.length() * METERS_PER_UNIT + 2.).clamp(6., 11.);
+    let end =
+        focus + (glam::Vec2::from_angle(heading + 0.68) * distance).extend(2.7) / METERS_PER_UNIT;
+    (start.0.lerp(end, glide), start.1.lerp(focus, glide))
 }
 
 fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkControls) {
@@ -147,6 +171,8 @@ struct Game {
     dynamic_mesh: Option<GpuMesh>,
     dynamic_vertices: Mesh,
     loadout: weapons::Loadout,
+    officer_weapons: Vec<super::muzzle::Equipment>,
+    arrest_camera_start: Option<(Vec3, Vec3)>,
     aim_mouse: camera_input::AimMouse,
     palette: Option<Palette>,
     keys: HashSet<KeyCode>,
@@ -394,6 +420,8 @@ impl Game {
             dynamic_mesh: None,
             dynamic_vertices: Mesh::default(),
             loadout: Default::default(),
+            officer_weapons: Vec::new(),
+            arrest_camera_start: None,
             aim_mouse: Default::default(),
             palette: None,
             keys: HashSet::new(),
@@ -406,7 +434,7 @@ impl Game {
             previous_car_orientation,
             previous_car_yaw,
             mesh_center: [p.x, p.y],
-            eye: p - forward * (0.15 * DEFAULT_CHASE_ZOOM) + Vec3::Z * (0.075 * DEFAULT_CHASE_ZOOM),
+            eye: ground_chase(p, forward, DEFAULT_CHASE_ZOOM, 0.).0,
             camera_anchor: p,
             zoom: DEFAULT_CHASE_ZOOM,
             orbit: 0.,
@@ -456,7 +484,25 @@ impl Game {
             self.accumulator = 0.;
             return;
         }
-        if !self.world.can_equip_weapon() {
+        if self.world.arrest_progress().is_some() {
+            self.game_time += elapsed;
+            self.loadout.effects.step(elapsed);
+            self.world.step(
+                &self.hermes,
+                Controls::default(),
+                WalkControls::default(),
+                elapsed,
+            );
+            if self.world.arrest_progress().is_none() {
+                self.arrest_camera_start = None;
+                self.previous_car_position = self.world.player().position;
+                self.previous_car_orientation = self.world.player().orientation();
+                self.previous_car_yaw = self.world.player().yaw;
+                self.finish_location_change();
+            }
+            return;
+        }
+        if !self.world.zombie_mode() && !self.world.can_equip_weapon() {
             self.loadout.equip(None);
         }
         let driving_mission_vehicle = self.driving_mission_vehicle();
@@ -518,6 +564,19 @@ impl Game {
                 self.orbit -= step_turn;
             }
             self.world.step(&self.hermes, input, walk, DT);
+            if self.world.arrest_progress().is_some() {
+                self.keys.clear();
+                self.stop_orbit_drag();
+                self.release_aim_mouse();
+                self.loadout.equip(None);
+                self.accumulator = 0.;
+                return;
+            }
+            if self.world.player_ready_to_respawn() {
+                self.world.reset_player(&self.hermes);
+                self.finish_location_change();
+                return;
+            }
             if aiming {
                 self.orbit -= self.world.player_yaw() - yaw;
                 self.orbit = self.orbit.sin().atan2(self.orbit.cos());
@@ -760,16 +819,14 @@ impl Game {
                 (p + eye, p + aim)
             }
         } else if !self.world.is_driving() {
-            weapon_camera::shoulder_view(p, forward, self.zoom, self.camera_pitch)
+            weapon_camera::on_foot_view(p, forward, self.zoom, self.camera_pitch)
+        } else if self.hood {
+            (
+                p + forward * 0.009 + Vec3::Z * 0.011,
+                p + Vec3::Z * 0.014 + forward * 0.045,
+            )
         } else {
-            let eye = if self.hood {
-                p + forward * 0.009 + Vec3::Z * 0.011
-            } else {
-                p + (-forward * (0.15 * self.camera_pitch.cos())
-                    + Vec3::Z * (0.075 + 0.15 * self.camera_pitch.sin()))
-                    * self.zoom
-            };
-            (eye, p + Vec3::Z * 0.014 + forward * 0.045)
+            ground_chase(p, forward, self.zoom, self.camera_pitch)
         };
         if !self.world.is_driving() {
             self.eye = target_eye;
@@ -803,13 +860,29 @@ impl Game {
                 build_camera.map_or((self.eye, look), |(eye, look, _)| (eye, look))
             })
         };
+        let arrest = self.world.arrest_progress();
+        let (eye, look) = if let Some(t) = arrest {
+            let start = *self.arrest_camera_start.get_or_insert((eye, look));
+            let focus = self.world.arrest_focus() / METERS_PER_UNIT;
+            let (desired, look) = arrest_view(start, focus, forward, t);
+            (
+                self.world
+                    .camera_eye(&self.hermes, p + Vec3::Z * (0.5 / METERS_PER_UNIT), desired),
+                look,
+            )
+        } else {
+            self.arrest_camera_start = None;
+            (eye, look)
+        };
         let view_rotation = Quat::from_mat4(&Mat4::look_at_rh(eye, look, Vec3::Z).inverse())
             * Quat::from_mat3(&glam::Mat3::from_cols(-Vec3::Z, -Vec3::X, Vec3::Y));
         let mut shot_sprites =
             self.loadout
                 .effects
                 .sprites(|_| None, view_rotation, eye * METERS_PER_UNIT);
-        self.loadout.projection = armed.then(|| renderer.view_projection(eye, look).inverse());
+        let view_projection = renderer.view_projection(eye, look);
+        self.world.set_dispatch_view(view_projection);
+        self.loadout.projection = armed.then(|| view_projection.inverse());
         let weapon_target = self
             .loadout
             .projection
@@ -881,6 +954,13 @@ impl Game {
         }
         self.mesh_center = center;
         let mut navigation = self.hermes.minimap_view(center, self.world.player_yaw());
+        renderer.set_police_markers(self.world.nearby_police().map(|(point, walking)| {
+            (
+                self.hermes
+                    .map_uv((point.truncate() / METERS_PER_UNIT).to_array()),
+                walking,
+            )
+        }));
         if build_camera.is_some() {
             navigation.player_uv = self
                 .hermes
@@ -892,12 +972,12 @@ impl Game {
         } else {
             self.overlay
         };
-        renderer.cinematic = self.fabula.active();
+        renderer.cinematic = self.fabula.active() || arrest.is_some();
         renderer.zombie_mode = self.world.zombie_mode();
         renderer.full_map = self.full_map;
         renderer.menu_selection = self.menu_selection;
         renderer.fps = self.frame_rate.value;
-        renderer.reserved_bottom = if self.fabula.active() {
+        renderer.reserved_bottom = if renderer.cinematic {
             0
         } else {
             self.palette.as_ref().map_or(0, |palette| {
@@ -952,6 +1032,30 @@ impl Game {
                 &mut shot_sprites,
             ));
         }
+        let mut armed_officers = 0;
+        for (i, (hand, target, age)) in self.world.officer_handguns().enumerate() {
+            armed_officers += 1;
+            if i == self.officer_weapons.len() {
+                self.officer_weapons.push(super::muzzle::Equipment::upload(
+                    renderer,
+                    &weapons::Weapon::Handgun.model(),
+                ));
+            }
+            let gun = &mut self.officer_weapons[i];
+            let flash = super::muzzle::MuzzleFlash::handgun_at(age);
+            gun.place(
+                renderer,
+                weapons::weapon_pose(hand, target),
+                view_rotation,
+                &flash,
+                &mut shot_sprites,
+            );
+        }
+        meshes.extend(
+            self.officer_weapons[..armed_officers]
+                .iter()
+                .map(|gun| &gun.gpu),
+        );
         renderer.update_impacts(&shot_sprites);
         meshes.extend(self.prop_scenery.visible_with_authored(authored_visible));
         meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());
@@ -1221,7 +1325,7 @@ impl ApplicationHandler<GameEvent> for Game {
             self.frame(event_loop);
             return;
         }
-        if !self.window_active()
+        if (!self.window_active() || self.world.arrest_progress().is_some())
             && matches!(
                 event,
                 WindowEvent::KeyboardInput { .. }
@@ -1241,27 +1345,20 @@ impl ApplicationHandler<GameEvent> for Game {
         ) {
             self.mobile.clear();
         }
-        let scene_click = matches!(
-            event,
+        // Release the camera grab even when UI consumes button-up. Only an
+        // unconsumed release from a scene press can reach the punch handler.
+        let scene_click = match event {
             WindowEvent::MouseInput {
                 state: ElementState::Released,
                 button: MouseButton::Left,
                 ..
+            } => self.release_orbit_drag(),
+            WindowEvent::Focused(false) | WindowEvent::Occluded(true) => {
+                self.stop_orbit_drag();
+                false
             }
-        ) && self.orbit_drag.is_some()
-            && !self.dragging;
-        // Release the camera grab even when a UI handler consumes button-up.
-        if matches!(
-            event,
-            WindowEvent::MouseInput {
-                state: ElementState::Released,
-                button: MouseButton::Left,
-                ..
-            } | WindowEvent::Focused(false)
-                | WindowEvent::Occluded(true)
-        ) {
-            self.stop_orbit_drag();
-        }
+            _ => false,
+        };
         // Unlock before cutscene/UI handlers consume input. Touch release is
         // needed on browsers that do not grant activation on touch start.
         let audio_gesture = match &event {
@@ -1485,7 +1582,7 @@ impl ApplicationHandler<GameEvent> for Game {
         }
         match event {
             #[cfg(target_arch = "wasm32")]
-            WindowEvent::Touch(touch) if mobile_enabled() => self.mobile_map_touch(touch),
+            WindowEvent::Touch(touch) if mobile_enabled() => self.mobile_scene_touch(touch),
             WindowEvent::CloseRequested => {
                 self.kairos.save_now();
                 event_loop.exit();
@@ -1548,14 +1645,6 @@ impl ApplicationHandler<GameEvent> for Game {
                         self.keys.insert(key);
                         if !event.repeat {
                             match key {
-                                KeyCode::KeyR
-                                    if !self.simulation_paused()
-                                        && self.world.player_health() == 0 =>
-                                {
-                                    self.world.reset_player(&self.hermes);
-                                    self.keys.clear();
-                                    self.finish_location_change();
-                                }
                                 KeyCode::Digit1
                                 | KeyCode::Digit2
                                 | KeyCode::Digit0
@@ -1581,6 +1670,9 @@ impl ApplicationHandler<GameEvent> for Game {
                                         self.world.cancel_punch();
                                     }
                                     self.sync_aim_mouse();
+                                }
+                                KeyCode::KeyO if !self.simulation_paused() => {
+                                    self.world.toggle_door();
                                 }
                                 KeyCode::KeyF => {
                                     if self.world.toggle_vehicle(&self.hermes) {
@@ -1667,9 +1759,14 @@ impl ApplicationHandler<GameEvent> for Game {
                 button: MouseButton::Left,
                 ..
             } => {
-                if let (Some(point), Some(window)) = (self.cursor, &self.window) {
+                if let Some(window) = &self.window {
                     let size = window.inner_size();
                     let (w, h) = (size.width as f32, size.height as f32);
+                    let Some(point) = self.cursor.or_else(|| {
+                        (self.overlay == Overlay::Driving).then_some([w * 0.5, h * 0.5])
+                    }) else {
+                        return;
+                    };
                     match self.overlay {
                         Overlay::Driving
                             if !mobile_enabled() && hud::minimap_contains(w, h, point) =>

@@ -31,12 +31,14 @@ pub(super) struct ServicePassengers {
     active: bool,
     queued_board: Vec<u32>,
     door: Vec3,
+    pub(super) access: Option<(usize, super::doors::Door)>,
     bus: bool,
 }
 
 impl ServicePassengers {
     pub(super) fn clear(&mut self) {
         self.actors.clear();
+        self.access = None;
         self.pending = 0;
         self.finished = false;
         self.active = false;
@@ -48,7 +50,7 @@ impl ServicePassengers {
         if self.actors.iter().any(|actor| actor.id == id) {
             return;
         }
-        let model = id as usize % pedestrian_catalog::definitions().len();
+        let model = id as usize % pedestrian_catalog::CROWD_MODEL_COUNT;
         self.actors.push(Passenger {
             id,
             model,
@@ -66,6 +68,7 @@ impl ServicePassengers {
         &mut self,
         board: &[u32],
         alight: &[u32],
+        vehicle_index: usize,
         vehicle: &Vehicle,
         sidewalk: Vec3,
         bus: bool,
@@ -96,6 +99,11 @@ impl ServicePassengers {
         let door = vehicle.position
             + (side * (vehicle.width() * 0.5 + 0.25) - forward * (vehicle.length() * 0.15))
                 .extend(0.);
+        let access = vehicle.nearest_door(door);
+        self.access = access.map(|d| (vehicle_index, d));
+        let door = access
+            .and_then(|d| vehicle.access_point(d))
+            .map_or(door, |point| point.extend(door.z));
         self.door = door;
         self.bus = bus;
         self.queued_board.extend_from_slice(board);
@@ -123,6 +131,7 @@ impl ServicePassengers {
 
     fn next_boarder(&mut self) {
         if self.queued_board.is_empty() {
+            self.access = None;
             self.active = false;
             self.finished = true;
             return;
@@ -211,7 +220,7 @@ mod tests {
         service.spawn(1, sidewalk);
         service.spawn(2, sidewalk + Vec3::X);
         assert_eq!(service.waiting_positions().count(), 2);
-        assert!(service.begin(&[1, 2], &[], &vehicle, sidewalk, true));
+        assert!(service.begin(&[1, 2], &[], 0, &vehicle, sidewalk, true));
         assert_eq!(service.actors[0].state, State::Boarding);
         assert_eq!(service.actors[1].state, State::Waiting);
         assert_eq!(service.waiting_positions().count(), 1);
@@ -222,7 +231,7 @@ mod tests {
         assert!(!service.take_finished());
         assert_eq!(service.instances().count(), 0);
         assert_eq!(service.waiting_positions().count(), 0);
-        assert!(service.begin(&[], &[1, 2], &vehicle, sidewalk, true));
+        assert!(service.begin(&[], &[1, 2], 0, &vehicle, sidewalk, true));
         for _ in 0..1500 {
             service.step(1. / 120.);
         }

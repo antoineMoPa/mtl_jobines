@@ -54,7 +54,7 @@ impl DynamicWorld {
             if vehicles_overlap(&vehicle, self.player()) {
                 continue;
             }
-            if !self.clear_vehicle_position(hermes, &vehicle, None) {
+            if !self.clear_vehicle_position(hermes.city(), &vehicle, None) {
                 return Err(format!(
                     "Parked vehicle at {:?} needs clear supported ground",
                     parked.start.point
@@ -181,7 +181,7 @@ mod tests {
         for (i, vehicle) in world.vehicles.iter().enumerate().skip(1).take(85) {
             assert!(!vehicle.is_aircraft());
             assert!(
-                world.clear_vehicle_position(&hermes, vehicle, Some(i)),
+                world.clear_vehicle_position(hermes.city(), vehicle, Some(i)),
                 "blocked driveway car {i}"
             );
         }
@@ -195,9 +195,9 @@ mod tests {
         )
         .unwrap();
         probe.set_catalog_model(Some(0));
-        assert!(world.clear_vehicle_position(&hermes, &probe, None));
+        assert!(world.clear_vehicle_position(hermes.city(), &probe, None));
         for (i, vehicle) in world.vehicles.iter().take(13).enumerate().skip(1) {
-            assert!(world.clear_vehicle_position(&hermes, vehicle, Some(i)));
+            assert!(world.clear_vehicle_position(hermes.city(), vehicle, Some(i)));
             let p = vehicle.position / METERS_PER_UNIT;
             assert!((0.85..1.6).contains(&p.x) && (-1.39..-0.74).contains(&p.y));
             let to_sphere = Vec2::new(1.2, -1.28) - p.truncate();

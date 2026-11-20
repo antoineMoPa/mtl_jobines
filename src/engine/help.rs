@@ -179,7 +179,7 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
                     for text in [
                         "À gauche : maintenez les flèches pour vous déplacer.",
                         "À droite : courir, sauter ou conduire.",
-                        "En haut : carte, téléphone et menu.",
+                        "En haut : carte, téléphone, menu et portière.",
                     ] {
                         ui.label(
                             RichText::new(text)
@@ -201,6 +201,7 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
                     ui.separator();
                     ui.add_space(8.);
                     control_row(ui, "F", "Entrer ou sortir du véhicule");
+                    control_row(ui, "O", "Ouvrir ou fermer la portière");
                     ui.add_space(8.);
                     ui.separator();
                     ui.add_space(8.);

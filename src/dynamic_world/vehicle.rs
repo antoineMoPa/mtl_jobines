@@ -2,12 +2,14 @@ use glam::{Quat, Vec2, Vec3};
 mod bicycle;
 mod rotation;
 mod support;
+pub(super) mod tire;
 #[cfg(test)]
 use opencity::runtime::Mesh;
 use opencity::{
     runtime::{City, SurfaceKind, SurfaceSample},
     RoadDirection, RoadElementKind,
 };
+use tire::Wheel;
 pub const METERS_PER_UNIT: f32 = 100.;
 const RIDE_HEIGHT: f32 = 0.65;
 const WHEELBASE: f32 = 2.6;
@@ -63,7 +65,9 @@ pub struct Vehicle {
     pub roll: f32,
     pub steering: f32,
     pub wheel_angle: f32,
+    pub(super) flat_tires: [bool; 4],
     pub metro_doors: f32,
+    pub(super) doors: super::doors::Doors,
     pub(super) aircraft_gear: f32,
     pub(super) aircraft_rates: Vec3,
     pub(super) aircraft_surfaces: Vec3,
@@ -147,7 +151,9 @@ impl Vehicle {
             roll: 0.,
             steering: 0.,
             wheel_angle: 0.,
+            flat_tires: [false; 4],
             metro_doors: 0.,
+            doors: Default::default(),
             aircraft_gear: 0.,
             aircraft_rates: Vec3::ZERO,
             aircraft_surfaces: Vec3::ZERO,
@@ -168,6 +174,9 @@ impl Vehicle {
     pub(super) fn set_catalog_model(&mut self, definition: Option<usize>) {
         let previous_height = self.ride_height();
         self.definition = definition;
+        self.flat_tires = [false; 4];
+        self.doors = Default::default();
+        self.metro_doors = 0.;
         self.aircraft_gear = 0.;
         self.aircraft_rates = Vec3::ZERO;
         self.aircraft_surfaces = Vec3::ZERO;
@@ -223,6 +232,10 @@ impl Vehicle {
             4.
         }
     }
+    fn wheel_radius(&self) -> f32 {
+        self.definition()
+            .map_or(0.32, |d| d.config.physics.wheel_radius)
+    }
     fn wheelbase(&self) -> f32 {
         self.definition()
             .map_or(WHEELBASE, |d| d.config.physics.wheelbase)
@@ -259,6 +272,9 @@ impl Vehicle {
         let x = (delta.truncate().dot(f).abs() - self.length() * 0.5).max(0.);
         let y = (delta.truncate().dot(l).abs() - self.width() * 0.5).max(0.);
         Vec3::new(x, y, delta.z).length()
+    }
+    pub(super) fn cabin_lean(&self) -> Quat {
+        Quat::from_rotation_y(-self.body_lean.x) * Quat::from_rotation_x(self.body_lean.y)
     }
     pub fn orientation(&self) -> Quat {
         Quat::from_rotation_z(self.yaw)
@@ -302,10 +318,7 @@ impl Vehicle {
                 .clamp(-9. - 4. * self.riding_stand, 9. + 4. * self.riding_stand)
                 * dt;
         }
-        self.wheel_angle += speed * dt
-            / self
-                .definition()
-                .map_or(0.32, |d| d.config.physics.wheel_radius);
+        self.wheel_angle += speed * dt / self.wheel_radius();
         self.surface = SurfaceKind::Asphalt;
         self.grounded = true;
     }
@@ -382,8 +395,12 @@ impl Vehicle {
                                 .definition()
                                 .map_or(1., |d| d.config.physics.friction / 0.9)
                             * gravity
+                            * tire_share
+                            * if self.flat_tires[index] { 0.22 } else { 1. },
+                        rolling: (s.kind.rolling_resistance()
+                            + if self.flat_tires[index] { 0.24 } else { 0. })
+                            * gravity
                             * tire_share,
-                        rolling: s.kind.rolling_resistance() * gravity * tire_share,
                         rear,
                     });
                     contacts += 1;
@@ -446,11 +463,7 @@ impl Vehicle {
                 .clamp(-9. - 4. * self.riding_stand, 9. + 4. * self.riding_stand)
                 * dt;
         }
-        self.wheel_angle += speed
-            / self
-                .definition()
-                .map_or(0.32, |d| d.config.physics.wheel_radius)
-            * dt;
+        self.wheel_angle += speed / self.wheel_radius() * dt;
     }
 
     fn apply_tire_forces(
@@ -561,15 +574,8 @@ impl Vehicle {
 
     fn wheel_contacts(&self, city: &City) -> [(Vec3, Option<SurfaceSample>); 4] {
         let orientation = self.orientation();
-        let offsets = [
-            [-self.wheelbase() * 0.5, -self.half_track()],
-            [-self.wheelbase() * 0.5, self.half_track()],
-            [self.wheelbase() * 0.5, -self.half_track()],
-            [self.wheelbase() * 0.5, self.half_track()],
-        ];
         std::array::from_fn(|index| {
-            let [x, y] = offsets[index];
-            let wheel = self.position + orientation * Vec3::new(x, y, -self.ride_height());
+            let wheel = self.position + orientation * Wheel::ALL[index].contact(self);
             if self.is_bicycle() && index % 2 == 1 {
                 return (wheel, None);
             }
@@ -855,3 +861,5 @@ mod performance_tests;
 mod station_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tire_tests;

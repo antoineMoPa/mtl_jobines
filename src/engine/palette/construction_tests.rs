@@ -42,6 +42,7 @@ impl Harness {
                     self.hermes.city(),
                     &crate::kairos::Kairos::default(),
                     false,
+                    None,
                     &mut help_visible,
                     super::super::hud::Overlay::Driving,
                     &mut menu_selection,

@@ -6,6 +6,8 @@ fn hermes() -> Hermes {
     let metro = metro
         .lines()
         .skip(1)
+        // The metro block ends where unrelated authored map placements resume.
+        .take_while(|line| !line.contains(" = ") || line.starts_with("metro_"))
         .filter(|l| !l.contains("terrain_cut"))
         .collect::<Vec<_>>()
         .join("\n");

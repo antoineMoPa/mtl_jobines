@@ -1,5 +1,5 @@
 //! Third-person picking and shot obstruction in world metres.
-use super::{DynamicWorld, METERS_PER_UNIT};
+use super::{vehicle::tire::Wheel, DynamicWorld, METERS_PER_UNIT};
 use glam::Vec3;
 use opencity::runtime::City;
 use rapier3d::na as nalgebra;
@@ -56,6 +56,7 @@ pub struct ShotHit {
 enum Target {
     Fixed,
     Car,
+    Tire(usize, Wheel),
     Prop(usize),
     Zombie(u32),
 }
@@ -119,104 +120,10 @@ impl DynamicWorld {
             && !self.metro.aboard
     }
 
-    pub fn start_punch(&mut self) -> bool {
-        if !self.can_equip_weapon() {
-            return false;
-        }
-        self.pedestrian
-            .as_mut()
-            .unwrap()
-            .gait
-            .melee
-            .start(super::melee::Attack::Punch)
-    }
-
-    pub fn cancel_punch(&mut self) {
-        if let Some(p) = &mut self.pedestrian {
-            if p.gait.melee.active() {
-                p.gait.melee = Default::default();
-            }
-        }
-    }
-
-    pub fn punching(&self) -> bool {
-        self.pedestrian
-            .as_ref()
-            .is_some_and(|p| p.gait.melee.active())
-    }
-
-    pub fn zombie_health_meters(&self) -> impl Iterator<Item = (Vec3, f32)> + '_ {
-        self.crowd.health_meters(self.player_position())
-    }
-
-    pub fn player_health(&self) -> u8 {
-        self.health
-    }
-
-    pub(super) fn step_melee(&mut self, city: &City, dt: f32) {
-        use super::{
-            melee::BITE_DAMAGE, pedestrian_catalog, player::HALF_HEIGHT, ragdoll::Ragdoll,
-        };
-        let can_fight = self.can_equip_weapon();
-        if let Some(p) = &mut self.pedestrian {
-            if let Some(doll) = &mut p.fallen {
-                if !doll.ready_to_rise() {
-                    let model = pedestrian_catalog::player_model(self.season);
-                    doll.step(
-                        &pedestrian_catalog::definitions()[model],
-                        city,
-                        &self.vehicles,
-                        dt,
-                    );
-                    p.position = doll.anchor + Vec3::Z * HALF_HEIGHT;
-                }
-                return;
-            }
-            if !can_fight {
-                p.gait.melee = Default::default();
-            }
-            if p.gait.melee.advance(dt) && self.crowd.zombies {
-                let forward = glam::Vec2::from_angle(p.yaw).extend(0.);
-                let from = p.position + Vec3::Z * 0.32;
-                if let Some(Contact {
-                    target: Target::Zombie(id),
-                    ..
-                }) = self.weapon_hit(city, from, from + forward * 0.82)
-                {
-                    self.crowd
-                        .damage_zombie(id, 1, forward, city, &self.vehicles);
-                }
-            }
-        }
-        if !self.crowd.zombies {
-            return;
-        }
-        let target = can_fight.then(|| self.player_position());
-        for (id, shoulder) in self.crowd.bite_contacts(target, dt) {
-            let from = self.player_position() + Vec3::Z * 0.32;
-            // Use the same obstruction query as the punch, from outside the attacker's capsule.
-            if !matches!(self.weapon_hit(city, from, shoulder), Some(Contact { target: Target::Zombie(hit), .. }) if hit == id)
-            {
-                continue;
-            }
-            self.health = self.health.saturating_sub(BITE_DAMAGE);
-            let player = self.pedestrian.as_mut().unwrap();
-            player.gait.melee.hurt();
-            if self.health == 0 {
-                let model = pedestrian_catalog::player_model(self.season);
-                let pose = *player.instance(self.season).pose.unwrap();
-                player.fallen = Some(Box::new(Ragdoll::new(
-                    &pedestrian_catalog::definitions()[model],
-                    pose,
-                    player.position - Vec3::Z * HALF_HEIGHT,
-                    player.yaw,
-                    (from - shoulder) * 1.5,
-                    city,
-                    &self.vehicles,
-                )));
-                self.crowd.cancel_bites();
-                break;
-            }
+    pub(super) fn first_zombie_on_segment(&self, city: &City, from: Vec3, to: Vec3) -> Option<u32> {
+        match self.weapon_hit(city, from, to)?.target {
+            Target::Zombie(id) => Some(id),
+            _ => None,
         }
     }
 
@@ -228,6 +135,26 @@ impl DynamicWorld {
 
     pub fn weapon_hand(&self) -> Option<Vec3> {
         let instance = self.pedestrian.as_ref()?.instance(self.season);
+        Self::right_hand(instance)
+    }
+
+    pub(super) fn officer_gunshot(&mut self, position: Vec3) {
+        self.sound_serial = self.sound_serial.wrapping_add(1).max(1);
+        let slot = (self.sound_serial as usize - 1) % self.sound_impacts.len();
+        self.sound_impacts[slot] = crate::audio::Impact {
+            serial: self.sound_serial,
+            position,
+            speed: 10.,
+            material: crate::audio::Material::Gunshot,
+            ..Default::default()
+        };
+    }
+
+    pub(super) fn clear_officer_shot(&self, city: &City, hand: Vec3, target: Vec3) -> bool {
+        self.weapon_hit(city, hand, target).is_none()
+    }
+
+    pub(super) fn right_hand(instance: super::crowd::Instance<'_>) -> Option<Vec3> {
         let model = &super::pedestrian_catalog::definitions()[instance.model];
         let joint = model.joint("Hand_R");
         let wrist =
@@ -256,23 +183,49 @@ impl DynamicWorld {
                 target: Target::Fixed,
             });
         }
-        for car in &self.vehicles {
-            if from.distance(car.position) > limit + car.length() + car.height() {
+        for (index, car) in self.vehicles.iter().enumerate() {
+            if self.traffic.inactive(index) || self.cyclists.inactive(index) {
+                continue;
+            }
+            let reach = car.length() + car.height();
+            if from.distance_squared(car.position) > (limit + reach).powi(2) {
                 continue;
             }
             let pose = car.orientation();
             let o = pose.conjugate() * (from - car.position);
             let d = pose.conjugate() * dir;
-            let ray = Ray::new(point![o.x, o.y, o.z], vector![d.x, d.y, d.z]);
-            let bounds = Cuboid::new(vector![car.length(), car.width(), car.height()] * 0.5);
-            if let Some(v) = bounds.cast_local_ray_and_get_normal(&ray, limit, true) {
-                limit = v.time_of_impact;
+            // Reject off-axis vehicles before visiting any articulated mesh.
+            if (o + d * (-o.dot(d)).clamp(0., limit)).length_squared() > reach * reach {
+                continue;
+            }
+            let contact = if let Some(model) = car.definition().filter(|m| m.road_wheels.is_some())
+            {
+                model.road_shot_hit(car, o, d, limit)
+            } else {
+                let ray = Ray::new(point![o.x, o.y, o.z], vector![d.x, d.y, d.z]);
+                let bounds = Cuboid::new(vector![car.length(), car.width(), car.height()] * 0.5);
+                bounds
+                    .cast_local_ray_and_get_normal(&ray, limit, true)
+                    .map(|v| {
+                        (
+                            v.time_of_impact,
+                            Vec3::new(v.normal.x, v.normal.y, v.normal.z),
+                            None,
+                        )
+                    })
+            };
+            if let Some((distance, normal, wheel)) = contact {
+                limit = distance;
                 hit = Some(Contact {
-                    target: Target::Car,
+                    target: wheel.map_or(Target::Car, |w| Target::Tire(index, w)),
                     hit: ShotHit {
                         point: from + dir * limit,
-                        normal: pose * Vec3::new(v.normal.x, v.normal.y, v.normal.z),
-                        surface: ShotSurface::Metal,
+                        normal: pose * normal,
+                        surface: if wheel.is_some() {
+                            ShotSurface::Rubber
+                        } else {
+                            ShotSurface::Metal
+                        },
                         stationary: false,
                     },
                 });
@@ -315,6 +268,12 @@ impl DynamicWorld {
     }
     pub fn set_zombie_mode(&mut self, city: &City, enabled: bool) {
         if self.crowd.zombies != enabled {
+            if enabled {
+                self.clear_chase();
+                self.cyclists.clear_population(&mut self.vehicles);
+                self.update_riders();
+            }
+            self.refresh_abandoned_cars(city, enabled);
             self.crowd.toggle_zombies(city, &self.vehicles, &self.props);
             self.health = super::melee::PLAYER_HEALTH;
             if let Some(p) = &mut self.pedestrian {
@@ -351,7 +310,14 @@ impl DynamicWorld {
         }
 
         let force = if damage > 1 { 1. } else { 0.73 };
+        let mut broken = false;
         match contact.target {
+            Target::Tire(index, wheel) => {
+                broken = self.vehicles[index].pop_tire(wheel);
+                if broken {
+                    self.traffic.wake_after_tire_hit(index);
+                }
+            }
             Target::Prop(id) => self
                 .props
                 .strike_prop(id, contact.hit.point, dir, force, city),
@@ -367,7 +333,7 @@ impl DynamicWorld {
             position: contact.hit.point,
             speed: 7. * force,
             material: contact.hit.surface.sound(),
-            broken: false,
+            broken,
             age: 0.,
         };
         Some(contact.hit)

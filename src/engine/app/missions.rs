@@ -121,6 +121,9 @@ impl Game {
         }
         self.world
             .set_zombie_mode(self.hermes.city(), id == MissionId::Zombie);
+        if id == MissionId::Zombie {
+            self.loadout.equip(Some(weapons::Weapon::Rifle));
+        }
         if let Some(season) = id.required_season() {
             self.change_season(season);
         }
@@ -273,10 +276,13 @@ mod tests {
         game.apply_palette_action(choose(MissionId::Snowplow));
         assert!(game.world.toggle_vehicle(&game.hermes));
         let position = game.world.player_position();
+        game.loadout.equip(Some(weapons::Weapon::Handgun));
 
         game.apply_palette_action(choose(MissionId::Zombie));
         assert_eq!(game.kairos.active_id(), Some(MissionId::Zombie));
         assert!(game.world.zombie_mode());
+        assert!(game.loadout.equipped == Some(weapons::Weapon::Rifle));
+        assert!(game.armed_aim());
         assert!(!game.world.is_driving());
         assert_eq!(game.world.player_position(), position);
         assert_eq!(game.world.season(), crate::season::Season::Winter);
@@ -284,6 +290,9 @@ mod tests {
         assert!(game.mission_vehicle.is_none());
         assert!(!game.kairos.vehicle_return_expired(false, 11.));
         assert_eq!(game.kairos.vehicle_return_seconds(), None);
+        game.loadout.equip(None);
+        game.simulate(0.01);
+        assert!(game.loadout.equipped.is_none());
 
         game.apply_palette_action(choose(MissionId::Snowplow));
         assert!(!game.world.zombie_mode());
@@ -292,6 +301,11 @@ mod tests {
         game.apply_palette_action(choose(MissionId::Zombie));
         assert!(game.world.is_driving());
         assert!(game.world.zombie_mode());
+        game.simulate(0.01);
+        assert!(!game.armed_aim());
+        assert!(game.world.toggle_vehicle(&game.hermes));
+        assert!(game.loadout.equipped == Some(weapons::Weapon::Rifle));
+        assert!(game.armed_aim());
         game.apply_palette_action(PaletteAction::AbandonMission);
         assert!(!game.world.zombie_mode());
         assert_eq!(game.kairos.active_id(), None);

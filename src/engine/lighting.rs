@@ -9,6 +9,7 @@ pub struct SkySettings {
     pub latitude: f32,
     pub day_of_year: u32,
     pub north_rotation: f32,
+    pub cycle_start_hour: f32,
     pub solar_hour: Option<f32>,
     pub turbidity: f32,
     pub sun_temperature: f32,
@@ -25,6 +26,7 @@ impl Default for SkySettings {
             latitude: 45.5,
             day_of_year: 172,
             north_rotation: 0.,
+            cycle_start_hour: 12.,
             solar_hour: None,
             turbidity: 2.5,
             sun_temperature: 5778.,
@@ -38,6 +40,15 @@ impl Default for SkySettings {
     }
 }
 impl SkySettings {
+    pub fn montreal() -> Self {
+        Self {
+            cycle_start_hour: 15.5,
+            day_of_year: 245,
+            sun_temperature: 5350.,
+            ..Self::default()
+        }
+    }
+
     pub fn sun_direction(self, solar_hour: f32) -> Vec3 {
         let latitude = self.latitude.to_radians();
         let declination = (23.44_f32.to_radians().sin()
@@ -60,7 +71,8 @@ impl SkySettings {
         self.solar_hour.unwrap_or_else(|| match manual {
             // Keep bracket keys as a continuous noon-to-midnight control.
             Some(value) => 12. + (1. - value.clamp(0., 1.)) * 12.,
-            None => (12. + time.rem_euclid(DAY_SECONDS) / DAY_SECONDS * 24.).rem_euclid(24.),
+            None => (self.cycle_start_hour + time.rem_euclid(DAY_SECONDS) / DAY_SECONDS * 24.)
+                .rem_euclid(24.),
         })
     }
 }
@@ -158,6 +170,20 @@ mod tests {
             previous = Some(lighting.sun);
         }
     }
+    #[test]
+    fn montreal_cycle_starts_in_side_light_and_wraps() {
+        let settings = SkySettings::montreal();
+        assert_eq!(settings.hour(0., None), 15.5);
+        assert_eq!(settings.hour(DAY_SECONDS, None), 15.5);
+        assert_eq!(settings.hour(DAY_SECONDS / 2., None), 3.5);
+        let opening = Lighting::with_settings(0., None, settings);
+        assert!((30.0..31.0).contains(&opening.solar.z.asin().to_degrees()));
+        assert_eq!(
+            Lighting::with_settings(DAY_SECONDS / 2., None, settings).daylight,
+            0.
+        );
+    }
+
     #[test]
     fn explicit_solar_hour_overrides_cycle_and_brackets() {
         let settings = SkySettings {

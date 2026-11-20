@@ -2,12 +2,15 @@ use super::*;
 #[cfg(test)]
 use glam::Vec2;
 
-/// A rigid arm from the right shoulder keeps the optical axis under direct mouse control.
-pub(super) fn shoulder_view(player: Vec3, forward: Vec3, zoom: f32, pitch: f32) -> (Vec3, Vec3) {
+const PIVOT_HEIGHT_M: f32 = 1.25;
+const FOLLOW_DISTANCE_M: f32 = 4.2;
+
+/// Aim over the player's head from directly behind the on-foot camera pivot.
+pub(super) fn on_foot_view(player: Vec3, forward: Vec3, zoom: f32, pitch: f32) -> (Vec3, Vec3) {
     let direction = forward * pitch.cos() - Vec3::Z * pitch.sin();
-    let shoulder = player + (0.62 * forward.cross(Vec3::Z) + 0.98 * Vec3::Z) / METERS_PER_UNIT;
-    let arm = 1.45 * zoom / DEFAULT_CHASE_ZOOM / METERS_PER_UNIT;
-    let eye = shoulder - direction * arm;
+    let pivot = player + Vec3::Z * (PIVOT_HEIGHT_M / METERS_PER_UNIT);
+    let arm = FOLLOW_DISTANCE_M * zoom / DEFAULT_CHASE_ZOOM / METERS_PER_UNIT;
+    let eye = pivot - direction * arm;
     (eye, eye + direction * 0.06)
 }
 
@@ -16,13 +19,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shoulder_rotates_as_a_rigid_arm_with_the_sight_line() {
+    fn on_foot_camera_stays_centered_behind_the_player() {
         for heading in [0., 1.4, -2.7] {
             let forward = Vec2::from_angle(heading).extend(0.);
             for pitch in [-1.1, 0., 0.9] {
-                let (eye, look) = shoulder_view(Vec3::ZERO, forward, DEFAULT_CHASE_ZOOM, pitch);
-                let pivot = (0.62 * forward.cross(Vec3::Z) + 0.98 * Vec3::Z) / METERS_PER_UNIT;
-                assert!((pivot.distance(eye) * METERS_PER_UNIT - 1.45).abs() < 1e-4);
+                let (eye, look) = on_foot_view(Vec3::ZERO, forward, DEFAULT_CHASE_ZOOM, pitch);
+                assert!(eye.dot(forward) < 0.);
+                assert!(eye.dot(forward.cross(Vec3::Z)).abs() < 1e-6);
+                let pivot = Vec3::Z * (PIVOT_HEIGHT_M / METERS_PER_UNIT);
+                assert!((pivot.distance(eye) * METERS_PER_UNIT - FOLLOW_DISTANCE_M).abs() < 1e-4);
                 assert!((look - eye).cross(pivot - eye).length() < 1e-7);
             }
         }
@@ -31,7 +36,7 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     #[ignore = "requires a native GPU adapter"]
-    fn shoulder_view_is_the_same_before_during_and_after_firing() {
+    fn on_foot_view_is_the_same_before_during_and_after_firing() {
         let mut game = Game::new(Hermes::test_map());
         let walker = game.world.prepare_player_pedestrian_collision(&game.hermes);
         let target = walker + Vec3::Z * 1.25;
@@ -41,12 +46,12 @@ mod tests {
         let p = game.world.player_position() / METERS_PER_UNIT;
         let delta = target - p * METERS_PER_UNIT;
         let distance = delta.truncate().length();
-        let yaw = delta.y.atan2(delta.x) + (0.62 / distance).asin();
-        let pitch = -(delta.z - 0.98).atan2((distance * distance - 0.62 * 0.62).sqrt());
+        let yaw = delta.y.atan2(delta.x);
+        let pitch = -(delta.z - PIVOT_HEIGHT_M).atan2(distance);
         game.orbit = yaw - game.world.player_yaw();
         game.camera_pitch = pitch;
         let pose = |game: &Game| {
-            shoulder_view(
+            on_foot_view(
                 game.world.player_position() / METERS_PER_UNIT,
                 Vec2::from_angle(game.world.player_yaw() + game.orbit).extend(0.),
                 game.zoom,

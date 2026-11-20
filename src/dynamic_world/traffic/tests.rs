@@ -9,7 +9,7 @@ fn map(source: &str) -> (City, Arc<TrafficPaths>) {
 const STRAIGHT: &str = "road street: sidewalk carlane middle carlane sidewalk; end
     street(-3,0,3,0); street(-3,0.4,3,0.4); street(-3,-0.4,3,-0.4);
     land(-4,-2,4,-2,4,2,-4,2);";
-const CROSS: &str = "road street: sidewalk carlane middle carlane sidewalk; end
+pub(super) const CROSS: &str = "road street: sidewalk carlane middle carlane sidewalk; end
     center=map_point(0,0); north=map_point(0,2); east=map_point(2,0);
     south=map_point(0,-2); west=map_point(-2,0);
     street(north,0,1.4,0,0.3,center); street(center,0.3,0,1.4,0,east);

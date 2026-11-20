@@ -50,6 +50,10 @@ struct VehicleTransform {
         else if variant==3u {o.color=vec3<f32>(0.30,0.022,0.045);}
     }
     if v.surface.x>=0.0 && v.surface.w==64.0 {o.surface.w*=instance.x.w;}
+    if instance.y.w > 1.5 && (v.surface.w == 65.0 || v.surface.w == 66.0) {
+        let red_phase = fract(camera.eye_time.w * 2.0) < 0.5;
+        if red_phase == (v.surface.w == 65.0) {o.surface.w = 67.0;}
+    }
     if tree || image {o.surface.w=instance.x.w;}
     return o;
 }
@@ -102,7 +106,9 @@ struct VehicleTransform {
         let detail=1.0-smoothstep(0.002,0.008,footprint);
         surface.finish.x=clamp(surface.finish.x+(noise(v.world.xy*18000.0)-0.5)*0.035*detail,0.07,0.95);
     }
-    // Roof beacons retain their authored lens colors without automatic emission.
+    if material.surface.w == 67.0 {
+        return vec4<f32>(max(material.color * 2.6, vec3<f32>(0.10)), material.surface.y);
+    }
     if material.surface.w==64.0 {
         let night=1.0-clamp(camera.daylight_sky.x,0.0,1.0);
         return mix(shade_local_surface(material,front,clamp(material.surface.y,0.0,1.0),surface),lamp_color(material),night*night);

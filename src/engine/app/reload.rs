@@ -251,12 +251,9 @@ impl Game {
         self.world = world;
         self.loadout.effects = Default::default();
         self.mesh_center = mesh_center;
-        self.eye = p - Vec3::new(
-            self.world.player_yaw().cos(),
-            self.world.player_yaw().sin(),
-            0.,
-        ) * 0.15
-            + Vec3::Z * 0.075;
+        let yaw = self.world.player_yaw();
+        let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
+        self.eye = ground_chase(p, forward, self.zoom, self.camera_pitch).0;
         self.camera_anchor = p;
         self.previous_car_position = self.world.player().position;
         self.previous_car_orientation = self.world.player().orientation();

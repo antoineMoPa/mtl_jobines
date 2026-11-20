@@ -139,7 +139,6 @@ impl PedestrianScenery {
                 .filter(|_| index == 0 && !world.is_driving())
                 .and_then(|s| s.player());
             let transform = if world.is_driving()
-                && world.player().is_bicycle()
                 && actor.model == pedestrian_catalog::player_model(world.season())
             {
                 player_delta * actor.transform

@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#142224">
-  <meta name="description" content="Un jeu en monde ouvert sur les petits boulots de Montréal. Jouez dans votre navigateur."
-        data-en-content="An open-world game about odd jobs in Montréal. Play in your browser.">
-  <title data-en="MTL Jobines — Odd jobs in Montréal">MTL Jobines — Petits boulots à Montréal</title>
+  <meta name="theme-color" content="#101316">
+  <meta name="description" content="Un jeu en monde ouvert sur les petits boulots de MTL, une ville fictive inspirée de Montréal. Jouez dans votre navigateur."
+        data-en-content="An open-world game about odd jobs in MTL, a fictional city inspired by Montréal. Play in your browser.">
+  <title>MTL Jobines</title>
   <script>
     // Keep saved spawn points and the C++ example's existing launch URLs working.
     const launch = new URLSearchParams(location.search);
@@ -17,6 +17,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="intro/intro.css">
   <script defer src="intro/language.js"></script>
+  <script defer src="intro/gallery.js"></script>
 </head>
 <body>
   <header class="masthead">
@@ -29,32 +30,38 @@
 
   <main>
     <section class="cover" aria-labelledby="game-title">
-      <img class="cover-art" src="intro/boulevard.webp" width="1840" height="1270" fetchpriority="high"
-           alt="À vélo sur un viaduc au crépuscule, devant la grosse orange de Montréal."
-           data-en-alt="Riding a bicycle across an overpass at dusk, with Montréal’s giant orange just ahead.">
+      <img class="cover-art" src="intro/orange-julep.webp" width="2100" height="1260" fetchpriority="high"
+           alt="La sphère de l’Orange Julep surplombe les voitures du stationnement."
+           data-en-alt="The giant orange sphere of the Orange Julep rises above the parked cars.">
       <div class="cover-copy">
         <h1 id="game-title"><span>MTL</span> Jobines</h1>
-        <p class="lede" data-en="Drive a cab, a bus, or a snowplow through the streets of Montréal.">Conduis un taxi, un autobus ou une déneigeuse dans les rues de Montréal.</p>
+        <p class="lede" data-en="Play as Mario Saint-Onge, new in MTL and looking for a gig.">Tu joues Mario Saint-Onge, qui débarque à MTL et se cherche une jobine.</p>
         <a class="play" href="/game/"><span class="play-icon" aria-hidden="true"></span><span data-en="Play in browser">Jouer dans le navigateur</span></a>
       </div>
     </section>
 
     <section id="gameplay" aria-label="Dans le jeu" data-en-label="Gameplay">
-      <section class="neighbourhood" aria-labelledby="plex-title">
-        <h2 id="plex-title" data-en="Montréal walk-ups">Les plex</h2>
-        <div class="street-views">
-          <figure>
-            <img src="intro/plex.webp" width="1025" height="625" loading="lazy"
-                 alt="Une rangée de plex en brique, avec des balcons en fer et des cours clôturées."
-                 data-en-alt="Brick walk-ups along a Montréal sidewalk, with iron balconies and fenced front yards.">
-            <figcaption data-en="Brick duplexes and triplexes.">Duplex et triplex en brique.</figcaption>
-          </figure>
-          <figure>
-            <img src="intro/lampadaire.webp" width="870" height="820" loading="lazy"
+      <section class="neighbourhood" aria-labelledby="neighbourhood-title">
+        <header class="gallery-heading">
+          <h2 id="neighbourhood-title" data-en="The neighbourhoods">Les quartiers</h2>
+          <div class="gallery-controls" hidden>
+            <button type="button" id="district-prev" aria-controls="district-views" aria-label="Photo précédente" data-en-label="Previous photo" disabled></button>
+            <button type="button" id="district-next" aria-controls="district-views" aria-label="Photo suivante" data-en-label="Next photo"></button>
+          </div>
+        </header>
+        <div id="district-views" class="district-views" role="region" aria-labelledby="neighbourhood-title" tabindex="0">
+          <img src="intro/plex.webp" width="1025" height="625" loading="lazy"
+                 alt="Une rangée de duplex et de triplex en brique, avec des balcons en fer et des cours clôturées."
+                 data-en-alt="Brick duplexes and triplexes along a sidewalk in MTL, with iron balconies and fenced front yards.">
+          <img src="intro/centre-ville.webp" width="1280" height="488" loading="lazy"
+                 alt="Vue de nuit sur les tours du centre-ville de MTL, leurs fenêtres éclairées jusqu’aux derniers étages."
+                 data-en-alt="A night view across the downtown towers of MTL, their windows lit up to the top floors.">
+          <img src="intro/aeroport.webp" width="800" height="494" loading="lazy"
+                 alt="Un avion de ligne stationné sur le tarmac devant l’aérogare de MTL."
+                 data-en-alt="An airliner parked on the apron in front of the MTL terminal.">
+          <img src="intro/lampadaire.webp" width="870" height="820" loading="lazy"
                  alt="À côté du taxi, un lampadaire bascule. Sa tête et son bras se sont détachés du poteau."
                  data-en-alt="A lamp post topples beside a taxi, its arm and light detached from the pole.">
-            <figcaption data-en="A streetlamp after impact.">Un lampadaire après l’impact.</figcaption>
-          </figure>
         </div>
       </section>
       <figure class="scene">
@@ -82,9 +89,76 @@
         <figcaption>
           <h2 data-en="Acadie station">Station Acadie</h2>
           <p data-en="Park the car and catch the métro.">Gare ton auto et prends le métro.</p>
+        </figcaption>
+      </figure>
+      <figure class="scene zombie" id="mode-zombie">
+        <img src="intro/mode-zombie.webp" width="960" height="640" loading="lazy"
+             alt="Un zombie mord Mario sur le trottoir. Il lui reste trois cœurs."
+             data-en-alt="A zombie bites Mario on the sidewalk. He has three hearts left.">
+        <figcaption>
+          <h2 data-en="Zombie mode">Mode zombie</h2>
+          <p data-en="Take Cynthia’s job on your phone. See how long you can survive.">Accepte la jobine de Cynthia sur ton téléphone. Tiens bon aussi longtemps que tu peux.</p>
+        </figcaption>
+      </figure>
+      <figure class="scene city-map" id="carte">
+        <img src="intro/carte-montreal.webp" width="2400" height="2400" loading="lazy"
+             alt="Carte complète du jeu. L’autoroute fait le tour de l’île, la piste de l’aéroport s’étend au sud et la ligne de métro traverse les quartiers en bleu."
+             data-en-alt="Full game map. The highway circles the island, the runway extends south, and the métro line crosses the neighbourhoods in blue.">
+        <figcaption>
+          <h2 data-en="Map of MTL">La carte de MTL</h2>
+          <p data-en="MTL is a fictional city inspired by Montréal. It has an airport, a métro line, a downtown core and residential neighbourhoods. Residents often complain about the snow.">MTL est une ville fictive inspirée de Montréal. Elle a son aéroport, sa ligne de métro, son centre-ville et ses quartiers résidentiels. Le monde chiale souvent à propos de la neige.</p>
           <a class="play" href="/game/"><span class="play-icon" aria-hidden="true"></span><span data-en="Play in browser">Jouer dans le navigateur</span></a>
         </figcaption>
       </figure>
+    </section>
+
+    <section aria-labelledby="sous-le-capot">
+      <header class="technical-header">
+        <h2 class="technical-title" id="sous-le-capot" data-en="Under the hood">Sous le capot</h2>
+        <p data-en="Building MTL Jobines">La création de MTL Jobines</p>
+      </header>
+      <section class="engine" id="opencity" aria-labelledby="engine-title">
+        <header class="engine-intro">
+          <h3 id="engine-title" lang="en">OpenCity</h3>
+          <p data-en="OpenCity organizes the streets and buildings in MTL Jobines. Its Rust core, shared by the game and the editor, turns .road maps into 3D surfaces and a network of traffic lanes.">OpenCity organise les rues et bâtiments de MTL Jobines. Son noyau Rust, commun au jeu et à l’éditeur, transforme les cartes .road en surfaces 3D et en voies de circulation.</p>
+        </header>
+        <img class="engine-view" src="intro/opencity-routes.webp" width="1024" height="768" loading="lazy"
+               alt="Vue isométrique dans OpenCity. Les rues et les trottoirs dessinent les îlots entre les immeubles."
+               data-en-alt="Isometric view in OpenCity. Streets and sidewalks outline the blocks between buildings.">
+        <div class="engine-example">
+          <p data-en="A .road profile defines a street from sidewalk to sidewalk. Several streets can share it. The editor has tools for shaping curves and joining streets at intersections.">Un profil .road décrit une rue d’un trottoir à l’autre. Plusieurs rues peuvent partager ce profil. L’éditeur permet d’ajuster leurs courbes et de les raccorder aux intersections.</p>
+          <pre><code><b>road</b> cross_street:
+    sidewalk carlane middle carlane sidewalk;
+<b>end</b></code></pre>
+        </div>
+      </section>
+
+      <section class="engine engine-objects" id="objets" aria-labelledby="objects-title">
+        <header class="engine-intro">
+          <h3 id="objects-title" data-en="Placing props">Placer les objets</h3>
+          <p data-en="The in-game editor lets you place a single prop or a whole row. Here, the cones follow the curb, spaced 2.5 metres apart.">L’éditeur intégré au jeu permet de placer un objet seul ou toute une rangée. Ici, les cônes longent le trottoir, espacés de 2,5 mètres.</p>
+        </header>
+        <img class="engine-view" src="intro/mtl-objets.webp" width="1280" height="800" loading="lazy"
+             alt="Dans la vue isométrique de MTL Jobines, des cônes bordent le trottoir près d’une camionnette. La barre de placement apparaît en bas de l’écran."
+             data-en-alt="Isometric view in MTL Jobines showing cones along the curb beside a pickup truck, with the placement toolbar at the bottom.">
+        <div class="engine-example">
+          <pre><code>cones_2 = <b>prop_row</b>(cone,
+    -0.05, 0.04, 0, 0.06, 0.06, 0.035,
+    {spacing: 2.5, elevation: 0.001});</code></pre>
+        </div>
+      </section>
+      <section class="engine" id="claydash" aria-labelledby="claydash-title">
+        <header class="engine-intro">
+          <h3 id="claydash-title">Claydash</h3>
+          <p data-en="This MTL Jobines dinghy was modeled in Claydash, an SDF-based 3D modeler designed for rapid prototyping with AI agents.">Ce dériveur de MTL Jobines a été modélisé dans Claydash, un modeleur 3D basé sur les SDF et conçu pour le prototypage rapide avec des agents IA.</p>
+        </header>
+        <img class="engine-view" src="intro/claydash-deriveur.webp" width="1000" height="800" loading="lazy"
+             alt="Le dériveur vu de trois quarts, avec ses voiles blanches et orangées, son mât et son safran."
+             data-en-alt="Three-quarter view of the dinghy with its white and orange sails, mast and rudder.">
+        <div class="engine-example">
+          <a class="play" href="https://claydash.com/" data-en="Explore Claydash">Découvrir Claydash</a>
+        </div>
+      </section>
     </section>
   </main>
 </body>

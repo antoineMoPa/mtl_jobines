@@ -177,6 +177,7 @@ impl DynamicWorld {
     }
 
     fn finish_respawn(&mut self, hermes: &Hermes, vehicle: Vehicle, spawn: SpawnPoint) {
+        self.clear_chase();
         self.health = super::melee::PLAYER_HEALTH;
         self.crowd.cancel_bites();
         self.vehicles[self.player_vehicle.0] = vehicle;
@@ -188,12 +189,12 @@ impl DynamicWorld {
     }
 
     fn clear_respawn(&self, hermes: &Hermes, vehicle: &Vehicle) -> bool {
-        self.clear_vehicle_position(hermes, vehicle, Some(self.player_vehicle.0))
+        self.clear_vehicle_position(hermes.city(), vehicle, Some(self.player_vehicle.0))
     }
 
     pub(super) fn clear_vehicle_position(
         &self,
-        hermes: &Hermes,
+        city: &opencity::runtime::City,
         vehicle: &Vehicle,
         ignored: Option<usize>,
     ) -> bool {
@@ -215,10 +216,7 @@ impl DynamicWorld {
                 let p = vehicle.position.truncate() + forward * along + left * across;
                 let xy = (p / METERS_PER_UNIT).to_array();
                 let expected = base + along * vehicle.pitch.tan() + across * vehicle.roll.tan();
-                let Some(support) = hermes
-                    .city()
-                    .surface_at(xy, (expected + 0.5) / METERS_PER_UNIT)
-                else {
+                let Some(support) = city.surface_at(xy, (expected + 0.5) / METERS_PER_UNIT) else {
                     return false;
                 };
                 let ground = support.height * METERS_PER_UNIT;
@@ -229,14 +227,13 @@ impl DynamicWorld {
                     && support.road.is_none());
                 if !supported
                     || (ground - expected).abs() > 0.5
-                    || hermes.city().building_collision(
+                    || city.building_collision(
                         xy,
                         0.004,
                         (ground + 0.1) / METERS_PER_UNIT,
                         (ground + vehicle.height()) / METERS_PER_UNIT,
                     )
-                    || hermes
-                        .city()
+                    || city
                         .road_barrier_contact(
                             xy,
                             0.004,

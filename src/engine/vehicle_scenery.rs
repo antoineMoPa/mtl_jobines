@@ -74,7 +74,9 @@ impl VehicleScenery {
         }
         let mut hulls = [crate::dynamic_world::Waterline::default(); 8];
         let mut hull_slots = hulls.iter_mut();
-        for (model, transforms, opacity, headlights, player, paint) in world.vehicle_instances() {
+        for ((model, transforms, opacity, headlights, player, paint), patrol) in
+            world.vehicle_instances_with_patrol()
+        {
             if let (Some(hull), Some(level)) =
                 (&catalog::definitions()[model].water_hull, world.water_level)
             {
@@ -100,7 +102,13 @@ impl VehicleScenery {
                 columns[3][3] = opacity;
                 columns[0][3] = if headlights { 1. } else { 0. };
                 // XYZ alone participates in geometry; Y.w pins player render detail.
-                columns[1][3] = if player { 1. } else { 0. };
+                columns[1][3] = if patrol {
+                    2.
+                } else if player {
+                    1.
+                } else {
+                    0.
+                };
                 columns[2][3] = f32::from(paint);
                 part.transforms.push(columns);
             }

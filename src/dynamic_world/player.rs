@@ -74,6 +74,7 @@ pub struct WalkControls {
 }
 
 pub struct Pedestrian {
+    gait_model: usize,
     pub position: Vec3,
     pub yaw: f32,
     speed: f32,
@@ -125,7 +126,11 @@ impl Pedestrian {
         Ok(Self::new(city, position, start.heading.unwrap_or(0.)))
     }
     pub(super) fn new(city: &City, position: Vec3, yaw: f32) -> Self {
+        Self::with_model(city, position, yaw, MODEL)
+    }
+    fn with_model(city: &City, position: Vec3, yaw: f32, gait_model: usize) -> Self {
         Self {
+            gait_model,
             position,
             yaw,
             speed: 0.,
@@ -138,7 +143,7 @@ impl Pedestrian {
             fallen: None,
             weapon_pose: None,
             gait: Gait::new_player(
-                &pedestrian_catalog::definitions()[MODEL],
+                &pedestrian_catalog::definitions()[gait_model],
                 position - Vec3::Z * HALF_HEIGHT,
                 yaw,
                 |p| footing(city, p, false),
@@ -154,17 +159,33 @@ impl Pedestrian {
         vehicle: &Vehicle,
         blocked: impl Fn(Vec3) -> bool,
     ) -> Option<Self> {
+        Self::beside_with_model(city, vehicle, MODEL, blocked)
+    }
+    pub(super) fn beside_with_model(
+        city: &City,
+        vehicle: &Vehicle,
+        model: usize,
+        blocked: impl Fn(Vec3) -> bool,
+    ) -> Option<Self> {
         let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
         let left = Vec2::new(-forward.y, forward.x);
-        let candidates = vehicle.aircraft_boarding_point().into_iter().chain(
-            [
-                left * (vehicle.width() * 0.5 + 0.9),
-                -left * (vehicle.width() * 0.5 + 0.9),
-                -forward * (vehicle.length() * 0.5 + 0.9),
-                forward * (vehicle.length() * 0.5 + 0.9),
-            ]
-            .map(|offset| vehicle.position.truncate() + offset),
-        );
+        let candidates = vehicle
+            .aircraft_boarding_point()
+            .into_iter()
+            .chain(
+                super::doors::Door::ALL
+                    .into_iter()
+                    .filter_map(|door| vehicle.access_point(door)),
+            )
+            .chain(
+                [
+                    left * (vehicle.width() * 0.5 + 0.9),
+                    -left * (vehicle.width() * 0.5 + 0.9),
+                    -forward * (vehicle.length() * 0.5 + 0.9),
+                    forward * (vehicle.length() * 0.5 + 0.9),
+                ]
+                .map(|offset| vehicle.position.truncate() + offset),
+            );
         let base_height = vehicle.position.z - vehicle.ride_height();
         for point in candidates {
             let (position, swimming) =
@@ -178,7 +199,7 @@ impl Pedestrian {
                     continue;
                 };
             if !Self::blocked(city, position) && !blocked(position) {
-                let mut person = Self::new(city, position, vehicle.yaw);
+                let mut person = Self::with_model(city, position, vehicle.yaw, model);
                 if swimming {
                     person.swimming = true;
                     person.swim_pose();
@@ -270,7 +291,7 @@ impl Pedestrian {
             return;
         }
         let ground_at = |p| support(p).or_else(|| footing(city, p, false));
-        let model = &pedestrian_catalog::definitions()[MODEL];
+        let model = &pedestrian_catalog::definitions()[self.gait_model];
         let speed_limit = if input.run { RUN_SPEED } else { WALK_SPEED };
         let target = input
             .aim_move
@@ -476,7 +497,7 @@ impl Pedestrian {
                 self.position = standing;
                 self.swimming = false;
                 self.gait.land(
-                    &pedestrian_catalog::definitions()[MODEL],
+                    &pedestrian_catalog::definitions()[self.gait_model],
                     bank.point,
                     yaw,
                     |p| footing(city, p, false),
@@ -489,7 +510,7 @@ impl Pedestrian {
     }
     fn swim_pose(&mut self) {
         use glam::{Mat4, Quat};
-        let def = &pedestrian_catalog::definitions()[MODEL];
+        let def = &pedestrian_catalog::definitions()[self.gait_model];
         let mut locals = def.rest.clone();
         let crawl = (self.speed.abs() / 1.2).min(1.);
         let phase = self.swim_phase;
@@ -587,7 +608,11 @@ impl Pedestrian {
     pub(super) fn instance(&self, season: crate::season::Season) -> Instance<'_> {
         Instance {
             zombie: false,
-            model: pedestrian_catalog::player_model(season),
+            model: if self.gait_model == MODEL {
+                pedestrian_catalog::player_model(season)
+            } else {
+                self.gait_model
+            },
             transform: pedestrian_catalog::instance_transform(
                 if self.swimming {
                     self.position

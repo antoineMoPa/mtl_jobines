@@ -57,8 +57,9 @@ fn winter_atmosphere(color:vec4<f32>,distance:f32,has_surface:bool)->vec4<f32> {
     if settings.weather.y==0.0 {return color;}
     let daylight=clamp(settings.weather.z,0.0,1.0);
     let fog_color=mix(vec3<f32>(0.018,0.026,0.045),vec3<f32>(0.52,0.60,0.66),daylight);
-    // Map units are 100 metres. Keep the nearby road readable and soften the horizon.
-    let haze=select(0.82,1.0-exp(-max(distance-0.06,0.0)*0.85),has_surface);
+    // Map units are 100 metres. Distant surfaces approach the same haze as the sky.
+    let visibility = exp(-max(distance - 0.15, 0.0) * 0.58);
+    let haze = 0.76 * select(1.0, 1.0 - visibility, has_surface);
     let result=mix(color.rgb,fog_color,haze*settings.weather.y);
     return vec4<f32>(result,color.a);
 }
@@ -78,8 +79,8 @@ fn scene_color(screen:vec4<f32>)->vec4<f32> {
             *vec3<f32>(1.22,0.86,1.08)+vec3<f32>(0.040,0.002,0.085)*(1.0-light);
         color=vec4<f32>(mix(color.rgb,grade*(1.0-0.94*edge),strength),color.a);
     }
-    // Exact summer bypass, including the AO-disabled path.
-    if settings.tuning.z<0.5 && settings.weather.y==0.0 {return color;}
+    let daylight_grade = settings.viewport.z * settings.weather.z;
+    if settings.tuning.z<0.5 && settings.weather.y==0.0 && daylight_grade==0.0 {return color;}
     let has_surface=depth_at(p)<0.999999;
     var distance=10.0;
     if has_surface {distance=length(settings.eye_radius.xyz-position(p));}
@@ -99,7 +100,23 @@ fn scene_color(screen:vec4<f32>)->vec4<f32> {
         let factor=select(1.0,total/max(weight,0.000001),weight>0.000001);
         result=vec4<f32>(color.rgb*factor,color.a);
     }
-    return winter_atmosphere(result,distance,has_surface);
+    if has_surface && settings.weather.y == 0.0 && daylight_grade > 0.0 {
+        // Keep the first 80 metres clear and soften only the more distant blocks.
+        let air = 0.10 * daylight_grade * smoothstep(0.80, 4.75, distance);
+        result = vec4<f32>(mix(result.rgb, vec3<f32>(0.43, 0.47, 0.53), air), result.a);
+    }
+    result = winter_atmosphere(result, distance, has_surface);
+    if daylight_grade > 0.0 {
+        let luma = dot(result.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let midtones = smoothstep(0.012, 0.08, luma) * (1.0 - smoothstep(0.60, 1.0, luma));
+        let gain = mix(0.74, 1.12, smoothstep(0.09, 0.45, luma));
+        let blue = smoothstep(0.05, 0.48, result.b - max(result.g, result.r));
+        let chroma = mix(1.0, 0.60, blue);
+        let graded = mix(vec3<f32>(luma), result.rgb, chroma) * mix(1.0, gain, midtones);
+        let weight = daylight_grade * mix(1.0, 0.35, settings.weather.y);
+        result = vec4<f32>(mix(result.rgb, graded, weight), result.a);
+    }
+    return result;
 }
 
 fn zombie_grade(color: vec3<f32>, screen: vec2<f32>) -> vec3<f32> {

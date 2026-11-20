@@ -49,8 +49,7 @@ impl Game {
         let p = self.world.player_position() / METERS_PER_UNIT;
         let yaw = self.world.player_yaw();
         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
-        self.eye =
-            p - forward * (0.15 * DEFAULT_CHASE_ZOOM) + Vec3::Z * (0.075 * DEFAULT_CHASE_ZOOM);
+        self.eye = ground_chase(p, forward, self.zoom, 0.).0;
         self.camera_anchor = p;
         self.reset_boarding_camera();
         self.hermes.update_navigation(p.to_array());

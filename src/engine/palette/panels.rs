@@ -22,6 +22,7 @@ impl Palette {
         city: &opencity::runtime::City,
         kairos: &Kairos,
         walking: bool,
+        vitals: Option<super::super::job_feed::Vitals>,
         help_visible: &mut bool,
         game_overlay: Overlay,
         menu_selection: &mut MenuItem,
@@ -101,11 +102,13 @@ impl Palette {
             self.sound_open = false;
         }
         super::super::sound_settings::show(sound, &ctx, &mut self.sound_open);
+        let vitals = vitals.filter(|_| !self.is_open() && !*help_visible);
         if let Some(action) = super::super::job_feed::show(
             &ctx,
             &mut self.job_feed_open,
             kairos,
             renderer.overlay,
+            vitals,
             phone_anchor,
             Some(&self.job_portraits),
         ) {

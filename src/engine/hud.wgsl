@@ -1,4 +1,4 @@
-struct Hud { texture_region:vec4<f32>, rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, full_map:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, text_metrics:vec4<f32>, letters:array<vec4<u32>,12> };
+struct Hud { texture_region:vec4<f32>, rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, full_map:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, text_metrics:vec4<f32>, letters:array<vec4<u32>,12>, police:array<vec4<f32>,80> };
 @group(0) @binding(0) var chart:texture_2d<f32>;
 @group(0) @binding(1) var filtering:sampler;
 @group(0) @binding(2) var<uniform> hud:Hud;
@@ -173,6 +173,21 @@ fn map_overlay(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f
         if distance<8. {color=marker;}
         if distance<4. {color=vec3<f32>(0.95);}
     }
+    for (var i=0u; i<80u; i++) {
+        let marker=hud.police[i];
+        if marker.z==0. { break; }
+        let d=(uv-marker.xy)*atlas_pixels;
+        if marker.z==2. {
+            if length(d)<4.5 {color=select(vec3<f32>(0.04,0.06,0.09),vec3<f32>(0.28,0.77,1.),length(d)<3.);break;}
+        } else {
+            let extent=max(abs(d.x),abs(d.y));
+            if extent<5. {
+                color=select(vec3<f32>(0.15,0.47,1.),vec3<f32>(1.,0.24,0.22),d.x>0.);
+                if extent>3.7 {color=vec3<f32>(0.04,0.06,0.09);}
+                break;
+            }
+        }
+    }
     let q=pixels;
     let left=vec2<f32>(-forward.y,forward.x);
     let along=dot(q,forward);let across=abs(dot(q,left));
@@ -276,6 +291,11 @@ fn route_screen(uv:vec2<f32>)->vec2<f32> {
     }
     // Keep the destination and heading markers above the route.
     if length(p-route_screen(hud.map.zw))<14. || length(p-route_screen(hud.destination.xy))<10. {discard;}
+    for (var i=0u; i<80u; i++) {
+        let marker=hud.police[i];
+        if marker.z==0. { break; }
+        if length(p-route_screen(marker.xy))<6. {discard;}
+    }
     return vec4<f32>(0.05,0.65,1.,1.);
 }
 

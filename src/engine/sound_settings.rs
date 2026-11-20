@@ -6,7 +6,7 @@ pub(super) fn show(sound: &mut crate::audio::Settings, ctx: &egui::Context, open
             for (label, value) in [
                 ("Master", &mut sound.master),
                 ("Engines", &mut sound.engines),
-                ("Horns", &mut sound.horns),
+                ("Horns and sirens", &mut sound.horns),
                 ("Tires", &mut sound.tires),
                 ("Wind and surroundings", &mut sound.ambience),
                 ("Collisions and breakage", &mut sound.impacts),

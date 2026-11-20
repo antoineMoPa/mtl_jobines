@@ -29,6 +29,7 @@ pub enum Material {
     Timber,
     Asphalt,
     Rubber,
+    Gunshot,
     Glass,
 }
 #[derive(Clone, Copy, Debug, Default)]
@@ -55,6 +56,7 @@ pub struct Car {
     pub wheel_radius: f32,
     pub boat_max_speed: Option<f32>,
     pub horn: bool,
+    pub siren: bool,
     pub player: bool,
     pub engine_on: bool,
 }
@@ -74,6 +76,7 @@ impl Default for Car {
             wheel_radius: 0.32,
             boat_max_speed: None,
             horn: false,
+            siren: false,
             player: false,
             engine_on: false,
         }

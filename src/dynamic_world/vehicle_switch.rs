@@ -9,12 +9,14 @@ impl DynamicWorld {
         let index = self.player_vehicle.0;
         self.traffic.release(index);
         self.cyclists.release(index);
+        self.boat_routes.retain(|route| route.vehicle != index);
         let vehicle = &mut self.vehicles[index];
         // Adjust chassis height through the shared model setter so tires stay on
         // the same ground, including bridges. Keep heading and driving momentum.
         vehicle.set_catalog_model(Some(model));
         vehicle.sound_controls = Controls::default();
         self.pedestrian = None;
+        self.update_riders();
         self.sound_geography_timer = 0.;
         true
     }

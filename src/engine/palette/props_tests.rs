@@ -70,6 +70,7 @@ fn native_props_game_flow_renders_shared_models_and_the_game_toolbar() {
                     hermes.city(),
                     &crate::kairos::Kairos::default(),
                     false,
+                    None,
                     &mut help_visible,
                     super::super::hud::Overlay::Driving,
                     &mut menu_selection,

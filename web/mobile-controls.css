@@ -96,19 +96,6 @@
   gap: 8px;
 }
 #mobile-controls .mobile-vehicle .icon { width: 25px; height: 25px; }
-#mobile-controls .mobile-notice {
-  position: absolute;
-  top: 35%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 85%;
-  border-radius: 8px;
-  padding: 8px 12px;
-  background: var(--ink);
-  color: var(--paper);
-  text-align: center;
-}
 @media (orientation: portrait) {
   #mobile-controls .mobile-utilities { flex-direction: column; }
   #mobile-controls .mobile-directions { left: max(12px, env(safe-area-inset-left)); grid-template-columns: repeat(3, 48px); gap: 4px; }

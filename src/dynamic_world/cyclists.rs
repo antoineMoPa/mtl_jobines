@@ -131,8 +131,16 @@ impl Cyclists {
             return;
         }
         self.refill = 2.;
+        self.retain_bikes(vehicles, |bike| bike.position.distance(center) < 550.);
+        self.populate(hermes, vehicles, center);
+    }
+    pub fn clear_population(&mut self, vehicles: &mut [Vehicle]) {
+        self.retain_bikes(vehicles, |_| false);
+        self.refill = 0.;
+    }
+    fn retain_bikes(&mut self, vehicles: &mut [Vehicle], keep: impl Fn(&Vehicle) -> bool) {
         self.riders.retain(|r| {
-            if vehicles[r.vehicle].position.distance(center) < 550. {
+            if keep(&vehicles[r.vehicle]) {
                 true
             } else {
                 self.free.push(r.vehicle);
@@ -141,7 +149,6 @@ impl Cyclists {
                 false
             }
         });
-        self.populate(hermes, vehicles, center);
     }
     pub fn controls(
         &mut self,
@@ -289,6 +296,33 @@ impl Cyclists {
 mod tests {
     use super::*;
     const MAP: &str="road cycle: sidewalk bikelane carlane middle carlane bikelane sidewalk; end road street: sidewalk carlane middle carlane sidewalk; end a=map_point(-1,0); b=map_point(0,0); c=map_point(1,0); first=cycle(a,-0.67,0,-0.33,0,b); second=street(b,0.33,0,0.67,0,c); land(-2,-1,2,-1,2,1,-2,1); player_start(-0.9,0);";
+    #[test]
+    fn zombie_mode_retires_only_npc_bikes_and_restores_them_on_exit() {
+        let hermes = Hermes::test_map_from_source(MAP);
+        let mut world = super::super::DynamicWorld::new(&hermes);
+        let player = world.player_vehicle.0;
+        assert!(world.vehicles[player].is_bicycle());
+        let npc_bikes: Vec<_> = world.cyclists.riders.iter().map(|r| r.vehicle).collect();
+        assert!(!npc_bikes.is_empty());
+
+        world.set_zombie_mode(hermes.city(), true);
+        for _ in 0..130 {
+            assert!(world.cyclists.riders.is_empty());
+            assert!(npc_bikes.iter().all(|&id| world.cyclists.inactive(id)));
+            assert_eq!(world.cyclists.poses.len(), 1);
+            assert_eq!(world.cyclists.poses[0].0, player);
+            world.step(&hermes, Controls::default(), Default::default(), 1. / 60.);
+        }
+        world.set_zombie_mode(hermes.city(), false);
+        world.step(&hermes, Controls::default(), Default::default(), 1. / 60.);
+        assert!(!world.cyclists.riders.is_empty());
+        assert!(world
+            .cyclists
+            .riders
+            .iter()
+            .any(|r| npc_bikes.contains(&r.vehicle)));
+    }
+
     #[test]
     fn bicycles_route_from_dedicated_lane_to_regular_street_without_teleporting() {
         let hermes = Hermes::test_map_from_source(MAP);

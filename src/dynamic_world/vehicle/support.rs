@@ -40,20 +40,19 @@ impl Vehicle {
         let mut points = [Vec3::ZERO; 12];
         let mut count = 0;
         if (q * Vec3::Z).z > 0.3 {
-            for x in [-self.wheelbase() * 0.5, self.wheelbase() * 0.5] {
-                for y in [-self.half_track(), self.half_track()] {
-                    points[count] = self.position + q * Vec3::new(x, y, -self.ride_height());
-                    count += 1;
-                }
+            for wheel in Wheel::ALL {
+                points[count] = self.position + q * wheel.contact(self);
+                count += 1;
             }
         }
         if count > 0 {
             let axis = q * Vec3::X;
             let side = q * Vec3::Y;
             let up = q * Vec3::Z;
-            let wheel_bottom = -axis.z.abs() * self.wheelbase() * 0.5
-                - side.z.abs() * self.half_track()
-                - up.z * self.ride_height();
+            let wheel_bottom = points[..count]
+                .iter()
+                .map(|point| point.z - self.position.z)
+                .fold(f32::INFINITY, f32::min);
             let body_bottom = -axis.z.abs() * self.length() * 0.5
                 - side.z.abs() * self.width() * 0.5
                 + up.z * (-self.ride_height() + 0.3);

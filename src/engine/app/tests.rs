@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn busted_camera_slides_from_the_playing_view_and_finishes_on_the_arrest() {
+    let focus = Vec3::new(1.02, 1., 0.015);
+    let start = (Vec3::new(0.94, 1., 0.03), Vec3::new(1.05, 1., 0.015));
+    assert_eq!(arrest_view(start, focus, Vec3::X, 0.), start);
+    let (middle, _) = arrest_view(start, focus, Vec3::X, 0.5);
+    let (end, aim) = arrest_view(start, focus, Vec3::X, 1.);
+    assert!(middle.distance(start.0.lerp(end, 0.5)) < 0.00001);
+    assert!((end.y - start.0.y).abs() * METERS_PER_UNIT > 3.);
+    assert!(aim.distance(focus) < 0.00001);
+}
+
+#[test]
 fn aircraft_default_chase_frames_the_airframe_and_the_horizon() {
     let mut game = Game::new(Hermes::test_map());
     for (id, def) in crate::dynamic_world::catalog::definitions()
@@ -50,8 +62,8 @@ fn reported_close_chase_view_and_pointer_orbit() {
     let mut game = Game::new(Hermes::test_map());
     let player = game.world.player_position() / METERS_PER_UNIT;
     let distance = game.eye.truncate().distance(player.truncate());
-    assert!((distance - 0.0675).abs() < 0.0001);
-    assert!((game.eye.z - player.z - 0.03375).abs() < 0.0001);
+    assert!((distance - 0.063).abs() < 0.0001);
+    assert!((game.eye.z - player.z - 0.0255).abs() < 0.0001);
     assert_eq!(game.zoom, DEFAULT_CHASE_ZOOM);
 
     game.set_overlay(Overlay::Driving);
@@ -98,6 +110,22 @@ fn reported_close_chase_view_and_pointer_orbit() {
     game.window_focus_lost();
     assert!(game.orbit_drag.is_none());
     assert!(!game.dragging);
+}
+
+#[test]
+fn unarmed_click_is_distinct_from_drag_and_focus_cancellation() {
+    let mut game = Game::new(Hermes::test_map());
+    game.set_overlay(Overlay::Driving);
+    game.begin_orbit_drag([100., 100.]);
+    game.orbit_motion([1., 1.]);
+    assert!(game.release_orbit_drag());
+    assert!(!game.release_orbit_drag());
+    game.begin_orbit_drag([100., 100.]);
+    game.orbit_motion([8., 0.]);
+    assert!(!game.release_orbit_drag());
+    game.begin_orbit_drag([100., 100.]);
+    game.window_focus_lost();
+    assert!(!game.release_orbit_drag());
 }
 
 #[test]
@@ -800,4 +828,142 @@ fn aircraft_keys_split_pitch_roll_yaw_and_power() {
     assert_eq!(input.throttle, 1.);
     assert_eq!(input.aircraft_pitch, 1.);
     assert!(input.handbrake);
+}
+
+#[test]
+fn zombie_defeat_respawns_after_the_fall_without_input() {
+    use crate::kairos::MissionId;
+    let mut game = Game::new(Hermes::test_map());
+    game.world.prepare_player_pedestrian_collision(&game.hermes);
+    game.set_overlay(Overlay::Driving);
+    game.activate_mission_now(MissionId::Zombie);
+    for _ in 0..900 {
+        game.simulate(DT);
+        if game.world.player_health() == 0 {
+            break;
+        }
+    }
+    assert_eq!(game.world.player_health(), 0);
+    game.set_overlay(Overlay::Menu);
+    game.simulate(10.);
+    game.set_overlay(Overlay::Driving);
+    game.simulate(1.);
+    assert_eq!(game.world.player_health(), 0);
+    for _ in 0..480 {
+        game.simulate(DT);
+        if game.world.player_health() > 0 {
+            break;
+        }
+    }
+    assert_eq!(game.world.player_health(), 100);
+    assert_eq!(game.kairos.active_id(), Some(MissionId::Zombie));
+    assert!(game.world.zombie_mode());
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+#[ignore = "requires a native GPU adapter"]
+fn zombie_melee_contact_frames_in_game() {
+    let mut game = Game::new(Hermes::test_map());
+    game.world.prepare_player_pedestrian_collision(&game.hermes);
+    game.set_overlay(Overlay::Driving);
+    game.activate_mission_now(crate::kairos::MissionId::Zombie);
+    let mut renderer = pollster::block_on(Renderer::new(None, 960, 640)).unwrap();
+    renderer.zombie_mode = true;
+    let scenery = Scenery::new(&renderer, &mut game.hermes);
+    let mut actors = VehicleScenery::new(&renderer);
+    let capture = |name: &str, game: &Game, actors: &mut VehicleScenery| {
+        let player = game.world.player_position();
+        let forward = glam::Vec2::from_angle(game.world.player_yaw()).extend(0.);
+        let look = (player + forward * 0.40 + Vec3::Z * 0.08) / METERS_PER_UNIT;
+        let eye = look
+            + (forward * -0.7 + forward.cross(Vec3::Z) * 2.7 + Vec3::Z * 0.48) / METERS_PER_UNIT;
+        actors.update(&renderer, &game.world);
+        let mut meshes = scenery.visible([look.x, look.y]);
+        meshes.extend(actors.visible());
+        let png = renderer
+            .capture_png(|view| {
+                renderer.render_scene(view, &meshes, eye, look, 10., None, None);
+                let ctx = egui::Context::default();
+                crate::engine::job_feed::install_font(&ctx);
+                let frame = |time| {
+                    ctx.run_ui(
+                        egui::RawInput {
+                            time: Some(time),
+                            screen_rect: Some(egui::Rect::from_min_size(
+                                egui::Pos2::ZERO,
+                                egui::vec2(
+                                    renderer.config.width as f32,
+                                    renderer.config.height as f32,
+                                ),
+                            )),
+                            ..Default::default()
+                        },
+                        |ui| {
+                            crate::engine::job_feed::show(
+                                ui.ctx(),
+                                &mut false,
+                                &game.kairos,
+                                Overlay::Driving,
+                                Some(crate::engine::job_feed::Vitals::from_world(&game.world)),
+                                None,
+                                None,
+                            );
+                            crate::engine::job_feed::player_status(
+                                ui.ctx(),
+                                ui.ctx().content_rect().size(),
+                                game.world.player_health(),
+                                game.world.chase_status(),
+                            );
+                        },
+                    )
+                };
+                let mut output = frame(0.);
+                output.append(frame(0.5));
+                let mut painter = crate::engine::palette::Painter::new(
+                    &renderer.device,
+                    renderer.config.format.add_srgb_suffix(),
+                );
+                painter.paint(
+                    &renderer,
+                    view,
+                    ctx.tessellate(output.shapes, output.pixels_per_point),
+                    output.textures_delta,
+                    output.pixels_per_point,
+                );
+            })
+            .unwrap();
+        if let Some(dir) = std::env::var_os("MTL_MELEE_QA_DIR") {
+            std::fs::write(std::path::PathBuf::from(dir).join(name), &png).unwrap();
+        }
+        png
+    };
+    for _ in 0..480 {
+        game.simulate(DT);
+        if game.world.player_health() < 100 {
+            break;
+        }
+    }
+    assert_eq!(game.world.player_health(), 75);
+    let bite = capture("zombie-bite.png", &game, &mut actors);
+    for _ in 0..70 {
+        game.simulate(DT);
+    }
+    assert!(game.world.start_punch());
+    for _ in 0..38 {
+        game.simulate(DT);
+    }
+    assert_eq!(game.world.zombie_health_meters().next().unwrap().1, 2. / 3.);
+    let punch = capture("player-punch.png", &game, &mut actors);
+    assert_ne!(punch, bite);
+    for _ in 0..900 {
+        game.simulate(DT);
+        if game.world.player_health() == 0 {
+            break;
+        }
+    }
+    game.simulate(1.);
+    assert_eq!(game.world.player_health(), 0);
+    let fallen = capture("mange.png", &game, &mut actors);
+    assert_ne!(fallen, punch);
 }

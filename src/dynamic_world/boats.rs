@@ -1,12 +1,8 @@
 //! Small-craft simulation in game metres; the GLB origin is the design waterline.
-use super::{
-    catalog, crowd::Instance, pedestrian_catalog, Controls, DynamicWorld, SpawnPoint, Vehicle,
-    METERS_PER_UNIT,
-};
+use super::{catalog, Controls, DynamicWorld, SpawnPoint, Vehicle, METERS_PER_UNIT};
 use crate::hermes::Hermes;
-use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
+use glam::{Vec2, Vec3};
 use opencity::runtime::{City, SurfaceKind};
-use std::sync::OnceLock;
 
 pub(super) fn water(city: &City, xy: Vec2) -> Option<f32> {
     let level = city.elevation.as_ref()?.spec.water_level?;
@@ -111,80 +107,9 @@ impl DynamicWorld {
             }
         }
     }
-    pub(super) fn boat_crew(&self) -> impl Iterator<Item = Instance<'_>> {
-        let player = self.player_vehicle.0;
-        let center = self.player_position();
-        self.boat_routes
-            .iter()
-            .map(|r| (r.vehicle, r.crew))
-            .chain(
-                (self.is_driving() && self.player().is_boat())
-                    .then_some((player, pedestrian_catalog::player_model(self.season))),
-            )
-            .filter_map(move |(id, model)| {
-                let v = &self.vehicles[id];
-                if v.position.distance_squared(center) > 250_f32.powi(2) {
-                    return None;
-                }
-                let seat = match v.definition()?.config.research_id.as_str() {
-                    "vehicle-boat-voile" => Vec3::new(-0.28, 0., 0.26),
-                    "vehicle-boat-cabine" => Vec3::new(-0.24, -0.43, 1.08),
-                    "vehicle-boat-runabout" => Vec3::new(-0.31, -0.48, 0.59),
-                    _ => return None,
-                };
-                let axes = Mat4::from_cols(Vec4::Y, Vec4::Z, Vec4::X, Vec4::W);
-                let transform = Mat4::from_scale_rotation_translation(
-                    Vec3::splat(1. / METERS_PER_UNIT),
-                    v.orientation(),
-                    v.position / METERS_PER_UNIT,
-                ) * Mat4::from_translation(seat - Vec3::Z * v.ride_height())
-                    * axes;
-                Some(Instance {
-                    zombie: false,
-                    model,
-                    transform,
-                    opacity: 1.,
-                    idle_time: 0.,
-                    walk_time: 0.,
-                    movement: 0.,
-                    pose: Some(&seated()[model]),
-                })
-            })
+    pub(super) fn skippers(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.boat_routes.iter().map(|r| (r.vehicle, r.crew))
     }
-}
-
-fn seated() -> &'static Vec<[Mat4; pedestrian_catalog::JOINT_LIMIT]> {
-    static POSES: OnceLock<Vec<[Mat4; pedestrian_catalog::JOINT_LIMIT]>> = OnceLock::new();
-    POSES.get_or_init(|| {
-        pedestrian_catalog::definitions()
-            .iter()
-            .map(|d| {
-                let mut locals = d.rest.clone();
-                for side in ["L", "R"] {
-                    for (joint, angle) in [
-                        ("Thigh", -1.42),
-                        ("Shin", 1.48),
-                        ("UpperArm", -0.69),
-                        ("Forearm", -0.82),
-                    ] {
-                        locals[d.node(&format!("{joint}_{side}"))].rotation =
-                            Quat::from_rotation_x(angle);
-                    }
-                }
-                let hip = d.rest_worlds()[d.node("Hips")].w_axis.truncate();
-                let worlds = d.worlds(
-                    &locals,
-                    Mat4::from_translation(-hip),
-                    &vec![None; locals.len()],
-                );
-                let mut pose = [Mat4::IDENTITY; pedestrian_catalog::JOINT_LIMIT];
-                for (i, &n) in d.joints.iter().enumerate() {
-                    pose[i] = worlds[n] * d.inverse_bind[i];
-                }
-                pose
-            })
-            .collect()
-    })
 }
 
 pub(super) fn step(v: &mut Vehicle, city: &City, input: Controls, dt: f32) {

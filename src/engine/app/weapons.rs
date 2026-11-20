@@ -28,7 +28,7 @@ impl Weapon {
             Self::Handgun => include_bytes!("../../../assets/fps/fps-handgun.glb"),
         }
     }
-    fn model(self) -> Mesh {
+    pub(super) fn model(self) -> Mesh {
         let mut mesh =
             external_models::decode_equipment(self.bytes()).expect("packaged weapon GLB");
         let (lo, hi) = external_models::bounds(&mesh);
@@ -134,15 +134,19 @@ impl Loadout {
     ) -> Option<&GpuMesh> {
         let weapon = self.equipped?;
         let hand = world.weapon_hand()?;
-        let delta = target - hand;
-        let rotation = Quat::from_rotation_z(delta.y.atan2(delta.x))
-            * Quat::from_rotation_y(-delta.z.atan2(delta.truncate().length()));
         let model = self.models[weapon.slot()]
             .get_or_insert_with(|| Equipment::upload(renderer, &weapon.model()));
-        let pose = Mat4::from_rotation_translation(rotation, hand / METERS_PER_UNIT);
+        let pose = weapon_pose(hand, target);
         model.place(renderer, pose, camera, &self.effects.muzzle, sprites);
         Some(&model.gpu)
     }
+}
+
+pub(super) fn weapon_pose(hand: Vec3, target: Vec3) -> Mat4 {
+    let delta = target - hand;
+    let rotation = Quat::from_rotation_z(delta.y.atan2(delta.x))
+        * Quat::from_rotation_y(-delta.z.atan2(delta.truncate().length()));
+    Mat4::from_rotation_translation(rotation, hand / METERS_PER_UNIT)
 }
 
 pub(super) fn sight_line(inverse: Mat4) -> Option<(Vec3, Vec3)> {
@@ -170,6 +174,8 @@ impl Game {
         {
             return;
         }
+        self.world
+            .report_crime(crate::dynamic_world::Crime::Gunshot);
         let city = self.hermes.city();
         let target = self.world.weapon_aim_point(city, eye, end);
         let damage = if self.loadout.equipped == Some(Weapon::Rifle) {
@@ -209,6 +215,32 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn police_report_requires_a_successful_normal_play_shot() {
+        use crate::dynamic_world::{ChaseStatus, Crime};
+        for zombies in [false, true] {
+            let mut game = Game::new(Hermes::test_map());
+            game.set_overlay(Overlay::Driving);
+            assert!(game.world.toggle_vehicle(&game.hermes));
+            game.world.set_zombie_mode(game.hermes.city(), zombies);
+            game.loadout.equip(Some(Weapon::Handgun));
+            game.loadout.projection = Some(Mat4::IDENTITY);
+            game.loadout.ready_at = 1.;
+            game.fire_weapon();
+            assert_eq!(game.world.chase_status(), ChaseStatus::Clear);
+            game.game_time = 2.;
+            game.fire_weapon();
+            assert_eq!(
+                game.world.chase_status(),
+                if zombies {
+                    ChaseStatus::Clear
+                } else {
+                    ChaseStatus::Reported(Crime::Gunshot)
+                }
+            );
+        }
+    }
+
     #[test]
     fn weapons_have_valid_models_and_separate_ammunition() {
         let mut loadout = Loadout::default();

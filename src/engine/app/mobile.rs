@@ -14,6 +14,7 @@ pub enum MobileAction {
     Map,
     Phone,
     Menu,
+    Door,
 }
 impl MobileAction {
     fn key(self) -> Option<KeyCode> {
@@ -24,7 +25,7 @@ impl MobileAction {
             Self::Right => Some(KeyCode::ArrowRight),
             Self::Run => Some(KeyCode::ShiftLeft),
             Self::Jump => Some(KeyCode::Space),
-            Self::Vehicle | Self::Map | Self::Phone | Self::Menu => None,
+            Self::Vehicle | Self::Map | Self::Phone | Self::Menu | Self::Door => None,
         }
     }
 }
@@ -34,14 +35,14 @@ pub(super) struct Input {
     #[cfg(target_arch = "wasm32")]
     view: Option<(bool, bool)>,
     #[cfg(target_arch = "wasm32")]
-    map_touch: Option<(u64, [f32; 2])>,
+    scene_tap: Option<(u64, [f32; 2], Overlay)>,
 }
 impl Input {
     pub(super) fn clear(&mut self) {
         self.keys.clear();
         #[cfg(target_arch = "wasm32")]
         {
-            self.map_touch = None;
+            self.scene_tap = None;
         }
     }
     fn hold(&mut self, action: MobileAction, pressed: bool, active: bool) {
@@ -124,7 +125,10 @@ mod browser {
     }
     impl Game {
         pub(in super::super) fn sync_mobile_controls(&mut self) {
-            let active = enabled() && !self.first_frame && !self.simulation_paused();
+            let active = enabled()
+                && !self.first_frame
+                && !self.simulation_paused()
+                && self.world.arrest_progress().is_none();
             let driving = self.world.is_driving();
             if self.mobile.view != Some((active, driving)) {
                 self.mobile.clear();
@@ -149,7 +153,10 @@ mod browser {
                 }
                 Event::Reset => self.mobile.clear(),
                 Event::Action(action, pressed) => {
-                    let active = enabled() && !self.first_frame && !self.simulation_paused();
+                    let active = enabled()
+                        && !self.first_frame
+                        && !self.simulation_paused()
+                        && self.world.arrest_progress().is_none();
                     self.mobile.hold(action, pressed, active);
                     if pressed && active {
                         self.audio.user_gesture();
@@ -158,12 +165,10 @@ mod browser {
                                 self.mobile.clear();
                                 if self.world.toggle_vehicle(&self.hermes) {
                                     self.reset_boarding_camera();
-                                } else {
-                                    canvas_attribute(
-                                        "data-mobile-notice",
-                                        "Rapprochez-vous d’un véhicule.",
-                                    );
                                 }
+                            }
+                            MobileAction::Door => {
+                                self.world.toggle_door();
                             }
                             MobileAction::Map => self.set_overlay(Overlay::Map),
                             MobileAction::Menu => self.set_overlay(Overlay::Menu),
@@ -188,19 +193,19 @@ mod browser {
                 window.request_redraw();
             }
         }
-        pub(in super::super) fn mobile_map_touch(&mut self, touch: winit::event::Touch) {
+        pub(in super::super) fn mobile_scene_touch(&mut self, touch: winit::event::Touch) {
             use winit::event::TouchPhase;
-            if self.overlay != Overlay::Map {
+            if self.overlay != Overlay::Map && self.simulation_paused() {
                 return;
             }
             let point = [touch.location.x as f32, touch.location.y as f32];
             match touch.phase {
-                TouchPhase::Started if self.mobile.map_touch.is_none() => {
-                    self.mobile.map_touch = Some((touch.id, point))
+                TouchPhase::Started if self.mobile.scene_tap.is_none() => {
+                    self.mobile.scene_tap = Some((touch.id, point, self.overlay))
                 }
-                TouchPhase::Cancelled => self.mobile.map_touch = None,
+                TouchPhase::Cancelled => self.mobile.scene_tap = None,
                 TouchPhase::Ended => {
-                    let Some((id, start)) = self.mobile.map_touch.take() else {
+                    let Some((id, start, overlay)) = self.mobile.scene_tap.take() else {
                         return;
                     };
                     let Some(window) = &self.window else {
@@ -208,9 +213,18 @@ mod browser {
                     };
                     let slop = 12. * window.scale_factor() as f32;
                     if id != touch.id
+                        || overlay != self.overlay
                         || (point[0] - start[0]).abs() > slop
                         || (point[1] - start[1]).abs() > slop
                     {
+                        return;
+                    }
+                    if self.overlay == Overlay::Driving {
+                        if self.armed_aim() {
+                            self.fire_weapon();
+                        } else if self.loadout.equipped.is_none() {
+                            self.world.start_punch();
+                        }
                         return;
                     }
                     let size = window.inner_size();
@@ -271,6 +285,7 @@ mod tests {
         assert!(input.keys.is_empty());
         for action in [
             MobileAction::Vehicle,
+            MobileAction::Door,
             MobileAction::Map,
             MobileAction::Phone,
             MobileAction::Menu,

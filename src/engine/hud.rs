@@ -156,8 +156,10 @@ struct Uniform {
     performance: [f32; 4],
     text_metrics: [f32; 4],
     letters: [[u32; 4]; 12],
+    police: [[f32; 4]; 80],
 }
 pub struct Hud {
+    pub(super) police: [[f32; 4]; 80],
     texture: wgpu::Texture,
     uniform: wgpu::Buffer,
     group: wgpu::BindGroup,
@@ -353,6 +355,7 @@ impl Hud {
             mapped_at_creation: false,
         });
         Self {
+            police: [[0.; 4]; 80],
             vector_city: None,
             vector_pipeline,
             vector_buffer,
@@ -564,6 +567,7 @@ impl Hud {
             performance: [fps.unwrap_or(0.), 0., 0., 0.],
             text_metrics: [0.; 4],
             letters: [[0; 4]; 12],
+            police: self.police,
             mode: [
                 match overlay {
                     Overlay::Driving => 0.,

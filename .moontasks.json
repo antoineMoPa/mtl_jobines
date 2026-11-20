@@ -21,6 +21,11 @@
       "run": "make serve"
     },
     {
+      "name": "Publish to Cloudflare Pages",
+      "build": "cargo xtask web-deploy --dry-run",
+      "run": "make web-deploy"
+    },
+    {
       "name": "OpenCity Web",
       "build": "make -C opencity build",
       "run": "make -C opencity serve"

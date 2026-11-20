@@ -47,6 +47,7 @@ fn maximum_scene_is_bounded_finite_and_gears_interrupt_load() {
             engine_on: true,
             player: i == 0,
             horn: true,
+            siren: true,
             ..Car::default()
         };
     }
@@ -295,6 +296,75 @@ fn drivetrain_shifts_reduce_load_and_authored_profiles_change_idle_and_timbre() 
         get(&voice.parameters.engine_body),
     );
     assert!(compact.0 > heavy.0 && compact.1 < heavy.1);
+}
+
+#[test]
+fn pursuit_siren_sweeps_in_pitch_and_releases_when_dispatch_or_sound_is_off() {
+    let bridge = bridge();
+    let mut mix = Mix::new(bridge.clone());
+    let mut frame = Frame::default();
+    let mut car = Car {
+        id: 0,
+        siren: true,
+        position: Vec3::X,
+        ..Default::default()
+    };
+    frame.cars[0] = car;
+    publish(&bridge, frame);
+    mix.control();
+    let mut synth = Synth::new(mix.voices[0].parameters.clone(), 0, 10);
+    let samples: Vec<_> = (0..RATE * 4).map(|_| synth.sample()).collect();
+    let pitch = |at: usize| {
+        let span = RATE as usize / 10;
+        samples[at..at + span]
+            .windows(2)
+            .filter(|s| s[0] <= 0. && s[1] > 0.)
+            .count()
+            * 10
+    };
+    assert!((530..630).contains(&pitch(RATE as usize / 20)));
+    assert!((975..1030).contains(&pitch(RATE as usize * 19 / 10)));
+    assert!((530..600).contains(&pitch(RATE as usize * 37 / 10)));
+    let rms = (samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
+    assert!((0.09..0.17).contains(&rms), "single siren RMS {rms}");
+    for (responding, volume) in [(false, 1.), (true, 0.)] {
+        car.siren = responding;
+        frame.settings.horns = volume;
+        frame.cars[0] = car;
+        publish(&bridge, frame);
+        mix.control();
+        for _ in 0..RATE / 2 {
+            synth.sample();
+        }
+        assert_eq!(synth.sample(), 0.);
+    }
+}
+
+#[test]
+fn nearby_patrols_share_siren_headroom() {
+    let bridge = bridge();
+    let mut mix = Mix::new(bridge.clone());
+    let mut frame = Frame::default();
+    frame.settings.horns = 1.;
+    frame.cars[0] = Car {
+        id: 0,
+        position: Vec3::X * 5.,
+        siren: true,
+        ..Default::default()
+    };
+    frame.cars[1] = Car {
+        id: 1,
+        ..frame.cars[0]
+    };
+    publish(&bridge, frame);
+    mix.control();
+    for voice in &mix.voices[..2] {
+        assert!((get(&voice.parameters.siren_gain) - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-5);
+    }
+    frame.cars[1].position = Vec3::X * 100.;
+    publish(&bridge, frame);
+    mix.control();
+    assert!(get(&mix.voices[0].parameters.siren_gain) > 0.99);
 }
 
 #[test]

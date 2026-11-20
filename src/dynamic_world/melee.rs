@@ -1,10 +1,13 @@
 //! Contact and posing share the same simulation clock, in seconds.
 use super::pedestrian_catalog::{Definition, Transform};
-use glam::{EulerRot, Quat};
+use super::DynamicWorld;
+use glam::{EulerRot, Quat, Vec3};
+use opencity::runtime::City;
 
 pub(super) const PLAYER_HEALTH: u8 = 100;
 pub(super) const ZOMBIE_HEALTH: u8 = 3;
 pub(super) const BITE_DAMAGE: u8 = 25;
+const HIT_RECOVERY: f32 = 0.55;
 
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum Attack {
@@ -49,7 +52,7 @@ impl Melee {
 
     pub fn hurt(&mut self) {
         self.swing = None;
-        self.flinch = 0.32;
+        self.flinch = HIT_RECOVERY;
     }
 
     pub fn advance(&mut self, dt: f32) -> bool {
@@ -64,7 +67,10 @@ impl Melee {
 
     pub fn pose(&self, model: &Definition, locals: &mut [Transform]) {
         if self.flinch > 0. {
-            let recoil = sample(0.32 - self.flinch, &[(0., 0.), (0.07, 1.), (0.32, 0.)]);
+            let recoil = sample(
+                HIT_RECOVERY - self.flinch,
+                &[(0., 0.), (0.07, 1.), (0.32, 0.)],
+            );
             locals[model.node("Chest")].rotation *= Quat::from_rotation_x(-0.32 * recoil);
             locals[model.node("Neck")].rotation *= Quat::from_rotation_z(0.20 * recoil);
         }
@@ -101,13 +107,13 @@ impl Melee {
             )
         };
         let hips = &mut locals[model.node("Hips")];
-        hips.translation.z += drive * if bite { 0.32 } else { 0.11 };
-        hips.translation.y -= drive.max(0.) * if bite { 0.11 } else { 0.024 };
+        hips.translation.z += drive * if bite { 0.37 } else { 0.13 };
+        hips.translation.y -= drive.max(0.) * if bite { 0.06 } else { 0.024 };
         let twist = if bite { 0.29 } else { 0.65 } * drive;
         locals[model.node("Spine")].rotation *= Quat::from_euler(
             EulerRot::YXZ,
             twist * 0.42,
-            drive * if bite { 0.45 } else { 0.14 },
+            drive * if bite { 0.34 } else { 0.14 },
             0.,
         );
         locals[model.node("Chest")].rotation *= Quat::from_rotation_y(twist * 0.58);
@@ -121,7 +127,7 @@ impl Melee {
             let strike = if side == "R" { drive } else { 0. };
             let (pitch, yaw, roll, elbow) = if bite {
                 (
-                    -0.95 - 1.52 * drive,
+                    -0.95 - 1.20 * drive,
                     sign * (-0.11 - 0.20 * drive),
                     sign * 0.21,
                     -0.41 - 0.11 * drive,
@@ -134,10 +140,12 @@ impl Melee {
                     -1.99 + 1.90 * strike,
                 )
             };
+            // The idle clip shares shoulder rotation between the cap and upper arm.
+            // Map the fighting pose from chest space into the animated cap's frame.
+            let cap = locals[model.node(&format!("ShoulderCap_{side}"))].rotation;
+            let target = cap.inverse() * Quat::from_euler(EulerRot::YXZ, yaw, pitch, roll);
             let arm = &mut locals[model.node(&format!("UpperArm_{side}"))];
-            arm.rotation = arm
-                .rotation
-                .slerp(Quat::from_euler(EulerRot::YXZ, yaw, pitch, roll), blend);
+            arm.rotation = arm.rotation.slerp(target, blend);
             let forearm = &mut locals[model.node(&format!("Forearm_{side}"))];
             forearm.rotation = forearm.rotation.slerp(Quat::from_rotation_x(elbow), blend);
         }
@@ -153,6 +161,112 @@ fn sample(frame: f32, keys: &[(f32, f32)]) -> f32 {
         }
     }
     keys.last().unwrap().1
+}
+
+impl DynamicWorld {
+    pub fn start_punch(&mut self) -> bool {
+        if !self.can_equip_weapon() {
+            return false;
+        }
+        self.pedestrian
+            .as_mut()
+            .unwrap()
+            .gait
+            .melee
+            .start(Attack::Punch)
+    }
+
+    pub fn cancel_punch(&mut self) {
+        if let Some(p) = &mut self.pedestrian {
+            if p.gait.melee.active() {
+                p.gait.melee = Default::default();
+            }
+        }
+    }
+
+    pub fn punching(&self) -> bool {
+        self.pedestrian
+            .as_ref()
+            .is_some_and(|p| p.gait.melee.active())
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn zombie_health_meters(&self) -> impl Iterator<Item = (Vec3, f32)> + '_ {
+        self.crowd.health_meters(self.player_position())
+    }
+
+    pub fn player_health(&self) -> u8 {
+        self.health
+    }
+
+    pub fn player_ready_to_respawn(&self) -> bool {
+        self.health == 0
+            && self
+                .pedestrian
+                .as_ref()
+                .and_then(|player| player.fallen.as_deref())
+                .is_some_and(|fall| fall.ready_to_rise())
+    }
+
+    pub(super) fn step_melee(&mut self, city: &City, dt: f32) {
+        use super::{pedestrian_catalog, player::HALF_HEIGHT, ragdoll::Ragdoll};
+        let can_fight = self.can_equip_weapon();
+        if let Some(p) = &mut self.pedestrian {
+            if let Some(doll) = &mut p.fallen {
+                if !doll.ready_to_rise() {
+                    let model = pedestrian_catalog::player_model(self.season);
+                    doll.step(
+                        &pedestrian_catalog::definitions()[model],
+                        city,
+                        &self.vehicles,
+                        dt,
+                    );
+                    p.position = doll.anchor + Vec3::Z * HALF_HEIGHT;
+                }
+                return;
+            }
+            if !can_fight {
+                p.gait.melee = Default::default();
+            }
+            if p.gait.melee.advance(dt) && self.crowd.zombies {
+                let forward = glam::Vec2::from_angle(p.yaw).extend(0.);
+                let from = p.position + Vec3::Z * 0.32;
+                if let Some(id) = self.first_zombie_on_segment(city, from, from + forward * 0.82) {
+                    self.crowd
+                        .damage_zombie(id, 1, forward, city, &self.vehicles);
+                }
+            }
+        }
+        if !self.crowd.zombies {
+            return;
+        }
+        let target = can_fight.then(|| self.player_position());
+        for (id, shoulder) in self.crowd.bite_contacts(target, dt) {
+            let from = self.player_position() + Vec3::Z * 0.32;
+            // Use the same obstruction query as the punch, from outside the attacker's capsule.
+            if self.first_zombie_on_segment(city, from, shoulder) != Some(id) {
+                continue;
+            }
+            self.health = self.health.saturating_sub(BITE_DAMAGE);
+            let player = self.pedestrian.as_mut().unwrap();
+            player.gait.melee.hurt();
+            if self.health == 0 {
+                let model = pedestrian_catalog::player_model(self.season);
+                let pose = *player.instance(self.season).pose.unwrap();
+                player.fallen = Some(Box::new(Ragdoll::new(
+                    &pedestrian_catalog::definitions()[model],
+                    pose,
+                    player.position - Vec3::Z * HALF_HEIGHT,
+                    player.yaw,
+                    (from - shoulder) * 1.5,
+                    city,
+                    &self.vehicles,
+                )));
+                self.crowd.cancel_bites();
+                break;
+            }
+        }
+    }
 }
 
 #[cfg(test)]

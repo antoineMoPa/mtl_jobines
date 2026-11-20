@@ -148,6 +148,12 @@ impl Game {
         }
     }
 
+    pub(super) fn release_orbit_drag(&mut self) -> bool {
+        let click = self.orbit_drag.is_some() && !self.dragging;
+        self.stop_orbit_drag();
+        click
+    }
+
     pub(super) fn stop_orbit_drag(&mut self) {
         self.dragging = false;
         if let Some(drag) = self.orbit_drag.take() {

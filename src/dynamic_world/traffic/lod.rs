@@ -33,6 +33,11 @@ fn approaching(car: &Vehicle, point: Vec3, velocity: Vec3, radius: f32) -> bool 
 }
 
 impl Traffic {
+    pub(in crate::dynamic_world) fn wake_after_tire_hit(&mut self, vehicle: usize) {
+        self.interacted
+            .insert(vehicle, Protected::Awake { quiet: 0. });
+    }
+
     pub(in crate::dynamic_world) fn select_physics(
         &mut self,
         vehicles: &[Vehicle],
@@ -57,7 +62,8 @@ impl Traffic {
                     && id != driver.vehicle
                     && approaching(car, vehicles[id].position, vehicles[id].velocity, 20.)
             });
-            if !self.physics_lod
+            if self.chase.patrol(driver.vehicle).is_some()
+                || !self.physics_lod
                 || driver.vehicle == player
                 || self.interacted.contains_key(&driver.vehicle)
                 || self.time < driver.physical_until

@@ -75,6 +75,22 @@ fn distance_hysteresis_and_closing_speed_promote_without_changing_state() {
 }
 
 #[test]
+fn tire_hit_wakes_a_distant_lane_follower_and_preserves_its_slot() {
+    let (city, graph) = scene(GRADED);
+    let (mut traffic, mut cars) = driver(&city, &graph, 0, 100.);
+    select(&mut traffic, &cars);
+    assert!(matches!(traffic.drivers[0].motion, Motion::Lane(_)));
+    traffic.wake_after_tire_hit(0);
+    select(&mut traffic, &cars);
+    assert!(matches!(traffic.drivers[0].motion, Motion::Physical));
+    let position = cars[0].position;
+    let center = cars[1].position;
+    traffic.populate(&city, &mut cars, center);
+    assert!(!traffic.inactive(0));
+    assert_eq!(cars[0].position, position);
+}
+
+#[test]
 fn airborne_displaced_and_recently_colliding_cars_stay_physical() {
     let (city, graph) = scene(GRADED);
     for problem in 0..4 {

@@ -52,8 +52,8 @@ pub fn show(ctx: &egui::Context, open: &mut bool, settings: &mut SkySettings) {
                 ui.label("Star color");
                 ui.color_edit_button_rgb(&mut settings.star_color);
             });
-            if ui.button("Restore Montréal summer defaults").clicked() {
-                *settings = SkySettings::default();
+            if ui.button("Restore Montréal defaults").clicked() {
+                *settings = SkySettings::montreal();
             }
         });
 }

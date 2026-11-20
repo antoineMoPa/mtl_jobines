@@ -88,6 +88,7 @@ pub struct Renderer {
     pub(super) construction_span: Option<f32>,
     pub(super) underground_exits: Option<Vec<glam::Vec2>>,
     pub(super) ambient_occlusion: bool,
+    pub(super) montreal_grade: bool,
     pub(super) retro_lens: f32,
     pub(super) zombie_mode: bool,
     pub(super) winter_weather: bool,
@@ -657,6 +658,7 @@ impl Renderer {
             underground_exits: None,
             ambient_occlusion: true,
             retro_lens: 0.,
+            montreal_grade: false,
             zombie_mode: false,
             render_lod,
             contact_debris: true,
@@ -832,6 +834,13 @@ impl Renderer {
     pub fn update_route(&mut self, points: &[[f32; 2]]) {
         self.hud.update_route(&self.device, points);
     }
+    pub fn set_police_markers(&mut self, markers: impl Iterator<Item = ([f32; 2], bool)>) {
+        self.hud.police.fill([0.; 4]);
+        for (slot, (uv, walking)) in self.hud.police.iter_mut().zip(markers) {
+            *slot = [uv[0], uv[1], if walking { 2. } else { 1. }, 0.];
+        }
+    }
+
     pub fn update_vector_map(
         &mut self,
         city: &std::sync::Arc<opencity::runtime::City>,
@@ -1340,6 +1349,10 @@ impl Renderer {
             self.scene_height(),
             self.ambient_occlusion,
             self.zombie_mode,
+            self.montreal_grade
+                && self.construction_span.is_none()
+                && !self.zombie_mode
+                && self.retro_lens == 0.,
             [time, f32::from(winter), lighting.daylight, self.retro_lens],
             winter.then_some(&self.snowfall),
             self.gpu_profile.as_ref().map(|profile| {

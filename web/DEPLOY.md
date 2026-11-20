@@ -36,6 +36,9 @@ cargo xtask web-deploy --dry-run  # Build and validate without publishing
 make web-deploy                   # Build, validate, then publish
 ```
 
+In Moon, select **Publish to Cloudflare Pages**. Build runs the release dry run.
+Run publishes the validated `web/dist` to the configured Pages project and branch.
+
 `make web-check` validates an existing `web/dist` without rebuilding. Validation
 requires every listed asset, rejects files above Pages' 25 MiB limit or a site
 above 20,000 files, and confirms that the native `[bug]` report UI is absent
