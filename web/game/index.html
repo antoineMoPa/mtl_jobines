@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#18212d">
+  <base href="/">
+  <link rel="icon" href="data:,">
+  <title>MTL Jobines</title>
+  <link rel="stylesheet" href="./mobile-controls.css">
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #18212d; color: #fff; font: 14px system-ui, sans-serif; }
+    #game { display: block; width: 100% !important; height: 100% !important; outline: none; touch-action: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; padding: 2rem; background: #18212d; text-align: center; }
+    #loading img { display: block; width: min(80vw, 800px); max-height: 70vh; object-fit: contain; }
+    #loading-message { position: absolute; bottom: 1.5rem; margin: 0; }
+    #loading[data-state="ready"] { display: none; }
+    #loading[data-state="error"] #loading-message { color: #ffb8a0; }
+  </style>
+</head>
+<body>
+  <canvas id="game" tabindex="0" aria-label="MTL Jobines driving game"></canvas>
+  <div id="loading" role="status" aria-live="polite">
+    <img src="./boot.png" alt="" aria-hidden="true">
+    <p id="loading-message">Loading…</p>
+  </div>
+  <script type="module">
+    import { installMobileControls } from './mobile-controls.js';
+    const loading = document.getElementById('loading');
+    const canvas = document.getElementById('game');
+    function fail(error) {
+      console.error(error);
+      loading.dataset.state = 'error';
+      document.getElementById('loading-message').textContent = `Could not start: ${error.message ?? error}`;
+    }
+    window.addEventListener('error', event => fail(event.error ?? event.message));
+    window.addEventListener('unhandledrejection', event => fail(event.reason));
+    canvas.addEventListener('pointerdown', () => canvas.focus());
+    canvas.addEventListener('contextmenu', event => event.preventDefault());
+    try {
+      if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over localhost or HTTPS.');
+      const game = await import('./pkg/mtl_jobines.js');
+      const { default: init, start, asset_paths, install_asset, install_assets, discard_pending_assets } = game;
+      await init();
+      const paths = asset_paths().trim().split('\n');
+      document.getElementById('loading-message').textContent = `Loading ${paths.length} game assets…`;
+      try {
+        for (const [index, path] of paths.entries()) {
+          document.getElementById('loading-message').textContent = `Loading game assets… ${index + 1}/${paths.length}`;
+          const response = await fetch(`./${path}`);
+          if (!response.ok) throw new Error(`Could not load ${path}: HTTP ${response.status}`);
+          install_asset(path, new Uint8Array(await response.arrayBuffer()));
+        }
+        install_assets();
+      } catch (error) {
+        discard_pending_assets();
+        throw error;
+      }
+      document.getElementById('loading-message').textContent = 'Preparing the city…';
+      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+      if (new URLSearchParams(location.search).get('client') === 'cpp') {
+        const response = await fetch('./vehicle-return.wasm');
+        if (!response.ok) throw new Error(`Could not load C++ client: HTTP ${response.status}`);
+        const { instance } = await WebAssembly.instantiate(await response.arrayBuffer());
+        const rule = instance.exports.mtl_vehicle_return_v1;
+        if (typeof rule !== 'function') throw new Error('Missing C++ vehicle-return rule');
+        game.start_with_client(rule);
+      } else {
+        start();
+      }
+      installMobileControls(game, canvas);
+    } catch (error) {
+      fail(error);
+    }
+  </script>
+</body>
+</html>

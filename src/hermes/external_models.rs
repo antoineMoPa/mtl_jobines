@@ -32,14 +32,14 @@ fn walk(
     binary: &[u8],
     out: &mut Vec<Vertex>,
 ) -> Result<(), String> {
-    walk_materials(node, parent, binary, out, false)
+    walk_materials(node, parent, binary, out, ModelUse::Building)
 }
 fn walk_materials(
     node: gltf::Node<'_>,
     parent: Mat4,
     binary: &[u8],
     out: &mut Vec<Vertex>,
-    baked_prop: bool,
+    usage: ModelUse,
 ) -> Result<(), String> {
     let transform = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
     if !transform.is_finite() || transform.determinant().abs() < 1e-12 {
@@ -51,7 +51,12 @@ fn walk_materials(
             if primitive.mode() != gltf::mesh::Mode::Triangles {
                 return Err("GLB models require triangle primitives".into());
             }
-            let texture_layer = textures::register(primitive.material(), binary)?;
+            let texture_layer = if usage == ModelUse::Equipment {
+                textures::register_equipment(primitive.material(), binary)?
+            } else {
+                textures::register(primitive.material(), binary)?
+            };
+            let pbr = primitive.material().pbr_metallic_roughness();
             let reader = primitive.reader(|b| match b.source() {
                 gltf::buffer::Source::Bin => Some(binary),
                 _ => None,
@@ -82,7 +87,7 @@ fn walk_materials(
                 .material()
                 .pbr_metallic_roughness()
                 .base_color_factor();
-            let kind = if baked_prop
+            let kind = if usage != ModelUse::Building
                 && primitive
                     .material()
                     .emissive_factor()
@@ -156,7 +161,23 @@ fn walk_materials(
                         normal: (normal / length).to_array(),
                         color,
                         surface: if let Some(layer) = texture_layer {
-                            [textures::MATERIAL, uv[0], uv[1], layer as f32]
+                            [
+                                if usage == ModelUse::Equipment {
+                                    textures::EQUIPMENT_TEXTURE
+                                } else {
+                                    textures::MATERIAL
+                                },
+                                uv[0],
+                                uv[1],
+                                layer as f32,
+                            ]
+                        } else if usage == ModelUse::Equipment {
+                            [
+                                textures::EQUIPMENT_SOLID,
+                                pbr.roughness_factor(),
+                                pbr.metallic_factor(),
+                                0.,
+                            ]
                         } else {
                             [
                                 kind as u32 as f32,
@@ -171,7 +192,7 @@ fn walk_materials(
         }
     }
     for child in node.children() {
-        walk_materials(child, transform, binary, out, baked_prop)?;
+        walk_materials(child, transform, binary, out, usage)?;
     }
     Ok(())
 }
@@ -185,9 +206,18 @@ pub fn decode_shared(bytes: &[u8]) -> Result<std::sync::Arc<Mesh>, String> {
 /// Packaged street props already contain the approved bake in COLOR_0.
 /// Keep that shading once, and map their diffuser materials to game lights.
 pub fn decode_street_prop(bytes: &[u8]) -> Result<Mesh, String> {
-    decode_model(bytes, true)
+    decode_model(bytes, ModelUse::StreetProp)
 }
-fn decode_model(bytes: &[u8], baked_prop: bool) -> Result<Mesh, String> {
+#[derive(Clone, Copy, PartialEq)]
+enum ModelUse {
+    Building,
+    StreetProp,
+    Equipment,
+}
+pub fn decode_equipment(bytes: &[u8]) -> Result<Mesh, String> {
+    decode_model(bytes, ModelUse::Equipment)
+}
+fn decode_model(bytes: &[u8], usage: ModelUse) -> Result<Mesh, String> {
     if bytes.len() > 64 * 1024 * 1024 {
         return Err("GLB exceeds 64 MiB".into());
     }
@@ -202,7 +232,7 @@ fn decode_model(bytes: &[u8], baked_prop: bool) -> Result<Mesh, String> {
         .ok_or("GLB has no scene")?;
     let mut vertices = Vec::new();
     for node in scene.nodes() {
-        walk_materials(node, Mat4::IDENTITY, binary, &mut vertices, baked_prop)?;
+        walk_materials(node, Mat4::IDENTITY, binary, &mut vertices, usage)?;
     }
     if vertices.is_empty() || vertices.len() % 3 != 0 {
         return Err("GLB needs a nonempty triangle mesh".into());
@@ -212,7 +242,7 @@ fn decode_model(bytes: &[u8], baked_prop: bool) -> Result<Mesh, String> {
     if (hi - lo).min_element() <= 1e-8 {
         return Err("GLB model has degenerate bounds".into());
     }
-    if baked_prop {
+    if usage != ModelUse::Building {
         return Ok(mesh);
     }
     let size = hi - lo;

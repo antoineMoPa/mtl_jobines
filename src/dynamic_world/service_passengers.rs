@@ -182,6 +182,7 @@ impl ServicePassengers {
                 )
             })
             .map(|actor| Instance {
+                zombie: false,
                 model: actor.model,
                 transform: pedestrian_catalog::instance_transform(actor.position, actor.yaw),
                 opacity: 1.,

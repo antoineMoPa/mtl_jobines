@@ -3,6 +3,7 @@ mod bus;
 mod save;
 mod snowplow;
 mod taxi;
+mod zombie;
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -13,6 +14,7 @@ pub enum MissionId {
     Taxi,
     Bus,
     Snowplow,
+    Zombie,
 }
 
 impl MissionId {
@@ -21,21 +23,24 @@ impl MissionId {
             Self::Taxi => "Taxi",
             Self::Bus => "Autobus",
             Self::Snowplow => "Déneigeuse",
+            Self::Zombie => "Mode zombie",
         }
     }
 
-    pub fn vehicle_id(self) -> &'static str {
+    pub fn vehicle_id(self) -> Option<&'static str> {
         match self {
-            Self::Taxi => "vehicle-j01",
-            Self::Bus => "vehicle-j02",
-            Self::Snowplow => "vehicle-j03",
+            Self::Taxi => Some("vehicle-j01"),
+            Self::Bus => Some("vehicle-j02"),
+            Self::Snowplow => Some("vehicle-j03"),
+            Self::Zombie => None,
         }
     }
 
-    pub fn season(self) -> crate::season::Season {
+    pub fn required_season(self) -> Option<crate::season::Season> {
         match self {
-            Self::Taxi | Self::Bus => crate::season::Season::Summer,
-            Self::Snowplow => crate::season::Season::Winter,
+            Self::Taxi | Self::Bus => Some(crate::season::Season::Summer),
+            Self::Snowplow => Some(crate::season::Season::Winter),
+            Self::Zombie => None,
         }
     }
 }
@@ -102,6 +107,7 @@ pub enum MissionObjective {
     BusStop2,
     BusStop3,
     SnowClearing,
+    SurviveZombies,
 }
 
 impl MissionObjective {
@@ -114,6 +120,7 @@ impl MissionObjective {
             Self::BusStop2 => "Approche-toi de l'arrêt 2/3 et arrête-toi",
             Self::BusStop3 => "Approche-toi de l'arrêt 3/3 et arrête-toi",
             Self::SnowClearing => "Déneige les rues",
+            Self::SurviveZombies => "Survis aux zombies",
         }
     }
 }
@@ -136,6 +143,7 @@ struct Completed {
     taxi: u32,
     bus: u32,
     snowplow: u32,
+    zombie: u32,
 }
 
 impl Completed {
@@ -144,6 +152,7 @@ impl Completed {
             MissionId::Taxi => self.taxi,
             MissionId::Bus => self.bus,
             MissionId::Snowplow => self.snowplow,
+            MissionId::Zombie => self.zombie,
         }
     }
 
@@ -152,6 +161,7 @@ impl Completed {
             MissionId::Taxi => &mut self.taxi,
             MissionId::Bus => &mut self.bus,
             MissionId::Snowplow => &mut self.snowplow,
+            MissionId::Zombie => &mut self.zombie,
         };
         *count = count.saturating_add(1);
     }
@@ -256,6 +266,7 @@ impl Kairos {
             MissionId::Taxi => Box::new(taxi::TaxiMission::default()),
             MissionId::Bus => Box::new(bus::BusMission::default()),
             MissionId::Snowplow => Box::new(snowplow::SnowplowMission::default()),
+            MissionId::Zombie => Box::new(zombie::ZombieMission),
         });
     }
 
@@ -270,7 +281,9 @@ impl Kairos {
     }
 
     pub fn vehicle_return_expired(&mut self, driving_assigned: bool, elapsed: f32) -> bool {
-        let away = self.active.is_some() && !driving_assigned && !self.is_complete();
+        let away = self.active_id().and_then(MissionId::vehicle_id).is_some()
+            && !driving_assigned
+            && !self.is_complete();
         let seconds = (self.vehicle_return_rule)(away, self.return_seconds.unwrap_or(-1.), elapsed);
         self.return_seconds = (seconds >= 0.).then_some(seconds);
         seconds == 0.

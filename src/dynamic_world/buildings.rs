@@ -12,14 +12,22 @@ impl Buildings {
     /// the first obstruction. Sampling is finer than the clearance radius so
     /// thin walls cannot be skipped. The caller eases the return to full range.
     pub fn camera_eye(&self, city: &City, anchor: Vec3, desired: Vec3) -> Vec3 {
-        const RADIUS: f32 = 0.6;
+        self.clip_segment(city, anchor, desired, 0.6)
+    }
+    pub(super) fn clip_segment(
+        &self,
+        city: &City,
+        anchor: Vec3,
+        desired: Vec3,
+        radius: f32,
+    ) -> Vec3 {
         let anchor = anchor * METERS_PER_UNIT;
         let desired = desired * METERS_PER_UNIT;
         let delta = desired - anchor;
         let mut candidates = Vec::new();
         self.nearby(
             (anchor + desired).truncate() * 0.5,
-            delta.truncate().length() * 0.5 + RADIUS,
+            delta.truncate().length() * 0.5 + radius,
             &mut candidates,
         );
         if candidates.is_empty() {
@@ -28,9 +36,9 @@ impl Buildings {
         let blocked = |p: Vec3| {
             candidates.iter().any(|&id| {
                 let building = &city.landscape[id];
-                if building.elevation * METERS_PER_UNIT >= p.z + RADIUS
+                if building.elevation * METERS_PER_UNIT >= p.z + radius
                     || (building.elevation + building.height.unwrap_or(0.)) * METERS_PER_UNIT
-                        <= p.z - RADIUS
+                        <= p.z - radius
                 {
                     return false;
                 }
@@ -52,7 +60,7 @@ impl Buildings {
                     }
                     let along =
                         ((point - a).dot(edge) / edge.length_squared().max(1e-10)).clamp(0., 1.);
-                    near_edge |= point.distance_squared(a + edge * along) <= RADIUS * RADIUS;
+                    near_edge |= point.distance_squared(a + edge * along) <= radius * radius;
                 }
                 inside || near_edge
             })
@@ -76,6 +84,71 @@ impl Buildings {
             safe = t;
         }
         desired / METERS_PER_UNIT
+    }
+    /// Intersect vertical footprint faces in metres, retaining the actual face normal.
+    pub(super) fn ray_face(
+        &self,
+        city: &City,
+        from: Vec3,
+        dir: Vec3,
+        limit: f32,
+    ) -> Option<(f32, Vec3, super::ShotSurface)> {
+        let mut candidates = Vec::new();
+        self.nearby(
+            (from + dir * limit * 0.5).truncate(),
+            dir.truncate().length() * limit * 0.5,
+            &mut candidates,
+        );
+        let mut nearest = limit;
+        let mut hit = None;
+        for id in candidates {
+            let b = &city.landscape[id];
+            let low = b.elevation * METERS_PER_UNIT;
+            let high = low + b.height.unwrap_or(0.) * METERS_PER_UNIT;
+            for (a, end) in b.points.iter().zip(b.points.iter().cycle().skip(1)) {
+                let edge = (Vec2::from(*end) - Vec2::from(*a)) * METERS_PER_UNIT;
+                let offset = Vec2::from(*a) * METERS_PER_UNIT - from.truncate();
+                let denom = dir.truncate().perp_dot(edge);
+                if denom.abs() < 1e-6 {
+                    continue;
+                }
+                let t = offset.perp_dot(edge) / denom;
+                let u = offset.perp_dot(dir.truncate()) / denom;
+                let z = from.z + dir.z * t;
+                if t >= 0. && t <= nearest && (0.0..=1.0).contains(&u) && (low..=high).contains(&z)
+                {
+                    let n = Vec3::new(-edge.y, edge.x, 0.) / edge.length();
+                    nearest = t;
+                    hit = Some((
+                        t,
+                        if n.dot(dir) > 0. { -n } else { n },
+                        super::ShotSurface::facade(b.building_style.unwrap_or_default().material),
+                    ));
+                }
+            }
+            if dir.z.abs() > 1e-6 {
+                for (z, n) in [(high, Vec3::Z), (low, -Vec3::Z)] {
+                    let t = (z - from.z) / dir.z;
+                    if t < 0. || t > nearest || n.dot(dir) >= 0. {
+                        continue;
+                    }
+                    let q = (from + dir * t).truncate() / METERS_PER_UNIT;
+                    let mut inside = false;
+                    for (a, b) in b.points.iter().zip(b.points.iter().cycle().skip(1)) {
+                        if (a[1] > q.y) != (b[1] > q.y)
+                            && q.x < (b[0] - a[0]) * (q.y - a[1]) / (b[1] - a[1]) + a[0]
+                        {
+                            inside = !inside;
+                        }
+                    }
+                    if inside {
+                        nearest = t;
+                        hit = Some((t, n, super::ShotSurface::Concrete));
+                    }
+                }
+            }
+        }
+        hit
     }
     pub fn new(city: &City) -> Self {
         let mut cells = HashMap::<_, Vec<_>>::new();

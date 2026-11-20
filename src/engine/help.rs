@@ -24,21 +24,11 @@ pub(super) struct CornerIcons {
 
 impl CornerIcons {
     pub(super) fn new(walking: bool) -> Self {
-        if walking {
-            Self {
-                right: 20.,
-                bottom: PHONE_BOTTOM,
-                column_width: 88.,
-                gap: 12.,
-            }
-        } else {
-            // The vehicle-name HUD starts 48 px above the bottom edge.
-            Self {
-                right: 16.,
-                bottom: 58.,
-                column_width: 88.,
-                gap: 12.,
-            }
+        Self {
+            right: if walking { 20. } else { 16. },
+            bottom: PHONE_BOTTOM,
+            column_width: 88.,
+            gap: 12.,
         }
     }
 
@@ -213,6 +203,11 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
                     control_row(ui, "F", "Entrer ou sortir du véhicule");
                     ui.add_space(8.);
                     ui.separator();
+                    ui.add_space(8.);
+                    ui.label("À pied : 1 fusil · 2 pistolet · 0 ranger");
+                    ui.label("Souris pour viser · A/D pour se décaler");
+                    ui.label("Clic gauche à mains nues pour frapper");
+                    ui.label("Arme équipée : clic pour tirer · R pour recharger");
                     ui.add_space(8.);
                     control_row(ui, "P", "Ouvrir le téléphone");
                     ui.add_space(8.);

@@ -35,7 +35,7 @@ pub(super) struct Portraits {
 impl Portraits {
     fn for_mission(&self, id: MissionId) -> &egui::TextureHandle {
         match id {
-            MissionId::Taxi => &self.taxi,
+            MissionId::Taxi | MissionId::Zombie => &self.taxi,
             MissionId::Bus => &self.bus,
             MissionId::Snowplow => &self.snowplow,
         }
@@ -228,12 +228,9 @@ pub(super) fn show(
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
         .default_width((ctx.content_rect().width() - 36.).min(500.))
-        .max_height(if mobile {
-            (ctx.content_rect().height() - 48.).max(120.)
-        } else {
-            f32::INFINITY
-        })
-        .vscroll(mobile)
+        .default_height(650.)
+        .max_height((ctx.content_rect().height() - 48.).max(120.))
+        .vscroll(true)
         .frame(
             egui::Frame::new()
                 .fill(Color32::from_rgb(246, 249, 247))
@@ -303,6 +300,13 @@ pub(super) fn show(
                     "@yvan_tansiarge  déneigeur",
                     "Une déneigeuse t'attend.",
                     "❄",
+                ),
+                (
+                    MissionId::Zombie,
+                    "Cynthia Tremblay",
+                    "@cynthia_tremblay  construction civile",
+                    "Y’a des zombies dans les rues! Tes munitions sont illimitées.",
+                    "⚠",
                 ),
             ] {
                 egui::Frame::new()
@@ -406,53 +410,70 @@ mod tests {
     use super::*;
 
     #[test]
-    fn phone_button_opens_job_feed() {
+    fn phone_button_opens_feed_and_zombie_card_selects_mission() {
         let ctx = egui::Context::default();
         install_font(&ctx);
         let kairos = Kairos::test_session();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800., 900.));
         let mut open = false;
-        let point = egui::pos2(758., 600. - 20. - 22.);
-        for events in [
-            vec![],
-            vec![],
-            vec![
-                egui::Event::PointerMoved(point),
-                egui::Event::PointerButton {
-                    pos: point,
-                    button: egui::PointerButton::Primary,
-                    pressed: true,
-                    modifiers: egui::Modifiers::default(),
-                },
-                egui::Event::PointerButton {
-                    pos: point,
-                    button: egui::PointerButton::Primary,
-                    pressed: false,
-                    modifiers: egui::Modifiers::default(),
-                },
-            ],
-        ] {
+        let mut selected = None;
+        let mut frame = |events| {
             let mut output = ctx.run_ui(
                 egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(800., 600.),
-                    )),
+                    screen_rect: Some(screen),
                     events,
                     ..Default::default()
                 },
                 |_| {
-                    let _ = show(
+                    if let Some(action) = show(
                         &ctx,
                         &mut open,
                         &kairos,
                         Overlay::Driving,
                         Some(egui::vec2(-20., -20.)),
                         None,
-                    );
+                    ) {
+                        selected = Some(action);
+                    }
                 },
             );
             output.textures_delta.clear();
-        }
-        assert!(open);
+            output.shapes
+        };
+        let click = |pos| {
+            let mut events = vec![egui::Event::PointerMoved(pos)];
+            for pressed in [true, false] {
+                events.push(egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                });
+            }
+            events
+        };
+        frame(vec![]);
+        frame(vec![]);
+        frame(click(screen.max - egui::vec2(42., 42.)));
+        frame(vec![]);
+        let shapes = frame(vec![]);
+        let mut labels = shapes.iter().filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text),
+            _ => None,
+        });
+        labels
+            .find(|text| text.galley.text().contains(MissionId::Zombie.title()))
+            .expect("zombie job is listed");
+        let choose = labels
+            .find(|text| text.galley.text() == "Choisir")
+            .expect("zombie job has a selection button");
+        frame(click(choose.visual_bounding_rect().center()));
+        assert!(matches!(
+            selected,
+            Some(super::super::palette::PaletteAction::SelectMission(
+                MissionId::Zombie
+            ))
+        ));
+        assert!(!open);
     }
 }

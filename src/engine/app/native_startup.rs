@@ -194,6 +194,7 @@ impl ApplicationHandler<GameEvent> for NativeApp {
             if boot.window.id() == id {
                 match event {
                     WindowEvent::RedrawRequested => boot.draw(),
+                    WindowEvent::Occluded(false) => boot.window.request_redraw(),
                     WindowEvent::Resized(_) => boot.resize(),
                     WindowEvent::CloseRequested => event_loop.exit(),
                     _ => {}

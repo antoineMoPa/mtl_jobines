@@ -23,6 +23,15 @@ impl Renderer {
         navigation: MinimapView,
         overlay: impl FnOnce(&wgpu::TextureView),
     ) -> Result<Vec<u8>, String> {
+        self.capture_png(|view| {
+            self.render(view, meshes, eye, look, time, navigation);
+            overlay(view);
+        })
+    }
+    pub(super) fn capture_png(
+        &self,
+        draw: impl FnOnce(&wgpu::TextureView),
+    ) -> Result<Vec<u8>, String> {
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("bug report screenshot"),
             size: wgpu::Extent3d {
@@ -38,8 +47,7 @@ impl Renderer {
             view_formats: &[],
         });
         let view = texture.create_view(&Default::default());
-        self.render(&view, meshes, eye, look, time, navigation);
-        overlay(&view);
+        draw(&view);
         let rgba = self.rgba_pixels(&texture)?;
         encode_png(&rgba, self.config.width, self.config.height)
     }

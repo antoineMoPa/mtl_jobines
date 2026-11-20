@@ -8,7 +8,7 @@ struct Settings {
     eye_radius: [f32; 4],
     viewport: [f32; 4],
     tuning: [f32; 4],
-    // Time, winter strength, daylight, and reserved.
+    // Time, winter strength, daylight, and retro lens strength.
     weather: [f32; 4],
 }
 pub(super) struct Ssao {
@@ -249,6 +249,7 @@ impl Ssao {
         width: u32,
         height: u32,
         enabled: bool,
+        zombie_mode: bool,
         weather: [f32; 4],
         snowfall: Option<&super::snowfall::Snowfall>,
         timestamp: Option<wgpu::RenderPassTimestampWrites<'_>>,
@@ -257,7 +258,7 @@ impl Ssao {
             inverse: matrix.inverse().to_cols_array_2d(),
             eye_radius: [eye.x, eye.y, eye.z, 0.015],
             viewport: [width as f32, height as f32, 0., 0.],
-            tuning: [0.00012, 1.8, f32::from(enabled), 0.],
+            tuning: [0.00012, 1.8, f32::from(enabled), f32::from(zombie_mode)],
             weather,
         };
         queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));

@@ -18,7 +18,7 @@ fn model_surface(v:Output,front:bool,du:vec2<f32>,dv:vec2<f32>,dx:vec3<f32>,dy:v
         n/=max(length(n),0.000001);
     }
     var shaded=v;shaded.color*=colour.rgb;shaded.surface.x=7.0;
-    var material=surface;material.normal=n;material.finish=vec3<f32>(detail.a,0.0,0.0);
+    var material=surface;material.normal=n;material.finish=vec3<f32>(detail.a,select(0.0,colour.a,v.surface.x==43.0),0.0);
     return shade_surface_lit(shaded,front,1.0,material,local_irradiance(v.world,n));
 }
 struct ModelTransform { @location(4) x:vec4<f32>,@location(5) y:vec4<f32>,@location(6) z:vec4<f32>,@location(7) translation:vec4<f32> };
@@ -31,6 +31,8 @@ struct ModelTransform { @location(4) x:vec4<f32>,@location(5) y:vec4<f32>,@locat
 }
 @fragment fn fs_model(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
     let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);let dx=dpdx(v.world);let dy=dpdy(v.world);let surface=prepare_surface(v);
-    if v.surface.x==42.0 {return model_surface(v,front,du,dv,dx,dy,surface);}
-    return shade_surface_lit(v,front,1.0,surface,local_irradiance(v.world,surface.normal));
+    if v.surface.x==42.0 || v.surface.x==43.0 {return model_surface(v,front,du,dv,dx,dy,surface);}
+    var material=surface;
+    if v.surface.x==44.0 {material.finish=vec3<f32>(v.surface.y,v.surface.z,0.0);}
+    return shade_surface_lit(v,front,1.0,material,local_irradiance(v.world,surface.normal));
 }

@@ -1,7 +1,8 @@
 use super::{
-    world::{World, CLOSED, DT, INVALID},
+    world::{MessageLocation, World, CLOSED, DT, INVALID},
     Resume, ACTIVE,
 };
+use crate::engine::muzzle::Equipment;
 use crate::engine::render::{GpuMesh, Renderer};
 use glam::Vec3;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
@@ -14,7 +15,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-struct Ready(Result<Renderer, String>);
+struct Ready(Result<(Renderer, super::skydome::Skydome), String>);
 struct Host {
     world: Rc<RefCell<World>>,
     resume: Resume,
@@ -22,12 +23,17 @@ struct Host {
     renderer: Option<Renderer>,
     terrain: Option<(Vec3, GpuMesh)>,
     actors: Option<GpuMesh>,
+    models: std::collections::HashMap<String, Equipment>,
+    captured: bool,
+    audio: crate::audio::Audio,
+    #[cfg(not(target_arch = "wasm32"))]
+    capture: Option<std::ffi::OsString>,
     held: u32,
     pressed: u32,
     released: u32,
     last: Instant,
     accumulator: f32,
-    title: String,
+    status: (String, MessageLocation),
     error: Option<String>,
     #[cfg(target_arch = "wasm32")]
     proxy: winit::event_loop::EventLoopProxy<Ready>,
@@ -44,12 +50,17 @@ pub(super) fn run(world: World, resume: Resume) -> Result<(), String> {
         renderer: None,
         terrain: None,
         actors: None,
+        models: Default::default(),
+        captured: false,
+        audio: Default::default(),
+        #[cfg(not(target_arch = "wasm32"))]
+        capture: std::env::var_os("OWE_CAPTURE_PNG"),
         held: 0,
         pressed: 0,
         released: 0,
         last: Instant::now(),
         accumulator: 0.,
-        title: String::new(),
+        status: (String::new(), MessageLocation::Status),
         error: None,
         #[cfg(target_arch = "wasm32")]
         proxy: event_loop.create_proxy(),
@@ -119,13 +130,23 @@ impl Host {
             return Ok(false);
         }
         let w = self.world.borrow();
-        if self.title != w.message {
-            self.title = w.message.clone();
+        if self.status.0 != w.message || self.status.1 != w.message_location {
             if let Some(win) = &self.window {
-                win.set_title(&format!("{} | {}", w.package.title, self.title));
+                if w.message_location == MessageLocation::Status {
+                    win.set_title(&format!("{} | {}", w.package.title, w.message));
+                } else if self.status.1 == MessageLocation::Status {
+                    win.set_title(&w.package.title);
+                }
             }
+            self.status.0.clone_from(&w.message);
+            self.status.1 = w.message_location;
             #[cfg(target_arch = "wasm32")]
-            set_status(&self.title);
+            show_status(&w.message, w.message_location != MessageLocation::Status);
+        }
+        if let Some(frame) = w.impact_audio() {
+            self.audio.update(frame, true);
+        } else {
+            self.audio.silence();
         }
         if !w.present || w.city.is_none() {
             return Ok(true);
@@ -133,6 +154,8 @@ impl Host {
         let Some(renderer) = self.renderer.as_mut() else {
             return Ok(true);
         };
+        renderer.retro_lens = w.retro_lens;
+        w.skydome.apply(renderer);
         let target = w.target();
         if self
             .terrain
@@ -141,11 +164,61 @@ impl Host {
         {
             self.terrain = Some((target, renderer.upload(&w.terrain()?)));
         }
+        let mut shot_sprites = w.impact_sprites();
+        renderer.local_lights.flash.set(None);
         let mesh = w.actors();
         if let Some(gpu) = self.actors.as_mut() {
             renderer.update_dynamic(gpu, &mesh)
         } else {
             self.actors = Some(renderer.upload_dynamic(&mesh))
+        }
+        let mut meshes = vec![
+            &self.terrain.as_ref().unwrap().1,
+            self.actors.as_ref().unwrap(),
+        ];
+        let (eye, look) = if let Some((rotation, height)) = w.first_person {
+            let eye = target + Vec3::Z * (height / super::world::SCALE);
+            if let Some((name, offset)) = &w.view_model {
+                let model = self
+                    .models
+                    .entry(name.clone())
+                    .or_insert_with(|| Equipment::upload(renderer, &w.view_models[name]));
+                let matrix = glam::Mat4::from_rotation_translation(
+                    rotation,
+                    eye + rotation * (*offset / super::world::SCALE),
+                );
+                model.place(
+                    renderer,
+                    matrix,
+                    rotation,
+                    &w.effects.muzzle,
+                    &mut shot_sprites,
+                );
+                meshes.push(&model.gpu);
+            }
+            (eye, eye + rotation * Vec3::X)
+        } else {
+            (target + Vec3::new(0., -0.30, 0.36), target)
+        };
+        renderer.update_impacts(&shot_sprites);
+        let draw = |view: &wgpu::TextureView| {
+            renderer.render_scene(
+                view,
+                &meshes,
+                eye,
+                look,
+                w.time,
+                None,
+                match w.message_location {
+                    MessageLocation::Status => None,
+                    location => Some((&w.message, location == MessageLocation::Center)),
+                },
+            )
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(path) = self.capture.take() {
+            std::fs::write(path, renderer.capture_png(draw)?).map_err(|e| e.to_string())?;
+            return Ok(false);
         }
         let surface = renderer.surface.as_ref().unwrap().get_current_texture();
         let suboptimal = matches!(&surface, wgpu::CurrentSurfaceTexture::Suboptimal(_));
@@ -156,18 +229,7 @@ impl Host {
                     format: Some(renderer.config.format.add_srgb_suffix()),
                     ..Default::default()
                 });
-                let meshes = [
-                    &self.terrain.as_ref().unwrap().1,
-                    self.actors.as_ref().unwrap(),
-                ];
-                renderer.render_scene(
-                    &view,
-                    &meshes,
-                    target + Vec3::new(0., -0.30, 0.36),
-                    target,
-                    w.time,
-                    None,
-                );
+                draw(&view);
                 renderer.queue.present(frame);
                 if suboptimal {
                     renderer.resize(renderer.config.width, renderer.config.height);
@@ -191,10 +253,16 @@ impl Host {
 
 #[cfg(target_arch = "wasm32")]
 fn set_status(text: &str) {
+    show_status(text, false);
+}
+
+#[cfg(target_arch = "wasm32")]
+fn show_status(text: &str, in_hud: bool) {
     if let Some(el) = web_sys::window()
         .and_then(|w| w.document())
         .and_then(|d| d.get_element_by_id("status"))
     {
+        el.set_class_name(if in_hud { "in-hud" } else { "" });
         el.set_text_content(Some(text));
     }
 }
@@ -233,8 +301,14 @@ impl ApplicationHandler<Ready> for Host {
         };
         self.window = Some(window.clone());
         let size = window.inner_size();
-        let future =
-            Renderer::with_catalog(Some(window), size.width.max(1), size.height.max(1), false);
+        let assets = std::mem::take(&mut self.world.borrow_mut().package.skydome);
+        let future = async move {
+            let mut renderer =
+                Renderer::with_catalog(Some(window), size.width.max(1), size.height.max(1), false)
+                    .await?;
+            let skydome = assets.prepare(&mut renderer).await?;
+            Ok((renderer, skydome))
+        };
         #[cfg(not(target_arch = "wasm32"))]
         self.user_event(ev, Ready(pollster::block_on(future)));
         #[cfg(target_arch = "wasm32")]
@@ -247,7 +321,8 @@ impl ApplicationHandler<Ready> for Host {
     }
     fn user_event(&mut self, ev: &ActiveEventLoop, Ready(result): Ready) {
         match result {
-            Ok(mut r) => {
+            Ok((mut r, skydome)) => {
+                self.world.borrow_mut().skydome = skydome;
                 // The browser may resize its canvas while the GPU device is being created.
                 let window = self.window.as_ref().unwrap();
                 let size = window.inner_size();
@@ -275,6 +350,20 @@ impl ApplicationHandler<Ready> for Host {
         };
         ev.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(wake));
     }
+    fn device_event(
+        &mut self,
+        _: &ActiveEventLoop,
+        _: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        if self.captured {
+            if let winit::event::DeviceEvent::MouseMotion { delta } = event {
+                let mut w = self.world.borrow_mut();
+                w.look_delta[0] += delta.0 as f32;
+                w.look_delta[1] += delta.1 as f32;
+            }
+        }
+    }
     fn window_event(&mut self, ev: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         if ev.exiting() {
             return;
@@ -286,7 +375,43 @@ impl ApplicationHandler<Ready> for Host {
                 }
                 ev.exit();
             }
+            WindowEvent::MouseInput { state, button, .. }
+                if self.world.borrow().first_person.is_some() =>
+            {
+                let bit = match button {
+                    winit::event::MouseButton::Left => 256,
+                    winit::event::MouseButton::Right => 512,
+                    _ => 0,
+                };
+                if state == ElementState::Pressed {
+                    if self.world.borrow().has_impact_materials() {
+                        self.audio.user_gesture();
+                    }
+                    if !self.captured && bit != 0 {
+                        let window = self.window.as_ref().unwrap();
+                        self.captured = window
+                            .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+                            .or_else(|_| {
+                                window.set_cursor_grab(winit::window::CursorGrabMode::Confined)
+                            })
+                            .is_ok();
+                        window.set_cursor_visible(!self.captured);
+                    }
+                    self.pressed |= bit & !self.held;
+                    self.held |= bit;
+                } else {
+                    self.released |= bit & self.held;
+                    self.held &= !bit;
+                }
+            }
             WindowEvent::Focused(false) => {
+                if self.captured {
+                    let window = self.window.as_ref().unwrap();
+                    let _ = window.set_cursor_grab(winit::window::CursorGrabMode::None);
+                    window.set_cursor_visible(true);
+                    self.captured = false;
+                }
+                self.world.borrow_mut().look_delta = [0.; 2];
                 self.released |= self.held;
                 self.held = 0;
                 self.pressed = 0;
@@ -302,6 +427,13 @@ impl ApplicationHandler<Ready> for Host {
                         KeyCode::KeyP => 32,
                         KeyCode::Escape => 64,
                         KeyCode::Tab => 128,
+                        KeyCode::KeyR => 1024,
+                        KeyCode::Digit1 => 2048,
+                        KeyCode::Digit2 => 4096,
+                        KeyCode::KeyW => 8192,
+                        KeyCode::KeyA => 16384,
+                        KeyCode::KeyS => 32768,
+                        KeyCode::KeyD => 65536,
                         _ => 0,
                     },
                     _ => 0,

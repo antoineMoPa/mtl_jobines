@@ -1,52 +1,8 @@
-//! Linear cloud masks: red is daytime, green is nighttime; horizontal repeat.
-pub(super) fn create(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-) -> (wgpu::BindGroupLayout, wgpu::BindGroup) {
-    let mut reader =
-        png::Decoder::new(include_bytes!("../../../assets/sky/cloud-highlights.png").as_slice())
-            .read_info()
-            .expect("cloud highlight PNG");
-    let mut pixels = vec![0; reader.output_buffer_size()];
-    let info = reader
-        .next_frame(&mut pixels)
-        .expect("cloud highlight pixels");
-    assert_eq!(info.color_type, png::ColorType::Rgba);
-    let size = wgpu::Extent3d {
-        width: info.width,
-        height: info.height,
-        depth_or_array_layers: 1,
-    };
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("day and night cloud highlights"),
-        size,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &[],
-    });
-    queue.write_texture(
-        texture.as_image_copy(),
-        &pixels[..info.buffer_size()],
-        wgpu::TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(info.width * 4),
-            rows_per_image: Some(info.height),
-        },
-        size,
-    );
-    let view = texture.create_view(&Default::default());
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("sky panorama repeat"),
-        address_mode_u: wgpu::AddressMode::Repeat,
-        address_mode_v: wgpu::AddressMode::ClampToEdge,
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        ..Default::default()
-    });
-    let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+//! The built-in cloud masks use linear channels. Client panoramas use sRGB color.
+use wgpu::util::DeviceExt;
+
+pub(super) fn layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("sky panorama"),
         entries: &[
             wgpu::BindGroupLayoutEntry {
@@ -65,11 +21,94 @@ pub(super) fn create(
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
         ],
+    })
+}
+
+pub(super) fn create(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    layout: &wgpu::BindGroupLayout,
+    png: &[u8],
+    custom: bool,
+) -> Result<wgpu::BindGroup, String> {
+    let mut decoder = png::Decoder::new(png);
+    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
+    let mut reader = decoder.read_info().map_err(|e| e.to_string())?;
+    let limit = device.limits().max_texture_dimension_2d;
+    if reader.info().width > limit || reader.info().height > limit {
+        return Err(format!("PNG dimensions exceed the device limit of {limit}"));
+    }
+    let mut pixels = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut pixels).map_err(|e| e.to_string())?;
+    pixels.truncate(info.buffer_size());
+    if info.color_type != png::ColorType::Rgba {
+        pixels = pixels
+            .chunks_exact(info.color_type.samples())
+            .flat_map(|p| match info.color_type {
+                png::ColorType::Rgb => [p[0], p[1], p[2], 255],
+                png::ColorType::Grayscale => [p[0], p[0], p[0], 255],
+                png::ColorType::GrayscaleAlpha => [p[0], p[0], p[0], p[1]],
+                _ => unreachable!("PNG palette expanded to RGB or RGBA"),
+            })
+            .collect();
+    }
+    let size = wgpu::Extent3d {
+        width: info.width,
+        height: info.height,
+        depth_or_array_layers: 1,
+    };
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("sky panorama"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: if custom {
+            wgpu::TextureFormat::Rgba8UnormSrgb
+        } else {
+            wgpu::TextureFormat::Rgba8Unorm
+        },
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    queue.write_texture(
+        texture.as_image_copy(),
+        &pixels,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(info.width * 4),
+            rows_per_image: Some(info.height),
+        },
+        size,
+    );
+    let view = texture.create_view(&Default::default());
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("sky panorama repeat"),
+        address_mode_u: wgpu::AddressMode::Repeat,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    });
+    let mode = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("custom skydome panorama"),
+        contents: bytemuck::bytes_of(&u32::from(custom)),
+        usage: wgpu::BufferUsages::UNIFORM,
     });
     let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("sky panorama"),
-        layout: &layout,
+        layout,
         entries: &[
             wgpu::BindGroupEntry {
                 binding: 0,
@@ -79,7 +118,11 @@ pub(super) fn create(
                 binding: 1,
                 resource: wgpu::BindingResource::Sampler(&sampler),
             },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: mode.as_entire_binding(),
+            },
         ],
     });
-    (layout, group)
+    Ok(group)
 }

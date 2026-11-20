@@ -27,6 +27,9 @@ pub enum Material {
     Fence,
     Lamp,
     Timber,
+    Asphalt,
+    Rubber,
+    Glass,
 }
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Impact {

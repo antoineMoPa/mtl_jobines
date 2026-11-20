@@ -215,6 +215,11 @@ impl Input {
         self.raw.take()
     }
     pub fn handle_platform_output(&mut self, window: &Window, output: egui::PlatformOutput) {
+        // Camera capture and idle hiding own visibility on the canvas.
+        window.set_cursor(match output.cursor_icon {
+            egui::CursorIcon::Crosshair => winit::window::CursorIcon::Crosshair,
+            _ => winit::window::CursorIcon::Default,
+        });
         window.set_ime_allowed(output.ime.is_some());
     }
 }

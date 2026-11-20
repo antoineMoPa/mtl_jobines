@@ -12,16 +12,29 @@ fn pedestrian_skin(skin: SkinInput, base: u32) -> mat4x4<f32> {
         + pedestrian_poses[base+skin.joints.z]*skin.weights.z
         + pedestrian_poses[base+skin.joints.w]*skin.weights.w;
 }
+// The player rigs have wrists but no finger joints. Curl the T-pose fingers
+// around the knuckles before skinning, for both the mesh and its shadow.
+fn combat_position(pos: vec3<f32>, actor_state: f32) -> vec3<f32> {
+    let span = abs(pos.x);
+    let thumb = pos.z > 0.056;
+    let knuckle = select(0.785, 0.767, thumb);
+    if actor_state >= 0.0 || span <= knuckle { return pos; }
+    let radius = select(0.027, 0.024, thumb);
+    let bend = min((span-knuckle)/radius, 3.6);
+    let offset = radius + pos.y - 1.301;
+    return vec3<f32>(sign(pos.x)*(knuckle+offset*sin(bend)), 1.301-radius+offset*cos(bend),
+                     pos.z-select(0.0, 0.035*sin(bend*0.65), thumb));
+}
 @vertex fn vs_pedestrian(v: Input, instance: VehicleTransform, skin: SkinInput) -> Output {
     let bones=pedestrian_skin(skin,u32(instance.z.w));
     let model=mat4x4<f32>(instance.x,instance.y,instance.z,instance.translation);
-    let world=(model*bones*vec4<f32>(v.position,1.0)).xyz;
+    let world=(model*bones*vec4<f32>(combat_position(v.position,instance.y.w),1.0)).xyz;
     var o: Output;
     o.clip=camera.view_projection*vec4<f32>(world,1.0);
     o.world=world;
     o.normal=(model*bones*vec4<f32>(v.normal,0.0)).xyz*100.0;
     o.color=v.color;
-    o.surface=vec4<f32>(7.0,instance.translation.w,0.0,instance.x.w);
+    o.surface=vec4<f32>(7.0,instance.translation.w,instance.y.w,instance.x.w);
     o.fence_uv=v.surface.zw;
     o.snow_control=vec2<f32>(0.0,1.0);
     return o;
@@ -30,7 +43,7 @@ fn pedestrian_skin(skin: SkinInput, base: u32) -> mat4x4<f32> {
     let bones=pedestrian_skin(skin,u32(instance.z.w));
     let model=mat4x4<f32>(instance.x,instance.y,instance.z,instance.translation);
     var o: ShadowOutput;
-    o.clip=camera.light_view_projection*vec4<f32>((model*bones*vec4<f32>(v.position,1.0)).xyz,1.0);
+    o.clip=camera.light_view_projection*vec4<f32>((model*bones*vec4<f32>(combat_position(v.position,instance.y.w),1.0)).xyz,1.0);
     o.fence_uv=vec2<f32>(0.0);
     o.kind_pattern=vec2<f32>(7.0,instance.translation.w);
     return o;
@@ -39,6 +52,10 @@ fn pedestrian_skin(skin: SkinInput, base: u32) -> mat4x4<f32> {
     var material=v;
     let albedo=textureSample(pedestrian_albedo,pedestrian_sampler,v.fence_uv,i32(v.surface.w));
     material.color*=albedo.rgb;
+    if v.surface.z>0.5 {
+        let luma=dot(material.color,vec3(0.26,0.57,0.17));
+        material.color=mix(material.color,vec3(0.42,0.64,0.41)*luma,0.77);
+    }
     material.surface.w=0.0;
     return shade_local_surface(material,front,clamp(material.surface.y,0.0,1.0),prepare_surface(material));
 }

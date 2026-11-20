@@ -27,7 +27,7 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Arc<Mesh>, String> {
             return Ok(result);
         }
     }
-    let mesh = Arc::new(super::decode_model(bytes, false)?);
+    let mesh = Arc::new(super::decode_model(bytes, ModelUse::Building)?);
     let cost = bytes.len() + mesh.vertices.len() * std::mem::size_of::<Vertex>();
     if cost <= BUDGET {
         let mut c = cache.lock().unwrap_or_else(|e| e.into_inner());

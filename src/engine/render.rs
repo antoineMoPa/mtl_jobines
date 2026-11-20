@@ -7,8 +7,10 @@ use crate::hermes::MinimapView;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 mod culling;
+mod impacts;
 mod lod;
 mod mission_markers;
+pub(super) use impacts::ImpactVertex;
 mod snowfall;
 mod ssao;
 use culling::{Bounds, Frustum};
@@ -86,6 +88,8 @@ pub struct Renderer {
     pub(super) construction_span: Option<f32>,
     pub(super) underground_exits: Option<Vec<glam::Vec2>>,
     pub(super) ambient_occlusion: bool,
+    pub(super) retro_lens: f32,
+    pub(super) zombie_mode: bool,
     pub(super) winter_weather: bool,
     pub(super) render_lod: RenderLod,
     pub(super) contact_debris: bool,
@@ -94,6 +98,7 @@ pub struct Renderer {
     snowfall: snowfall::Snowfall,
     pub(super) mission_markers: mission_markers::MissionMarkers,
     pipeline: wgpu::RenderPipeline,
+    impacts: Option<impacts::ImpactPass>,
     opaque_pipeline: wgpu::RenderPipeline,
     graffiti_pipeline: wgpu::RenderPipeline,
     shadow_pipeline: wgpu::RenderPipeline,
@@ -120,10 +125,9 @@ pub struct Renderer {
     pub menu_selection: MenuItem,
     pub daylight: Option<f32>,
     pub sky_settings: SkySettings,
-    sky: Sky,
+    pub(super) sky: Sky,
     commerce: Commerce,
     pub fps: Option<f32>,
-    pub vehicle_name: Option<String>,
     pub gpu_profile: Option<GpuProfile>,
 }
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
@@ -652,6 +656,8 @@ impl Renderer {
             construction_span: None,
             underground_exits: None,
             ambient_occlusion: true,
+            retro_lens: 0.,
+            zombie_mode: false,
             render_lod,
             contact_debris: true,
             contact_texture,
@@ -670,6 +676,7 @@ impl Renderer {
             pedestrian_shadow_pipeline,
             pedestrians,
             uniform,
+            impacts: None,
             camera_group,
             shadow_group,
             depth,
@@ -690,7 +697,6 @@ impl Renderer {
             sky,
             commerce,
             fps: None,
-            vehicle_name: None,
             gpu_profile,
         })
     }
@@ -733,6 +739,7 @@ impl Renderer {
             self.pedestrian_shadow_pipeline,
         ] = pipelines;
         self.sky.set_samples(&self.device, samples);
+        self.impacts = None;
         self.samples = samples;
         self.depth = depth(
             &self.device,
@@ -859,6 +866,11 @@ impl Renderer {
         };
         self.update_dynamic(&mut gpu, mesh);
         gpu
+    }
+    pub(super) fn upload_equipment(&self, vertices: &[Vertex]) -> GpuMesh {
+        let mut mesh = self.upload_instanced(vertices);
+        mesh.static_model = true;
+        mesh
     }
     pub fn upload_instanced(&self, vertices: &[Vertex]) -> GpuMesh {
         let mut mesh = self.upload_vertices(vertices);
@@ -1031,7 +1043,7 @@ impl Renderer {
         time: f32,
         navigation: MinimapView,
     ) {
-        self.render_scene(target, meshes, eye, look, time, Some(navigation));
+        self.render_scene(target, meshes, eye, look, time, Some(navigation), None);
     }
 
     pub(super) fn render_scene(
@@ -1042,6 +1054,7 @@ impl Renderer {
         look: Vec3,
         time: f32,
         navigation: Option<MinimapView>,
+        message: Option<(&str, bool)>,
     ) {
         self.commerce.models.sync(&self.queue);
         self.contact_texture
@@ -1296,6 +1309,9 @@ impl Renderer {
                 draw.draw(&mut pass, draw.paint..draw.count, 0..1);
             }
             self.sky.draw(&mut pass, &self.camera_group);
+            if let Some(impacts) = &self.impacts {
+                impacts.draw(&mut pass, &self.camera_group);
+            }
             if !self.cinematic {
                 self.mission_markers.draw(&mut pass);
             }
@@ -1323,7 +1339,8 @@ impl Renderer {
             self.config.width,
             self.scene_height(),
             self.ambient_occlusion,
-            [time, f32::from(winter), lighting.daylight, 0.],
+            self.zombie_mode,
+            [time, f32::from(winter), lighting.daylight, self.retro_lens],
             winter.then_some(&self.snowfall),
             self.gpu_profile.as_ref().map(|profile| {
                 let mut writes = profile.pass(1);
@@ -1331,6 +1348,17 @@ impl Renderer {
                 writes
             }),
         );
+        if let Some((text, centered)) = message {
+            self.hud.render_message(
+                &self.queue,
+                &mut encoder,
+                target,
+                self.config.width,
+                self.scene_height(),
+                text,
+                centered,
+            );
+        }
         if let Some(navigation) = navigation.filter(|_| {
             !self.cinematic && (!super::app::mobile_enabled() || self.overlay == Overlay::Map)
         }) {
@@ -1345,7 +1373,6 @@ impl Renderer {
                 self.full_map,
                 self.menu_selection,
                 self.fps,
-                self.vehicle_name.as_deref(),
                 self.gpu_profile.as_ref().map(|profile| profile.pass(2)),
             );
         }

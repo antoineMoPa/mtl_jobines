@@ -15,11 +15,14 @@ mod cyclists;
 mod illumination;
 pub mod pedestrian_catalog;
 pub mod pedestrian_gait;
+mod weapon_query;
 pub use illumination::LocalLight;
 #[cfg(any(test, feature = "test-support"))]
 pub use illumination::RearLight;
+pub use weapon_query::{ground_shot_contact, ShotHit, ShotSurface};
 mod landmark_respawn;
 mod lineup;
+mod melee;
 mod metro;
 pub(crate) mod parked;
 mod player;
@@ -75,7 +78,7 @@ pub struct DynamicWorld {
     // Authored parking occupies the slots after the initial player, before traffic.
     parked_vehicle_count: usize,
     player_vehicle: VehicleId,
-    vehicle_notice: f32,
+    health: u8,
     pedestrian: Option<Pedestrian>,
     walking_spawn: Option<SpawnPoint>,
     vehicle_spawns: Vec<SpawnPoint>,
@@ -162,7 +165,7 @@ impl DynamicWorld {
                 .as_ref()
                 .and_then(|e| e.spec.water_level),
             player_vehicle: VehicleId(0),
-            vehicle_notice: 4.,
+            health: melee::PLAYER_HEALTH,
             pedestrian: None,
             walking_spawn: None,
             vehicle_spawns: Vec::new(),
@@ -308,11 +311,6 @@ impl DynamicWorld {
     pub fn is_driving(&self) -> bool {
         self.pedestrian.is_none()
     }
-    pub fn vehicle_name_notice(&self) -> Option<&str> {
-        (self.is_driving() && self.vehicle_notice > 0.)
-            .then(|| self.player().definition().map(|d| d.config.name.as_str()))
-            .flatten()
-    }
     pub fn player_position(&self) -> Vec3 {
         self.pedestrian
             .as_ref()
@@ -418,7 +416,7 @@ impl DynamicWorld {
         frame
     }
     pub fn toggle_vehicle(&mut self, hermes: &Hermes) -> bool {
-        if self.metro.aboard {
+        if self.metro.aboard || self.health == 0 {
             return false;
         }
         if let Some(player) = &self.pedestrian {
@@ -441,7 +439,6 @@ impl DynamicWorld {
                 self.boat_routes.retain(|route| route.vehicle != index);
                 self.player_vehicle = VehicleId(index);
                 self.pedestrian = None;
-                self.vehicle_notice = 4.;
                 return true;
             }
         } else if !self.player().is_aircraft() || self.player().grounded {
@@ -457,6 +454,8 @@ impl DynamicWorld {
         false
     }
     pub fn reset_player(&mut self, hermes: &Hermes) {
+        self.health = melee::PLAYER_HEALTH;
+        self.crowd.cancel_bites();
         self.metro.aboard = false;
         let definition = self.player().definition;
         self.vehicles[self.player_vehicle.0] = Vehicle::spawn_supported(
@@ -469,7 +468,6 @@ impl DynamicWorld {
         self.pedestrian = self
             .walking_spawn
             .map(|start| Pedestrian::at(hermes.city(), start).expect("validated walking start"));
-        self.vehicle_notice = 4.;
     }
     pub fn step(&mut self, hermes: &Hermes, input: Controls, walk: WalkControls, dt: f32) {
         self.step_inner(hermes, input, walk, dt, None);
@@ -506,7 +504,6 @@ impl DynamicWorld {
         }
         self.metro.step(dt, self.pedestrian.as_mut());
         self.airport.step(hermes.city(), dt);
-        self.vehicle_notice = (self.vehicle_notice - dt).max(0.);
         if self.traffic.needs_refill(dt) {
             self.populate_traffic(hermes);
         }
@@ -656,7 +653,7 @@ impl DynamicWorld {
             }
             vehicle.sound_impact_count = 0;
         }
-        if let Some(player) = &mut self.pedestrian {
+        if let Some(player) = self.pedestrian.as_mut().filter(|_| self.health > 0) {
             let before = player.position;
             self.metro.walk(hermes, player, walk, dt, |position| {
                 self.props.blocked(position)
@@ -668,6 +665,7 @@ impl DynamicWorld {
             self.crowd
                 .player_move(hermes.city(), before, player.position, dt, &self.vehicles);
         }
+        self.step_melee(hermes.city(), dt);
         self.step_wakes(dt);
         stage!(4);
         self.props.step(dt);
@@ -1018,21 +1016,15 @@ mod tests {
     fn moving_vehicle_can_be_left_but_boarding_requires_low_speed_and_proximity() {
         let hermes = Hermes::test_map();
         let mut world = DynamicWorld::new(&hermes);
-        let expected_name = world.player().definition().unwrap().config.name.clone();
-        assert_eq!(world.vehicle_name_notice(), Some(expected_name.as_str()));
-        world.vehicle_notice = 0.;
-        assert!(world.vehicle_name_notice().is_none());
         world.vehicles[0].velocity = Vec3::X * 10.;
         assert!(world.toggle_vehicle(&hermes));
         assert!(!world.is_driving());
-        assert!(world.vehicle_name_notice().is_none());
         assert_ne!(world.player_position(), world.player().position);
         assert_eq!(world.player().velocity, Vec3::X * 10.);
         assert!(!world.toggle_vehicle(&hermes));
         world.vehicles[0].velocity = Vec3::ZERO;
         assert!(world.toggle_vehicle(&hermes));
         assert!(world.is_driving());
-        assert_eq!(world.vehicle_name_notice(), Some(expected_name.as_str()));
         assert!(world.toggle_vehicle(&hermes));
         let beyond_lineup = world
             .vehicles

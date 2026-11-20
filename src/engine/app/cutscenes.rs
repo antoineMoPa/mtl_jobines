@@ -63,7 +63,7 @@ impl Game {
         self.stop_orbit_drag();
         self.accumulator = 0.;
         self.sound_eye = None;
-        self.last = Instant::now();
+        self.last = None;
         self.scene_dirty = true;
         self.show_cursor();
         if let Some(window) = &self.window {
@@ -79,7 +79,7 @@ impl Game {
         {
             return false;
         }
-        self.fabula.active() && self.cutscene_focused && !self.hidden && !self.minimized
+        self.fabula.active() && self.window_active()
     }
     pub(super) fn finish_cutscene(&mut self, continue_game: bool) {
         self.audio.stop_cutscene();
@@ -89,7 +89,7 @@ impl Game {
         self.stop_orbit_drag();
         self.cursor = None;
         self.accumulator = 0.;
-        self.last = Instant::now();
+        self.last = None;
         self.sound_eye = None;
         if let Some(renderer) = &mut self.renderer {
             renderer.cinematic = false;

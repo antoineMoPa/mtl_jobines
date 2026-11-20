@@ -3,6 +3,10 @@
 This game is a static Cloudflare Pages direct-upload project. It uses the included
 `pages.dev` hostname and has no R2 bucket, Functions, or custom domain.
 
+The intro is at `/` and its Play links open `/game/`. Game launch parameters
+such as `?start=-24,3,90` belong on the game URL. Existing root launch links
+forward their parameters to the game.
+
 ## One-time setup
 
 Use Node.js 22 or newer. Each release looks up the current Wrangler version on

@@ -172,6 +172,7 @@ pub struct Gait {
     speed: f32,
     acceleration: f32,
     turn_rate: f32,
+    strafe_velocity: Option<Vec3>,
     phase: f32,
     steps: usize,
     swing: usize,
@@ -185,12 +186,18 @@ pub struct Gait {
     jump_motion: JumpMotion,
     air_time: Option<f32>,
     pub palette: [Mat4; JOINT_LIMIT],
+    pub(super) melee: super::melee::Melee,
+    pub(super) zombie_reach: bool,
     pub reach_error: f32,
     running: f32,
     air_velocity: Option<f32>,
     landing: Option<([Mat4; JOINT_LIMIT], f32)>,
 }
 impl Gait {
+    pub(super) fn set_strafe_velocity(&mut self, velocity: Option<Vec2>) {
+        self.strafe_velocity = velocity.map(|v| game_to_motion(v.extend(0.)));
+    }
+
     pub(super) fn carry(&mut self, from: Vec3, to: Vec3, angle: f32) {
         let from = game_to_motion(from);
         let to = game_to_motion(to);
@@ -260,6 +267,7 @@ impl Gait {
             speed: 0.,
             acceleration: 0.,
             turn_rate: 0.,
+            strafe_velocity: None,
             phase: 0.,
             steps: (seed % 2) as usize,
             swing: (seed % 2) as usize,
@@ -273,6 +281,8 @@ impl Gait {
             jump_motion: JumpMotion::default(),
             air_time: None,
             palette: [Mat4::IDENTITY; JOINT_LIMIT],
+            melee: Default::default(),
+            zombie_reach: false,
             reach_error: 0.,
             running: 0.,
             air_velocity: None,
@@ -460,7 +470,7 @@ impl Gait {
         let from = self.position;
         let old_yaw = self.yaw;
         let forward = Vec3::new(self.yaw.sin(), 0., self.yaw.cos());
-        let direction = if (to - from).dot(forward) < 0. {
+        let direction = if self.strafe_velocity.is_none() && (to - from).dot(forward) < 0. {
             -1.
         } else {
             1.
@@ -527,6 +537,10 @@ impl Gait {
             // the first/recovery step to the travel that its current support allows.
             let travel_direction = Vec3::new(self.yaw.sin(), 0., self.yaw.cos())
                 * if desired_speed < 0. { -1. } else { 1. };
+            let travel_direction = self
+                .strafe_velocity
+                .filter(|v| v.length_squared() > 0.0001)
+                .map_or(travel_direction, |v| v / v.length());
             let support = self.feet[1 - self.swing].position - self.position;
             let ahead = support.dot(travel_direction);
             let lateral = Vec3::new(support.x, 0., support.z) - travel_direction * ahead;
@@ -548,31 +562,45 @@ impl Gait {
                     .min(support_time.max(minimum_duration))
                     .min(0.30 / self.turn_rate.abs().max(0.01))
                     .clamp(minimum_duration, 0.75);
-            let mut p = self.position;
-            let mut yaw = self.yaw;
-            let mut speed = self.speed;
-            for _ in 0..12 {
-                let h = self.duration / 12.;
-                speed += (desired_speed - speed).clamp(
-                    -self.acceleration.abs().max(2.) * h,
-                    self.acceleration.abs().max(1.2) * h,
-                );
-                // Backward steps keep the body's facing while planning behind it.
-                let delta = (aim - p) * if speed < 0. { -1. } else { 1. };
-                if self.turn_rate.abs() > 0.1 {
-                    yaw += self.turn_rate * h;
-                } else if delta.x * delta.x + delta.z * delta.z > 0.0025 && speed.abs() > 0.015 {
-                    yaw += angle_delta(yaw, delta.x.atan2(delta.z)).clamp(-2.2 * h, 2.2 * h);
-                }
-                p += Vec3::new(yaw.sin(), 0., yaw.cos()) * speed * h;
-            }
             let ankle = self.rig.ankles[self.swing];
-            let target = p + Quat::from_rotation_y(yaw)
-                * Vec3::new(
-                    ankle.x * self.rig.spacing,
-                    0.,
-                    ankle.z + speed * self.duration * 0.45,
-                );
+            let (target, yaw) = if let Some(velocity) = self.strafe_velocity {
+                // Feet keep their lateral spacing relative to the hips during a sidestep.
+                let yaw = self.yaw + self.turn_rate * self.duration;
+                let stance = Vec3::new(ankle.x * self.rig.spacing, 0., ankle.z);
+                (
+                    self.position
+                        + velocity * self.duration * 1.45
+                        + Quat::from_rotation_y(yaw) * stance,
+                    yaw,
+                )
+            } else {
+                let mut p = self.position;
+                let mut yaw = self.yaw;
+                let mut speed = self.speed;
+                for _ in 0..12 {
+                    let h = self.duration / 12.;
+                    speed += (desired_speed - speed).clamp(
+                        -self.acceleration.abs().max(2.) * h,
+                        self.acceleration.abs().max(1.2) * h,
+                    );
+                    // Backward steps keep the body's facing while planning behind it.
+                    let delta = (aim - p) * if speed < 0. { -1. } else { 1. };
+                    if self.turn_rate.abs() > 0.1 {
+                        yaw += self.turn_rate * h;
+                    } else if delta.x * delta.x + delta.z * delta.z > 0.0025 && speed.abs() > 0.015
+                    {
+                        yaw += angle_delta(yaw, delta.x.atan2(delta.z)).clamp(-2.2 * h, 2.2 * h);
+                    }
+                    p += Vec3::new(yaw.sin(), 0., yaw.cos()) * speed * h;
+                }
+                let target = p + Quat::from_rotation_y(yaw)
+                    * Vec3::new(
+                        ankle.x * self.rig.spacing,
+                        0.,
+                        ankle.z + speed * self.duration * 0.45,
+                    );
+                (target, yaw)
+            };
             let foot = &mut self.feet[self.swing];
             let landing = [1., 0.8, 0.6, 0.4, 0.2, 0.]
                 .into_iter()
@@ -681,6 +709,14 @@ impl Gait {
             locals[model.node(&format!("Hand_{side}"))].rotation *=
                 Quat::from_rotation_x(-(arm_phase - 0.50).cos() * 0.10 * movement * 0.8);
         }
+        if self.zombie_reach {
+            locals[model.node("Spine")].rotation *= Quat::from_rotation_x(0.21);
+            for (side, lift) in [("L", 1.10), ("R", 0.85)] {
+                let arm = model.node(&format!("UpperArm_{side}"));
+                locals[arm].rotation *= Quat::from_rotation_x(-lift + 0.10 * cycle.sin());
+            }
+        }
+        self.melee.pose(model, &mut locals);
         let contact = [self.foot_contact(model, 0), self.foot_contact(model, 1)];
         let root = Mat4::from_rotation_translation(Quat::from_rotation_y(self.yaw), self.position);
         let mut overrides = vec![None; locals.len()];
@@ -717,7 +753,7 @@ impl Gait {
             let pole = forward;
             let a = model.rest[leg[1]].translation.length();
             let b = model.rest[leg[2]].translation.length();
-            let (knee, ankle) = solve_leg(hip, target, pole, a, b);
+            let (knee, ankle) = solve_two_bone(hip, target, pole, a, b);
             reach_error = reach_error.max(ankle.distance(target));
             for (bone, child, from, to) in
                 [(leg[0], leg[1], hip, knee), (leg[1], leg[2], knee, ankle)]
@@ -833,7 +869,7 @@ impl Gait {
         )
     }
 }
-fn solve_leg(hip: Vec3, target: Vec3, pole: Vec3, a: f32, b: f32) -> (Vec3, Vec3) {
+pub(super) fn solve_two_bone(hip: Vec3, target: Vec3, pole: Vec3, a: f32, b: f32) -> (Vec3, Vec3) {
     let delta = target - hip;
     let distance = delta.length().max(0.00001);
     let direction = delta / distance;

@@ -511,19 +511,7 @@ impl Props {
             // One assembly break event, before its individual parts detach.
             vehicle.sound_impact(-inward, material, true);
             let velocity = vehicle.velocity_at(arm);
-            for part in self.groups[self.items[id].group].clone() {
-                if !self.items[part].broken {
-                    if let Some(handle) = self.items[part].collider.take() {
-                        self.colliders.remove(
-                            handle,
-                            &mut self.static_islands,
-                            &mut self.bodies,
-                            false,
-                        );
-                    }
-                    self.break_prop(part, velocity, city, part == id);
-                }
-            }
+            self.break_assembly(id, velocity, city);
             // Breakage transfers a modest contact impulse back to the chassis.
             let impulse = -inward * (if cone { 0.0015 } else { 0.12 })
                 / vehicle.impulse_response(arm, normal);
@@ -534,6 +522,118 @@ impl Props {
         }
         if hit {
             vehicle.collisions += 1;
+        }
+    }
+    pub(super) fn ray_hit(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        distance: f32,
+    ) -> Option<(usize, f32, Vec3)> {
+        let ray = Ray::new(
+            point![origin.x, origin.y, origin.z],
+            vector![direction.x, direction.y, direction.z],
+        );
+        let standing = self
+            .query
+            .cast_ray_and_get_normal(
+                &self.bodies,
+                &self.colliders,
+                &ray,
+                distance,
+                true,
+                QueryFilter::default(),
+            )
+            .map(|(h, v)| (self.colliders[h].user_data as usize, v));
+        let limit = standing
+            .as_ref()
+            .map_or(distance, |(_, v)| v.time_of_impact);
+        let tagged = |_: ColliderHandle, c: &Collider| c.user_data > 0;
+        let moving = self
+            .debris_query
+            .cast_ray_and_get_normal(
+                &self.debris_bodies,
+                &self.debris_colliders,
+                &ray,
+                limit,
+                true,
+                QueryFilter::only_dynamic().predicate(&tagged),
+            )
+            .map(|(h, v)| (self.debris_colliders[h].user_data as usize - 1, v));
+        moving.or(standing).map(|(id, v)| {
+            (
+                id,
+                v.time_of_impact,
+                Vec3::new(v.normal.x, v.normal.y, v.normal.z),
+            )
+        })
+    }
+    pub(super) fn shot_surface(&self, id: usize) -> super::ShotSurface {
+        use super::ShotSurface;
+        let item = &self.items[id];
+        if item
+            .mesh
+            .template
+            .is_some_and(|(k, _)| k == crate::props::Kind::Cone)
+        {
+            return ShotSurface::Rubber;
+        }
+        match self.sound_materials[item.group] {
+            crate::audio::Material::Timber => ShotSurface::Wood,
+            crate::audio::Material::Fence
+            | crate::audio::Material::Lamp
+            | crate::audio::Material::Body => ShotSurface::Metal,
+            _ => ShotSurface::Concrete,
+        }
+    }
+    pub(super) fn strike_prop(
+        &mut self,
+        id: usize,
+        point: Vec3,
+        direction: Vec3,
+        force: f32,
+        city: &City,
+    ) {
+        let rubber = self.shot_surface(id) == super::ShotSurface::Rubber;
+        let intact = !self.items[id].broken;
+        if intact {
+            self.break_assembly(
+                id,
+                if rubber {
+                    Vec3::ZERO
+                } else {
+                    direction * force * 3.
+                },
+                city,
+            );
+        }
+        if let Some(handle) = self.items[id].debris {
+            let body = &mut self.debris_bodies[handle];
+            if intact && rubber {
+                body.set_linvel(vector![0., 0., 0.], true);
+                body.set_angvel(vector![0., 0., 0.], true);
+            }
+            let impulse = direction * force * if rubber { 5.8 } else { 2.4 };
+            body.apply_impulse_at_point(
+                vector![impulse.x, impulse.y, impulse.z],
+                point![point.x, point.y, point.z],
+                true,
+            );
+        }
+    }
+    pub(super) fn break_assembly(&mut self, id: usize, velocity: Vec3, city: &City) {
+        for part in self.groups[self.items[id].group].clone() {
+            if !self.items[part].broken {
+                if let Some(handle) = self.items[part].collider.take() {
+                    self.colliders.remove(
+                        handle,
+                        &mut self.static_islands,
+                        &mut self.bodies,
+                        false,
+                    );
+                }
+                self.break_prop(part, velocity, city, part == id);
+            }
         }
     }
     fn break_prop(&mut self, id: usize, velocity: Vec3, city: &City, direct_hit: bool) {
@@ -612,6 +712,7 @@ impl Props {
             self.debris_colliders.insert_with_parent(
                 ColliderBuilder::cuboid(item.half.x, item.half.y, item.half.z)
                     .density(20.)
+                    .user_data(id as u128 + 1)
                     .build(),
                 body,
                 &mut self.debris_bodies,

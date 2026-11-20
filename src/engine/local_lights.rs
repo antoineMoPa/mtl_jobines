@@ -58,6 +58,7 @@ fn grid(sources: &[LocalLight], center: Vec3) -> LightGrid {
 }
 pub(super) struct LocalLights {
     pub buffer: wgpu::Buffer,
+    pub flash: std::cell::Cell<Option<LocalLight>>,
     sources: RefCell<Vec<LocalLight>>,
     pub wakes: std::cell::Cell<[Wake; 32]>,
     pub hulls: std::cell::Cell<[Waterline; 8]>,
@@ -71,6 +72,7 @@ impl LocalLights {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
+            flash: Default::default(),
             sources: RefCell::new(Vec::new()),
             wakes: Default::default(),
             hulls: Default::default(),
@@ -80,7 +82,11 @@ impl LocalLights {
         self.sources.replace(sources);
     }
     pub fn upload(&self, queue: &wgpu::Queue, center: Vec3) {
-        let mut data = grid(&self.sources.borrow(), center);
+        let mut sources = self.sources.borrow_mut();
+        let count = sources.len();
+        sources.extend(self.flash.get());
+        let mut data = grid(&sources, center);
+        sources.truncate(count);
         data.hulls = self.hulls.get();
         data.wakes = self.wakes.get();
         queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(&data));

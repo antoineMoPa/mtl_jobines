@@ -1,8 +1,10 @@
 //! Embedded material images shared by imported meshes and the GPU texture arrays.
 use std::sync::{Arc, Mutex, OnceLock};
 pub const SIZE: u32 = 512;
-pub const CAPACITY: u32 = 16;
+pub const CAPACITY: u32 = 32;
 pub const MATERIAL: f32 = 42.;
+pub const EQUIPMENT_TEXTURE: f32 = 43.;
+pub const EQUIPMENT_SOLID: f32 = 44.;
 #[derive(Clone)]
 pub struct Layer {
     pub colour: Arc<[u8]>,
@@ -103,7 +105,7 @@ pub(super) fn register(
         return Ok(Some(i));
     }
     if layers.len() >= CAPACITY as usize {
-        return Err("Static GLB material texture budget exceeded (16 unique materials)".into());
+        return Err("Static GLB material texture budget exceeded (texture array is full)".into());
     }
     let index = layers.len();
     layers.push(Layer {
@@ -138,4 +140,39 @@ pub fn register_pixels(colour: Vec<u8>, normal: Vec<u8>) -> Result<usize, String
         normal: normal.into(),
     });
     Ok(index)
+}
+
+// Equipment layers store metallic in colour alpha and roughness in normal alpha.
+pub(super) fn register_equipment(
+    material: gltf::Material<'_>,
+    binary: &[u8],
+) -> Result<Option<usize>, String> {
+    let pbr = material.pbr_metallic_roughness();
+    let base = pbr.base_color_texture();
+    let normal = material.normal_texture();
+    let orm = pbr.metallic_roughness_texture();
+    if base.is_none() && normal.is_none() && orm.is_none() {
+        return Ok(None);
+    }
+    let count = (SIZE * SIZE) as usize;
+    let mut colour = match base {
+        Some(t) => image(t.texture(), binary)?,
+        None => vec![255; count * 4],
+    };
+    let mut detail = match normal {
+        Some(t) => image(t.texture(), binary)?,
+        None => [128, 128, 255, 255].repeat(count),
+    };
+    let channels = orm.map(|t| image(t.texture(), binary)).transpose()?;
+    for (i, (c, n)) in colour
+        .chunks_exact_mut(4)
+        .zip(detail.chunks_exact_mut(4))
+        .enumerate()
+    {
+        c[3] = (pbr.metallic_factor() * channels.as_ref().map_or(255, |v| v[i * 4 + 2]) as f32)
+            .round() as u8;
+        n[3] = (pbr.roughness_factor() * channels.as_ref().map_or(255, |v| v[i * 4 + 1]) as f32)
+            .round() as u8;
+    }
+    register_pixels(colour, detail).map(Some)
 }

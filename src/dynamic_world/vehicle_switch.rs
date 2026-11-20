@@ -3,7 +3,7 @@ use super::{catalog, Controls, DynamicWorld};
 
 impl DynamicWorld {
     pub fn switch_vehicle(&mut self, model: usize) -> bool {
-        if catalog::definitions().get(model).is_none() {
+        if self.health == 0 || catalog::definitions().get(model).is_none() {
             return false;
         }
         let index = self.player_vehicle.0;
@@ -15,7 +15,6 @@ impl DynamicWorld {
         vehicle.set_catalog_model(Some(model));
         vehicle.sound_controls = Controls::default();
         self.pedestrian = None;
-        self.vehicle_notice = 4.;
         self.sound_geography_timer = 0.;
         true
     }
@@ -38,7 +37,7 @@ mod tests {
         let position = world.player().position.truncate();
         let yaw = world.player().yaw;
         world.vehicles[index].velocity = Vec3::new(4., 2., 0.);
-        for (model, definition) in catalog::definitions().iter().enumerate() {
+        for model in 0..catalog::definitions().len() {
             assert!(world.switch_vehicle(model));
             assert_eq!(world.player().definition, Some(model));
             assert_eq!(world.player().position.truncate(), position);
@@ -47,10 +46,6 @@ mod tests {
             );
             assert_eq!(world.player().yaw, yaw);
             assert_eq!(world.player().velocity, Vec3::new(4., 2., 0.));
-            assert_eq!(
-                world.vehicle_name_notice(),
-                Some(definition.config.name.as_str())
-            );
             assert_eq!(world.vehicles.len(), count);
             assert_eq!(world.vehicle_spawns[index], spawn);
         }

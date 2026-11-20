@@ -241,7 +241,6 @@ pub(super) fn run(
     if options.profile && std::env::args().any(|arg| arg == "--profile-full-traffic") {
         smoke_world.use_full_traffic_physics();
     }
-    renderer.vehicle_name = smoke_world.vehicle_name_notice().map(str::to_owned);
     let vehicle_started = Instant::now();
     let mut vehicles = super::vehicle_scenery::VehicleScenery::new(&renderer);
     eprintln!(
@@ -416,7 +415,6 @@ pub(super) fn run(
 
     drop(meshes);
     if smoke_world.toggle_vehicle(hermes) {
-        renderer.vehicle_name = None;
         smoke_world.write_moving_mesh(&mut moving);
         let walking_mesh = renderer.upload_dynamic(&moving);
         let mut walking_props = PropScenery::default();
@@ -497,7 +495,6 @@ pub(super) fn run(
             lamp_meshes.push(&lamp_mesh);
             lamp_meshes.extend(lamp_props.visible());
             lamp_meshes.extend(lamp_vehicles.visible());
-            renderer.vehicle_name = lamp_world.vehicle_name_notice().map(str::to_owned);
             renderer.daylight = Some(0.);
             renderer.render(
                 &texture.create_view(&Default::default()),
@@ -517,7 +514,6 @@ pub(super) fn run(
             eprintln!("Rendered {}", path.display());
         }
     }
-    renderer.vehicle_name = None;
     if options.profile {
         renderer.daylight = if options.sky.automatic {
             None

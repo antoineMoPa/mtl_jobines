@@ -309,6 +309,20 @@ fn space_handbrake_and_shift_sprint_are_independent() {
 }
 
 #[test]
+fn reticle_stays_centered_over_hud_coordinates_and_yields_to_menus() {
+    use egui::CursorIcon::{Crosshair, Default};
+    let mut game = Game::new(Hermes::test_map());
+    game.set_overlay(Overlay::Driving);
+    assert_eq!(game.scene_cursor(false), Default);
+    for cursor in [None, Some([940., 620.]), Some([10., 10.])] {
+        game.cursor = cursor;
+        assert_eq!(game.scene_cursor(true), Crosshair);
+    }
+    game.window_focus_lost();
+    assert_eq!(game.scene_cursor(true), Default);
+}
+
+#[test]
 fn cursor_idle_deadline_resets_on_pointer_activity() {
     let mut game = Game::new(Hermes::test_map());
     let now = Instant::now();
@@ -457,6 +471,34 @@ fn explicit_launch_position_starts_playing_immediately() {
     assert!((game.world.player_position().y / METERS_PER_UNIT - point.y).abs() < 1e-5);
 }
 #[test]
+fn body_follows_mouse_look_and_strafes_without_steering_the_sights() {
+    let mut game = Game::new(Hermes::test_map());
+    game.set_overlay(Overlay::Driving);
+    game.world.prepare_player_pedestrian_collision(&game.hermes);
+    game.loadout.equip(Some(weapons::Weapon::Handgun));
+    let yaw = game.world.player_yaw();
+    let position = game.world.player_position();
+    game.aim_motion([-0.8 / AIM_LOOK_SENSITIVITY, -12.]);
+    let heading = yaw + 0.8;
+    for _ in 0..120 {
+        game.simulate(DT);
+        assert!((game.world.player_yaw() + game.orbit - heading).cos() > 0.99999);
+    }
+    assert!((game.world.player_yaw() - heading).cos() > 0.99999);
+    assert_eq!(game.world.player_position(), position);
+    assert_eq!(game.camera_pitch, -12. * AIM_LOOK_SENSITIVITY);
+    game.keys.insert(KeyCode::KeyA);
+    for _ in 0..120 {
+        game.simulate(DT);
+    }
+    let travel = (game.world.player_position() - position).truncate();
+    let forward = glam::Vec2::from_angle(heading);
+    assert!(travel.dot(forward.perp()) > 1., "travel {travel:?}");
+    assert!(travel.dot(forward).abs() < 0.1);
+    assert!((game.world.player_yaw() + game.orbit - heading).cos() > 0.99999);
+}
+
+#[test]
 fn walking_left_right_keys_turn_without_strafing() {
     let mut game = Game::new(Hermes::test_map());
     game.set_overlay(Overlay::Driving);
@@ -570,6 +612,54 @@ fn idle_overlays_reuse_frozen_scene_and_resume_refreshes_it() {
     assert!(!game.simulation_paused());
     assert!(game.refresh_scene());
 }
+#[test]
+fn switching_spaces_parks_timers_and_resumes_without_replaying_the_gap() {
+    let mut game = Game::new(Hermes::test_map());
+    game.set_overlay(Overlay::Driving);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        game.live_reload = Some(reload::LiveReload::new(PathBuf::from("unused.road")));
+    }
+    let now = Instant::now();
+    let later = now + Duration::from_secs(3600);
+    game.frame_elapsed(now);
+    game.accumulator = DT * 0.5;
+    game.keys.insert(KeyCode::KeyW);
+    game.cursor_activity(now);
+    game.retry_surface(Duration::from_millis(100));
+    game.handle_window_activity(&WindowEvent::Occluded(true));
+    let position = game.world.player_position();
+    for _ in 0..3 {
+        assert_eq!(game.wait_for_event(later), ControlFlow::Wait);
+        assert!(!game.wake_surface(later));
+        game.simulate(0.1);
+    }
+    assert_eq!(game.game_time, 0.);
+    assert_eq!(game.accumulator, 0.);
+    assert!(game.keys.is_empty());
+    assert!(game.cursor_hide_at.is_none());
+    assert_eq!(game.world.player_position(), position);
+
+    game.handle_window_activity(&WindowEvent::Focused(false));
+    game.handle_window_activity(&WindowEvent::Occluded(false));
+    assert!(!game.window_active());
+    game.handle_window_activity(&WindowEvent::Resized(winit::dpi::PhysicalSize::new(0, 0)));
+    game.handle_window_activity(&WindowEvent::Focused(true));
+    assert!(!game.window_active());
+    game.handle_window_activity(&WindowEvent::Resized(winit::dpi::PhysicalSize::new(
+        960, 640,
+    )));
+    assert!(game.window_active());
+    assert_eq!(game.overlay, Overlay::Menu);
+    assert_eq!(game.frame_elapsed(later), 0.);
+    game.set_overlay(Overlay::Driving);
+    let elapsed = game.frame_elapsed(later);
+    game.simulate(elapsed);
+    let elapsed = game.frame_elapsed(later + Duration::from_millis(16));
+    game.simulate(elapsed);
+    assert!((game.game_time - 0.016).abs() < 0.00001);
+}
+
 #[test]
 fn paused_startup_retries_a_missing_drawable_without_busy_polling() {
     let mut game = Game::new(Hermes::test_map());

@@ -1,5 +1,0 @@
-# Signal maintenance yard around the default four-way OpenCity junction.
-yard = land(-2,-2, 2,-2, 2,2, -2,2);
-workshop = building(0.065, {material:brick, seed:7}, -0.25,0.09, -0.13,0.09, -0.13,0.19, -0.25,0.19);
-relay_shed = building(0.05, {material:concrete, seed:11}, 0.18,0.09, 0.29,0.09, 0.29,0.18, 0.18,0.18);
-stores = building(0.045, {material:concrete, seed:19}, -0.21,-0.19, -0.07,-0.19, -0.07,-0.10, -0.21,-0.10);

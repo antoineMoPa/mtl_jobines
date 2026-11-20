@@ -140,6 +140,7 @@ impl DynamicWorld {
                 ) * Mat4::from_translation(seat - Vec3::Z * v.ride_height())
                     * axes;
                 Some(Instance {
+                    zombie: false,
                     model,
                     transform,
                     opacity: 1.,

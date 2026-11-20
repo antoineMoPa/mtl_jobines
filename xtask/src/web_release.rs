@@ -12,6 +12,15 @@ const MAX_FILE_BYTES: u64 = 25 * 1024 * 1024;
 const MAX_FILES: usize = 20_000;
 const REQUIRED: &[&str] = &[
     "index.html",
+    "game/index.html",
+    "intro/intro.css",
+    "intro/language.js",
+    "intro/boulevard.webp",
+    "intro/plex.webp",
+    "intro/lampadaire.webp",
+    "intro/taxi.webp",
+    "intro/snowplow.webp",
+    "intro/acadie.webp",
     "boot.png",
     "mobile-controls.js",
     "mobile-controls.css",
@@ -85,6 +94,7 @@ pub fn check(root: &Path) -> Result<()> {
     }
     for file in [
         "index.html",
+        "game/index.html",
         "pkg/mtl_jobines.js",
         "pkg/mtl_jobines_bg.wasm",
     ] {

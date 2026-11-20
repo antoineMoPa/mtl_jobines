@@ -292,3 +292,32 @@ fn airport_fence_stops_gentle_contacts_and_detaches_only_the_struck_quad() {
         appearance
     );
 }
+
+#[test]
+fn gun_impact_topples_and_can_restrike_a_cone() {
+    let h = crate::hermes::Hermes::test_map();
+    let placement = crate::props::Placement {
+        kind: crate::props::Kind::Cone,
+        position: Vec3::ZERO,
+        heading: 0.,
+        sign: None,
+    };
+    let mut props = Props::from_parts_near(vec![placement.parts()], Vec3::ZERO);
+    let origin = Vec3::new(-2., 0., 1.45);
+    let (id, t, _) = props.ray_hit(origin, Vec3::X, 5.).unwrap();
+    assert_eq!(
+        props.shot_surface(id),
+        crate::dynamic_world::ShotSurface::Rubber
+    );
+    props.strike_prop(id, origin + Vec3::X * t, Vec3::X, 1., h.city());
+    let body = props.items[id].debris.unwrap();
+    assert!(props.debris_bodies[body].linvel().x > 0.5);
+    assert!(props.debris_bodies[body].angvel().norm() > 0.1);
+    props.step(1. / 60.);
+    let (again, t, _) = props.ray_hit(origin, Vec3::X, 5.).unwrap();
+    assert_eq!(id, again);
+    let old_speed = props.debris_bodies[body].linvel().x;
+    props.strike_prop(id, origin + Vec3::X * t, Vec3::X, 1., h.city());
+    assert_eq!(props.debris_bodies.len(), 1);
+    assert!(props.debris_bodies[body].linvel().x > old_speed);
+}

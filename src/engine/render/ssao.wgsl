@@ -62,9 +62,22 @@ fn winter_atmosphere(color:vec4<f32>,distance:f32,has_surface:bool)->vec4<f32> {
     let result=mix(color.rgb,fog_color,haze*settings.weather.y);
     return vec4<f32>(result,color.a);
 }
-@fragment fn composite(@builtin(position) screen:vec4<f32>)->@location(0) vec4<f32> {
+fn scene_color(screen:vec4<f32>)->vec4<f32> {
     let p=vec2<i32>(screen.xy);
-    let color=textureLoad(scene,p,0);
+    var color=textureLoad(scene,p,0);
+    let strength=settings.weather.w;
+    if strength>0.0 {
+        let radial=screen.xy/settings.viewport.xy*2.0-1.0;
+        let edge=smoothstep(0.12,1.30,dot(radial,radial));
+        let shift=vec2<i32>(round(radial*edge*settings.viewport.y*0.018*strength));
+        let split=vec3<f32>(textureLoad(scene,pixel(p+shift),0).r,
+            color.g,textureLoad(scene,pixel(p-shift),0).b);
+        let light=dot(split,vec3<f32>(0.2126,0.7152,0.0722));
+        // Violet shadows and amber highlights, with the strongest fringing at the rim.
+        let grade=max(vec3<f32>(0.0),mix(vec3<f32>(light),split,1.65))
+            *vec3<f32>(1.22,0.86,1.08)+vec3<f32>(0.040,0.002,0.085)*(1.0-light);
+        color=vec4<f32>(mix(color.rgb,grade*(1.0-0.94*edge),strength),color.a);
+    }
     // Exact summer bypass, including the AO-disabled path.
     if settings.tuning.z<0.5 && settings.weather.y==0.0 {return color;}
     let has_surface=depth_at(p)<0.999999;
@@ -87,4 +100,27 @@ fn winter_atmosphere(color:vec4<f32>,distance:f32,has_surface:bool)->vec4<f32> {
         result=vec4<f32>(color.rgb*factor,color.a);
     }
     return winter_atmosphere(result,distance,has_surface);
+}
+
+fn zombie_grade(color: vec3<f32>, screen: vec2<f32>) -> vec3<f32> {
+    let light = dot(color, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let highlights = smoothstep(0.12, 0.75, light);
+    // Bleach midtones but preserve reds. Cool shadows give way to pale amber in sunlight.
+    let red = smoothstep(0.03, 0.3, color.r - max(color.g, color.b));
+    let tint = mix(vec3<f32>(0.67, 0.91, 0.95), vec3<f32>(1.08, 1.02, 0.79), highlights);
+    let graded = mix(vec3<f32>(light), color, 0.48 + 0.37 * red) * tint;
+
+    let frame = screen / settings.viewport.xy * 2.0 - 1.0;
+    let rim = smoothstep(0.16, 1.72, dot(frame, frame));
+    let vignette = mix(vec3<f32>(1.0), vec3<f32>(0.45, 0.27, 0.30), rim);
+    // Update the grain at film cadence; relative exposure keeps dark streets readable.
+    let seed = floor(screen) + floor(settings.weather.x * 24.0) * vec2<f32>(17.0, 29.0);
+    let grain = fract(52.9829189 * fract(dot(seed, vec2<f32>(0.06711056, 0.00583715)))) - 0.5;
+    return graded * vignette * (1.0 + grain * mix(0.085, 0.035, highlights));
+}
+
+@fragment fn composite(@builtin(position) screen: vec4<f32>) -> @location(0) vec4<f32> {
+    let color = scene_color(screen);
+    if settings.tuning.w < 0.5 { return color; }
+    return vec4<f32>(zombie_grade(color.rgb, screen.xy), color.a);
 }

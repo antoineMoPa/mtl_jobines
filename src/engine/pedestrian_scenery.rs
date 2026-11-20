@@ -151,6 +151,11 @@ impl PedestrianScenery {
             assert!(self.poses.len() + JOINT_LIMIT <= POSE_CAPACITY);
             let mut columns = transform.to_cols_array_2d();
             columns[0][3] = actor.model as f32;
+            columns[1][3] = if index == 0 && stage.is_none() && world.punching() {
+                -1.
+            } else {
+                f32::from(actor.zombie)
+            };
             columns[2][3] = self.poses.len() as f32;
             columns[3][3] = actor.opacity;
             self.models[actor.model].transforms.push(columns);

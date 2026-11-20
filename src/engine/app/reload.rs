@@ -249,6 +249,7 @@ impl Game {
         self.kairos.abandon();
         self.hermes = hermes;
         self.world = world;
+        self.loadout.effects = Default::default();
         self.mesh_center = mesh_center;
         self.eye = p - Vec3::new(
             self.world.player_yaw().cos(),
@@ -264,7 +265,7 @@ impl Game {
         self.keys.clear();
         self.stop_orbit_drag();
         self.accumulator = 0.;
-        self.last = Instant::now();
+        self.last = None;
         self.scene_dirty = true;
         Ok(())
     }

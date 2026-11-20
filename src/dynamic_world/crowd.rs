@@ -1,4 +1,5 @@
 //! Bounded nearby sidewalk population, independent of vehicle physics.
+mod zombies;
 use super::{
     pedestrian_catalog::{self, JOINT_LIMIT},
     pedestrian_gait::{footing, Gait},
@@ -94,6 +95,8 @@ struct Walker {
     blocked_time: f32,
     age: f32,
     immunity: f32,
+    health: u8,
+    stagger: f32,
     deferred_dt: f32,
     preview_cache: Option<(usize, f32, f32, Option<Vec3>)>,
     reaction: Option<Box<Reaction>>,
@@ -120,6 +123,7 @@ impl Reaction {
 }
 impl Walker {
     fn fall(&mut self, city: &City, vehicles: &[Vehicle], velocity: Vec3) {
+        self.gait.melee = Default::default();
         self.reaction = Some(Box::new(Reaction::Falling(ragdoll::Ragdoll::new(
             &pedestrian_catalog::definitions()[self.model],
             self.gait.palette,
@@ -141,6 +145,7 @@ struct ReturnPoint {
     distance: f32,
 }
 pub struct Instance<'a> {
+    pub zombie: bool,
     pub model: usize,
     pub transform: Mat4,
     pub opacity: f32,
@@ -157,6 +162,7 @@ pub(crate) struct Crowd {
     step_number: u64,
     refill: f32,
     previous_vehicles: Vec<Vec3>,
+    pub(super) zombies: bool,
     kiosk_checked: bool,
     kiosk_spawned: bool,
     kiosk_site: Option<KioskSite>,
@@ -238,6 +244,8 @@ fn collide_queue(
             blocked_time: 0.,
             age: 1.,
             immunity: 0.,
+            health: super::melee::ZOMBIE_HEALTH,
+            stagger: 0.,
             deferred_dt: 0.,
             preview_cache: None,
             reaction: None,
@@ -246,7 +254,9 @@ fn collide_queue(
                 footing(city, p, false)
             }),
         };
-        walker.fall(city, vehicles, velocity);
+        if velocity != Vec3::ZERO {
+            walker.fall(city, vehicles, velocity);
+        }
         walkers.push(walker);
         *serial = serial.wrapping_add(1);
     }
@@ -296,6 +306,7 @@ impl Crowd {
             step_number: 0,
             refill: 0.,
             previous_vehicles: Vec::new(),
+            zombies: false,
             kiosk_checked: false,
             kiosk_spawned: false,
             kiosk_site: None,
@@ -308,7 +319,8 @@ impl Crowd {
             self.kiosk_checked = true;
         }
         self.walkers.retain(|w| {
-            w.reaction.is_some() || w.position.distance_squared(center) < RETAIN_RADIUS.powi(2)
+            (w.reaction.is_some() && w.health > 0)
+                || w.position.distance_squared(center) < RETAIN_RADIUS.powi(2)
         });
         if self.previous_vehicles.is_empty() {
             self.previous_vehicles
@@ -375,6 +387,8 @@ impl Crowd {
                 blocked_time: 0.,
                 age: 0.,
                 immunity: 0.,
+                health: super::melee::ZOMBIE_HEALTH,
+                stagger: 0.,
                 deferred_dt: 0.,
                 preview_cache: None,
                 reaction: None,
@@ -398,6 +412,9 @@ impl Crowd {
         dt: f32,
         vehicles: &[Vehicle],
     ) {
+        if self.zombies {
+            return;
+        }
         for walker in &mut self.walkers {
             if walker.reaction.is_some() || walker.immunity > 0. {
                 continue;
@@ -485,7 +502,13 @@ impl Crowd {
             &mut self.serial,
             city,
             vehicles,
-            |position| ragdoll::impact(position, &self.previous_vehicles, vehicles, dt),
+            |position| {
+                if self.zombies {
+                    Some(Vec3::ZERO)
+                } else {
+                    ragdoll::impact(position, &self.previous_vehicles, vehicles, dt)
+                }
+            },
         );
         self.refill -= dt;
         if self.refill <= 0. {
@@ -521,9 +544,11 @@ impl Crowd {
                 let mut finished = false;
                 match reaction.as_mut() {
                     Reaction::Falling(doll) => {
-                        doll.step(definition, city, vehicles, dt);
+                        if walker.health > 0 || !self.zombies || !doll.ready_to_rise() {
+                            doll.step(definition, city, vehicles, dt);
+                        }
                         walker.position = doll.anchor;
-                        if doll.ready_to_rise() {
+                        if doll.ready_to_rise() && (!self.zombies || walker.health > 0) {
                             let destination =
                                 return_point(city, &self.graph, walker, vehicles, props);
                             replacement = Some(Box::new(Reaction::Rising {
@@ -586,6 +611,10 @@ impl Crowd {
             }
             if let (Some(profile), Some(started)) = (profile.as_deref_mut(), impact_started) {
                 profile[6] += started.elapsed().as_nanos() as u64;
+            }
+            if self.zombies {
+                zombies::pursue(walker, city, center, vehicles, props, &neighbors, dt);
+                continue;
             }
             // Keep contact reactions at full rate. Distant walking can use a
             // longer step and alternate walkers across physics ticks.
@@ -814,6 +843,7 @@ impl Crowd {
                     .clamp(0., 1.)
                     * (w.age / 0.6).clamp(0., 1.);
                 (opacity > 0.).then(|| Instance {
+                    zombie: self.zombies,
                     model: w.model,
                     transform: pedestrian_catalog::instance_transform(w.position, w.yaw),
                     opacity,
@@ -824,6 +854,7 @@ impl Crowd {
                 })
             })
             .chain(self.kiosk_actors.iter().map(|actor| Instance {
+                zombie: false,
                 model: actor.model,
                 transform: pedestrian_catalog::instance_transform(actor.position, actor.yaw),
                 opacity: 1.,
@@ -1141,7 +1172,7 @@ mod tests {
         assert!(return_steps > 90, "return did not use walking steps");
     }
     #[test]
-    fn vehicle_hit_enters_ragdoll_gets_up_and_resumes_walking_repeatedly() {
+    fn vehicle_bumps_knock_down_walkers_and_zombies_then_they_recover() {
         let hermes = Hermes::test_map();
         let props = Props::new(Vec::new());
         let mut crowd = Crowd::new(hermes.walking_paths());
@@ -1149,7 +1180,10 @@ mod tests {
         crowd.prepare_collision();
         let mut car = Vehicle::spawn(hermes.city());
         car.yaw = 0.;
-        for repetition in 0..2 {
+        for zombie_mode in [false, true] {
+            if zombie_mode {
+                crowd.toggle_zombies(hermes.city(), &[], &props);
+            }
             let target = crowd.walkers[0].position;
             car.position = target - Vec3::X * 5. + Vec3::Z * car.ride_height();
             car.velocity = Vec3::X * 8.;
@@ -1161,7 +1195,7 @@ mod tests {
                 car.position.x += 8. / 60.;
                 crowd.step(
                     hermes.city(),
-                    Vec3::ZERO,
+                    car.position,
                     false,
                     std::slice::from_ref(&car),
                     &props,
@@ -1180,7 +1214,7 @@ mod tests {
                     assert_eq!(
                         counts,
                         [1, 0, 0],
-                        "pedestrian did not recover after impact {repetition}"
+                        "pedestrian did not recover after impact (zombie mode {zombie_mode})"
                     );
                 }
             }
@@ -1189,7 +1223,7 @@ mod tests {
                 crowd.walkers[0].position.distance(recovered.unwrap()) > 0.5,
                 "pedestrian never resumed walking"
             );
-            assert!(support(hermes.city(), crowd.walkers[0].position).is_some());
+            assert!(footing(hermes.city(), crowd.walkers[0].position, !zombie_mode).is_some());
         }
     }
     #[test]

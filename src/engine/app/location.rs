@@ -27,6 +27,7 @@ impl Game {
     }
 
     pub(super) fn reset_boarding_camera(&mut self) {
+        self.release_aim_mouse();
         self.orbit = 0.;
         self.camera_pitch = 0.;
         self.hood = false;

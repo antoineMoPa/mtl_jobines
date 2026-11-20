@@ -7,8 +7,17 @@ struct Camera {
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(1) @binding(0) var sky: texture_cube<f32>;
 @group(1) @binding(1) var sky_sampler: sampler;
-@group(2) @binding(0) var cloud_highlights: texture_2d<f32>;
+@group(2) @binding(0) var panorama: texture_2d<f32>;
 @group(2) @binding(1) var panorama_sampler: sampler;
+@group(2) @binding(2) var<uniform> custom_panorama: u32;
+struct SkydomeInput {
+    direction: vec3<f32>,
+    uv: vec2<f32>,
+    panorama: vec4<f32>,
+    sky: vec3<f32>,
+    daylight: f32,
+    time: f32,
+};
 struct Ray { @builtin(position) clip: vec4<f32>, @location(0) ray: vec3<f32> };
 @vertex fn vs(@builtin(vertex_index) vertex: u32) -> Ray {
     let p = vec2(f32((vertex << 1u) & 2u), f32(vertex & 2u)) * 2.0 - 1.0;
@@ -22,10 +31,10 @@ struct Ray { @builtin(position) clip: vec4<f32>, @location(0) ray: vec3<f32> };
     // Z-up hemisphere: bottom of each source photograph is the horizon.
     let uv = vec2(atan2(v.ray.y, v.ray.x) / 6.2831853 + 0.5,
         1.0 - clamp(elevation / 1.5707963, 0.0, 1.0));
-    let masks = textureSampleLevel(cloud_highlights, panorama_sampler, uv, 0.0).rg;
+    let texel = textureSampleLevel(panorama, panorama_sampler, uv, 0.0);
     let daylight = clamp(camera.daylight_sky.x, 0.0, 1.0);
     // Fade the source's landscape strip and converge cleanly at the dome pole.
-    let coverage = mix(masks.g, masks.r, daylight)
+    let coverage = select(mix(texel.g, texel.r, daylight), 0.0, custom_panorama != 0u)
         * smoothstep(0.015, 0.08, elevation)
         * (1.0 - smoothstep(1.25, 1.55, elevation));
     let sunward = pow(max(dot(ray, camera.sun_exposure.xyz), 0.0), 8.0);
@@ -36,5 +45,7 @@ struct Ray { @builtin(position) clip: vec4<f32>, @location(0) ray: vec3<f32> };
     let stars = sky_stars(ray, camera.star_params, camera.star_color)
         * (1.0 - coverage * 0.9);
     let radiance = atmosphere + illumination * coverage + stars;
-    return vec4(filmic_display(radiance * camera.sun_exposure.w), 1.0);
+    let base = filmic_display(radiance * camera.sun_exposure.w);
+    let color = owe_skydome(SkydomeInput(ray, uv, texel, base, daylight, camera.eye_time.w));
+    return vec4(color, 1.0);
 }

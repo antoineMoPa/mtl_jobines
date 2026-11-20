@@ -3,6 +3,7 @@
 <link rel="icon" href="data:,"><title>Open World Engine</title><style>
 *{box-sizing:border-box}body{margin:0;background:#152521;color:#f2f2e8;font:16px/1.5 system-ui,sans-serif;display:grid;grid-template-rows:minmax(0,1fr) auto;height:100dvh}
 canvas{width:100%!important;height:100%!important;min-height:0;display:block;outline-offset:-3px}output{padding:.6rem 1rem}
+.in-hud{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);padding:0}
 </style></head><body><canvas id="game" tabindex="0" aria-label="Game world"></canvas>
 <output id="status" aria-live="polite">Loading game…</output>
 <script type="module">
@@ -15,21 +16,29 @@ async function read(url) {
 }
 try {
     await init();
-    for (const path of engine.owe_asset_paths().split('\n')) {
-        const response = await read('../' + path);
-        engine.install_asset(path, new Uint8Array(await response.arrayBuffer()));
-    }
-    engine.owe_install_assets();
-    const pack = await (await read('game.pack.json')).text();
-    document.title = JSON.parse(pack).title;
     const mod = await (await read('game.wasm')).arrayBuffer();
     const {instance} = await WebAssembly.instantiate(mod, {env: {
+        owe_content_v1(kind, name, owner, prefab, values, data, size) {
+            const buffer = instance.exports.memory.buffer;
+            const bytes = new Uint8Array(buffer);
+            const string = p => new TextDecoder().decode(bytes.subarray(p, bytes.indexOf(0, p)));
+            if (kind === 1) document.title = string(name);
+            return engine.owe_content_v1(kind, string(name), string(owner), string(prefab),
+                new Float32Array(buffer, values, 9), new Uint8Array(buffer, data, size));
+        },
         owe_call_v1(pointer) {
             const packet = new Uint8Array(instance.exports.memory.buffer, pointer, 180);
             return engine.owe_call_v1(packet);
         }
     }});
-    engine.owe_start_v1(pack, instance.exports.owe_client_resume_v1);
+    engine.owe_begin_content_v1();
+    if (instance.exports.owe_client_define_v1() !== 0) throw Error('Invalid game definition');
+    for (const path of engine.owe_asset_paths().split('\n')) {
+        const response = await read('../' + path);
+        engine.install_asset(path, new Uint8Array(await response.arrayBuffer()));
+    }
+    engine.owe_install_assets();
+    engine.owe_start_defined_v1(instance.exports.owe_client_resume_v1);
     document.querySelector('#game').focus();
 } catch (error) { status.textContent = 'Could not start game: ' + error; console.error(error); }
 </script></body></html>

@@ -76,6 +76,9 @@ impl Material {
             Self::Fence => (34., 14., 3.8, 0.29),
             Self::Lamp => (26., 20., 5., 0.22),
             Self::Timber => (22., 10., 4.4, 0.12),
+            Self::Asphalt => (55., 29., 15., 0.33),
+            Self::Rubber => (62., 46., 22., 0.065),
+            Self::Glass => (91., 31., 9., 0.72),
         };
         ImpactTexture {
             pressure_decay,

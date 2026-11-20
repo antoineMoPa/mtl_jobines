@@ -38,10 +38,14 @@ impl BakeKey {
 }
 pub struct Sky {
     pub environment: opencity::runtime::surface_materials::EnvironmentMap,
-    background: wgpu::RenderPipeline,
+    backgrounds: Vec<(wgpu::ShaderModule, wgpu::RenderPipeline)>,
+    pub(super) shader_index: usize,
+    samples: u32,
     background_layout: wgpu::PipelineLayout,
     format: wgpu::TextureFormat,
-    panorama: wgpu::BindGroup,
+    panoramas: Vec<wgpu::BindGroup>,
+    pub(super) texture_index: usize,
+    panorama_layout: wgpu::BindGroupLayout,
     last_bake: Cell<Option<BakeKey>>,
     updates: Cell<u64>,
 }
@@ -54,7 +58,15 @@ impl Sky {
         samples: u32,
     ) -> Self {
         let environment = opencity::runtime::surface_materials::EnvironmentMap::new(device);
-        let (panorama_layout, panorama) = panorama::create(device, queue);
+        let panorama_layout = panorama::layout(device);
+        let panorama = panorama::create(
+            device,
+            queue,
+            &panorama_layout,
+            include_bytes!("../../assets/sky/cloud-highlights.png"),
+            false,
+        )
+        .expect("embedded sky panorama");
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("sky background"),
             bind_group_layouts: &[
@@ -64,38 +76,79 @@ impl Sky {
             ],
             immediate_size: 0,
         });
-        let background = Self::background_pipeline(device, &layout, format, samples);
+        let module = Self::shader_module(device, DEFAULT_SHADER);
+        let background = Self::background_pipeline(device, &layout, format, samples, &module);
         Self {
             environment,
-            background,
+            backgrounds: vec![(module, background)],
+            shader_index: 0,
+            samples,
             background_layout: layout,
             format,
-            panorama,
+            panoramas: vec![panorama],
+            texture_index: 0,
+            panorama_layout,
             last_bake: Cell::new(None),
             updates: Cell::new(0),
         }
     }
+    pub(super) fn add_texture(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        png: &[u8],
+    ) -> Result<usize, String> {
+        let group = panorama::create(device, queue, &self.panorama_layout, png, true)?;
+        self.panoramas.push(group);
+        Ok(self.panoramas.len() - 1)
+    }
+
+    pub(super) async fn add_shader(
+        &mut self,
+        device: &wgpu::Device,
+        hook: &str,
+    ) -> Result<usize, String> {
+        let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let module = Self::shader_module(device, hook);
+        let pipeline = Self::background_pipeline(
+            device,
+            &self.background_layout,
+            self.format,
+            self.samples,
+            &module,
+        );
+        if let Some(error) = scope.pop().await {
+            return Err(error.to_string());
+        }
+        self.backgrounds.push((module, pipeline));
+        Ok(self.backgrounds.len() - 1)
+    }
+
+    fn shader_module(device: &wgpu::Device, hook: &str) -> wgpu::ShaderModule {
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("sky background"),
+            source: wgpu::ShaderSource::Wgsl(background_source(hook).into()),
+        })
+    }
+
     fn background_pipeline(
         device: &wgpu::Device,
         layout: &wgpu::PipelineLayout,
         format: wgpu::TextureFormat,
         samples: u32,
+        shader: &wgpu::ShaderModule,
     ) -> wgpu::RenderPipeline {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("sky background"),
-            source: wgpu::ShaderSource::Wgsl(background_source().into()),
-        });
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("sky background"),
             layout: Some(&layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: shader,
                 entry_point: Some("vs"),
                 buffers: &[],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: shader,
                 entry_point: Some("fs"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
@@ -121,8 +174,16 @@ impl Sky {
         })
     }
     pub fn set_samples(&mut self, device: &wgpu::Device, samples: u32) {
-        self.background =
-            Self::background_pipeline(device, &self.background_layout, self.format, samples);
+        self.samples = samples;
+        for (module, pipeline) in &mut self.backgrounds {
+            *pipeline = Self::background_pipeline(
+                device,
+                &self.background_layout,
+                self.format,
+                samples,
+                module,
+            );
+        }
     }
     pub fn update(
         &self,
@@ -160,16 +221,21 @@ impl Sky {
         self.updates.get()
     }
     pub fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>, camera: &'a wgpu::BindGroup) {
-        pass.set_pipeline(&self.background);
+        pass.set_pipeline(&self.backgrounds[self.shader_index].1);
         pass.set_bind_group(0, camera, &[]);
         pass.set_bind_group(1, &self.environment.group, &[]);
-        pass.set_bind_group(2, &self.panorama, &[]);
+        pass.set_bind_group(2, &self.panoramas[self.texture_index], &[]);
         pass.draw(0..3, 0..1);
     }
 }
-fn background_source() -> String {
+const DEFAULT_SHADER: &str = "
+fn owe_skydome(input: SkydomeInput) -> vec3<f32> {
+    return mix(input.sky, input.panorama.rgb, select(0.0, input.panorama.a, custom_panorama != 0u));
+}";
+
+fn background_source(hook: &str) -> String {
     format!(
-        "{}\n{}\n{}",
+        "{}\n{}\n{}\n{hook}",
         opencity::runtime::FILMIC_SHADER,
         opencity::runtime::SKY_STARS_SHADER,
         include_str!("sky_background.wgsl")
@@ -212,7 +278,7 @@ mod tests {
         for source in [
             include_str!("../../opencity/src/runtime/sky_filter.wgsl").to_owned(),
             include_str!("../../opencity/src/runtime/sky_environment.wgsl").to_owned(),
-            background_source(),
+            background_source(DEFAULT_SHADER),
         ] {
             let module = naga::front::wgsl::parse_str(&source).unwrap();
             naga::valid::Validator::new(

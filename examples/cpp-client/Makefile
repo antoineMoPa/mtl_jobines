@@ -29,5 +29,5 @@ web-engine $(WEB_DIR)/pkg/mtl_jobines.js:
 	cd $(ROOT) && bash scripts/build-web.sh
 
 serve: web
-	@echo "C++ client: http://127.0.0.1:$(PORT)/?client=cpp"
+	@echo "C++ client: http://127.0.0.1:$(PORT)/game/?client=cpp"
 	node $(ROOT)/scripts/serve-web.mjs $(PORT)

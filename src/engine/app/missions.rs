@@ -12,6 +12,8 @@ impl Game {
     pub(super) fn abandon_mission(&mut self) {
         let winter = self.kairos.active_id() == Some(MissionId::Snowplow);
         self.kairos.abandon();
+        self.mission_vehicle = None;
+        self.world.set_zombie_mode(self.hermes.city(), false);
         self.world.clear_service_passengers();
         self.hermes.clear_destination();
         self.hermes.clear_taxi_run();
@@ -28,9 +30,11 @@ impl Game {
         if self
             .kairos
             .active_id()
-            .is_some_and(|id| id.season() != season)
+            .and_then(MissionId::required_season)
+            .is_some_and(|required| required != season)
         {
             self.kairos.abandon();
+            self.mission_vehicle = None;
             self.world.clear_service_passengers();
             self.hermes.clear_destination();
             self.hermes.clear_taxi_run();
@@ -64,7 +68,7 @@ impl Game {
         let required: &[(u32, SiteId)] = match id {
             MissionId::Taxi => &[(1, SiteId::TaxiPickup)],
             MissionId::Bus => BUS_PASSENGERS,
-            MissionId::Snowplow => &[],
+            MissionId::Snowplow | MissionId::Zombie => &[],
         };
         let Some(passengers) = required
             .iter()
@@ -81,7 +85,7 @@ impl Game {
         let destinations: &[SiteId] = match id {
             MissionId::Taxi => &[SiteId::TaxiPickup, SiteId::TaxiDropoff],
             MissionId::Bus => &[SiteId::BusStop1, SiteId::BusStop2, SiteId::BusStop3],
-            MissionId::Snowplow => &[],
+            MissionId::Snowplow | MissionId::Zombie => &[],
         };
         if destinations
             .iter()
@@ -90,12 +94,53 @@ impl Game {
             eprintln!("Mission destination unavailable: {}", id.title());
             return;
         }
+        if let Some(vehicle_id) = id.vehicle_id() {
+            if !self.assign_mission_vehicle(id, vehicle_id) {
+                return;
+            }
+            self.mission_vehicle = Some(self.world.player_vehicle_id());
+        } else {
+            self.mission_vehicle = None;
+        }
+        let continuing_snow =
+            id == MissionId::Snowplow && self.kairos.active_id() == Some(MissionId::Snowplow);
+        if !continuing_snow {
+            self.kairos.accept(id);
+        }
+        self.world.clear_service_passengers();
+        for (index, (actor_id, point)) in passengers.into_iter().enumerate() {
+            self.world
+                .spawn_service_passenger(actor_id, point + Vec3::X * (index as f32 * 0.6));
+        }
+        if id == MissionId::Snowplow {
+            self.finish_location_change();
+            self.zoom = LARGE_VEHICLE_CHASE_ZOOM;
+        }
+        if id != MissionId::Taxi {
+            self.hermes.clear_taxi_run();
+        }
+        self.world
+            .set_zombie_mode(self.hermes.city(), id == MissionId::Zombie);
+        if let Some(season) = id.required_season() {
+            self.change_season(season);
+        }
+        self.refresh_mission_route();
+        self.keys.clear();
+        self.accumulator = 0.;
+        self.last = None;
+        self.scene_dirty = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    fn assign_mission_vehicle(&mut self, id: MissionId, vehicle_id: &str) -> bool {
         let Some(model) = crate::dynamic_world::catalog::definitions()
             .iter()
-            .position(|definition| definition.config.research_id == id.vehicle_id())
+            .position(|definition| definition.config.research_id == vehicle_id)
         else {
-            eprintln!("Mission vehicle unavailable: {}", id.vehicle_id());
-            return;
+            eprintln!("Mission vehicle unavailable: {}", vehicle_id);
+            return false;
         };
         if id == MissionId::Bus {
             let stop = self.hermes.mission_site(SiteId::BusStop1).unwrap();
@@ -110,41 +155,14 @@ impl Game {
                     self.world.switch_vehicle(previous);
                 }
                 eprintln!("Bus start unavailable: {error}");
-                return;
+                return false;
             }
             self.finish_location_change();
             self.zoom = LARGE_VEHICLE_CHASE_ZOOM;
-        }
-        let continuing_snow =
-            id == MissionId::Snowplow && self.kairos.active_id() == Some(MissionId::Snowplow);
-        if !continuing_snow {
-            self.kairos.accept(id);
-        }
-        self.world.clear_service_passengers();
-        for (index, (actor_id, point)) in passengers.into_iter().enumerate() {
-            self.world
-                .spawn_service_passenger(actor_id, point + Vec3::X * (index as f32 * 0.6));
-        }
-        if id != MissionId::Bus {
+        } else {
             self.world.switch_vehicle(model);
         }
-        if id == MissionId::Snowplow {
-            self.finish_location_change();
-            self.zoom = LARGE_VEHICLE_CHASE_ZOOM;
-        }
-        if id != MissionId::Taxi {
-            self.hermes.clear_taxi_run();
-        }
-        self.mission_vehicle = Some(self.world.player_vehicle_id());
-        self.change_season(id.season());
-        self.refresh_mission_route();
-        self.keys.clear();
-        self.accumulator = 0.;
-        self.last = Instant::now();
-        self.scene_dirty = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        true
     }
 
     pub(super) fn refresh_mission_route(&mut self) {
@@ -164,7 +182,8 @@ impl Game {
             && self
                 .kairos
                 .active_id()
-                .is_some_and(|id| self.world.player_model_id() == Some(id.vehicle_id()))
+                .and_then(MissionId::vehicle_id)
+                .is_some_and(|vehicle_id| self.world.player_model_id() == Some(vehicle_id))
     }
 
     pub(super) fn try_service(&mut self) {
@@ -246,6 +265,37 @@ impl Game {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zombie_job_can_be_chosen_replaced_and_abandoned_from_the_phone() {
+        let mut game = Game::new(Hermes::test_map());
+        let choose = PaletteAction::SelectMission;
+        game.apply_palette_action(choose(MissionId::Snowplow));
+        assert!(game.world.toggle_vehicle(&game.hermes));
+        let position = game.world.player_position();
+
+        game.apply_palette_action(choose(MissionId::Zombie));
+        assert_eq!(game.kairos.active_id(), Some(MissionId::Zombie));
+        assert!(game.world.zombie_mode());
+        assert!(!game.world.is_driving());
+        assert_eq!(game.world.player_position(), position);
+        assert_eq!(game.world.season(), crate::season::Season::Winter);
+        assert!(game.kairos.target().is_none());
+        assert!(game.mission_vehicle.is_none());
+        assert!(!game.kairos.vehicle_return_expired(false, 11.));
+        assert_eq!(game.kairos.vehicle_return_seconds(), None);
+
+        game.apply_palette_action(choose(MissionId::Snowplow));
+        assert!(!game.world.zombie_mode());
+        assert!(game.driving_mission_vehicle());
+
+        game.apply_palette_action(choose(MissionId::Zombie));
+        assert!(game.world.is_driving());
+        assert!(game.world.zombie_mode());
+        game.apply_palette_action(PaletteAction::AbandonMission);
+        assert!(!game.world.zombie_mode());
+        assert_eq!(game.kairos.active_id(), None);
+    }
 
     #[test]
     fn mission_vehicle_return_resumes_or_expires_during_play() {

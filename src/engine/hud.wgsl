@@ -1,4 +1,4 @@
-struct Hud { texture_region:vec4<f32>, rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, full_map:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, vehicle:vec4<f32>, vehicle_letters:array<vec4<u32>,12> };
+struct Hud { texture_region:vec4<f32>, rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, full_map:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, text_metrics:vec4<f32>, letters:array<vec4<u32>,12> };
 @group(0) @binding(0) var chart:texture_2d<f32>;
 @group(0) @binding(1) var filtering:sampler;
 @group(0) @binding(2) var<uniform> hud:Hud;
@@ -11,7 +11,6 @@ struct Vertex { @builtin(position) position:vec4<f32>, @location(0) uv:vec2<f32>
         let size=max(1.,min(clamp(min(hud.screen.x,hud.screen.y)*0.29,60.,340.),min(hud.screen.x,hud.screen.y)-16.));
         rect=vec4<f32>(16.,hud.screen.y-size-16.,size,size);
         if index>=6u {rect=fps_rect();}
-        if index>=12u {rect=vehicle_rect();}
     }
     let p=rect.xy+uv*rect.zw;
     var out:Vertex;out.position=vec4<f32>(p.x/hud.screen.x*2.-1.,1.-p.y/hud.screen.y*2.,0.,1.);
@@ -28,6 +27,9 @@ fn inside_rounded(p:vec2<f32>, r:vec4<f32>, radius:f32)->bool {
 // Small bitmap lettering keeps menus independent of a platform font service.
 fn glyph(code:u32)->u32 {
     switch code {
+        case 33u: {return 4198532u;}
+        case 58u: {return 131200u;}
+        case 124u: {return 4329604u;}
         case 43u: {return 4357252u;}
         case 47u: {return 1118480u;}
         case 45u: {return 31744u;}
@@ -71,18 +73,11 @@ fn glyph(code:u32)->u32 {
     }
 }
 fn fps_scale()->f32 {return clamp(hud.screen.y/800.0,1.0,2.0);}
-fn vehicle_scale()->f32 {return min(2.0*fps_scale(),max(0.5,(hud.screen.x-40.0)/max(6.0*hud.vehicle.x,1.0)));}
-fn vehicle_rect()->vec4<f32> {
-    let scale=vehicle_scale();
-    let width=hud.vehicle.x*6.0*scale+20.0;
-    return vec4<f32>(hud.screen.x-width-16.0,hud.screen.y-48.0,width,32.0);
-}
-fn vehicle_lettering(p:vec2<f32>)->bool {
-    let q=(p-vehicle_rect().xy-vec2<f32>(10.0,10.0))/vehicle_scale();
+fn packed_lettering(q:vec2<f32>)->bool {
     if q.x<0.0 || q.y<0.0 || q.y>=5.0 {return false;}
     let index=u32(q.x)/6u;let col=u32(q.x)%6u;
-    if index>=u32(hud.vehicle.x) || col>=5u {return false;}
-    let code=hud.vehicle_letters[index/4u][index%4u];
+    if index>=u32(hud.text_metrics.x) || col>=5u {return false;}
+    let code=hud.letters[index/4u][index%4u];
     return (glyph(code)&(1u<<(u32(q.y)*5u+col)))!=0u;
 }
 fn fps_rect()->vec4<f32> {
@@ -188,10 +183,11 @@ fn map_overlay(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f
 @fragment fn fs(v:Vertex)->@location(0) vec4<f32> {
     let p=select(v.uv*hud.rect.zw,v.uv,hud.mode.x==0.);
     let screen=hud.screen.xy;
-    if hud.mode.x==0. && inside(p,vehicle_rect()) {
-        if hud.vehicle.x<1.0 {discard;}
-        if vehicle_lettering(p) {return vec4<f32>(0.93,0.96,0.95,1.0);}
-        return vec4<f32>(0.015,0.025,0.035,0.85);
+    if hud.mode.x==3. {
+        let scale=hud.text_metrics.y;
+        let q=v.uv*hud.rect.zw/scale-vec2<f32>(2.);
+        if packed_lettering(q) {return vec4<f32>(1.,0.92,0.65,1.);}
+        return vec4<f32>(0.016,0.010,0.038,0.90);
     }
     if hud.mode.x==0. && inside(p,fps_rect()) {
         let scale=fps_scale();

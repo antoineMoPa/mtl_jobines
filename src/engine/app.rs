@@ -33,6 +33,7 @@ pub(super) const DT: f32 = 1. / 120.;
 const DEFAULT_CHASE_ZOOM: f32 = 0.45;
 const AIRCRAFT_CHASE_ZOOM: f32 = 0.30;
 const MIN_AIRCRAFT_CHASE_ZOOM: f32 = 0.12;
+const AIM_LOOK_SENSITIVITY: f32 = 0.0016;
 const CAMERA_ORBIT_SENSITIVITY: f32 = 0.005;
 const CAMERA_PITCH_SENSITIVITY: f32 = 0.003;
 const CAMERA_RETURN_RATE: f32 = 1.0;
@@ -46,6 +47,8 @@ mod cutscenes_preview;
 mod focus;
 #[cfg(any(target_arch = "wasm32", test))]
 mod mobile;
+mod weapon_camera;
+mod weapons;
 
 pub(super) fn mobile_enabled() -> bool {
     #[cfg(target_arch = "wasm32")]
@@ -92,6 +95,7 @@ fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkCont
         turn: driving.steering,
         run: held(KeyCode::ShiftLeft) || held(KeyCode::ShiftRight),
         jump: held(KeyCode::Space),
+        ..WalkControls::default()
     };
     (driving, walking)
 }
@@ -124,7 +128,10 @@ struct Game {
     audio: crate::audio::Audio,
     sound_settings: crate::audio::Settings,
     sound_eye: Option<Vec3>,
+    focused: bool,
+    suspended: bool,
     hidden: bool,
+    pending_resize: Option<winit::dpi::PhysicalSize<u32>>,
     minimized: bool,
     #[cfg(target_arch = "wasm32")]
     proxy: winit::event_loop::EventLoopProxy<GameEvent>,
@@ -139,11 +146,13 @@ struct Game {
     vehicle_scenery: Option<VehicleScenery>,
     dynamic_mesh: Option<GpuMesh>,
     dynamic_vertices: Mesh,
+    loadout: weapons::Loadout,
+    aim_mouse: camera_input::AimMouse,
     palette: Option<Palette>,
     keys: HashSet<KeyCode>,
     #[cfg(target_arch = "wasm32")]
     mobile: mobile::Input,
-    last: Instant,
+    last: Option<Instant>,
     game_time: f32,
     accumulator: f32,
     previous_car_position: Vec3,
@@ -165,7 +174,6 @@ struct Game {
     fabula: super::fabula::Fabula,
     after_cutscene: Option<AfterCutscene>,
     intro_played: bool,
-    cutscene_focused: bool,
     full_map: hud::FullMapView,
     menu_selection: MenuItem,
     hood: bool,
@@ -188,12 +196,12 @@ impl Game {
     }
 
     fn cursor_activity(&mut self, now: Instant) {
-        if self.orbit_drag.as_ref().is_some_and(|drag| drag.captured) {
+        if self.aim_mouse.active() || self.orbit_drag.as_ref().is_some_and(|drag| drag.captured) {
             return;
         }
         self.show_cursor();
         #[cfg(not(target_arch = "wasm32"))]
-        if self.simulation_paused() || !self.cutscene_focused {
+        if self.simulation_paused() {
             return;
         }
         self.cursor_hide_at = Some(now + CURSOR_IDLE_DELAY);
@@ -202,8 +210,11 @@ impl Game {
     fn cursor_wait(&mut self, now: Instant) -> ControlFlow {
         // A panel or cutscene can open after gameplay armed the idle timer.
         #[cfg(not(target_arch = "wasm32"))]
-        if self.simulation_paused() || !self.cutscene_focused {
+        if self.simulation_paused() {
             self.show_cursor();
+            return ControlFlow::Wait;
+        }
+        if self.aim_mouse.active() {
             return ControlFlow::Wait;
         }
         if let Some(deadline) = self.cursor_hide_at {
@@ -231,6 +242,9 @@ impl Game {
         }
     }
     fn wait_for_event(&mut self, now: Instant) -> ControlFlow {
+        if !self.window_active() {
+            return ControlFlow::Wait;
+        }
         let cursor = self.cursor_wait(now);
         let waiting = match (cursor, self.surface_retry) {
             (ControlFlow::WaitUntil(deadline), Some(retry)) => {
@@ -265,6 +279,10 @@ impl Game {
         self.audio.silence();
         self.sound_eye = None;
         self.overlay = overlay;
+        if overlay.paused() {
+            self.release_aim_mouse();
+            self.loadout.projection = None;
+        }
         self.help_visible = false;
         if self.cursor.is_some() {
             self.cursor_activity(Instant::now());
@@ -279,7 +297,7 @@ impl Game {
         self.mobile.clear();
         self.stop_orbit_drag();
         self.accumulator = 0.;
-        self.last = Instant::now();
+        self.last = None;
         self.frame_rate = FrameRate::default();
         if let Some(renderer) = &mut self.renderer {
             renderer.fps = None;
@@ -348,7 +366,10 @@ impl Game {
             audio: crate::audio::Audio::default(),
             sound_settings: crate::audio::Settings::default(),
             sound_eye: None,
+            focused: true,
+            suspended: false,
             hidden: false,
+            pending_resize: None,
             minimized: false,
             #[cfg(target_arch = "wasm32")]
             proxy,
@@ -372,11 +393,13 @@ impl Game {
             vehicle_scenery: None,
             dynamic_mesh: None,
             dynamic_vertices: Mesh::default(),
+            loadout: Default::default(),
+            aim_mouse: Default::default(),
             palette: None,
             keys: HashSet::new(),
             #[cfg(target_arch = "wasm32")]
             mobile: mobile::Input::default(),
-            last: Instant::now(),
+            last: None,
             game_time: 0.,
             accumulator: 0.,
             previous_car_position,
@@ -402,7 +425,6 @@ impl Game {
             fabula: Default::default(),
             after_cutscene: None,
             intro_played: start.is_some(),
-            cutscene_focused: true,
             menu_selection: MenuItem::Resume,
             full_map: Default::default(),
             hood: false,
@@ -415,8 +437,7 @@ impl Game {
         })
     }
     fn simulation_paused(&self) -> bool {
-        self.hidden
-            || self.minimized
+        !self.window_active()
             || self.overlay.paused()
             || self.help_visible
             || self.fabula.active()
@@ -435,6 +456,9 @@ impl Game {
             self.accumulator = 0.;
             return;
         }
+        if !self.world.can_equip_weapon() {
+            self.loadout.equip(None);
+        }
         let driving_mission_vehicle = self.driving_mission_vehicle();
         if self
             .kairos
@@ -444,6 +468,8 @@ impl Game {
         }
         self.accumulator += elapsed;
         self.game_time += elapsed;
+        self.loadout.advance(self.game_time);
+        self.loadout.effects.step(elapsed.min(0.1));
         let f = glam::Vec2::new(self.world.player().yaw.cos(), self.world.player().yaw.sin());
         let speed = self.world.player().velocity.truncate().dot(f);
         #[cfg(not(target_arch = "wasm32"))]
@@ -453,6 +479,14 @@ impl Game {
         #[cfg(target_arch = "wasm32")]
         let keys = &merged;
         let (mut input, keyboard_walk) = movement_controls(keys, speed);
+        let turn_key_held = [
+            KeyCode::KeyA,
+            KeyCode::ArrowLeft,
+            KeyCode::KeyD,
+            KeyCode::ArrowRight,
+        ]
+        .iter()
+        .any(|key| keys.contains(key));
         if self.world.is_driving() && self.world.player().is_aircraft() {
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -468,7 +502,15 @@ impl Game {
             self.previous_car_orientation = self.world.player().orientation();
             self.previous_car_yaw = self.world.player().yaw;
             let mut walk = keyboard_walk;
-            if !self.world.is_driving() && walk.turn == 0. {
+            let aiming = self.loadout.equipped.is_some() && self.world.can_equip_weapon();
+            let yaw = self.world.player_yaw();
+            if aiming {
+                let forward = glam::Vec2::from_angle(yaw + self.orbit);
+                walk.aim_move = Some(
+                    (forward * walk.forward + forward.perp() * walk.turn).clamp_length_max(1.),
+                );
+                walk.turn = (self.orbit / (WALK_TURN_SPEED * DT)).clamp(-1., 1.);
+            } else if !self.world.is_driving() && !turn_key_held {
                 let step_turn = self
                     .orbit
                     .clamp(-WALK_TURN_SPEED * DT, WALK_TURN_SPEED * DT);
@@ -476,6 +518,10 @@ impl Game {
                 self.orbit -= step_turn;
             }
             self.world.step(&self.hermes, input, walk, DT);
+            if aiming {
+                self.orbit -= self.world.player_yaw() - yaw;
+                self.orbit = self.orbit.sin().atan2(self.orbit.cos());
+            }
             if driving_mission_vehicle {
                 self.try_service();
             }
@@ -572,22 +618,74 @@ impl Game {
             }
         }
     }
-    fn frame(&mut self, event_loop: &ActiveEventLoop) {
-        if self.renderer.is_none() {
-            return;
+    fn acquire_frame(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+    ) -> Option<(wgpu::SurfaceTexture, bool)> {
+        let renderer = self.renderer.as_mut()?;
+        if let Some(size) = self.pending_resize.take() {
+            if (size.width, size.height) != (renderer.config.width, renderer.config.height) {
+                renderer.resize(size.width, size.height);
+            }
         }
-        let cutscene_waiting_for_gesture =
-            self.cutscene_can_play() && self.audio.cutscene_waiting_for_gesture();
-        let now = Instant::now();
         if self.first_frame {
             self.first_frame_attempts += 1;
             if self.first_frame_attempts == 1 {
                 eprintln!("Drawing first frame...");
             }
         }
-        let frame_elapsed = (now - self.last).as_secs_f32();
+        use wgpu::CurrentSurfaceTexture::*;
+        let retry = match renderer.surface.as_ref()?.get_current_texture() {
+            Success(frame) => return Some((frame, false)),
+            Suboptimal(frame) => return Some((frame, true)),
+            Outdated => {
+                renderer.resize(renderer.config.width, renderer.config.height);
+                Duration::from_millis(100)
+            }
+            Lost => {
+                if let Err(error) = renderer.recreate_surface(self.window.as_ref().unwrap().clone())
+                {
+                    eprintln!("Cannot recreate game surface: {error}");
+                    event_loop.exit();
+                    return None;
+                }
+                Duration::from_millis(100)
+            }
+            Timeout => Duration::from_millis(100),
+            Occluded => Duration::from_millis(250),
+            Validation => {
+                eprintln!("Cannot acquire game surface: GPU validation failed");
+                event_loop.exit();
+                return None;
+            }
+        };
+        self.reset_frame_timing();
+        self.audio.silence();
+        self.retry_surface(retry);
+        None
+    }
+
+    fn frame_elapsed(&mut self, now: Instant) -> f32 {
+        self.last
+            .replace(now)
+            .map_or(0., |last| (now - last).as_secs_f32())
+    }
+
+    fn frame(&mut self, event_loop: &ActiveEventLoop) {
+        if !self.window_active()
+            || self
+                .surface_retry
+                .is_some_and(|deadline| Instant::now() < deadline)
+        {
+            return;
+        }
+        let Some((frame, suboptimal)) = self.acquire_frame(event_loop) else {
+            return;
+        };
+        let cutscene_waiting_for_gesture =
+            self.cutscene_can_play() && self.audio.cutscene_waiting_for_gesture();
+        let frame_elapsed = self.frame_elapsed(Instant::now());
         let elapsed = frame_elapsed.min(0.1);
-        self.last = now;
         if self.cutscene_can_play()
             && self
                 .fabula
@@ -615,6 +713,8 @@ impl Game {
             self.hermes.update_navigation(p.to_array());
         }
         let horn = self.horn_requested();
+        let armed = !paused && self.loadout.equipped.is_some() && self.world.can_equip_weapon();
+        let scene_cursor = self.scene_cursor(armed);
         let renderer = self.renderer.as_mut().unwrap();
         if self.route_revision != self.hermes.route_revision() {
             renderer.update_route(&self.hermes.route_uvs());
@@ -659,8 +759,10 @@ impl Game {
                     aircraft_chase(plane.length(), forward, self.zoom, self.camera_pitch);
                 (p + eye, p + aim)
             }
+        } else if !self.world.is_driving() {
+            weapon_camera::shoulder_view(p, forward, self.zoom, self.camera_pitch)
         } else {
-            let eye = if self.hood && self.world.is_driving() {
+            let eye = if self.hood {
                 p + forward * 0.009 + Vec3::Z * 0.011
             } else {
                 p + (-forward * (0.15 * self.camera_pitch.cos())
@@ -669,7 +771,9 @@ impl Game {
             };
             (eye, p + Vec3::Z * 0.014 + forward * 0.045)
         };
-        if !paused {
+        if !self.world.is_driving() {
+            self.eye = target_eye;
+        } else if !paused {
             let travel = p - self.camera_anchor;
             if flight_chase {
                 // Follow horizontal travel while allowing a little heave through a climb.
@@ -682,19 +786,14 @@ impl Game {
         }
         if !self.fabula.active() {
             self.camera_anchor = p;
-            if refresh_scene {
-                let terrain = self
-                    .hermes
-                    .city()
-                    .surface_at([self.eye.x, self.eye.y], self.eye.z + 0.005)
-                    .map(|s| s.height + 0.015)
-                    .unwrap_or(-1.);
-                self.eye.z = self.eye.z.max(terrain);
-            }
-            self.eye = self
-                .world
-                .camera_eye(&self.hermes, p + Vec3::Z * 0.014, self.eye);
+            self.eye =
+                camera_input::chase_eye(&self.world, &self.hermes, p, self.eye, refresh_scene);
         }
+        let look = if self.world.is_driving() {
+            look
+        } else {
+            self.eye + (look - target_eye)
+        };
         let (eye, look) = if let Some(playback) = &self.fabula.playback {
             let (eye, look) = playback.camera();
             let eye = self.world.camera_eye(&self.hermes, look, eye);
@@ -704,7 +803,23 @@ impl Game {
                 build_camera.map_or((self.eye, look), |(eye, look, _)| (eye, look))
             })
         };
-        let sound_eye = self.eye * METERS_PER_UNIT;
+        let view_rotation = Quat::from_mat4(&Mat4::look_at_rh(eye, look, Vec3::Z).inverse())
+            * Quat::from_mat3(&glam::Mat3::from_cols(-Vec3::Z, -Vec3::X, Vec3::Y));
+        let mut shot_sprites =
+            self.loadout
+                .effects
+                .sprites(|_| None, view_rotation, eye * METERS_PER_UNIT);
+        self.loadout.projection = armed.then(|| renderer.view_projection(eye, look).inverse());
+        let weapon_target = self
+            .loadout
+            .projection
+            .and_then(weapons::sight_line)
+            .map(|(from, end)| self.world.weapon_aim_point(self.hermes.city(), from, end));
+        self.world.aim_weapon(
+            weapon_target,
+            self.loadout.equipped == Some(weapons::Weapon::Rifle),
+        );
+        let sound_eye = eye * METERS_PER_UNIT;
         let sound_velocity = self.sound_eye.map_or(Vec3::ZERO, |previous| {
             if elapsed > 0.0001 {
                 ((sound_eye - previous) / elapsed).clamp_length_max(100.)
@@ -714,12 +829,9 @@ impl Game {
         });
         self.sound_eye = if paused { None } else { Some(sound_eye) };
         if !self.fabula.active() {
-            let mut sound_frame = self.world.sound_frame(
-                sound_eye,
-                look - self.eye,
-                sound_velocity,
-                self.sound_settings,
-            );
+            let mut sound_frame =
+                self.world
+                    .sound_frame(sound_eye, look - eye, sound_velocity, self.sound_settings);
             if let Some(car) = sound_frame.cars.iter_mut().find(|car| car.player) {
                 car.horn = horn;
             }
@@ -746,6 +858,7 @@ impl Game {
                     &mut self.dynamic_vertices,
                     player_pose_delta,
                 );
+                self.loadout.effects.solids(&mut self.dynamic_vertices);
                 renderer.update_dynamic(moving_mesh, &self.dynamic_vertices);
             }
             self.vehicle_scenery.as_mut().unwrap().update_with_stage(
@@ -780,10 +893,10 @@ impl Game {
             self.overlay
         };
         renderer.cinematic = self.fabula.active();
+        renderer.zombie_mode = self.world.zombie_mode();
         renderer.full_map = self.full_map;
         renderer.menu_selection = self.menu_selection;
         renderer.fps = self.frame_rate.value;
-        renderer.vehicle_name = self.world.vehicle_name_notice().map(str::to_owned);
         renderer.reserved_bottom = if self.fabula.active() {
             0
         } else {
@@ -829,6 +942,17 @@ impl Game {
         meshes.extend(surface_preview.iter().map(|mesh| mesh.as_ref()));
         meshes.extend(prop_preview.iter().flatten().map(|mesh| mesh.as_ref()));
         meshes.push(moving_mesh);
+        renderer.local_lights.flash.set(None);
+        if let Some(target) = weapon_target {
+            meshes.extend(self.loadout.visible(
+                renderer,
+                &self.world,
+                target,
+                view_rotation,
+                &mut shot_sprites,
+            ));
+        }
+        renderer.update_impacts(&shot_sprites);
         meshes.extend(self.prop_scenery.visible_with_authored(authored_visible));
         meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());
         let metro = &self.scenery.as_ref().unwrap().metro;
@@ -846,117 +970,80 @@ impl Game {
         renderer
             .mission_markers
             .update(&renderer.queue, self.world.waiting_service_passengers());
-        let texture = renderer.surface.as_ref().unwrap().get_current_texture();
-        let suboptimal = matches!(&texture, wgpu::CurrentSurfaceTexture::Suboptimal(_));
         let mut palette_action = None;
         let mut menu_clicked = None;
         let mut skip_cutscene = false;
         let help_before_draw = self.help_visible;
-        match texture {
-            wgpu::CurrentSurfaceTexture::Success(frame)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
-                let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
-                    format: Some(renderer.config.format.add_srgb_suffix()),
-                    ..Default::default()
-                });
-                renderer.render(&view, &meshes, eye, look, self.game_time, navigation);
-                if let Some(palette) = &mut self.palette {
-                    palette_action = palette.draw(
-                        self.window.as_ref().unwrap(),
-                        renderer,
-                        &view,
-                        &mut self.sound_settings,
-                        renderer.view_projection(eye, look),
+        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(renderer.config.format.add_srgb_suffix()),
+            ..Default::default()
+        });
+        renderer.render(&view, &meshes, eye, look, self.game_time, navigation);
+        if let Some(palette) = &mut self.palette {
+            palette_action = palette.draw(
+                self.window.as_ref().unwrap(),
+                renderer,
+                &view,
+                &mut self.sound_settings,
+                renderer.view_projection(eye, look),
+                self.hermes.city(),
+                &self.kairos,
+                &self.world,
+                scene_cursor,
+                &mut self.help_visible,
+                self.overlay,
+                &mut self.menu_selection,
+                self.fabula.playback.as_ref(),
+                cutscene_waiting_for_gesture,
+                palette
+                    .foot_motion_enabled()
+                    .then(|| self.world.player_foot_motion())
+                    .flatten(),
+            );
+            menu_clicked = palette.menu_clicked.take();
+            skip_cutscene = palette.cutscene_skip;
+            #[cfg(not(target_arch = "wasm32"))]
+            if palette_action == Some(PaletteAction::BugReport) {
+                let screenshot = renderer.report_screenshot_with_overlay(
+                    &meshes,
+                    eye,
+                    look,
+                    self.game_time,
+                    navigation,
+                    |target| palette.paint_report_overlay(renderer, target),
+                );
+                palette.bug_report.begin(
+                    super::bug_report::Report::new(
                         self.hermes.city(),
-                        &self.kairos,
-                        !self.world.is_driving(),
-                        &mut self.help_visible,
-                        self.overlay,
-                        &mut self.menu_selection,
-                        self.fabula.playback.as_ref(),
-                        cutscene_waiting_for_gesture,
-                        palette
-                            .foot_motion_enabled()
-                            .then(|| self.world.player_foot_motion())
-                            .flatten(),
-                    );
-                    menu_clicked = palette.menu_clicked.take();
-                    skip_cutscene = palette.cutscene_skip;
-                    #[cfg(not(target_arch = "wasm32"))]
-                    if palette_action == Some(PaletteAction::BugReport) {
-                        let screenshot = renderer.report_screenshot_with_overlay(
-                            &meshes,
-                            eye,
-                            look,
-                            self.game_time,
-                            navigation,
-                            |target| palette.paint_report_overlay(renderer, target),
-                        );
-                        palette.bug_report.begin(
-                            super::bug_report::Report::new(
-                                self.hermes.city(),
-                                p.to_array(),
-                                eye.to_array(),
-                                look.to_array(),
-                            ),
-                            screenshot,
-                        );
-                        palette_action = None;
-                        self.window.as_ref().unwrap().request_redraw();
-                    }
-                }
-                renderer.queue.present(frame);
-                if let Some(playback) = &mut self.fabula.playback {
-                    playback.presented = true;
-                }
-                self.surface_retry = None;
-                if suboptimal {
-                    // The texture is usable: present it before reconfiguring the surface.
-                    renderer.resize(renderer.config.width, renderer.config.height);
-                }
-                if !paused {
-                    self.frame_rate.presented(Instant::now());
-                }
-                if self.first_frame {
-                    eprintln!("Game ready: first frame presented");
-                    self.first_frame = false;
-                    #[cfg(target_arch = "wasm32")]
-                    web_status(None);
-                    #[cfg(not(target_arch = "wasm32"))]
-                    if self.profile_shutdown {
-                        event_loop.exit();
-                    }
-                }
+                        p.to_array(),
+                        eye.to_array(),
+                        look.to_array(),
+                    ),
+                    screenshot,
+                );
+                palette_action = None;
+                self.window.as_ref().unwrap().request_redraw();
             }
-            wgpu::CurrentSurfaceTexture::Outdated => {
-                renderer.resize(renderer.config.width, renderer.config.height);
-                self.retry_surface(Duration::from_millis(100));
-            }
-            wgpu::CurrentSurfaceTexture::Lost => {
-                if let Err(error) = renderer.recreate_surface(self.window.as_ref().unwrap().clone())
-                {
-                    eprintln!("Cannot recreate game surface: {error}");
-                    event_loop.exit();
-                } else {
-                    self.retry_surface(Duration::from_millis(100));
-                }
-            }
-            wgpu::CurrentSurfaceTexture::Timeout => {
-                if self.first_frame_attempts == 1 {
-                    eprintln!("First surface acquisition timed out; retrying shortly");
-                }
-                self.retry_surface(Duration::from_millis(100));
-            }
-            wgpu::CurrentSurfaceTexture::Occluded => {
-                if self.first_frame {
-                    if self.first_frame_attempts == 1 {
-                        eprintln!("Window surface not visible yet; waiting for first drawable");
-                    }
-                    self.retry_surface(Duration::from_millis(250));
-                }
-            }
-            wgpu::CurrentSurfaceTexture::Validation => {
-                eprintln!("Cannot acquire game surface: GPU validation failed");
+        }
+        renderer.queue.present(frame);
+        if let Some(playback) = &mut self.fabula.playback {
+            playback.presented = true;
+        }
+        self.surface_retry = None;
+        if suboptimal {
+            // The texture is usable: present it before reconfiguring the surface.
+            renderer.resize(renderer.config.width, renderer.config.height);
+        }
+        if !paused {
+            self.frame_rate.presented(Instant::now());
+        }
+        if self.first_frame {
+            eprintln!("Game ready: first frame presented");
+            self.first_frame = false;
+            #[cfg(target_arch = "wasm32")]
+            web_status(None);
+            #[cfg(not(target_arch = "wasm32"))]
+            if self.profile_shutdown {
                 event_loop.exit();
             }
         }
@@ -1006,14 +1093,18 @@ impl Game {
 }
 impl ApplicationHandler<GameEvent> for Game {
     fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
-        if self.orbit_drag.as_ref().is_some_and(|drag| drag.captured) {
-            if let DeviceEvent::MouseMotion { delta } = event {
-                self.orbit_motion([delta.0 as f32, delta.1 as f32]);
+        if let DeviceEvent::MouseMotion { delta } = event {
+            let motion = [delta.0 as f32, delta.1 as f32];
+            if self.aim_mouse.relative() && self.armed_aim() {
+                self.aim_motion(motion);
+            } else if self.orbit_drag.as_ref().is_some_and(|drag| drag.captured) {
+                self.orbit_motion(motion);
             }
         }
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        self.release_aim_mouse();
         self.stop_orbit_drag();
         if self.fabula.active() {
             self.finish_cutscene(false);
@@ -1031,10 +1122,9 @@ impl ApplicationHandler<GameEvent> for Game {
         let _ = started;
     }
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
-        self.cutscene_focused = false;
+        self.suspended = true;
+        self.window_activity_changed();
         self.kairos.save_now();
-        self.audio.silence();
-        self.sound_eye = None;
         if self.overlay != Overlay::Start && !self.fabula.active() {
             self.set_overlay(Overlay::Menu);
         }
@@ -1042,6 +1132,11 @@ impl ApplicationHandler<GameEvent> for Game {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         #[cfg(target_arch = "wasm32")]
         self.sync_mobile_controls();
+        self.sync_aim_mouse();
+        if !self.window_active() {
+            event_loop.set_control_flow(ControlFlow::Wait);
+            return;
+        }
         self.kairos.save_if_due();
         #[cfg(not(target_arch = "wasm32"))]
         self.poll_map_reload(Instant::now());
@@ -1073,10 +1168,9 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.cutscene_focused = true;
-        self.last = Instant::now();
-        if let Some(window) = &self.window {
-            window.request_redraw();
+        self.suspended = false;
+        self.window_activity_changed();
+        if self.window.is_some() {
             return;
         }
         let attributes = Window::default_attributes()
@@ -1121,6 +1215,25 @@ impl ApplicationHandler<GameEvent> for Game {
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        // egui marks RedrawRequested as needing a repaint. Feeding it back here would
+        // schedule another frame even in a hidden window or an idle pause menu.
+        if matches!(event, WindowEvent::RedrawRequested) {
+            self.frame(event_loop);
+            return;
+        }
+        if !self.window_active()
+            && matches!(
+                event,
+                WindowEvent::KeyboardInput { .. }
+                    | WindowEvent::Ime(_)
+                    | WindowEvent::MouseInput { .. }
+                    | WindowEvent::MouseWheel { .. }
+                    | WindowEvent::CursorMoved { .. }
+                    | WindowEvent::Touch(_)
+            )
+        {
+            return;
+        }
         #[cfg(target_arch = "wasm32")]
         if matches!(
             event,
@@ -1128,7 +1241,16 @@ impl ApplicationHandler<GameEvent> for Game {
         ) {
             self.mobile.clear();
         }
-        // Release before UI handlers can consume the button-up event.
+        let scene_click = matches!(
+            event,
+            WindowEvent::MouseInput {
+                state: ElementState::Released,
+                button: MouseButton::Left,
+                ..
+            }
+        ) && self.orbit_drag.is_some()
+            && !self.dragging;
+        // Release the camera grab even when a UI handler consumes button-up.
         if matches!(
             event,
             WindowEvent::MouseInput {
@@ -1155,6 +1277,30 @@ impl ApplicationHandler<GameEvent> for Game {
         };
         if audio_gesture {
             self.audio.user_gesture();
+        }
+        if self.armed_aim() {
+            match event {
+                WindowEvent::MouseInput {
+                    state,
+                    button: MouseButton::Left | MouseButton::Right,
+                    ..
+                } => {
+                    if state == ElementState::Pressed {
+                        #[cfg(target_arch = "wasm32")]
+                        if !self.aim_mouse.relative() {
+                            self.release_aim_mouse();
+                        }
+                        self.sync_aim_mouse();
+                        self.fire_weapon();
+                    }
+                    return;
+                }
+                WindowEvent::CursorMoved { position, .. } => {
+                    self.move_camera_with_cursor([position.x as f32, position.y as f32]);
+                    return;
+                }
+                _ => {}
+            }
         }
         if self.fabula.active() {
             if let WindowEvent::KeyboardInput { event: key, .. } = &event {
@@ -1202,7 +1348,7 @@ impl ApplicationHandler<GameEvent> for Game {
                 {
                     self.help_visible = false;
                     self.accumulator = 0.;
-                    self.last = Instant::now();
+                    self.last = None;
                     if self.overlay == Overlay::Start {
                         self.start_playing();
                     } else if let Some(window) = &self.window {
@@ -1331,6 +1477,12 @@ impl ApplicationHandler<GameEvent> for Game {
                 return;
             }
         }
+        if scene_click && self.loadout.equipped.is_none() && !self.simulation_paused() {
+            self.world.start_punch();
+        }
+        if self.handle_window_activity(&event) {
+            return;
+        }
         match event {
             #[cfg(target_arch = "wasm32")]
             WindowEvent::Touch(touch) if mobile_enabled() => self.mobile_map_touch(touch),
@@ -1338,46 +1490,10 @@ impl ApplicationHandler<GameEvent> for Game {
                 self.kairos.save_now();
                 event_loop.exit();
             }
-            WindowEvent::Resized(size) => {
-                self.minimized = size.width == 0 || size.height == 0;
-                if self.minimized {
-                    self.audio.silence();
-                    self.sound_eye = None;
-                }
-                if let Some(r) = &mut self.renderer {
-                    r.resize(size.width, size.height);
-                    self.window.as_ref().unwrap().request_redraw();
-                }
-            }
-            WindowEvent::Focused(false) => {
-                self.kairos.save_now();
-                self.window_focus_lost();
-            }
-            WindowEvent::Occluded(occluded) => {
-                self.hidden = occluded;
-                self.last = Instant::now();
-                self.sound_eye = None;
-                if occluded {
-                    self.audio.silence();
-                }
-                self.surface_retry = None;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            WindowEvent::Focused(true) => {
-                self.cutscene_focused = true;
-                self.last = Instant::now();
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-                if self.cursor.is_some() {
-                    self.cursor_activity(Instant::now());
-                }
-            }
             WindowEvent::CursorEntered { .. } => self.cursor_activity(Instant::now()),
             WindowEvent::CursorLeft { .. }
-                if self.orbit_drag.as_ref().is_some_and(|drag| drag.captured) => {}
+                if self.aim_mouse.relative()
+                    || self.orbit_drag.as_ref().is_some_and(|drag| drag.captured) => {}
             WindowEvent::CursorLeft { .. } => {
                 self.show_cursor();
                 self.cursor = None;
@@ -1432,6 +1548,40 @@ impl ApplicationHandler<GameEvent> for Game {
                         self.keys.insert(key);
                         if !event.repeat {
                             match key {
+                                KeyCode::KeyR
+                                    if !self.simulation_paused()
+                                        && self.world.player_health() == 0 =>
+                                {
+                                    self.world.reset_player(&self.hermes);
+                                    self.keys.clear();
+                                    self.finish_location_change();
+                                }
+                                KeyCode::Digit1
+                                | KeyCode::Digit2
+                                | KeyCode::Digit0
+                                | KeyCode::KeyR
+                                    if !self.simulation_paused()
+                                        && self.world.can_equip_weapon() =>
+                                {
+                                    match key {
+                                        KeyCode::Digit1 => {
+                                            self.loadout.equip(Some(weapons::Weapon::Rifle))
+                                        }
+                                        KeyCode::Digit2 => {
+                                            self.loadout.equip(Some(weapons::Weapon::Handgun))
+                                        }
+                                        KeyCode::KeyR => {
+                                            if !self.world.zombie_mode() {
+                                                self.loadout.reload(self.game_time);
+                                            }
+                                        }
+                                        _ => self.loadout.equip(None),
+                                    }
+                                    if self.loadout.equipped.is_some() {
+                                        self.world.cancel_punch();
+                                    }
+                                    self.sync_aim_mouse();
+                                }
                                 KeyCode::KeyF => {
                                     if self.world.toggle_vehicle(&self.hermes) {
                                         self.reset_boarding_camera();
@@ -1544,7 +1694,6 @@ impl ApplicationHandler<GameEvent> for Game {
                 self.cursor_activity(Instant::now());
                 self.move_camera_with_cursor([position.x as f32, position.y as f32]);
             }
-            WindowEvent::RedrawRequested => self.frame(event_loop),
             _ => {}
         }
     }

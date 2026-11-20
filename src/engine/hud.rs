@@ -154,8 +154,8 @@ struct Uniform {
     full_map: [f32; 4],
     destination: [f32; 4],
     performance: [f32; 4],
-    vehicle: [f32; 4],
-    vehicle_letters: [[u32; 4]; 12],
+    text_metrics: [f32; 4],
+    letters: [[u32; 4]; 12],
 }
 pub struct Hud {
     texture: wgpu::Texture,
@@ -450,6 +450,68 @@ impl Hud {
         );
         self.ready = true;
     }
+    fn begin_pass<'a>(
+        &self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> wgpu::RenderPass<'a> {
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("HUD"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: timestamps,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        })
+    }
+    pub fn render_message(
+        &self,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        text: &str,
+        centered: bool,
+    ) {
+        if text.is_empty() {
+            return;
+        }
+        let mut data = Uniform::zeroed();
+        let mut length = 0;
+        for (i, c) in text.chars().take(48).enumerate() {
+            data.letters[i / 4][i % 4] = c as u32;
+            length += 1;
+        }
+        let (w, h) = (width as f32, height as f32);
+        let ideal = if centered { h.min(w) / 48. } else { h / 320. };
+        let scale = ideal.max(1.).min(w / (length as f32 * 6. + 4.));
+        let box_width = (length as f32 * 6. + 3.) * scale;
+        let box_height = 9. * scale;
+        let (x, y) = if centered {
+            ((w - box_width) * 0.5, h * 0.34 - box_height * 0.5)
+        } else {
+            (scale * 4., scale * 4.)
+        };
+        data.rect = [x, y, box_width, box_height];
+        data.screen = [w, h, 0., 0.];
+        data.text_metrics = [length as f32, scale, 0., 0.];
+        data.mode[0] = 3.;
+        queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
+        let mut pass = self.begin_pass(encoder, target, None);
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.group, &[]);
+        pass.draw(0..6, 0..1);
+    }
     pub fn render(
         &self,
         queue: &wgpu::Queue,
@@ -462,21 +524,12 @@ impl Hud {
         full_map: FullMapView,
         menu_selection: MenuItem,
         fps: Option<f32>,
-        vehicle_name: Option<&str>,
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         if !self.ready {
             return;
         }
         let rect = [0., 0., width as f32, height as f32];
-        let mut vehicle_letters = [[32; 4]; 12];
-        let mut vehicle_length = 0;
-        if let Some(name) = vehicle_name {
-            for (index, letter) in name.chars().take(48).enumerate() {
-                vehicle_letters[index / 4][index % 4] = letter as u32;
-                vehicle_length += 1;
-            }
-        }
         let data = Uniform {
             texture_region: if self.vector_city.is_some() {
                 [0., 0., 1., 1.]
@@ -509,8 +562,8 @@ impl Hud {
                 0.,
             ],
             performance: [fps.unwrap_or(0.), 0., 0., 0.],
-            vehicle: [vehicle_length as f32, 0., 0., 0.],
-            vehicle_letters,
+            text_metrics: [0.; 4],
+            letters: [[0; 4]; 12],
             mode: [
                 match overlay {
                     Overlay::Driving => 0.,
@@ -528,27 +581,12 @@ impl Hud {
             ],
         };
         queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Hermes minimap"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: target,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: timestamps,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
+        let mut pass = self.begin_pass(encoder, target, timestamps);
         pass.set_viewport(0., 0., width as f32, height as f32, 0., 1.);
         pass.set_scissor_rect(0, 0, width, height);
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.group, &[]);
-        pass.draw(0..if overlay == Overlay::Driving { 18 } else { 6 }, 0..1);
+        pass.draw(0..if overlay == Overlay::Driving { 12 } else { 6 }, 0..1);
         if matches!(overlay, Overlay::Driving | Overlay::Map) && self.vector_count > 0 {
             pass.set_pipeline(&self.vector_pipeline);
             pass.set_vertex_buffer(0, self.vector_buffer.slice(..));

@@ -267,6 +267,7 @@ impl Cyclists {
                 let axes =
                     Mat4::from_cols(glam::Vec4::Y, glam::Vec4::Z, glam::Vec4::X, glam::Vec4::W);
                 super::crowd::Instance {
+                    zombie: false,
                     model: *model,
                     transform: Mat4::from_scale_rotation_translation(
                         Vec3::splat(1. / METERS_PER_UNIT),

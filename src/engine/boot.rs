@@ -261,7 +261,7 @@ impl Boot {
                 return;
             }
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
-                self.window.request_redraw();
+                // The static splash redraws on exposure. Map loading wakes the event loop.
                 return;
             }
             wgpu::CurrentSurfaceTexture::Validation => return,

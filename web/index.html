@@ -1,75 +1,91 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr-CA">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#18212d">
-  <title>MTL Jobines</title>
-  <link rel="stylesheet" href="./mobile-controls.css">
-  <style>
-    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #18212d; color: #fff; font: 14px system-ui, sans-serif; }
-    #game { display: block; width: 100% !important; height: 100% !important; outline: none; touch-action: none; }
-    #loading { position: fixed; inset: 0; display: grid; place-items: center; padding: 2rem; background: #18212d; text-align: center; }
-    #loading img { display: block; width: min(80vw, 800px); max-height: 70vh; object-fit: contain; }
-    #loading-message { position: absolute; bottom: 1.5rem; margin: 0; }
-    #loading[data-state="ready"] { display: none; }
-    #loading[data-state="error"] #loading-message { color: #ffb8a0; }
-  </style>
-</head>
-<body>
-  <canvas id="game" tabindex="0" aria-label="MTL Jobines driving game"></canvas>
-  <div id="loading" role="status" aria-live="polite">
-    <img src="./boot.png" alt="" aria-hidden="true">
-    <p id="loading-message">Loading…</p>
-  </div>
-  <script type="module">
-    import { installMobileControls } from './mobile-controls.js';
-    const loading = document.getElementById('loading');
-    const canvas = document.getElementById('game');
-    function fail(error) {
-      console.error(error);
-      loading.dataset.state = 'error';
-      document.getElementById('loading-message').textContent = `Could not start: ${error.message ?? error}`;
-    }
-    window.addEventListener('error', event => fail(event.error ?? event.message));
-    window.addEventListener('unhandledrejection', event => fail(event.reason));
-    canvas.addEventListener('pointerdown', () => canvas.focus());
-    canvas.addEventListener('contextmenu', event => event.preventDefault());
-    try {
-      if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over localhost or HTTPS.');
-      const game = await import('./pkg/mtl_jobines.js');
-      const { default: init, start, asset_paths, install_asset, install_assets, discard_pending_assets } = game;
-      await init();
-      const paths = asset_paths().trim().split('\n');
-      document.getElementById('loading-message').textContent = `Loading ${paths.length} game assets…`;
-      try {
-        for (const [index, path] of paths.entries()) {
-          document.getElementById('loading-message').textContent = `Loading game assets… ${index + 1}/${paths.length}`;
-          const response = await fetch(`./${path}`);
-          if (!response.ok) throw new Error(`Could not load ${path}: HTTP ${response.status}`);
-          install_asset(path, new Uint8Array(await response.arrayBuffer()));
-        }
-        install_assets();
-      } catch (error) {
-        discard_pending_assets();
-        throw error;
-      }
-      document.getElementById('loading-message').textContent = 'Preparing the city…';
-      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
-      if (new URLSearchParams(location.search).get('client') === 'cpp') {
-        const response = await fetch('./vehicle-return.wasm');
-        if (!response.ok) throw new Error(`Could not load C++ client: HTTP ${response.status}`);
-        const { instance } = await WebAssembly.instantiate(await response.arrayBuffer());
-        const rule = instance.exports.mtl_vehicle_return_v1;
-        if (typeof rule !== 'function') throw new Error('Missing C++ vehicle-return rule');
-        game.start_with_client(rule);
-      } else {
-        start();
-      }
-      installMobileControls(game, canvas);
-    } catch (error) {
-      fail(error);
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142224">
+  <meta name="description" content="Un jeu en monde ouvert sur les petits boulots de Montréal. Jouez dans votre navigateur."
+        data-en-content="An open-world game about odd jobs in Montréal. Play in your browser.">
+  <title data-en="MTL Jobines — Odd jobs in Montréal">MTL Jobines — Petits boulots à Montréal</title>
+  <script>
+    // Keep saved spawn points and the C++ example's existing launch URLs working.
+    const launch = new URLSearchParams(location.search);
+    if (launch.has('start') || launch.get('client') === 'cpp') {
+      location.replace('/game/' + location.search + location.hash);
     }
   </script>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="intro/intro.css">
+  <script defer src="intro/language.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <nav aria-label="Navigation principale" data-en-label="Main navigation">
+      <a href="#gameplay" data-en="Explore">Découvrir</a>
+      <a class="language" id="language" href="?lang=en" lang="en" hreflang="en" hidden>English</a>
+      <a class="nav-play" href="/game/" data-en="Play">Jouer</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="cover" aria-labelledby="game-title">
+      <img class="cover-art" src="intro/boulevard.webp" width="1840" height="1270" fetchpriority="high"
+           alt="À vélo sur un viaduc au crépuscule, devant la grosse orange de Montréal."
+           data-en-alt="Riding a bicycle across an overpass at dusk, with Montréal’s giant orange just ahead.">
+      <div class="cover-copy">
+        <h1 id="game-title"><span>MTL</span> Jobines</h1>
+        <p class="lede" data-en="Drive a cab, a bus, or a snowplow through the streets of Montréal.">Conduis un taxi, un autobus ou une déneigeuse dans les rues de Montréal.</p>
+        <a class="play" href="/game/"><span class="play-icon" aria-hidden="true"></span><span data-en="Play in browser">Jouer dans le navigateur</span></a>
+      </div>
+    </section>
+
+    <section id="gameplay" aria-label="Dans le jeu" data-en-label="Gameplay">
+      <section class="neighbourhood" aria-labelledby="plex-title">
+        <h2 id="plex-title" data-en="Montréal walk-ups">Les plex</h2>
+        <div class="street-views">
+          <figure>
+            <img src="intro/plex.webp" width="1025" height="625" loading="lazy"
+                 alt="Une rangée de plex en brique, avec des balcons en fer et des cours clôturées."
+                 data-en-alt="Brick walk-ups along a Montréal sidewalk, with iron balconies and fenced front yards.">
+            <figcaption data-en="Brick duplexes and triplexes.">Duplex et triplex en brique.</figcaption>
+          </figure>
+          <figure>
+            <img src="intro/lampadaire.webp" width="870" height="820" loading="lazy"
+                 alt="À côté du taxi, un lampadaire bascule. Sa tête et son bras se sont détachés du poteau."
+                 data-en-alt="A lamp post topples beside a taxi, its arm and light detached from the pole.">
+            <figcaption data-en="A streetlamp after impact.">Un lampadaire après l’impact.</figcaption>
+          </figure>
+        </div>
+      </section>
+      <figure class="scene">
+        <img src="intro/taxi.webp" width="800" height="438" loading="lazy"
+             alt="Un taxi roule entre les édifices éclairés du centre-ville."
+             data-en-alt="A cab drives between the lit buildings downtown.">
+        <figcaption>
+          <h2>Taxi</h2>
+          <p data-en="Pick up a passenger and drive them to their destination.">Prends un client à bord et conduis-le à destination.</p>
+        </figcaption>
+      </figure>
+      <figure class="scene winter">
+        <img src="intro/snowplow.webp" width="800" height="438" loading="lazy"
+             alt="Une bande d’asphalte se dessine derrière la déneigeuse en pleine tempête."
+             data-en-alt="A strip of bare asphalt appears behind the snowplow in a storm.">
+        <figcaption>
+          <h2 data-en="Snow route">Déneigement</h2>
+          <p data-en="Clear the boulevard while the snow is still falling.">Déneige le boulevard pendant que la neige tombe encore.</p>
+        </figcaption>
+      </figure>
+      <figure class="scene metro">
+        <img src="intro/acadie.webp" width="800" height="438" loading="lazy"
+             alt="Sur le quai de la station Acadie, une rame de métro vient d’arriver."
+             data-en-alt="A métro train has pulled up alongside the platform at Acadie station.">
+        <figcaption>
+          <h2 data-en="Acadie station">Station Acadie</h2>
+          <p data-en="Park the car and catch the métro.">Gare ton auto et prends le métro.</p>
+          <a class="play" href="/game/"><span class="play-icon" aria-hidden="true"></span><span data-en="Play in browser">Jouer dans le navigateur</span></a>
+        </figcaption>
+      </figure>
+    </section>
+  </main>
 </body>
 </html>

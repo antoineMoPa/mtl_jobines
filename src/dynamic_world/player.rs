@@ -66,6 +66,8 @@ impl Jump {
 #[derive(Clone, Copy, Default)]
 pub struct WalkControls {
     pub forward: f32,
+    /// Camera-relative input expressed in world coordinates while aiming.
+    pub aim_move: Option<Vec2>,
     pub turn: f32,
     pub run: bool,
     pub jump: bool,
@@ -75,10 +77,13 @@ pub struct Pedestrian {
     pub position: Vec3,
     pub yaw: f32,
     speed: f32,
+    travel_velocity: Vec2,
     vertical_speed: f32,
     jump: Jump,
     jump_held: bool,
-    gait: Gait,
+    pub(super) gait: Gait,
+    pub(super) fallen: Option<Box<super::ragdoll::Ragdoll>>,
+    weapon_pose: Option<[glam::Mat4; pedestrian_catalog::JOINT_LIMIT]>,
     pub(super) swimming: bool,
     swim_phase: f32,
 }
@@ -124,11 +129,14 @@ impl Pedestrian {
             position,
             yaw,
             speed: 0.,
+            travel_velocity: Vec2::ZERO,
             vertical_speed: 0.,
             jump: Jump::Grounded,
             jump_held: false,
             swimming: false,
             swim_phase: 0.,
+            fallen: None,
+            weapon_pose: None,
             gait: Gait::new_player(
                 &pedestrian_catalog::definitions()[MODEL],
                 position - Vec3::Z * HALF_HEIGHT,
@@ -263,7 +271,11 @@ impl Pedestrian {
         }
         let ground_at = |p| support(p).or_else(|| footing(city, p, false));
         let model = &pedestrian_catalog::definitions()[MODEL];
-        let target = input.forward.clamp(-1., 1.) * if input.run { RUN_SPEED } else { WALK_SPEED };
+        let speed_limit = if input.run { RUN_SPEED } else { WALK_SPEED };
+        let target = input
+            .aim_move
+            .map_or(input.forward.clamp(-1., 1.), |v| v.length())
+            * speed_limit;
         if input.jump && !self.jump_held && matches!(self.jump, Jump::Grounded) {
             self.jump = Jump::Preparing { elapsed: 0. };
         }
@@ -271,13 +283,30 @@ impl Pedestrian {
             self.vertical_speed = (2. * GRAVITY * JUMP_HEIGHT).sqrt();
         }
         self.jump_held = input.jump;
-        self.speed += (target - self.speed).clamp(-BRAKING * dt, ACCELERATION * dt);
-        self.gait
-            .set_running(self.speed.abs() > WALK_SPEED * 1.05, dt);
         let turn = input.turn * TURN_SPEED * dt;
         let heading = self.yaw + turn * 0.5;
         self.yaw += turn;
-        let movement = Vec2::new(heading.cos(), heading.sin()) * self.speed * dt;
+        let velocity = if let Some(direction) = input.aim_move {
+            let desired = direction * speed_limit;
+            let rate = if desired.dot(self.travel_velocity) < self.travel_velocity.length_squared()
+            {
+                BRAKING
+            } else {
+                ACCELERATION
+            };
+            let velocity =
+                self.travel_velocity + (desired - self.travel_velocity).clamp_length_max(rate * dt);
+            self.speed = velocity.length();
+            velocity
+        } else {
+            self.speed += (target - self.speed).clamp(-BRAKING * dt, ACCELERATION * dt);
+            Vec2::from_angle(heading) * self.speed
+        };
+        self.gait
+            .set_strafe_velocity(input.aim_move.map(|_| velocity));
+        self.gait
+            .set_running(self.speed.abs() > WALK_SPEED * 1.05, dt);
+        let movement = velocity * dt;
         let before = self.position;
         for delta in [Vec2::new(movement.x, 0.), Vec2::new(0., movement.y)] {
             if delta.length_squared() < 1e-12 {
@@ -381,8 +410,13 @@ impl Pedestrian {
         // Animate only accepted travel. A wall or a prop cannot advance the body then roll it back.
         let accepted = self.position - before;
         // Stepping up or down changes support height, not forward speed.
+        self.travel_velocity = accepted.truncate() / dt;
         let distance = accepted.truncate().length();
-        self.speed = distance / dt * if self.speed < 0. { -1. } else { 1. };
+        self.speed = if input.aim_move.is_some() {
+            self.travel_velocity.dot(Vec2::from_angle(self.yaw))
+        } else {
+            distance / dt * if self.speed < 0. { -1. } else { 1. }
+        };
     }
     pub(super) fn swim_speed(&self) -> f32 {
         self.speed.abs()
@@ -485,8 +519,74 @@ impl Pedestrian {
             self.gait.palette[i] = worlds[node] * def.inverse_bind[i];
         }
     }
+    pub(super) fn aim_weapon(
+        &mut self,
+        season: crate::season::Season,
+        target: Option<Vec3>,
+        two_handed: bool,
+    ) {
+        self.weapon_pose = None;
+        let Some(target) = target else {
+            return;
+        };
+        let instance = self.instance(season);
+        let def = &pedestrian_catalog::definitions()[instance.model];
+        let local_target = instance
+            .transform
+            .inverse()
+            .transform_point3(target / METERS_PER_UNIT);
+        let mut joints = def.joint_worlds(&self.gait.palette);
+        let mut grip = Vec3::ZERO;
+        for (support, names) in [
+            (false, ["UpperArm_R", "Forearm_R", "Hand_R"]),
+            (true, ["UpperArm_L", "Forearm_L", "Hand_L"]),
+        ] {
+            if support && !two_handed {
+                break;
+            }
+            let [arm, forearm, hand] = names.map(|name| def.joint(name));
+            let [shoulder, elbow, wrist] =
+                [arm, forearm, hand].map(|j| joints[j].w_axis.truncate());
+            let delta = local_target - shoulder;
+            let distance = delta.length();
+            if distance < 0.001 {
+                return;
+            }
+            let direction = delta / distance;
+            let upper = shoulder.distance(elbow);
+            let lower = elbow.distance(wrist);
+            let target = if support {
+                grip + direction * 0.28
+            } else {
+                shoulder + direction * ((upper + lower) * 0.78) - Vec3::Y * 0.08
+            };
+            let pole = Vec3::new(if support { 0.4 } else { -0.4 }, -1., 0.);
+            let (bend, end) =
+                super::pedestrian_gait::solve_two_bone(shoulder, target, pole, upper, lower);
+            for (joint, start, old, new) in [
+                (arm, shoulder, elbow - shoulder, bend - shoulder),
+                (forearm, bend, wrist - elbow, end - bend),
+            ] {
+                let (scale, rotation, _) = joints[joint].to_scale_rotation_translation();
+                let turn = glam::Quat::from_rotation_arc(old / old.length(), new / new.length());
+                joints[joint] =
+                    glam::Mat4::from_scale_rotation_translation(scale, turn * rotation, start);
+                if joint == forearm {
+                    let (scale, rotation, _) = joints[hand].to_scale_rotation_translation();
+                    joints[hand] =
+                        glam::Mat4::from_scale_rotation_translation(scale, turn * rotation, end);
+                }
+            }
+            if !support {
+                grip = end;
+            }
+        }
+        self.weapon_pose = Some(def.skin_from_worlds(&joints));
+    }
+
     pub(super) fn instance(&self, season: crate::season::Season) -> Instance<'_> {
         Instance {
+            zombie: false,
             model: pedestrian_catalog::player_model(season),
             transform: pedestrian_catalog::instance_transform(
                 if self.swimming {
@@ -500,7 +600,10 @@ impl Pedestrian {
             idle_time: 0.,
             walk_time: 0.,
             movement: 0.,
-            pose: Some(&self.gait.palette),
+            pose: Some(self.fallen.as_ref().map_or_else(
+                || self.weapon_pose.as_ref().unwrap_or(&self.gait.palette),
+                |doll| &doll.palette,
+            )),
         }
     }
 }
@@ -916,6 +1019,7 @@ mod tests {
                         run: true,
                         turn,
                         jump: true,
+                        ..Default::default()
                     },
                     1. / hz as f32,
                     |_| blocked,
@@ -962,6 +1066,7 @@ mod tests {
                         turn,
                         run: true,
                         jump: true,
+                        ..Default::default()
                     },
                     1. / 120.,
                     |_| false,
@@ -1061,6 +1166,7 @@ mod tests {
                     run: true,
                     jump: frame == 0 || frame == 50,
                     turn: if frame < 60 { 0.5 } else { 0. },
+                    ..Default::default()
                 },
                 1. / 120.,
                 |p| p.x > 2.,

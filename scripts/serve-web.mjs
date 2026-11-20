@@ -15,6 +15,9 @@ const contentTypes = {
   '.css': 'text/css; charset=utf-8',
   '.wasm': 'application/wasm',
   '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.png': 'image/png',
+  '.ttf': 'font/ttf',
 };
 
 createServer(async (request, response) => {
@@ -25,7 +28,12 @@ createServer(async (request, response) => {
     response.writeHead(400).end();
     return;
   }
-  const file = resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
+  if (pathname === '/game') {
+    const search = new URL(request.url, 'http://localhost').search;
+    response.writeHead(308, { Location: `/game/${search}` }).end();
+    return;
+  }
+  const file = resolve(root, `.${pathname.endsWith('/') ? pathname + 'index.html' : pathname}`);
   const location = relative(root, file);
   if (location === '..' || location.startsWith(`..${sep}`)) {
     response.writeHead(403).end();

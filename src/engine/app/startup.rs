@@ -42,7 +42,7 @@ impl Game {
         self.renderer = Some(renderer);
         #[cfg(not(target_arch = "wasm32"))]
         self.audio.prepare();
-        self.last = Instant::now();
+        self.last = None;
         self.game_time = 0.;
         // Ensure startup gets another opportunity even if the initial redraw is coalesced
         // before the native window becomes visible. Successful presentation cancels this.
