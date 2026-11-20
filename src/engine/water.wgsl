@@ -103,7 +103,7 @@ fn inside_waterline(p: vec2<f32>) -> bool {
     return false;
 }
 
-fn shade_river(v: Output, surface: SurfaceData) -> vec4<f32> {
+fn shade_river(v: Output, surface: SurfaceData, shore: CoastalWater) -> vec4<f32> {
     let p = v.world.xy * 100.0;
     let t = camera.eye_time.w;
     let footprint = 100.0 * max(length(surface.world_dx.xy), length(surface.world_dy.xy));
@@ -125,7 +125,7 @@ fn shade_river(v: Output, surface: SurfaceData) -> vec4<f32> {
             *smoothstep(-0.24,0.02,along)*(1.0-smoothstep(0.15,reach,along));
         wake=max(wake,coverage*min(1.0,2.0*size)*packet.shape.w);
     }
-    let slope = water.xy*(1.0+0.5*wake);
+    let slope = water.xy*(1.0+0.5*wake) + shore.crest_slope;
     let n = vec3(-slope, 1.0) * inverseSqrt(1.0 + dot(slope, slope));
     let eye = camera.eye_time.xyz - v.world;
     let distance = length(eye);
@@ -140,7 +140,7 @@ fn shade_river(v: Output, surface: SurfaceData) -> vec4<f32> {
     let scatter = v.color * vec3(0.72, 0.70, 0.53) * (1.0 + 0.7*slope.y);
     let shadow = visibility(v.world, vec3(0.0, 0.0, 1.0));
     let local = local_irradiance(v.world, n);
-    let body = scatter * (mix(0.05, 0.48 + 0.52*shadow, daylight) + local);
+    let body = mix(scatter,shore.bed,shore.transmission) * (mix(0.05, 0.48 + 0.52*shadow, daylight) + local);
     let sun = camera.sun_exposure.xyz;
     let exponent = mix(340.0, 88.0, rough);
     let glint = pow(max(dot(reflected, sun), 0.0), exponent) * (exponent / 340.0);
@@ -148,7 +148,7 @@ fn shade_river(v: Output, surface: SurfaceData) -> vec4<f32> {
     let lit = mix(body, environment, fresnel) + sunlight * glint * (0.14 + fresnel);
     let foamLight = vec3(0.87, 0.93, 0.94) * (mix(vec3(0.024, 0.032, 0.048),
         vec3(0.58, 0.65, 0.74), daylight) + sunlight*(0.22 + 0.45*max(sun.z, 0.0)) + local);
-    let foamed = mix(lit, foamLight, max(water.z,wake*(0.32+0.45*threshold_rank(p*0.45))));
+    let foamed = mix(lit, foamLight, max(max(shore.foam,water.z*(1.0-shore.transmission)),wake*(0.32+0.45*threshold_rank(p*0.45))));
     let fog = (1.0 - exp(-distance*0.025)*(1.0 - smoothstep(5.8, 7.6, distance))) * (1.0 - camera.daylight_sky.y);
     let sky = textureSampleLevel(sky_environment, sky_sampler, -view, 0.0).rgb;
     return vec4(filmic_display(mix(foamed, sky, fog) * camera.sun_exposure.w), 1.0);

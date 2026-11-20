@@ -39,6 +39,7 @@ struct Object {
 }
 pub struct World {
     pub package: Package,
+    prepared: HashMap<String, Result<Rc<City>, String>>,
     pub city: Option<Rc<City>>,
     objects: BTreeMap<u32, Object>,
     names: HashMap<String, u32>,
@@ -73,9 +74,25 @@ pub struct Packet {
     pub text: [u8; 160],
 }
 
+// Wire values are shared with owe_operation_v1 in the C header.
+mod op {
+    pub const LOAD: u32 = 1;
+    pub const LOAD_STATUS: u32 = 2;
+    pub const PRESENT: u32 = 3;
+    pub const MESSAGE: u32 = 4;
+    pub const FIND: u32 = 5;
+    pub const SPAWN: u32 = 6;
+    pub const POSITION: u32 = 7;
+    pub const SET_POSITION: u32 = 8;
+    pub const VELOCITY: u32 = 9;
+    pub const DESTROY: u32 = 10;
+    pub const FOLLOW: u32 = 11;
+    pub const STEP: u32 = 12;
+}
+
 impl World {
     pub fn new(json: &str) -> Result<Self, String> {
-        let package: Package = serde_json::from_str(json).map_err(|e| e.to_string())?;
+        let mut package: Package = serde_json::from_str(json).map_err(|e| e.to_string())?;
         for parts in package.prefabs.values() {
             if parts.is_empty()
                 || parts.iter().any(|p| {
@@ -85,8 +102,24 @@ impl World {
                 return Err("invalid prefab dimensions or color".into());
             }
         }
+        // Compile before starting the event loop. Map switches only install a prepared snapshot.
+        let mut prepared = HashMap::new();
+        for (name, map) in &mut package.maps {
+            let source = std::mem::take(&mut map.road);
+            let elevation = std::mem::take(&mut map.elevation);
+            let result = opencity::parse(&source)
+                .map_err(|e| e.to_string())
+                .and_then(|program| {
+                    City::from_program_with_elevation_loader(&program, |spec| {
+                        opencity::heightmap::ElevationMap::from_png(spec.clone(), &elevation)
+                    })
+                })
+                .map(Rc::new);
+            prepared.insert(name.clone(), result);
+        }
         Ok(Self {
             package,
+            prepared,
             city: None,
             objects: BTreeMap::new(),
             names: HashMap::new(),
@@ -107,10 +140,7 @@ impl World {
             .maps
             .get(name)
             .ok_or_else(|| format!("unknown map: {name}"))?;
-        let program = opencity::parse(&map.road).map_err(|e| e.to_string())?;
-        let city = City::from_program_with_elevation_loader(&program, |spec| {
-            opencity::heightmap::ElevationMap::from_png(spec.clone(), &map.elevation)
-        })?;
+        let city = self.prepared[name].clone()?;
         let mut objects = BTreeMap::new();
         let mut names = HashMap::new();
         let mut next = self.next_id;
@@ -131,7 +161,7 @@ impl World {
             next = next.checked_add(1).ok_or("entity IDs exhausted")?;
         }
         self.next_id = next;
-        self.city = Some(Rc::new(city));
+        self.city = Some(city);
         self.objects = objects;
         self.names = names;
         self.focus = 0;
@@ -148,28 +178,28 @@ impl World {
             return INVALID;
         }
         match p.op {
-            1 => {
+            op::LOAD => {
                 self.pending_map = Some(key.to_owned());
                 OK
             }
-            2 => self.load_status,
-            3 => {
+            op::LOAD_STATUS => self.load_status,
+            op::PRESENT => {
                 self.present = true;
                 OK
             }
-            4 => {
+            op::MESSAGE => {
                 self.message = key.to_owned();
                 OK
             }
             _ if self.city.is_none() => NO_MAP,
-            5 => {
+            op::FIND => {
                 let Some(&id) = self.names.get(key) else {
                     return NOT_FOUND;
                 };
                 p.id = id;
                 OK
             }
-            6 => {
+            op::SPAWN => {
                 if !self.package.prefabs.contains_key(key) {
                     return UNKNOWN_PREFAB;
                 }
@@ -190,20 +220,20 @@ impl World {
                 p.id = id;
                 OK
             }
-            7..=11 => {
+            op::POSITION..=op::FOLLOW => {
                 let Some(obj) = self.objects.get_mut(&p.id) else {
                     return STALE;
                 };
                 match p.op {
-                    7 => p.xyz = obj.position.to_array(),
-                    11 => self.focus = p.id,
+                    op::POSITION => p.xyz = obj.position.to_array(),
+                    op::FOLLOW => self.focus = p.id,
                     _ if obj.fixed => return READ_ONLY,
-                    8 => {
+                    op::SET_POSITION => {
                         obj.position = xyz;
                         obj.velocity = Vec3::ZERO;
                     }
-                    9 => obj.velocity = xyz,
-                    10 => {
+                    op::VELOCITY => obj.velocity = xyz,
+                    op::DESTROY => {
                         self.objects.remove(&p.id);
                         self.names.retain(|_, id| *id != p.id);
                         if self.focus == p.id {
@@ -214,7 +244,7 @@ impl World {
                 }
                 OK
             }
-            12 => {
+            op::STEP => {
                 if self.steps_left == 0 || p.xyz[0] != DT {
                     return INVALID;
                 }
@@ -260,5 +290,74 @@ impl World {
             }
         }
         mesh
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytemuck::Zeroable;
+    fn command(w: &mut World, op: u32, id: u32, pos: [f32; 3], key: &str) -> (i32, Packet) {
+        let mut p = Packet {
+            op,
+            id,
+            xyz: pos,
+            ..Packet::zeroed()
+        };
+        p.text[..key.len()].copy_from_slice(key.as_bytes());
+        let result = w.call(&mut p);
+        (result, p)
+    }
+    #[test]
+    fn pack_controls_content_and_handles_across_map_changes() {
+        let text = include_str!("../../../examples/signal-run/game.json");
+        let mut pack: serde_json::Value = serde_json::from_str(text).unwrap();
+        pack["maps"]["junction"]["road"] =
+            include_str!("../../../opencity/examples/default_intersection.road").into();
+        pack["maps"]["bad"] = pack["maps"]["junction"].clone();
+        pack["maps"]["bad"]["objects"]["lin"]["prefab"] = "missing".into();
+        let mut world = World::new(&pack.to_string()).unwrap();
+        let zero = [0.; 3];
+        assert_eq!(
+            command(&mut world, op::FIND, 0, zero, "line_cart").0,
+            NO_MAP
+        );
+        world.load("junction").unwrap();
+        let (status, cart) = command(&mut world, op::FIND, 0, zero, "line_cart");
+        assert_eq!(status, OK);
+        assert_eq!(
+            command(&mut world, op::SPAWN, 0, zero, "unknown").0,
+            UNKNOWN_PREFAB
+        );
+        let (_, lamp) = command(&mut world, op::SPAWN, 0, zero, "signal_lamp");
+        assert_eq!(
+            command(&mut world, op::VELOCITY, lamp.id, [6., 0., 0.], "").0,
+            OK
+        );
+        world.steps_left = 1;
+        assert_eq!(command(&mut world, op::STEP, 0, [DT, 0., 0.], "").0, OK);
+        assert_eq!(
+            command(&mut world, op::STEP, 0, [DT, 0., 0.], "").0,
+            INVALID
+        );
+        let (_, p) = command(&mut world, op::POSITION, lamp.id, zero, "");
+        assert!((p.xyz[0] - 6. * DT).abs() < 1e-6);
+        assert_eq!(command(&mut world, op::DESTROY, lamp.id, zero, "").0, OK);
+        assert_eq!(
+            command(&mut world, op::POSITION, lamp.id, zero, "").0,
+            STALE
+        );
+        let (_, tower) = command(&mut world, op::FIND, 0, zero, "east_relay");
+        assert_eq!(
+            command(&mut world, op::SET_POSITION, tower.id, zero, "").0,
+            READ_ONLY
+        );
+        assert!(world.load("bad").is_err());
+        assert_eq!(command(&mut world, op::POSITION, cart.id, zero, "").0, OK);
+        world.load("junction").unwrap();
+        assert_eq!(
+            command(&mut world, op::POSITION, cart.id, zero, "").0,
+            STALE
+        );
     }
 }

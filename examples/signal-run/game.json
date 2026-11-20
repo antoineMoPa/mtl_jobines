@@ -3,6 +3,7 @@
   "maps": {
     "junction": {
       "road": "../../opencity/examples/default_intersection.road",
+      "overlay": "yard.road",
       "objects": {
         "line_cart": {
           "prefab": "maintenance_cart",

@@ -36,7 +36,15 @@ fn local_irradiance(world:vec3<f32>,normal:vec3<f32>)->vec3<f32> {
     return irradiance;
 }
 fn shade_local_surface(v:Output,front:bool,coverage:f32,surface:SurfaceData)->vec4<f32> {
-    if v.surface.x == 4.0 {return shade_river(v,surface);}
+    // Only matching elevation-mesh faces carry a bank profile. Authored grass and
+    // water polygons continue through their ordinary material paths.
+    let height = 100.0*v.fence_uv.x;
+    if v.surface.w == 3.0 && (v.surface.x == 4.0 || v.surface.x == 1.0) && height > -3.6 && height < 1.7 {
+        var shore = surface;
+        shore.snow = winter_coverage(v,surface);
+        return shade_shore(v,front,coverage,shore);
+    }
+    if v.surface.x == 4.0 {return shade_river(v,surface,CoastalWater());}
     var seasonal=surface;
     seasonal.snow=winter_coverage(v,surface);
     if v.surface.x>0.5 && v.surface.x<1.5 {

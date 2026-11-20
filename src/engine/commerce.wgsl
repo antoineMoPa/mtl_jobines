@@ -205,10 +205,11 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
     return shade_local_surface(v,front,coverage,surface);
 }
 @fragment fn fs_shadow_game(v:ShadowOutput) {
-    let footprint=fwidth(v.fence_uv);
+    let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);
+    let footprint=abs(du)+abs(dv);
     if v.kind_pattern.x == 4.0 && inside_waterline(v.fence_uv) {discard;}
     if v.kind_pattern.x==11.0 && v.kind_pattern.y==2.0 {
-        let tex=textureSampleGrad(cutout_atlas,cutout_sampler,v.fence_uv,2,dpdx(v.fence_uv),dpdy(v.fence_uv));
+        let tex=textureSampleGrad(cutout_atlas,cutout_sampler,v.fence_uv,2,du,dv);
         if tex.a<0.35 {discard;}
         return;
     }

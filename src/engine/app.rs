@@ -192,10 +192,20 @@ impl Game {
             return;
         }
         self.show_cursor();
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.simulation_paused() || !self.cutscene_focused {
+            return;
+        }
         self.cursor_hide_at = Some(now + CURSOR_IDLE_DELAY);
     }
 
     fn cursor_wait(&mut self, now: Instant) -> ControlFlow {
+        // A panel or cutscene can open after gameplay armed the idle timer.
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.simulation_paused() || !self.cutscene_focused {
+            self.show_cursor();
+            return ControlFlow::Wait;
+        }
         if let Some(deadline) = self.cursor_hide_at {
             if now < deadline {
                 return ControlFlow::WaitUntil(deadline);
@@ -254,11 +264,11 @@ impl Game {
     fn set_overlay(&mut self, overlay: Overlay) {
         self.audio.silence();
         self.sound_eye = None;
+        self.overlay = overlay;
+        self.help_visible = false;
         if self.cursor.is_some() {
             self.cursor_activity(Instant::now());
         }
-        self.overlay = overlay;
-        self.help_visible = false;
         self.full_map.selection = hud::MapSelection::Route;
         if overlay == Overlay::Driving {
             self.audio.user_gesture();

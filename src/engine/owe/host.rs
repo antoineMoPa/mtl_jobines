@@ -148,6 +148,7 @@ impl Host {
             self.actors = Some(renderer.upload_dynamic(&mesh))
         }
         let surface = renderer.surface.as_ref().unwrap().get_current_texture();
+        let suboptimal = matches!(&surface, wgpu::CurrentSurfaceTexture::Suboptimal(_));
         match surface {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
@@ -168,12 +169,21 @@ impl Host {
                     None,
                 );
                 renderer.queue.present(frame);
+                if suboptimal {
+                    renderer.resize(renderer.config.width, renderer.config.height);
+                }
             }
-            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+            wgpu::CurrentSurfaceTexture::Outdated => {
                 let size = self.window.as_ref().unwrap().inner_size();
                 renderer.resize(size.width, size.height)
             }
-            _ => {}
+            wgpu::CurrentSurfaceTexture::Lost => {
+                renderer.recreate_surface(self.window.as_ref().unwrap().clone())?
+            }
+            wgpu::CurrentSurfaceTexture::Validation => {
+                return Err("GPU surface validation failed".into())
+            }
+            wgpu::CurrentSurfaceTexture::Occluded | wgpu::CurrentSurfaceTexture::Timeout => {}
         }
         Ok(true)
     }
@@ -237,15 +247,38 @@ impl ApplicationHandler<Ready> for Host {
     }
     fn user_event(&mut self, ev: &ActiveEventLoop, Ready(result): Ready) {
         match result {
-            Ok(r) => {
+            Ok(mut r) => {
+                // The browser may resize its canvas while the GPU device is being created.
+                let window = self.window.as_ref().unwrap();
+                let size = window.inner_size();
+                r.resize(size.width, size.height);
                 self.renderer = Some(r);
                 self.last = Instant::now();
-                self.window.as_ref().unwrap().request_redraw();
+                window.request_redraw();
             }
             Err(e) => self.stop(ev, e),
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    fn about_to_wait(&mut self, ev: &ActiveEventLoop) {
+        if self.renderer.is_none() || ev.exiting() {
+            return;
+        }
+        let period = std::time::Duration::from_secs_f32(DT);
+        let now = Instant::now();
+        let next = self.last + period;
+        let wake = if now >= next {
+            self.window.as_ref().unwrap().request_redraw();
+            now + period
+        } else {
+            next
+        };
+        ev.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(wake));
+    }
     fn window_event(&mut self, ev: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
+        if ev.exiting() {
+            return;
+        }
         match event {
             WindowEvent::CloseRequested => {
                 if self.renderer.is_some() {
@@ -290,7 +323,10 @@ impl ApplicationHandler<Ready> for Host {
                 }
             }
             WindowEvent::RedrawRequested if self.renderer.is_some() => match self.tick(false) {
-                Ok(true) => self.window.as_ref().unwrap().request_redraw(),
+                Ok(true) => {
+                    #[cfg(target_arch = "wasm32")]
+                    self.window.as_ref().unwrap().request_redraw();
+                }
                 Ok(false) => {
                     #[cfg(target_arch = "wasm32")]
                     set_status("Game closed.");

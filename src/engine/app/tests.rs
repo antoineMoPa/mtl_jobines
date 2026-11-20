@@ -309,7 +309,7 @@ fn space_handbrake_and_shift_sprint_are_independent() {
 }
 
 #[test]
-fn cursor_idle_deadline_resets_and_wakes_even_while_paused() {
+fn cursor_idle_deadline_resets_on_pointer_activity() {
     let mut game = Game::new(Hermes::test_map());
     let now = Instant::now();
     assert_eq!(game.cursor_wait(now), ControlFlow::Wait);
@@ -323,6 +323,12 @@ fn cursor_idle_deadline_resets_and_wakes_even_while_paused() {
     ] {
         game.set_overlay(overlay);
         game.cursor_activity(now);
+        #[cfg(not(target_arch = "wasm32"))]
+        if overlay.paused() {
+            assert_eq!(game.cursor_wait(now + CURSOR_IDLE_DELAY), ControlFlow::Wait);
+            assert!(!game.cursor_hidden);
+            continue;
+        }
         let moved = now + Duration::from_secs(1);
         game.cursor_activity(moved);
         let deadline = moved + CURSOR_IDLE_DELAY;
@@ -349,6 +355,26 @@ fn cursor_idle_deadline_resets_and_wakes_even_while_paused() {
         );
         assert!(!game.cursor_hidden);
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn opening_native_ui_reveals_the_pointer_and_cancels_pending_hiding() {
+    let mut game = Game::new(Hermes::test_map());
+    game.set_overlay(Overlay::Driving);
+    let now = Instant::now();
+    let deadline = now + CURSOR_IDLE_DELAY;
+    game.cursor_activity(now);
+    game.cursor_wait(deadline);
+    assert!(game.cursor_hidden);
+    game.help_visible = true;
+    game.cursor_wait(deadline);
+    assert!(!game.cursor_hidden);
+    game.help_visible = false;
+    game.cursor_activity(now);
+    game.window_focus_lost();
+    assert_eq!(game.cursor_wait(deadline), ControlFlow::Wait);
+    assert!(!game.cursor_hidden);
 }
 
 #[test]

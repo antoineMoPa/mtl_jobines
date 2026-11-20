@@ -156,16 +156,7 @@ fn material_vertices(source: &[Vertex]) -> (Cow<'_, [Vertex]>, u32, u32) {
     }
     let opaque_count = vertices.len() as u32;
     for triangle in source.chunks_exact(3).filter(|t| masked(t) && !paint(t)) {
-        if triangle[0].surface[0] == SurfaceKind::Water as u32 as f32 {
-            // The masked shadow pass receives UVs, so pass the water's world XY there.
-            vertices.extend(triangle.iter().map(|v| {
-                let mut water = *v;
-                water.surface[1..3].copy_from_slice(&v.position[..2]);
-                water
-            }));
-        } else {
-            vertices.extend_from_slice(triangle);
-        }
+        vertices.extend_from_slice(triangle);
     }
     let paint_start = vertices.len() as u32;
     for triangle in source.chunks_exact(3).filter(|t| paint(t)) {
@@ -1400,7 +1391,16 @@ mod tests {
                     position: [id as f32, corner as f32, 0.],
                     normal: [0., 0., 1.],
                     color: [1.; 3],
-                    surface: [kind as u32 as f32, 0., 0., 0.],
+                    surface: if kind == SurfaceKind::Water {
+                        [
+                            kind as u32 as f32,
+                            -0.01 * corner as f32,
+                            0.7,
+                            Vertex::SHORE_PROFILE,
+                        ]
+                    } else {
+                        [kind as u32 as f32, 0., 0., 0.]
+                    },
                 });
             }
         }
@@ -1419,6 +1419,12 @@ mod tests {
             .iter()
             .all(|v| v.surface[0] == SurfaceKind::Water as u32 as f32
                 || v.surface[0] == SurfaceKind::Fence as u32 as f32));
+        for (uploaded, source) in vertices[9..].iter().zip(&mesh.vertices[9..]) {
+            assert_eq!(
+                uploaded.surface, source.surface,
+                "preserve interpolated bed heights"
+            );
+        }
         mesh.vertices.truncate(3);
         let (vertices, opaque, paint_start) = material_vertices(&mesh.vertices);
         assert_eq!(paint_start, 3);

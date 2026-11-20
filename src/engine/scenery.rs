@@ -39,7 +39,9 @@ fn infrastructure(triangle: &[opencity::runtime::Vertex; 3]) -> bool {
     s[0] == SurfaceKind::Asphalt as u32 as f32
         || s[0] == SurfaceKind::Marking as u32 as f32
         || s[0] == SurfaceKind::Sidewalk as u32 as f32 && s[3] != 0.
-        || s[0] == SurfaceKind::Grass as u32 as f32 && s[3] != 0.
+        || s[0] == SurfaceKind::Grass as u32 as f32
+            && s[3] != 0.
+            && s[3] != opencity::runtime::Vertex::SHORE_PROFILE
         || s[3] == -2.
 }
 // Sort whole triangles in place. Retain only draw ranges, never a second city-sized mesh.
