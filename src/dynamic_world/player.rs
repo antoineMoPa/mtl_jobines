@@ -16,6 +16,7 @@ const WALK_SPEED: f32 = 1.8;
 const RUN_SPEED: f32 = 3.45 * 2.5;
 const ACCELERATION: f32 = 24.;
 const BRAKING: f32 = 32.;
+const WATER_ENTRY_HEIGHT: f32 = 0.35;
 const GRAVITY: f32 = 9.81;
 const JUMP_HEIGHT: f32 = 1.5;
 const JUMP_CROUCH_TIME: f32 = 0.14;
@@ -156,28 +157,25 @@ impl Pedestrian {
             ]
             .map(|offset| vehicle.position.truncate() + offset),
         );
+        let base_height = vehicle.position.z - vehicle.ride_height();
         for point in candidates {
-            if vehicle.is_boat() {
-                if let Some(level) = super::boats::water(city, point) {
-                    let position = point.extend(level);
-                    if !blocked(position) && !Self::blocked(city, position) {
-                        let mut person = Self::new(city, position, vehicle.yaw);
-                        person.swimming = true;
-                        person.swim_pose();
-                        return Some(person);
-                    }
-                }
-            }
-            let Some(ground) = footing(
-                city,
-                point.extend(vehicle.position.z - vehicle.ride_height()),
-                false,
-            ) else {
-                continue;
-            };
-            let position = ground.point + Vec3::Z * HALF_HEIGHT;
+            let (position, swimming) =
+                if let Some(ground) = footing(city, point.extend(base_height), false) {
+                    (ground.point + Vec3::Z * HALF_HEIGHT, false)
+                } else if let Some(level) = super::boats::water(city, point)
+                    .filter(|level| base_height <= level + WATER_ENTRY_HEIGHT)
+                {
+                    (point.extend(level), true)
+                } else {
+                    continue;
+                };
             if !Self::blocked(city, position) && !blocked(position) {
-                return Some(Self::new(city, position, vehicle.yaw));
+                let mut person = Self::new(city, position, vehicle.yaw);
+                if swimming {
+                    person.swimming = true;
+                    person.swim_pose();
+                }
+                return Some(person);
             }
         }
         None
@@ -412,7 +410,7 @@ impl Pedestrian {
         let next = xy + Vec2::from_angle(yaw) * speed * dt;
         if !self.swimming {
             let foot = self.position - Vec3::Z * HALF_HEIGHT;
-            if foot.z > level + 0.35
+            if foot.z > level + WATER_ENTRY_HEIGHT
                 || support(foot).is_some()
                 || (self.jump.is_airborne() && self.vertical_speed > 0.)
             {

@@ -591,6 +591,7 @@ fn paused_startup_retries_a_missing_drawable_without_busy_polling() {
 #[test]
 fn surface_retry_and_cursor_deadlines_use_the_earliest_wakeup() {
     let mut game = Game::new(Hermes::test_map());
+    game.set_overlay(Overlay::Driving);
     let now = Instant::now();
     game.cursor_hide_at = Some(now + Duration::from_secs(3));
     game.surface_retry = Some(now + Duration::from_millis(100));

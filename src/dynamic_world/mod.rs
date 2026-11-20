@@ -444,9 +444,7 @@ impl DynamicWorld {
                 self.vehicle_notice = 4.;
                 return true;
             }
-        } else if self.player().velocity.length() <= 3.
-            && (!self.player().is_aircraft() || self.player().grounded)
-        {
+        } else if !self.player().is_aircraft() || self.player().grounded {
             self.pedestrian = Pedestrian::beside_if(hermes.city(), self.player(), |position| {
                 self.props.blocked(position)
                     || self
@@ -1017,7 +1015,7 @@ mod tests {
         }
     }
     #[test]
-    fn entering_requires_proximity_and_fast_exit_is_rejected() {
+    fn moving_vehicle_can_be_left_but_boarding_requires_low_speed_and_proximity() {
         let hermes = Hermes::test_map();
         let mut world = DynamicWorld::new(&hermes);
         let expected_name = world.player().definition().unwrap().config.name.clone();
@@ -1025,13 +1023,13 @@ mod tests {
         world.vehicle_notice = 0.;
         assert!(world.vehicle_name_notice().is_none());
         world.vehicles[0].velocity = Vec3::X * 10.;
-        assert!(!world.toggle_vehicle(&hermes));
-        assert!(world.is_driving());
-        world.vehicles[0].velocity = Vec3::ZERO;
         assert!(world.toggle_vehicle(&hermes));
         assert!(!world.is_driving());
         assert!(world.vehicle_name_notice().is_none());
         assert_ne!(world.player_position(), world.player().position);
+        assert_eq!(world.player().velocity, Vec3::X * 10.);
+        assert!(!world.toggle_vehicle(&hermes));
+        world.vehicles[0].velocity = Vec3::ZERO;
         assert!(world.toggle_vehicle(&hermes));
         assert!(world.is_driving());
         assert_eq!(world.vehicle_name_notice(), Some(expected_name.as_str()));

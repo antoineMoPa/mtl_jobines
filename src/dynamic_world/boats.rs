@@ -330,6 +330,34 @@ mod tests {
     }
 
     #[test]
+    fn moving_submerged_car_exits_into_swimming() {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/maps/mtl/map.road");
+        let hermes = Hermes::load_with_game_data(&path, None).unwrap();
+        let mut world = DynamicWorld::new(&hermes);
+        let model = world.player().definition.unwrap();
+        let moored = world.vehicles.iter().position(|v| v.is_boat()).unwrap();
+        world.player_vehicle = super::super::VehicleId(moored);
+        assert!(world.switch_vehicle(model));
+        let car = &mut world.vehicles[moored];
+        assert!(!car.is_boat());
+        let level = water(hermes.city(), car.position.truncate()).unwrap();
+        car.position.z = level - 2.;
+        car.velocity = Vec3::X * 8.;
+        assert!(world.toggle_vehicle(&hermes));
+        let swimmer = world.pedestrian.as_ref().unwrap();
+        assert!(swimmer.swimming);
+        assert_eq!(swimmer.position.z, level);
+        assert!(
+            swimmer
+                .position
+                .truncate()
+                .distance(world.player().position.truncate())
+                > world.player().width() * 0.5
+        );
+    }
+
+    #[test]
     fn montreal_fleet_can_be_boarded_driven_and_left_in_water() {
         let path =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/maps/mtl/map.road");
