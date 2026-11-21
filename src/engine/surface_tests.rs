@@ -29,7 +29,9 @@ fn native_street_surface_capture() {
         main=avenue(0,-1.5,0,1.5);elevation(main,0.002);
         road bridge: sidewalk carlane carlane sidewalk; end
         crossing=bridge(-1,0.35,1,0.35);elevation(crossing,0.10);
-        yard=concrete(0.1,-0.7,0.5,-0.7,0.5,0.1,0.1,0.1);elevation(yard,0.061);",
+        yard=concrete(0.1,-0.7,0.5,-0.7,0.5,0.1,0.1,0.1);elevation(yard,0.061);
+        airport_west_runway=concrete(-1.65,-1.5,-1.0,-1.5,-1.0,1.5,-1.65,1.5);
+        elevation(airport_west_runway,0.06015);",
     )
     .unwrap();
     let mut hermes = crate::hermes::Hermes::load_with_game_data(&path, None).unwrap();
@@ -47,6 +49,12 @@ fn native_street_surface_capture() {
             None,
             Vec3::new(0., -0.46, 0.028),
             Vec3::new(0., 0.3, 0.025),
+        ),
+        (
+            "runway-threshold",
+            None,
+            Vec3::new(-1.675, -1.53, 0.078),
+            Vec3::new(-1.46, -1.34, 0.042),
         ),
         (
             "iso",

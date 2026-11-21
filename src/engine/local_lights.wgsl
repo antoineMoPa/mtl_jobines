@@ -52,5 +52,25 @@ fn shade_local_surface(v:Output,front:bool,coverage:f32,surface:SurfaceData)->ve
     }
     var n=surface.normal;
     if v.surface.x>10.5&&v.surface.x<11.5&&!front {n=-n;}
-    return shade_surface_lit(v,front,coverage,seasonal,local_irradiance(v.world,n));
+    let shaded=shade_surface_lit(v,front,coverage,seasonal,local_irradiance(v.world,n));
+    let bits=u32(max(0.0,round(v.surface.w)));
+    if v.surface.x==0.0 && (bits&3u)==1u && bits>3u {
+        let rim=runway_rim_distance(v.fence_uv,bits);
+        if rim<0.009 {
+            let aa=surface.world_footprint.xy;
+            let turf=architecture_noise(v.world.xy*130.0,aa*130.0,43.0);
+            let clumps=architecture_noise(v.world.xy*850.0,aa*850.0,71.0);
+            let reach=0.0007+0.0055*turf*turf+0.0016*clumps;
+            let feather=clamp(max(aa.x,aa.y),0.00025,0.0012);
+            let cover=1.0-smoothstep(reach-feather,reach+feather,rim);
+            if cover>0.0 {
+                var verge=v;
+                verge.surface=vec4<f32>(1.0,0.0,0.0,0.0);
+                var ground=seasonal;
+                ground.snow=winter_coverage(verge,surface);
+                return mix(shaded,shade_grass(verge,front,coverage,ground),cover);
+            }
+        }
+    }
+    return shaded;
 }

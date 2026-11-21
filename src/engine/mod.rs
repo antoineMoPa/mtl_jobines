@@ -18,6 +18,7 @@ mod fabula;
 mod foot_motion;
 mod frame_rate;
 mod gpu_profile;
+mod gpu_trace;
 mod graffiti;
 mod grass;
 mod help;

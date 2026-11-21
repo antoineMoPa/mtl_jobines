@@ -253,6 +253,7 @@ impl Ssao {
         montreal_grade: bool,
         weather: [f32; 4],
         snowfall: Option<&super::snowfall::Snowfall>,
+        ao_timestamp: Option<wgpu::RenderPassTimestampWrites<'_>>,
         timestamp: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         let data = Settings {
@@ -264,6 +265,7 @@ impl Ssao {
         };
         queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
         {
+            let _span = mtl_world::telemetry::span("render.encode.ambient_occlusion");
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("half-resolution ambient occlusion"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -276,7 +278,7 @@ impl Ssao {
                     },
                 })],
                 depth_stencil_attachment: None,
-                timestamp_writes: None,
+                timestamp_writes: ao_timestamp,
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
@@ -293,6 +295,7 @@ impl Ssao {
             pass.set_bind_group(0, &self.ao_group, &[]);
             pass.draw(0..3, 0..1);
         }
+        let _span = mtl_world::telemetry::span("render.encode.composite");
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("depth-aware AO composite"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -315,6 +318,7 @@ impl Ssao {
         pass.set_bind_group(0, &self.composite_group, &[]);
         pass.draw(0..3, 0..1);
         if let Some(snowfall) = snowfall {
+            let _span = mtl_world::telemetry::span("render.encode.snowfall");
             snowfall.draw(&mut pass);
         }
     }

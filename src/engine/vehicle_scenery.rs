@@ -51,12 +51,15 @@ impl VehicleScenery {
         player_pose_delta: Mat4,
         stage: Option<super::fabula::Stage<'_>>,
     ) {
+        let pedestrians = mtl_world::telemetry::span("scene.pedestrians");
         self.pedestrians.update_with_stage_and_player_pose(
             renderer,
             world,
             stage,
             player_pose_delta,
         );
+        drop(pedestrians);
+        let _span = mtl_world::telemetry::span("scene.vehicle_instances");
         if stage.is_some() && self.cutscene_cached {
             return;
         }

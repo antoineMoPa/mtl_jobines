@@ -39,3 +39,7 @@ hooks:
 		echo "Existing core.hooksPath=$$current; integrate .githooks/pre-commit there first."; exit 1; \
 	fi
 	git config core.hooksPath .githooks
+
+.PHONY: view_metrics
+view_metrics:
+	node scripts/view-metrics.mjs

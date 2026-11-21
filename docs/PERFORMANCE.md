@@ -36,6 +36,29 @@ interactive navigation updates and asset startup. A straight throttle run can hi
 leave the road, so check the final capture and traveled distance. Use additional starting
 positions to cover highway traffic and building-heavy views.
 
+## Interactive frame tracing
+
+Run `MTL_TRACE=1 cargo run --locked`, play through the slowdown, and quit normally. Run
+`make view_metrics` to open the newest capture in Perfetto. The viewer uses the browser and serves
+one local file on loopback port 9001. Completed files live in `target/traces/game-*.json`.
+
+Expand the game thread and zoom into a `game.frame` slice. Child spans cover surface acquisition,
+simulation, scene preparation, CPU render encoding, UI and presentation. Each simulation tick
+breaks out vehicle physics, contacts, traffic AI, crowd updates and pursuit. Map startup and live
+reload have worker-thread spans for parsing, elevation, expansion and cache work. The main thread
+shows the snapshot, geometry upload and application costs.
+
+On adapters with timestamp queries, the GPU counters show elapsed milliseconds for shadows, world,
+half-resolution ambient occlusion, compositing with weather, and HUD. A sample is attempted every
+eighth render, skipping it if the previous readback is busy. Each point is placed at its CPU
+submission time. Hardware with in-pass timestamps also measures individual world shader groups.
+
+For shader-group GPU timings on Apple silicon, run
+`MTL_TRACE=1 MTL_TRACE_SHADERS=1 cargo run --locked`. This divides the sampled world pass into
+opaque, cutout, vehicle, model, pedestrian, graffiti, and sky/effects passes. Their durations
+include the extra attachment loads and stores. Use the default capture to measure the intact world
+pass. The synchronized smoke profiler uses its own GPU queries when launched with `--profile`.
+
 ## Runtime invariants
 
 Vehicle catalog geometry stays on the GPU. Each body and wheel instance has conservative

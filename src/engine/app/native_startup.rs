@@ -117,6 +117,7 @@ impl ApplicationHandler<GameEvent> for NativeApp {
         let (sender, receiver) = mpsc::channel();
         self.result = Some(receiver);
         std::thread::spawn(move || {
+            let _span = mtl_world::telemetry::span("map.startup.worker");
             eprintln!("Loading map: {}", path.display());
             let started = Instant::now();
             let result = Hermes::load_with_game_data(&path, game_data.as_deref());
@@ -138,6 +139,7 @@ impl ApplicationHandler<GameEvent> for NativeApp {
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: GameEvent) {
         match event {
             GameEvent::MapLoaded => {
+                let _span = mtl_world::telemetry::span("map.startup.apply");
                 let result = self.result.take().and_then(|receiver| receiver.recv().ok());
                 match result {
                     Some(Ok(hermes)) => match Game::new_at(hermes, self.start) {

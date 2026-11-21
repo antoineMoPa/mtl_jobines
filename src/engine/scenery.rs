@@ -138,6 +138,7 @@ pub(super) fn model_batches(
 }
 impl Scenery {
     pub fn new(renderer: &Renderer, hermes: &mut Hermes) -> Self {
+        let _span = mtl_world::telemetry::span("map.scenery.prepare_upload");
         let (world, details) = hermes.take_geometry();
         renderer.snow.set_geometry(&[&world, &details]);
         let paint = super::graffiti::Nearby::new(renderer, &world);

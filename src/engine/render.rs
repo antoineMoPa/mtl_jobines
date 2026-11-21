@@ -1,5 +1,6 @@
 use super::commerce::Commerce;
 use super::gpu_profile::GpuProfile;
+use super::gpu_trace::{GpuTrace, Pass, Shader};
 use super::hud::{Hud, MenuItem, Overlay};
 use super::lighting::{Lighting, SkySettings};
 use super::sky::Sky;
@@ -130,6 +131,7 @@ pub struct Renderer {
     commerce: Commerce,
     pub fps: Option<f32>,
     pub gpu_profile: Option<GpuProfile>,
+    gpu_trace: Option<GpuTrace>,
 }
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x3,3=>Float32x4];
@@ -443,7 +445,14 @@ impl Renderer {
         let profile = std::env::args().any(|arg| arg == "--profile" || arg == "--profile-120");
         #[cfg(target_arch = "wasm32")]
         let profile = false;
-        let timestamp_features = if profile {
+        #[cfg(not(target_arch = "wasm32"))]
+        let trace = mtl_world::telemetry::enabled() && !profile;
+        #[cfg(target_arch = "wasm32")]
+        let trace = false;
+        let timestamp_features = if trace {
+            adapter.features()
+                & (wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES)
+        } else if profile {
             adapter.features() & wgpu::Features::TIMESTAMP_QUERY
         } else {
             wgpu::Features::empty()
@@ -631,11 +640,15 @@ impl Renderer {
         let mission_markers = mission_markers::MissionMarkers::new(&device, format, samples);
         let hud = Hud::new(&device, format);
         #[cfg(not(target_arch = "wasm32"))]
-        let gpu_profile = timestamp_features
-            .contains(wgpu::Features::TIMESTAMP_QUERY)
+        let gpu_profile = (profile && timestamp_features.contains(wgpu::Features::TIMESTAMP_QUERY))
             .then(|| GpuProfile::new(&device));
         #[cfg(target_arch = "wasm32")]
         let gpu_profile = None;
+        #[cfg(not(target_arch = "wasm32"))]
+        let gpu_trace = (trace && timestamp_features.contains(wgpu::Features::TIMESTAMP_QUERY))
+            .then(|| GpuTrace::new(&device));
+        #[cfg(target_arch = "wasm32")]
+        let gpu_trace = None;
         #[cfg(not(target_arch = "wasm32"))]
         let render_lod = if std::env::args().any(|arg| arg == "--profile-full-render") {
             RenderLod::Full
@@ -699,6 +712,7 @@ impl Renderer {
             sky,
             commerce,
             fps: None,
+            gpu_trace,
             gpu_profile,
         })
     }
@@ -1058,6 +1072,68 @@ impl Renderer {
         self.render_scene(target, meshes, eye, look, time, Some(navigation));
     }
 
+    fn world_pass<'a>(
+        &self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        first: bool,
+        last: bool,
+        timestamp: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> wgpu::RenderPass<'a> {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("world"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: self.color.as_ref().unwrap_or(&self.ssao.scene),
+                depth_slice: None,
+                resolve_target: self
+                    .color
+                    .as_ref()
+                    .filter(|_| last)
+                    .map(|_| &self.ssao.scene),
+                ops: wgpu::Operations {
+                    load: if first {
+                        wgpu::LoadOp::Clear(wgpu::Color::BLACK)
+                    } else {
+                        wgpu::LoadOp::Load
+                    },
+                    store: if self.samples > 1 && last {
+                        wgpu::StoreOp::Discard
+                    } else {
+                        wgpu::StoreOp::Store
+                    },
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth,
+                depth_ops: Some(wgpu::Operations {
+                    load: if first {
+                        wgpu::LoadOp::Clear(1.)
+                    } else {
+                        wgpu::LoadOp::Load
+                    },
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: timestamp,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_viewport(
+            0.,
+            0.,
+            self.config.width as f32,
+            self.scene_height() as f32,
+            0.,
+            1.,
+        );
+        pass.set_scissor_rect(0, 0, self.config.width, self.scene_height());
+        pass.set_bind_group(0, &self.camera_group, &[]);
+        pass.set_bind_group(1, &self.shadow_group, &[]);
+        pass.set_bind_group(2, &self.sky.environment.group, &[]);
+        pass.set_bind_group(3, &self.commerce.group, &[]);
+        pass
+    }
+
     pub(super) fn render_scene(
         &self,
         target: &wgpu::TextureView,
@@ -1067,6 +1143,8 @@ impl Renderer {
         time: f32,
         navigation: Option<MinimapView>,
     ) {
+        let _render = mtl_world::telemetry::span("render.cpu");
+        let gpu = self.gpu_trace.as_ref().filter(|g| g.sample());
         self.commerce.models.sync(&self.queue);
         self.contact_texture
             .set_enabled(&self.queue, self.contact_debris);
@@ -1125,6 +1203,7 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("world frame"),
             });
+        let sky = mtl_world::telemetry::span("render.sky_environment");
         self.sky.update(
             &self.queue,
             &mut encoder,
@@ -1132,7 +1211,9 @@ impl Renderer {
             self.daylight,
             self.sky_settings,
         );
+        drop(sky);
         {
+            let _pass = mtl_world::telemetry::span("render.encode.shadow");
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("sun depth"),
                 color_attachments: &[],
@@ -1144,7 +1225,11 @@ impl Renderer {
                     }),
                     stencil_ops: None,
                 }),
-                timestamp_writes: self.gpu_profile.as_ref().map(|profile| profile.pass(0)),
+                timestamp_writes: self
+                    .gpu_profile
+                    .as_ref()
+                    .map(|profile| profile.pass(0))
+                    .or_else(|| gpu.map(|g| g.pass(Pass::Shadow))),
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
@@ -1200,51 +1285,44 @@ impl Renderer {
             }
         }
         {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("world"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: self.color.as_ref().unwrap_or(&self.ssao.scene),
-                    depth_slice: None,
-                    resolve_target: self.color.as_ref().map(|_| &self.ssao.scene),
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: if self.samples > 1 {
-                            wgpu::StoreOp::Discard
-                        } else {
-                            wgpu::StoreOp::Store
-                        },
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: self.gpu_profile.as_ref().map(|profile| {
+            let split = gpu.filter(|gpu| gpu.split);
+            let timestamp = self
+                .gpu_profile
+                .as_ref()
+                .map(|profile| {
                     let mut writes = profile.pass(1);
                     writes.end_of_pass_write_index = None;
                     writes
-                }),
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_viewport(
-                0.,
-                0.,
-                self.config.width as f32,
-                self.scene_height() as f32,
-                0.,
-                1.,
-            );
-            pass.set_scissor_rect(0, 0, self.config.width, self.scene_height());
+                })
+                .or_else(|| {
+                    gpu.map(|g| {
+                        if g.split {
+                            g.shader_pass(Shader::Opaque)
+                        } else {
+                            g.pass(Pass::World)
+                        }
+                    })
+                });
+            let mut pass = self.world_pass(&mut encoder, true, split.is_none(), timestamp);
+            // Tile-based GPUs only expose timestamps at pass boundaries. Additional
+            // load/store operations are confined to explicitly requested shader samples.
+            macro_rules! next_shader {
+                ($group:ident) => {
+                    if let Some(trace) = split {
+                        drop(pass);
+                        pass = self.world_pass(
+                            &mut encoder,
+                            false,
+                            matches!(Shader::$group, Shader::Sky),
+                            Some(trace.shader_pass(Shader::$group)),
+                        );
+                    } else if let Some(trace) = gpu {
+                        trace.boundary(&mut pass, Shader::$group);
+                    }
+                };
+            }
+            let phase = mtl_world::telemetry::span("render.encode.opaque");
             pass.set_pipeline(&self.opaque_pipeline);
-            pass.set_bind_group(0, &self.camera_group, &[]);
-            pass.set_bind_group(1, &self.shadow_group, &[]);
-            pass.set_bind_group(2, &self.sky.environment.group, &[]);
-            pass.set_bind_group(3, &self.commerce.group, &[]);
             for mesh in meshes {
                 if mesh.instances.is_some()
                     || mesh.opaque_count == 0
@@ -1255,6 +1333,9 @@ impl Renderer {
                 let draw = mesh.static_draw(&detail_view, self.render_lod, false);
                 draw.draw(&mut pass, 0..draw.opaque, 0..1);
             }
+            drop(phase);
+            next_shader!(Cutout);
+            let phase = mtl_world::telemetry::span("render.encode.cutout");
             pass.set_pipeline(&self.pipeline);
             for mesh in meshes {
                 if mesh.instances.is_some()
@@ -1266,6 +1347,9 @@ impl Renderer {
                 let draw = mesh.static_draw(&detail_view, self.render_lod, false);
                 draw.draw(&mut pass, draw.opaque..draw.paint, 0..1);
             }
+            drop(phase);
+            next_shader!(Vehicles);
+            let phase = mtl_world::telemetry::span("render.encode.vehicles");
             pass.set_pipeline(&self.vehicle_pipeline);
             for mesh in meshes {
                 if mesh.skin.is_some() || mesh.static_model {
@@ -1280,6 +1364,9 @@ impl Renderer {
                     }
                 }
             }
+            drop(phase);
+            next_shader!(Models);
+            let phase = mtl_world::telemetry::span("render.encode.models");
             pass.set_pipeline(&self.model_pipeline);
             pass.set_bind_group(3, &self.commerce.models.group, &[]);
             for mesh in meshes {
@@ -1296,6 +1383,9 @@ impl Renderer {
                 }
             }
             pass.set_bind_group(3, &self.commerce.group, &[]);
+            drop(phase);
+            next_shader!(Pedestrians);
+            let phase = mtl_world::telemetry::span("render.encode.pedestrians");
             pass.set_pipeline(&self.pedestrian_pipeline);
             for mesh in meshes {
                 if let (Some(skin), Some(instances)) = (&mesh.skin, &mesh.instances) {
@@ -1308,6 +1398,9 @@ impl Renderer {
                     }
                 }
             }
+            drop(phase);
+            next_shader!(Graffiti);
+            let phase = mtl_world::telemetry::span("render.encode.graffiti");
             pass.set_pipeline(&self.graffiti_pipeline);
             for mesh in meshes {
                 if mesh.instances.is_some()
@@ -1319,6 +1412,9 @@ impl Renderer {
                 let draw = mesh.static_draw(&detail_view, self.render_lod, false);
                 draw.draw(&mut pass, draw.paint..draw.count, 0..1);
             }
+            drop(phase);
+            next_shader!(Sky);
+            let _phase = mtl_world::telemetry::span("render.encode.sky_and_effects");
             self.sky.draw(&mut pass, &self.camera_group);
             if let Some(impacts) = &self.impacts {
                 impacts.draw(&mut pass, &self.camera_group);
@@ -1357,15 +1453,21 @@ impl Renderer {
                 && self.retro_lens == 0.,
             [time, f32::from(winter), lighting.daylight, self.retro_lens],
             winter.then_some(&self.snowfall),
-            self.gpu_profile.as_ref().map(|profile| {
-                let mut writes = profile.pass(1);
-                writes.beginning_of_pass_write_index = None;
-                writes
-            }),
+            gpu.map(|g| g.pass(Pass::Occlusion)),
+            self.gpu_profile
+                .as_ref()
+                .map(|profile| {
+                    let mut writes = profile.pass(1);
+                    writes.beginning_of_pass_write_index = None;
+                    writes
+                })
+                .or_else(|| gpu.map(|g| g.pass(Pass::Composite))),
         );
-        if let Some(navigation) = navigation.filter(|_| {
+        let hud_navigation = navigation.filter(|_| {
             !self.cinematic && (!super::app::mobile_enabled() || self.overlay == Overlay::Map)
-        }) {
+        });
+        if let Some(navigation) = hud_navigation {
+            let _span = mtl_world::telemetry::span("render.encode.hud");
             self.hud.render(
                 &self.queue,
                 &mut encoder,
@@ -1377,12 +1479,24 @@ impl Renderer {
                 self.full_map,
                 self.menu_selection,
                 self.fps,
-                self.gpu_profile.as_ref().map(|profile| profile.pass(2)),
+                self.gpu_profile
+                    .as_ref()
+                    .map(|profile| profile.pass(2))
+                    .or_else(|| gpu.map(|g| g.pass(Pass::Hud))),
             );
         }
         if let Some(profile) = &self.gpu_profile {
             profile.resolve(&mut encoder);
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(gpu) = gpu {
+            gpu.finish(
+                &mut encoder,
+                self.queue.get_timestamp_period(),
+                hud_navigation.is_some(),
+            );
+        }
+        let _span = mtl_world::telemetry::span("render.submit");
         self.queue.submit(Some(encoder.finish()));
     }
     #[cfg(not(target_arch = "wasm32"))]

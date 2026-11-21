@@ -484,6 +484,7 @@ impl Game {
         !self.simulation_paused() || self.scene_dirty || self.fabula.active()
     }
     fn simulate(&mut self, elapsed: f32) {
+        let _span = mtl_world::telemetry::span("simulation");
         if self.simulation_paused() {
             self.accumulator = 0.;
             return;
@@ -778,7 +779,12 @@ impl Game {
         {
             return;
         }
-        let Some((frame, suboptimal)) = self.acquire_frame(event_loop) else {
+        let _frame = mtl_world::telemetry::frame();
+        let acquired = {
+            let _span = mtl_world::telemetry::span("surface.acquire");
+            self.acquire_frame(event_loop)
+        };
+        let Some((frame, suboptimal)) = acquired else {
             return;
         };
         let cutscene_waiting_for_gesture =
@@ -794,6 +800,7 @@ impl Game {
         }
         let previous_position = self.world.player_position();
         self.simulate(elapsed);
+        let scene = mtl_world::telemetry::span("scene.prepare");
         let paused = self.simulation_paused();
         let refresh_scene = self.refresh_scene();
 
@@ -944,6 +951,7 @@ impl Game {
         });
         self.sound_eye = if paused { None } else { Some(sound_eye) };
         if !self.fabula.active() {
+            let _span = mtl_world::telemetry::span("scene.audio");
             let mut sound_frame =
                 self.world
                     .sound_frame(sound_eye, look - eye, sound_velocity, self.sound_settings);
@@ -956,6 +964,7 @@ impl Game {
         let moving_mesh = self.dynamic_mesh.as_mut().unwrap();
         if refresh_scene {
             if stage.is_none() || self.scene_dirty {
+                let _span = mtl_world::telemetry::span("scene.props_and_wildlife");
                 self.prop_scenery
                     .update_with_stage(renderer, &self.world, stage);
             }
@@ -969,6 +978,7 @@ impl Game {
             )
             .inverse();
             if stage.is_none() || self.scene_dirty {
+                let _span = mtl_world::telemetry::span("scene.moving_mesh");
                 self.world.write_moving_mesh_with_player_pose(
                     &mut self.dynamic_vertices,
                     player_pose_delta,
@@ -1134,8 +1144,10 @@ impl Game {
             format: Some(renderer.config.format.add_srgb_suffix()),
             ..Default::default()
         });
+        drop(scene);
         renderer.render(&view, &meshes, eye, look, self.game_time, navigation);
         if let Some(palette) = &mut self.palette {
+            let _span = mtl_world::telemetry::span("ui.palette");
             palette_action = palette.draw(
                 self.window.as_ref().unwrap(),
                 renderer,
@@ -1181,7 +1193,10 @@ impl Game {
                 self.window.as_ref().unwrap().request_redraw();
             }
         }
-        renderer.queue.present(frame);
+        {
+            let _span = mtl_world::telemetry::span("surface.present");
+            renderer.queue.present(frame);
+        }
         if let Some(playback) = &mut self.fabula.playback {
             playback.presented = true;
         }
@@ -1879,6 +1894,9 @@ pub fn run() -> Result<(), String> {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn run_with_client(rule: Option<crate::VehicleReturnFn>) -> Result<(), String> {
+    let _capture = mtl_world::telemetry::start(
+        &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/traces"),
+    )?;
     let args: Vec<_> = std::env::args().collect();
     let start = args
         .iter()

@@ -7,4 +7,5 @@ pub mod kairos;
 pub mod performance;
 pub mod props;
 pub mod season;
+pub mod telemetry;
 pub mod web_assets;

@@ -554,10 +554,15 @@ impl DynamicWorld {
                 }
             };
         }
+        let phase = crate::telemetry::span("npc.wildlife");
         self.update_wildlife_population(hermes, dt);
         self.step_wildlife_reactions(hermes.city(), dt);
+        drop(phase);
+        let phase = crate::telemetry::span("npc.transit");
         self.metro.step(dt, self.pedestrian.as_mut());
         self.airport.step(hermes.city(), dt);
+        drop(phase);
+        let phase = crate::telemetry::span("traffic.population_and_lod");
         if self.traffic.needs_refill(dt) {
             self.refresh_abandoned_cars(hermes.city(), self.zombie_mode());
             self.populate_traffic(hermes);
@@ -615,6 +620,8 @@ impl DynamicWorld {
             center_velocity,
         );
         stage!(0);
+        drop(phase);
+        let phase = crate::telemetry::span("traffic.controls");
         let mut ai = self.traffic.controls(
             hermes.city(),
             &self.vehicles,
@@ -633,6 +640,8 @@ impl DynamicWorld {
                 .map(|route| (route.vehicle, route.controls(&self.vehicles[route.vehicle]))),
         );
         stage!(1);
+        drop(phase);
+        let phase = crate::telemetry::span("physics.vehicles");
         self.capture_wildlife_vehicle_starts(center, center_velocity, dt);
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
             let signal = if driving && i == self.player_vehicle.0 {
@@ -694,12 +703,16 @@ impl DynamicWorld {
             self.traffic.vehicle_move(vehicle, before, hermes.city());
         }
         stage!(2);
+        drop(phase);
+        let phase = crate::telemetry::span("physics.contacts");
         self.check_wildlife_vehicle_contacts(dt);
         let contacts = contacts::resolve_with_contacts(&mut self.vehicles);
         self.patrol_contact(&contacts);
         self.traffic
             .record_contacts(&contacts, self.player_vehicle.0);
         stage!(3);
+        drop(phase);
+        let phase = crate::telemetry::span("physics.player_and_impacts");
         for hit in &mut self.sound_impacts {
             hit.age += dt;
         }
@@ -735,8 +748,12 @@ impl DynamicWorld {
         self.step_melee(hermes.city(), dt);
         self.step_wakes(dt);
         stage!(4);
+        drop(phase);
+        let phase = crate::telemetry::span("physics.props");
         self.props.step(dt);
         stage!(5);
+        drop(phase);
+        let phase = crate::telemetry::span("npc.crowd");
         // Both populations sweep against the vehicle positions from the previous crowd step.
         let officer_hit = self.step_officer_impacts(hermes.city(), walking, dt);
         if let Some(profile) = profile.as_deref_mut() {
@@ -759,6 +776,8 @@ impl DynamicWorld {
                 dt,
             );
         }
+        drop(phase);
+        let phase = crate::telemetry::span("npc.pursuit");
         if officer_hit
             || (driving
                 && self
@@ -770,6 +789,8 @@ impl DynamicWorld {
         }
         self.step_chase(hermes, center, dt);
         stage!(6);
+        drop(phase);
+        let _phase = crate::telemetry::span("simulation.passengers_debris_snow");
         if let Some((index, door)) = self.service_passengers.access {
             self.vehicles[index].doors.use_door(door);
         }

@@ -35,6 +35,7 @@ fn model_fingerprint(path: &Path) -> Result<u64, String> {
 }
 impl Snapshot {
     fn read(path: &Path, previous: Option<&Self>) -> Self {
+        let _span = mtl_world::telemetry::span("map.reload.snapshot");
         let source = std::fs::read(path).map_err(|e| e.to_string());
         let elevation_path = if let Some(previous) = previous.filter(|p| p.source == source) {
             previous.elevation_path.clone()
@@ -148,6 +149,7 @@ impl LiveReload {
             let (sender, receiver) = mpsc::channel();
             self.worker = Some(receiver);
             std::thread::spawn(move || {
+                let _span = mtl_world::telemetry::span("map.reload.worker");
                 let result = (|| {
                     Hermes::from_map_bytes(
                         snapshot.source.as_ref().map_err(Clone::clone)?,
@@ -193,6 +195,7 @@ impl Game {
     }
 
     pub(super) fn apply_reloaded_map(&mut self, mut hermes: Hermes) -> Result<(), String> {
+        let _span = mtl_world::telemetry::span("map.reload.apply");
         let position = self.world.player_position() / METERS_PER_UNIT;
         let start = SpawnPoint {
             point: [position.x, position.y],

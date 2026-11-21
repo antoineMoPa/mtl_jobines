@@ -5,7 +5,7 @@ pub(crate) use props::groups as prop_groups;
 
 use super::{aircraft, SpawnPoint, Vehicle, METERS_PER_UNIT};
 use glam::{Vec2, Vec3};
-use opencity::runtime::{City, Mesh, SurfaceKind};
+use opencity::runtime::{City, Mesh, SurfaceKind, Vertex};
 
 // A/B are the taxiway letters on the airfield signs.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -216,10 +216,7 @@ pub(crate) fn append_scenery(city: &City, mesh: &mut Mesh) {
         };
         let center = r.size.x * 0.5;
         let base = r.height;
-        // Layout 1 reserves ten bits for width (dm) and twelve for length (m).
-        let width_dm = (r.size.x * 1000.).round().clamp(1., 1023.) as u32;
-        let length_m = (r.size.y * 100.).round().clamp(1., 4095.) as u32;
-        let pavement = (1 | width_dm << 2 | length_m << 12) as f32;
+        let pavement = Vertex::runway_layout(r.size.x, r.size.y);
         let quad = |mesh: &mut Mesh, min: Vec2, max: Vec2, height, color, kind| {
             let a = r.point(min).extend(height).to_array();
             let b = r.point(Vec2::new(max.x, min.y)).extend(height).to_array();

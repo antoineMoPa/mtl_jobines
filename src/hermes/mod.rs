@@ -176,14 +176,19 @@ impl Hermes {
         packaged: Option<&Path>,
         model_base: Option<&Path>,
     ) -> Result<Self, String> {
+        let phase = crate::telemetry::span("map.parse");
         let parsed = opencity::parse(std::str::from_utf8(source).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
         let elevation_spec = opencity::heightmap::ElevationMapSpec::from_program(&parsed)?;
         // All expansion stages retain the authored terrain. Decode it once,
         // sharing the source bytes with the cache fingerprint below.
+        drop(phase);
+        let phase = crate::telemetry::span("map.elevation");
         let elevation_map = elevation_spec
             .map(|spec| opencity::heightmap::ElevationMap::from_png(spec, &elevation))
             .transpose()?;
+        drop(phase);
+        let phase = crate::telemetry::span("map.expand");
         let (program, city) = expand(&parsed, |p| {
             City::from_program_with_elevation_loader(p, |_| {
                 elevation_map
@@ -191,6 +196,8 @@ impl Hermes {
                     .ok_or_else(|| "Missing elevation asset".into())
             })
         })?;
+        drop(phase);
+        let phase = crate::telemetry::span("map.cache");
         let key = CacheKey::for_map(source, elevation);
         let cache_path = game_data::cache_path(key);
         let mut data = None;
@@ -231,7 +238,11 @@ impl Hermes {
                 Err(error) => eprintln!("Ignoring invalid disk cache: {error}"),
             }
         }
+        drop(phase);
+        let phase = crate::telemetry::span("map.world_data");
         let mut hermes = Self::from_city_data(city, data, &program)?;
+        drop(phase);
+        let _phase = crate::telemetry::span("map.models");
         hermes
             .external_models
             .extend(external_models::instances::load(
@@ -403,6 +414,7 @@ impl Hermes {
         self.minimap.prepare_for_reload();
     }
     pub fn take_geometry(&mut self) -> (Mesh, Mesh) {
+        let _span = crate::telemetry::span("map.geometry");
         if let Some(meshes) = self.prepared.take() {
             return meshes;
         }
