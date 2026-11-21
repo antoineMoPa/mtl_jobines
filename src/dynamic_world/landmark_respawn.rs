@@ -61,7 +61,7 @@ impl DynamicWorld {
         for extra in [0.12, 0.17, 0.22, 0.30, 0.40, 0.55] {
             let radius = landmark.radius + extra;
             for step in 0..48 {
-                let angle = step as f32 * std::f32::consts::TAU / 48.;
+                let angle = landmark.approach_heading + step as f32 * std::f32::consts::TAU / 48.;
                 let direction = Vec2::new(angle.cos(), angle.sin());
                 let point = origin - direction * radius;
                 let spawn = SpawnPoint {

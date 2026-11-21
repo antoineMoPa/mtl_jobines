@@ -244,12 +244,12 @@ mod tests {
             let mut pixels = vec![0; reader.output_buffer_size()];
             reader.next_frame(&mut pixels).unwrap();
             let (x, y) = if overlay == Overlay::Map {
-                (640, 470)
+                (680, 430)
             } else {
                 (132, 628)
             };
             let (ground_x, ground_y) = if overlay == Overlay::Map {
-                (800, 430)
+                (640, 270)
             } else {
                 (178, 668)
             };

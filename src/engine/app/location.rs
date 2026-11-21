@@ -1,12 +1,33 @@
 use super::*;
 
+pub(super) fn drive_view(p: Vec3, yaw: f32, length: f32, elapsed: f32) -> (Vec3, Vec3) {
+    let nose = Vec3::new(yaw.cos(), yaw.sin(), 0.);
+    let side = Vec3::Z.cross(nose);
+    let sweep = (elapsed * 0.16).sin();
+    let scale = length.clamp(4., 14.) / METERS_PER_UNIT;
+    let (lateral, trailing) = (0.68 + 0.65 * sweep).sin_cos();
+    let eye =
+        p + ((side * lateral - nose * trailing) * 2.2 + Vec3::Z * (0.85 + 0.25 * sweep)) * scale;
+    (eye, p + (nose * 0.6 + Vec3::Z * 0.22) * scale)
+}
+
 impl Game {
     pub(super) fn select_map_point(&mut self, width: f32, height: f32, point: [f32; 2]) {
+        if self.full_map.selection.is_route()
+            && hud::contains(hud::full_map_drive_rect(width), point)
+        {
+            if let Some(drive) = AutoDrive::start(&self.world, &self.hermes) {
+                self.set_overlay(Overlay::Driving);
+                self.auto_drive = Some(drive);
+            }
+            return;
+        }
         let Some(uv) = self.full_map.map_uv(width, height, point) else {
             return;
         };
         match self.full_map.selection {
-            hud::MapSelection::Route => {
+            hud::MapSelection::Route | hud::MapSelection::DriveBlocked => {
+                self.full_map.selection = hud::MapSelection::Route;
                 let p = self.world.player_position() / METERS_PER_UNIT;
                 self.hermes.select_destination(uv, p.to_array());
             }
@@ -27,6 +48,7 @@ impl Game {
     }
 
     pub(super) fn reset_boarding_camera(&mut self) {
+        self.auto_drive = None;
         self.release_aim_mouse();
         self.orbit = 0.;
         self.camera_pitch = 0.;

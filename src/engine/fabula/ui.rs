@@ -8,21 +8,7 @@ pub(in crate::engine) fn show(
     waiting_for_gesture: bool,
 ) -> bool {
     let bounds = ctx.content_rect();
-    let bar = (bounds.height() * 0.075).min(64.);
-    let painter = ctx.layer_painter(egui::LayerId::new(
-        egui::Order::Background,
-        egui::Id::new("cutscene_bars"),
-    ));
-    for y in [bounds.top(), bounds.bottom() - bar] {
-        painter.rect_filled(
-            egui::Rect::from_min_size(
-                egui::pos2(bounds.left(), y),
-                egui::vec2(bounds.width(), bar),
-            ),
-            0.,
-            Color32::BLACK,
-        );
-    }
+    let bar = letterbox(ctx);
     if waiting_for_gesture {
         egui::Area::new(egui::Id::new("cutscene_start"))
             .order(egui::Order::Foreground)
@@ -72,4 +58,24 @@ pub(in crate::engine) fn show(
             .clicked()
         })
         .inner
+}
+
+pub(in crate::engine) fn letterbox(ctx: &egui::Context) -> f32 {
+    let bounds = ctx.content_rect();
+    let bar = (bounds.height() * 0.075).min(64.);
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Background,
+        egui::Id::new("cutscene_bars"),
+    ));
+    for y in [bounds.top(), bounds.bottom() - bar] {
+        painter.rect_filled(
+            egui::Rect::from_min_size(
+                egui::pos2(bounds.left(), y),
+                egui::vec2(bounds.width(), bar),
+            ),
+            0.,
+            Color32::BLACK,
+        );
+    }
+    bar
 }

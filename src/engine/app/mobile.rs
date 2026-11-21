@@ -127,6 +127,7 @@ mod browser {
         pub(in super::super) fn sync_mobile_controls(&mut self) {
             let active = enabled()
                 && !self.first_frame
+                && self.auto_drive.is_none()
                 && !self.simulation_paused()
                 && self.world.arrest_progress().is_none();
             let driving = self.world.is_driving();
@@ -159,6 +160,7 @@ mod browser {
                         && self.world.arrest_progress().is_none();
                     self.mobile.hold(action, pressed, active);
                     if pressed && active {
+                        self.auto_drive = None;
                         self.audio.user_gesture();
                         match action {
                             MobileAction::Vehicle => {

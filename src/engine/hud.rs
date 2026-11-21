@@ -56,6 +56,10 @@ pub fn minimap_rect(width: f32, height: f32) -> [f32; 4] {
 pub fn full_map_rect(width: f32, height: f32) -> [f32; 4] {
     [24., 84., width - 48., height - 108.]
 }
+pub fn full_map_drive_rect(width: f32) -> [f32; 4] {
+    let w = (width - 184.).clamp(1., 152.);
+    [width - 76. - w, 34., w, 38.]
+}
 pub fn full_map_close_rect(width: f32) -> [f32; 4] {
     [width - 66., 34., 38., 38.]
 }
@@ -63,13 +67,17 @@ pub fn full_map_close_rect(width: f32) -> [f32; 4] {
 pub enum MapSelection {
     #[default]
     Route,
+    DriveBlocked,
     Jump,
     JumpBlocked,
 }
 impl MapSelection {
+    pub fn is_route(self) -> bool {
+        matches!(self, Self::Route | Self::DriveBlocked)
+    }
     fn shader_value(self) -> f32 {
         match self {
-            Self::Route => 0.,
+            Self::Route | Self::DriveBlocked => 0.,
             Self::Jump => 1.,
             Self::JumpBlocked => 2.,
         }
@@ -80,6 +88,7 @@ pub struct FullMapView {
     center: [f32; 2],
     zoom: f32,
     pub selection: MapSelection,
+    pub drive: crate::dynamic_world::DriveAvailability,
 }
 impl Default for FullMapView {
     fn default() -> Self {
@@ -87,6 +96,7 @@ impl Default for FullMapView {
             center: [0.5; 2],
             zoom: 1.,
             selection: MapSelection::Route,
+            drive: Default::default(),
         }
     }
 }
@@ -116,7 +126,7 @@ impl FullMapView {
         }
     }
 
-    /// Inverse of the rotated, zoomed shader projection.
+    /// Inverse of the zoomed shader projection.
     pub fn map_uv(self, width: f32, height: f32, point: [f32; 2]) -> Option<[f32; 2]> {
         let [left, top, map_width, map_height] = full_map_rect(width, height);
         let size = [map_width, map_height];
@@ -125,8 +135,8 @@ impl FullMapView {
             return None;
         }
         let uv = [
-            self.center[0] + (point[1] - top - size[1] * 0.5) / (span * self.zoom),
-            self.center[1] - (point[0] - left - size[0] * 0.5) / (span * self.zoom),
+            self.center[0] + (point[0] - left - size[0] * 0.5) / (span * self.zoom),
+            self.center[1] + (point[1] - top - size[1] * 0.5) / (span * self.zoom),
         ];
         uv.iter().all(|v| (0. ..=1.).contains(v)).then_some(uv)
     }
@@ -622,7 +632,7 @@ mod tests {
             let right = view
                 .map_uv(w, h, [center[0] + span * 0.1, center[1]])
                 .unwrap();
-            assert!((right[1] - (view.center[1] - 0.1 / view.zoom)).abs() < 1e-6);
+            assert!((right[0] - (view.center[0] + 0.1 / view.zoom)).abs() < 1e-6);
             view.zoom_at(w, h, center, 1000.);
             assert_eq!(view.zoom, 16.);
             view.zoom_at(w, h, center, -1000.);
@@ -668,14 +678,13 @@ mod tests {
                     h,
                     [center[0] + span * 0.25, center[1] - span * 0.25]
                 ),
-                Some([0.25, 0.25])
+                Some([0.75, 0.25])
             );
-            // Atlas east points down; atlas north points right after the quarter turn.
             for (offset, expected) in [
-                ([0., 0.25], [0.75, 0.5]),
-                ([0.25, 0.], [0.5, 0.25]),
-                ([0., -0.25], [0.25, 0.5]),
-                ([-0.25, 0.], [0.5, 0.75]),
+                ([0., 0.25], [0.5, 0.75]),
+                ([0.25, 0.], [0.75, 0.5]),
+                ([0., -0.25], [0.5, 0.25]),
+                ([-0.25, 0.], [0.25, 0.5]),
             ] {
                 assert_eq!(
                     super::FullMapView::default().map_uv(

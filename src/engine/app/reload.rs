@@ -249,6 +249,7 @@ impl Game {
         self.kairos.abandon();
         self.hermes = hermes;
         self.world = world;
+        self.auto_drive = None;
         self.loadout.effects = Default::default();
         self.mesh_center = mesh_center;
         let yaw = self.world.player_yaw();

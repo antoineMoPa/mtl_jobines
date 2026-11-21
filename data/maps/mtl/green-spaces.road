@@ -1,7 +1,7 @@
 # Permanent authoring reservations in the playable city's coordinates.
 # These polygons protect existing grass; they do not add a flat terrain surface.
 # Mountain: the full painted hill footprint, including slopes and summit.
-mountain_park = vegetation(forest, 7.85,4.3, 7.4481,7.0, 6.35,8.9765, 4.85,9.7, 3.35,8.9765, 2.2519,7.0, 1.85,4.3, 2.2519,1.6, 3.35,-0.3765, 4.85,-1.1, 6.35,-0.3765, 7.4481,1.6);
-# Parc Jarry: open land behind the existing homes west of Jean-Talon station.
+mountain_park = vegetation(forest, 4.3,-7.85, 7.0,-7.4481, 8.9765,-6.35, 9.7,-4.85, 8.9765,-3.35, 7.0,-2.2519, 4.3,-1.85, 1.6,-2.2519, -0.3765,-3.35, -1.1,-4.85, -0.3765,-6.35, 1.6,-7.4481);
+# Parc Jarry: open land behind the existing homes north of Jean-Talon station.
 # Keep the original street-facing apartment row intact.
-parc_jarry = vegetation(grass, -0.90,6.8, 0.85,6.8, 0.85,9.15, 0.70,9.15, -0.90,7.45);
+parc_jarry = vegetation(grass, 6.8,0.90, 6.8,-0.85, 9.15,-0.85, 9.15,-0.70, 7.45,0.90);

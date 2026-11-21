@@ -236,7 +236,25 @@ impl Vehicle {
         self.definition()
             .map_or(0.32, |d| d.config.physics.wheel_radius)
     }
-    fn wheelbase(&self) -> f32 {
+    pub(super) fn following_clearance(&self, origin: Vec3, heading: Vec2, other: &Vehicle) -> f32 {
+        let delta = other.position - origin;
+        let ahead = heading.dot(delta.truncate());
+        if ahead > 0.
+            && delta.z.abs() < 2.
+            && heading.perp_dot(delta.truncate()).abs() < (self.width() + other.width()) * 0.5 + 0.5
+        {
+            (ahead - (self.length() + other.length()) * 0.5 - 2.).max(0.)
+        } else {
+            f32::INFINITY
+        }
+    }
+    pub(super) fn pursuit_steering(&self, curvature: f32, speed: f32) -> f32 {
+        let max_steer = self
+            .definition()
+            .map_or(0.52, |d| d.config.physics.max_steer_angle);
+        (self.wheelbase() * curvature).atan() * (1. + speed * STEERING_SPEED_TAPER) / max_steer
+    }
+    pub(super) fn wheelbase(&self) -> f32 {
         self.definition()
             .map_or(WHEELBASE, |d| d.config.physics.wheelbase)
     }

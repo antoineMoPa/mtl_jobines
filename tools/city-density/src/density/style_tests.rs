@@ -20,18 +20,18 @@ fn downtown_transitions_to_brick_and_existing_monument_assets() {
             .points
             .iter()
             .fold([0.; 2], |p, q| [p[0] + q[0] / 4., p[1] + q[1] / 4.]);
-        if !(7.5..15.7).contains(&center[1]) {
+        if !(7.5..15.7).contains(&center[0]) {
             continue;
         }
         let style = f.building_style.unwrap();
-        if (21.2..24.35).contains(&center[0]) {
+        if (21.2..24.35).contains(&-center[1]) {
             assert_eq!(f.building_use.keyword(), "mixed_use");
             assert_ne!(style.architecture.family.keyword(), "legacy");
             assert!(f.height.unwrap() >= 0.19);
             if f.height.unwrap() >= 0.5 {
                 towers += 1;
             }
-        } else if (24.35..26.).contains(&center[0]) {
+        } else if (24.35..26.).contains(&-center[1]) {
             assert!(matches!(
                 style.material.keyword(),
                 "red_brick" | "brown_brick"
@@ -58,7 +58,7 @@ fn downtown_transitions_to_brick_and_existing_monument_assets() {
         assert!(f
             .points
             .iter()
-            .all(|p| (24.40..=25.30).contains(&p[0]) && (8.25..=10.82).contains(&p[1])));
+            .all(|p| (24.40..=25.30).contains(&-p[1]) && (8.25..=10.82).contains(&p[0])));
         assert!(!lots.overlaps(&f.points, None, false));
         lots.insert(f.points.clone());
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -76,7 +76,7 @@ fn brick_quarter_has_connected_streets_inside_the_ring() {
         let name = format!("brick_junction_{row}");
         let junction = junctions.iter().find(|j| j.point_ref == name).unwrap();
         assert_eq!(junction.kind.arm_count(), arms);
-        assert!((junction.position.x - 25.4).abs() < 0.00001);
+        assert!((junction.position.y + 25.4).abs() < 0.00001);
         let attached = projection
             .segments
             .iter()

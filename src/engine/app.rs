@@ -10,7 +10,8 @@ use super::{
     scenery::Scenery,
 };
 use crate::dynamic_world::{
-    Controls, DynamicWorld, SpawnPoint, WalkControls, METERS_PER_UNIT, WALK_TURN_SPEED,
+    AutoDrive, Controls, DriveStep, DynamicWorld, SpawnPoint, WalkControls, METERS_PER_UNIT,
+    WALK_TURN_SPEED,
 };
 use crate::hermes::Hermes;
 use crate::kairos::{Kairos, MissionEvent};
@@ -163,6 +164,7 @@ struct Game {
     kairos: Kairos,
     mission_vehicle: Option<crate::dynamic_world::VehicleId>,
     world: DynamicWorld,
+    auto_drive: Option<AutoDrive>,
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
     scenery: Option<Scenery>,
@@ -304,6 +306,7 @@ impl Game {
     fn set_overlay(&mut self, overlay: Overlay) {
         self.audio.silence();
         self.sound_eye = None;
+        self.auto_drive = None;
         self.overlay = overlay;
         if overlay.paused() {
             self.release_aim_mouse();
@@ -412,6 +415,7 @@ impl Game {
                 }
             },
             world,
+            auto_drive: None,
             window: None,
             renderer: None,
             scenery: None,
@@ -484,6 +488,12 @@ impl Game {
             self.accumulator = 0.;
             return;
         }
+        if let Some(renderer) = &self.renderer {
+            let sky = renderer.sky_settings;
+            let solar_hour = sky.hour(self.game_time + elapsed, renderer.daylight);
+            self.world
+                .set_wildlife_night(sky.sun_direction(solar_hour).z < 0.);
+        }
         if self.world.arrest_progress().is_some() {
             self.game_time += elapsed;
             self.loadout.effects.step(elapsed);
@@ -543,6 +553,14 @@ impl Game {
                 input = aircraft_controls(&self.mobile.with_aircraft_keyboard(&self.keys));
             }
         }
+        if input.throttle != 0.
+            || input.steering != 0.
+            || input.brake
+            || input.handbrake
+            || input.boost
+        {
+            self.auto_drive = None;
+        }
         while self.accumulator >= DT {
             self.previous_car_position = self.world.player().position;
             self.previous_car_orientation = self.world.player().orientation();
@@ -563,8 +581,23 @@ impl Game {
                 walk.turn = step_turn / (WALK_TURN_SPEED * DT);
                 self.orbit -= step_turn;
             }
-            self.world.step(&self.hermes, input, walk, DT);
+            let mut driving = input;
+            if let Some(drive) = &mut self.auto_drive {
+                let position = self.world.player_position() / METERS_PER_UNIT;
+                self.hermes.update_navigation(position.to_array());
+                match drive.step(&self.world, &self.hermes, DT) {
+                    DriveStep::Apply(controls) => driving = controls,
+                    DriveStep::Finished => self.auto_drive = None,
+                    DriveStep::Blocked => {
+                        self.set_overlay(Overlay::Map);
+                        self.full_map.selection = hud::MapSelection::DriveBlocked;
+                        return;
+                    }
+                }
+            }
+            self.world.step(&self.hermes, driving, walk, DT);
             if self.world.arrest_progress().is_some() {
+                self.auto_drive = None;
                 self.keys.clear();
                 self.stop_orbit_drag();
                 self.release_aim_mouse();
@@ -643,6 +676,7 @@ impl Game {
             | PaletteAction::PlaceProps(_)
             | PaletteAction::ExpandNetwork
             | PaletteAction::GrowNetwork => self.open_construction(action),
+            PaletteAction::ResumeDriving => self.auto_drive = None,
             PaletteAction::JumpToLocation => {
                 self.set_overlay(Overlay::Map);
                 self.full_map.selection = hud::MapSelection::Jump;
@@ -768,7 +802,7 @@ impl Game {
             .as_ref()
             .and_then(|palette| palette.build_camera());
         let center = build_camera.map_or([p.x, p.y], |(_, _, center)| center);
-        if !paused {
+        if !paused && self.auto_drive.is_none() {
             self.hermes.update_navigation(p.to_array());
         }
         let horn = self.horn_requested();
@@ -808,7 +842,9 @@ impl Game {
             .is_driving()
             .then(|| self.world.player())
             .filter(|vehicle| vehicle.is_aircraft());
-        let (target_eye, look) = if let Some(plane) = aircraft {
+        let (target_eye, look) = if let Some(drive) = &self.auto_drive {
+            location::drive_view(p, render_yaw, plane.length(), drive.elapsed)
+        } else if let Some(plane) = aircraft {
             if self.hood {
                 let cockpit = Vec3::new(plane.length() * 0.38, 0., plane.height() * 0.16);
                 let eye = p + render_orientation * cockpit / METERS_PER_UNIT;
@@ -972,9 +1008,12 @@ impl Game {
         } else {
             self.overlay
         };
-        renderer.cinematic = self.fabula.active() || arrest.is_some();
+        renderer.cinematic = self.fabula.active() || arrest.is_some() || self.auto_drive.is_some();
         renderer.zombie_mode = self.world.zombie_mode();
         renderer.full_map = self.full_map;
+        if self.overlay == Overlay::Map {
+            renderer.full_map.drive = self.world.drive_availability(&self.hermes);
+        }
         renderer.menu_selection = self.menu_selection;
         renderer.fps = self.frame_rate.value;
         renderer.reserved_bottom = if renderer.cinematic {
@@ -1374,6 +1413,11 @@ impl ApplicationHandler<GameEvent> for Game {
         };
         if audio_gesture {
             self.audio.user_gesture();
+            // A fresh key press returns the wheel immediately. The same key can
+            // then steer, brake, open the menu or exit the vehicle as usual.
+            if matches!(&event, WindowEvent::KeyboardInput { event, .. } if !event.repeat) {
+                self.auto_drive = None;
+            }
         }
         if self.armed_aim() {
             match event {
@@ -1574,6 +1618,18 @@ impl ApplicationHandler<GameEvent> for Game {
                 return;
             }
         }
+        // The cinematic HUD owns pointer input, including the touch takeover
+        // button. Do not grab the cursor or open the hidden minimap beneath it.
+        if self.auto_drive.is_some()
+            && matches!(
+                event,
+                WindowEvent::MouseInput { .. }
+                    | WindowEvent::MouseWheel { .. }
+                    | WindowEvent::Touch(_)
+            )
+        {
+            return;
+        }
         if scene_click && self.loadout.equipped.is_none() && !self.simulation_paused() {
             self.world.start_punch();
         }
@@ -1744,7 +1800,8 @@ impl ApplicationHandler<GameEvent> for Game {
                 ..
             } => {
                 if self.overlay == Overlay::Map && state == ElementState::Pressed {
-                    if self.full_map.selection == hud::MapSelection::Route {
+                    if self.full_map.selection.is_route() {
+                        self.full_map.selection = hud::MapSelection::Route;
                         self.hermes.clear_destination();
                     } else {
                         self.start_playing();

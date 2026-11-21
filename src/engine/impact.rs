@@ -135,13 +135,14 @@ impl Effects {
             Material::Metal => Vec3::new(0.61, 0.64, 0.67),
             Material::Rubber => Vec3::new(0.19, 0.15, 0.13),
             Material::Spectral => Vec3::new(0.18, 0.42, 0.31),
+            Material::Wildlife => Vec3::new(0.52, 0.44, 0.33),
             Material::Water => Vec3::new(0.52, 0.65, 0.71),
         };
         let (tangent, up) = hit.normal.any_orthonormal_pair();
         // Several expanding lobes share a fast outward impulse. Finer dust hangs and lifts.
         for i in 0..match mat {
             Material::Glass => 1,
-            Material::Metal | Material::Rubber => 3,
+            Material::Metal | Material::Rubber | Material::Wildlife => 3,
             _ => 10,
         } {
             let angle = rng.range(0., std::f32::consts::TAU);
@@ -171,7 +172,7 @@ impl Effects {
             );
         }
         for i in 0..(match mat {
-            Material::Rubber | Material::Spectral => 0.,
+            Material::Rubber | Material::Spectral | Material::Wildlife => 0.,
             Material::Metal => 9.,
             _ => 22.,
         } * force) as usize

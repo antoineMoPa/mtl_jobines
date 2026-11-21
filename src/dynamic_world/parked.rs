@@ -185,12 +185,12 @@ mod tests {
                 "blocked driveway car {i}"
             );
         }
-        let forecourt = [1.2, -1.10];
+        let forecourt = [-1.10, -1.2];
         let mut probe = Vehicle::spawn_at(
             hermes.city(),
             SpawnPoint {
                 point: forecourt,
-                heading: Some(0.),
+                heading: Some(-std::f32::consts::FRAC_PI_2),
             },
         )
         .unwrap();
@@ -199,8 +199,8 @@ mod tests {
         for (i, vehicle) in world.vehicles.iter().take(13).enumerate().skip(1) {
             assert!(world.clear_vehicle_position(hermes.city(), vehicle, Some(i)));
             let p = vehicle.position / METERS_PER_UNIT;
-            assert!((0.85..1.6).contains(&p.x) && (-1.39..-0.74).contains(&p.y));
-            let to_sphere = Vec2::new(1.2, -1.28) - p.truncate();
+            assert!((-1.6..-0.85).contains(&p.y) && (-1.39..-0.74).contains(&p.x));
+            let to_sphere = Vec2::new(-1.28, -1.2) - p.truncate();
             assert!((to_sphere.length() - 0.27).abs() < 0.00001);
             let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
             assert!(forward.dot(to_sphere) > to_sphere.length() * 0.9999);
@@ -216,7 +216,7 @@ mod tests {
         }
         let poses: Vec<_> = world.vehicles[1..13].iter().map(|v| v.position).collect();
         // Visiting another district only recycles moving traffic, never parked visitors.
-        world.respawn_at_point(&hermes, [-3., -1.]).unwrap();
+        world.respawn_at_point(&hermes, [-1., 3.]).unwrap();
         for (vehicle, original) in world.vehicles[1..13].iter().zip(poses) {
             assert_eq!(vehicle.position, original);
         }

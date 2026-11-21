@@ -48,8 +48,10 @@ native-only. Moon's **Game UI**/**OpenCity UI** targets build/run the game or co
 | Navigation | Click destination on full map; right-click clears |
 
 Start/Resume menus, map and palette pause simulation and clear held controls. Exit/Q closes native
-builds; browsers return to Start. The minimap follows heading; the full map is rotated 90°
-clockwise.
+builds; browsers return to Start. The minimap follows your heading. The full map uses the
+`.road` axes directly, with +X (east) to the right and +Y (north) up. YULPET is west of town.
+Report replay converts older MTL locations when it can match their recorded junction. For manual
+lookup, old `(x, y)` becomes `(y, -x)` and the heading decreases by 90°.
 Routes follow permitted road connections, refresh after 2 m and turn green on arrival within 6 m;
 red
 means disconnected. Bridges and geometric crossings alone do not connect roads.
@@ -165,7 +167,8 @@ follows a nearby lane. Browser builds accept `?start=-24,3,90` on the embedded m
 the highest supported surface and rejects water, buildings and unsupported positions.
 The bundled map also declares `pedestrian_start(x, y, heading_degrees)` for normal launches to
 begin on foot. `player_start` keeps the car's parking and reset position; an explicit `--start`
-or browser `?start=` begins in the car instead.
+or browser `?start=` begins in the car instead. The optional `boat_start(x, y, heading_degrees)`
+sets the shore-search origin and bearing for boat moorings.
 
 ## Cache and bundled game data
 

@@ -20,7 +20,10 @@ impl SpawnPoint {
     ) -> Result<Option<Self>, String> {
         Self::from_named_program(program, "pedestrian_start")
     }
-    fn from_named_program(program: &opencity::Program, name: &str) -> Result<Option<Self>, String> {
+    pub(crate) fn from_named_program(
+        program: &opencity::Program,
+        name: &str,
+    ) -> Result<Option<Self>, String> {
         let mut result = None;
         for statement in &program.statements {
             let opencity::Statement::Call(call) = statement else {

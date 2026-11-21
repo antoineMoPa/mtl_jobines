@@ -41,6 +41,7 @@ impl Game {
             return false;
         };
         self.audio.user_gesture();
+        self.auto_drive = None;
         self.audio.load_cutscene(
             scene.voice.clone(),
             scene.definition.voice_start,

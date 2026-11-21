@@ -51,6 +51,7 @@ pub(super) enum PaletteAction {
     Respawn(String),
     SwitchVehicle(usize),
     JumpToLocation,
+    ResumeDriving,
     #[cfg(not(target_arch = "wasm32"))]
     ExpandNetwork,
     #[cfg(not(target_arch = "wasm32"))]
@@ -541,6 +542,17 @@ impl Palette {
                 ctx.set_cursor_icon(egui::CursorIcon::None);
                 return;
             }
+            if renderer.cinematic
+                && game_overlay == Overlay::Driving
+                && !*help_visible
+                && !self.is_open()
+            {
+                // Cutscenes and arrests have their own controls above.
+                if super::map_ui::resume_driving(&ctx) {
+                    selected = Some(PaletteAction::ResumeDriving);
+                }
+                return;
+            }
             self.foot_motion
                 .show(ui.ctx(), foot_motion, view_projection);
             selected = self.show_panels(
@@ -942,6 +954,7 @@ mod tests {
     #[test]
     fn landmark_search_selects_respawn_and_dismisses() {
         let landmark = Landmark {
+            approach_heading: 0.,
             id: "site_model_01".into(),
             title: "Orange sphere",
             point: [0., 0.],

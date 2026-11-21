@@ -45,13 +45,13 @@ fn native_underground_metro_station_and_boarding_views() {
     for (name, eye, look) in [
         (
             "report-82",
-            glam::Vec3::new(1.1737835, 0.8173996, 0.14275095),
-            glam::Vec3::new(1.2091126, 0.9242083, 0.12300094),
+            glam::Vec3::new(0.8173996, -1.1737835, 0.14275095),
+            glam::Vec3::new(0.9242083, -1.2091126, 0.12300094),
         ),
         (
             "report-83",
-            glam::Vec3::new(1.239702, 1.2868125, 0.018000003),
-            glam::Vec3::new(1.2703384, 1.3950607, -0.001749998),
+            glam::Vec3::new(1.2868125, -1.239702, 0.018000003),
+            glam::Vec3::new(1.3950607, -1.2703384, -0.001749998),
         ),
         (
             "metro-window",
@@ -190,8 +190,8 @@ fn native_metro_spatial_batch_profile() {
         .collect();
     let scenery = Scenery::new(&renderer, &mut hermes);
     let s = &scenery.metro.stations[0];
-    let eye = glam::Vec3::new(1.239702, 1.2868125, 0.018000003);
-    let look = glam::Vec3::new(1.2703384, 1.3950607, -0.001749998);
+    let eye = glam::Vec3::new(1.2868125, -1.239702, 0.018000003);
+    let look = glam::Vec3::new(1.3950607, -1.2703384, -0.001749998);
     assert!(scenery.metro.enclosed_view(eye));
     let mut selected = scenery.visible(s.center.to_array());
     selected.extend(props.visible());

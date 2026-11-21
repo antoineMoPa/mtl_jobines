@@ -39,15 +39,15 @@ fn authored_metro_is_a_closed_underground_loop_with_walkable_stations_and_stairs
         }
     }
     assert!(
-        map.stations[0].center.y > 0.5,
+        map.stations[0].center.x > 0.5,
         "Acadie belongs on the city side of the interstate"
     );
     assert!(
-        map.stations[1].center.y > 7.,
+        map.stations[1].center.x > 7.,
         "Jean-Talon must be farther along the line"
     );
     assert!(
-        map.stations[2].center.distance(Vec2::new(17.5, 9.35)) < 0.001,
+        map.stations[2].center.distance(Vec2::new(9.35, -17.5)) < 0.001,
         "Bonaventure stays in place"
     );
     for (i, station) in map.stations.iter().enumerate() {

@@ -1,5 +1,4 @@
 use super::{routing::Navigation, Hermes, RouteStatus};
-use glam::Vec2;
 
 // Map units are 100 metres. Accumulating heading change also catches
 // turns authored as several short curve segments.
@@ -21,7 +20,7 @@ impl Navigation {
         let mut heading = None;
         let mut distance = 0.;
         for pair in self.points.windows(2) {
-            let delta = Vec2::from_array(pair[1]) - Vec2::from_array(pair[0]);
+            let delta = (pair[1] - pair[0]).truncate();
             let length = delta.length();
             if length < 0.0001 {
                 continue;
@@ -68,7 +67,10 @@ mod tests {
                 RouteSignal::Left,
             ),
         ] {
-            navigation.points = points;
+            navigation.points = points
+                .into_iter()
+                .map(|[x, y]| glam::Vec3::new(x, y, 0.))
+                .collect();
             assert_eq!(navigation.signal(), expected);
         }
         for status in [

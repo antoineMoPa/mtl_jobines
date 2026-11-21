@@ -5,14 +5,31 @@ use opencity::runtime::{City, Mesh, SurfaceKind, Vertex};
 
 // Walk from one side of the terminal access road around the reclaimed shore
 // to the other. Keep the fence in the grass, clear of both runway thresholds.
-const PERIMETER: [[f32; 2]; 6] = [
-    [-0.50, -3.02],
-    [-5.00, -3.02],
-    [-5.00, -21.68],
-    [5.00, -21.68],
-    [5.00, -3.73],
-    [0.80, -3.73],
-];
+fn perimeter(shore: &[[f32; 2]]) -> [Vec2; 6] {
+    let [a, b, c, d, e, f] = shore else {
+        // Earlier maps could request the original fixed fence with any shore polygon.
+        return [
+            [-0.50, -3.02],
+            [-5.00, -3.02],
+            [-5.00, -21.68],
+            [5.00, -21.68],
+            [5.00, -3.73],
+            [0.80, -3.73],
+        ]
+        .map(Vec2::from_array);
+    };
+    let edge = Vec2::from_array(*b) - Vec2::from_array(*a);
+    let axis = Vec2::from_angle(edge.to_angle());
+    [
+        (b, -0.14, -0.16),
+        (a, 0.12, -0.16),
+        (f, 0.12, 0.12),
+        (e, -0.12, 0.12),
+        (d, -0.12, -0.16),
+        (c, 0.15, -0.16),
+    ]
+    .map(|(corner, x, y)| Vec2::from_array(*corner) + axis.rotate(Vec2::new(x, y)))
+}
 const PANEL_WIDTH: f32 = 9.6 / METERS_PER_UNIT;
 const HEIGHT: f32 = 2.4 / METERS_PER_UNIT;
 // Game shader extension to OpenCity's procedural FencePattern values.
@@ -33,9 +50,8 @@ pub(super) fn panels(city: &City) -> Vec<Mesh> {
                 .map_or(shore.elevation, |s| s.height),
         )
     };
-    for edge in PERIMETER.windows(2) {
-        let start = Vec2::from_array(edge[0]);
-        let end = Vec2::from_array(edge[1]);
+    for edge in perimeter(&shore.points).windows(2) {
+        let [start, end] = [edge[0], edge[1]];
         let delta = end - start;
         let length = delta.length();
         let normal = [delta.y / length, -delta.x / length, 0.];
@@ -78,7 +94,7 @@ mod tests {
         let city = hermes.city();
         let panels = panels(city);
         assert_eq!(panels.len(), 576);
-        let mut previous = PERIMETER[0];
+        let mut previous = [-3.02, 0.50];
         for panel in panels {
             let quad = panel.vertices;
             assert_eq!(quad.len(), 6);
@@ -94,6 +110,6 @@ mod tests {
             assert!((support.height - mid.z).abs() < 0.001);
             previous = b.truncate().to_array();
         }
-        assert!(Vec2::from_array(previous).distance(Vec2::from_array(PERIMETER[5])) < 0.00001);
+        assert!(Vec2::from_array(previous).distance(Vec2::new(-3.73, -0.80)) < 0.00001);
     }
 }

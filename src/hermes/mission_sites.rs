@@ -81,7 +81,8 @@ mod tests {
             let map_waiting = waiting.truncate() / crate::dynamic_world::METERS_PER_UNIT;
             assert!(map_waiting.distance(glam::Vec2::from_array(point)) < 0.12);
         }
-        let mut from = [1.1318498, -0.94828856, 0.102];
+        let [x, y] = hermes.default_start().unwrap().point;
+        let mut from = [x, y, 0.102];
         for site in [SiteId::BusStop1, SiteId::BusStop2, SiteId::BusStop3] {
             assert!(hermes.select_mission_destination(site, from), "{:?}", site);
             let point = hermes.mission_site(site).unwrap();

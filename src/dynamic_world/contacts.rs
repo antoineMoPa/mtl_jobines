@@ -78,11 +78,35 @@ fn contact_patch(
     Some((pose_a, pose_b, hit, manifold))
 }
 
+pub(super) struct VehicleContact {
+    pub vehicles: (usize, usize),
+    // Each vehicle's horizontal speed toward the other along the contact normal, before impulses.
+    pub approach: [f32; 2],
+}
+
+impl VehicleContact {
+    pub(super) fn struck_by(&self, driver: usize) -> Option<usize> {
+        const MIN_BUMP_SPEED: f32 = 0.1;
+        let (a, b) = self.vehicles;
+        let [from_a, from_b] = self.approach;
+        if from_a + from_b <= MIN_BUMP_SPEED {
+            return None;
+        }
+        if driver == a && from_a > MIN_BUMP_SPEED {
+            Some(b)
+        } else if driver == b && from_b > MIN_BUMP_SPEED {
+            Some(a)
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 pub(super) fn resolve(vehicles: &mut [Vehicle]) {
     let _ = resolve_with_contacts(vehicles);
 }
-pub(super) fn resolve_with_contacts(vehicles: &mut [Vehicle]) -> Vec<(usize, usize)> {
+pub(super) fn resolve_with_contacts(vehicles: &mut [Vehicle]) -> Vec<VehicleContact> {
     let mut contacts = Vec::new();
     for i in 0..vehicles.len() {
         let (before, after) = vehicles.split_at_mut(i);
@@ -95,7 +119,13 @@ pub(super) fn resolve_with_contacts(vehicles: &mut [Vehicle]) -> Vec<(usize, usi
                 continue;
             };
             let n = Vec3::new(hit.normal1.x, hit.normal1.y, hit.normal1.z);
-            contacts.push((i, j));
+            contacts.push(VehicleContact {
+                vehicles: (i, j),
+                approach: [
+                    a.velocity.truncate().dot(n.truncate()),
+                    -b.velocity.truncate().dot(n.truncate()),
+                ],
+            });
             let inv_a = 1. / a.mass();
             let inv_b = 1. / b.mass();
             let sum = inv_a + inv_b;

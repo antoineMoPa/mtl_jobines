@@ -43,7 +43,7 @@ impl Palette {
             return None;
         }
         if game_overlay == Overlay::Map {
-            super::super::map_ui::show(&ctx, renderer.full_map.selection);
+            super::super::map_ui::show(&ctx, renderer.full_map);
             return None;
         }
         let mut icons = super::super::help::CornerIcons::new(walking);

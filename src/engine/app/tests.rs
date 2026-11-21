@@ -967,3 +967,143 @@ fn zombie_melee_contact_frames_in_game() {
     let fallen = capture("mange.png", &game, &mut actors);
     assert_ne!(fallen, punch);
 }
+
+fn cinematic_drive_game() -> Game {
+    let mut game = Game::new(Hermes::test_map_from_source(
+        "road street: carlane carlane; end
+         street(-0.8,0,-0.35,0,0,0,0,0.55); street(0,0.55,0,2.95);
+         street(0.5,0.8,0.9,0.8);
+         land(-1,-1,1,-1,1,3,-1,3); player_start(-0.65,0,0);",
+    ));
+    let taxi = crate::dynamic_world::catalog::definitions()
+        .iter()
+        .position(|d| d.config.research_id == "vehicle-j01")
+        .unwrap();
+    assert!(game.world.switch_vehicle(taxi));
+    game.set_overlay(Overlay::Map);
+    game
+}
+
+fn choose_drive_point(game: &mut Game, world: [f32; 2]) {
+    let uv = game.hermes.map_uv(world);
+    let span = 692.;
+    game.select_map_point(
+        1280.,
+        800.,
+        [640. + (uv[0] - 0.5) * span, 430. + (uv[1] - 0.5) * span],
+    );
+}
+
+fn press_drive_button(game: &mut Game) {
+    let [x, y, w, h] = hud::full_map_drive_rect(1280.);
+    game.select_map_point(1280., 800., [x + w * 0.5, y + h * 0.5]);
+}
+
+#[test]
+fn cinematic_drive_from_map_follows_a_bend_and_stops_at_destination() {
+    let mut game = cinematic_drive_game();
+    choose_drive_point(&mut game, [0., 0.8]);
+    let start = game.world.player_position();
+    press_drive_button(&mut game);
+    assert_eq!(game.overlay, Overlay::Driving);
+    assert!(game.auto_drive.is_some());
+    assert_eq!(game.world.player_position(), start);
+    let mut mid_trip = false;
+    for _ in 0..1800 {
+        game.simulate(1. / 30.);
+        let p = game.world.player_position();
+        mid_trip |= p.y > 3. && p.y < 60. && p.x < -1.;
+        if game.auto_drive.is_none() {
+            break;
+        }
+    }
+    assert!(mid_trip);
+    let p = game.world.player_position();
+    assert_eq!(game.overlay, Overlay::Driving);
+    assert!(
+        p.truncate().distance(glam::vec2(0., 80.)) < 6.,
+        "stopped at {p:?}"
+    );
+    assert!(game.world.player().velocity.truncate().length() < 0.2);
+    assert_eq!(
+        game.hermes.route_status(),
+        crate::hermes::RouteStatus::Arrived
+    );
+    assert!(game.auto_drive.is_none());
+}
+
+#[test]
+fn cinematic_drive_requires_a_reachable_route_and_driver_and_yields_to_input() {
+    let mut game = cinematic_drive_game();
+    press_drive_button(&mut game);
+    assert_eq!(game.overlay, Overlay::Map);
+    choose_drive_point(&mut game, [0.7, 0.8]);
+    assert_eq!(
+        game.hermes.route_status(),
+        crate::hermes::RouteStatus::Unreachable
+    );
+    press_drive_button(&mut game);
+    assert!(game.auto_drive.is_none());
+    choose_drive_point(&mut game, [0., 0.8]);
+    assert!(game.world.toggle_vehicle(&game.hermes));
+    press_drive_button(&mut game);
+    assert_eq!(game.overlay, Overlay::Map);
+    assert!(game.auto_drive.is_none());
+    assert!(game.world.toggle_vehicle(&game.hermes));
+    press_drive_button(&mut game);
+    assert!(game.auto_drive.is_some());
+    game.keys.insert(KeyCode::KeyA);
+    game.simulate(DT);
+    assert!(game.auto_drive.is_none());
+    assert_eq!(
+        game.hermes.route_status(),
+        crate::hermes::RouteStatus::Active
+    );
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+#[ignore = "exercises a full city trip"]
+fn cinematic_drive_reaches_first_bus_stop_from_city_spawn() {
+    let map =
+        Hermes::load_with_game_data(std::path::Path::new("data/maps/mtl/map.road"), None).unwrap();
+    let mut game = Game::new(map);
+    game.set_overlay(Overlay::Map);
+    choose_drive_point(&mut game, [-0.63, -2.]);
+    press_drive_button(&mut game);
+    assert!(game.auto_drive.is_some());
+    for _ in 0..3600 {
+        game.simulate(1. / 30.);
+        if game.auto_drive.is_none() {
+            break;
+        }
+    }
+    assert_eq!(
+        game.hermes.route_status(),
+        crate::hermes::RouteStatus::Arrived
+    );
+    assert!(game.auto_drive.is_none());
+}
+
+#[test]
+fn cinematic_drive_returns_to_map_when_traffic_cannot_clear() {
+    let mut game = Game::new(Hermes::test_map_from_source(
+        "road street: carlane; end street(-0.5,0,0.5,0);
+         parked_vehicle(\"vehicle-j01\",0,0,0); player_start(-0.2,0,0);",
+    ));
+    game.set_overlay(Overlay::Map);
+    choose_drive_point(&mut game, [0.4, 0.]);
+    press_drive_button(&mut game);
+    assert!(game.auto_drive.is_some());
+    for _ in 0..1800 {
+        game.simulate(1. / 30.);
+        if game.auto_drive.is_none() {
+            break;
+        }
+    }
+    assert_eq!(game.overlay, Overlay::Map);
+    assert_eq!(game.full_map.selection, hud::MapSelection::DriveBlocked);
+    assert!(game.world.player_position().x < 0.);
+    choose_drive_point(&mut game, [-0.4, 0.]);
+    assert_eq!(game.full_map.selection, hud::MapSelection::Route);
+}

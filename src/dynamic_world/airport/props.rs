@@ -1,6 +1,6 @@
 //! Breakable airfield furniture. Model dimensions are metres, placement is in map units.
-use super::{Runway, EAST, METERS_PER_UNIT, WEST};
-use glam::{Vec2, Vec3};
+use super::{Runway, Strip, METERS_PER_UNIT};
+use glam::Vec2;
 use opencity::runtime::{City, Mesh, SurfaceKind};
 
 const PROP: SurfaceKind = SurfaceKind::Prop;
@@ -9,7 +9,14 @@ const YELLOW: [f32; 3] = [0.98, 0.63, 0.022];
 const RED: [f32; 3] = [0.75, 0.045, 0.035];
 const WHITE: [f32; 3] = [0.9, 0.91, 0.85];
 
-fn on_grass(city: &City, groups: &mut Vec<Vec<Mesh>>, parts: &[Mesh], point: Vec2) {
+fn on_grass(
+    city: &City,
+    groups: &mut Vec<Vec<Mesh>>,
+    parts: &[Mesh],
+    runway: &Runway,
+    local: Vec2,
+) {
+    let point = runway.point(local);
     let Some(surface) = city.surface_at(point.to_array(), f32::INFINITY) else {
         return;
     };
@@ -17,8 +24,9 @@ fn on_grass(city: &City, groups: &mut Vec<Vec<Mesh>>, parts: &[Mesh], point: Vec
         let base = point.extend(surface.height);
         let mut placed = parts.to_vec();
         for vertex in placed.iter_mut().flat_map(|part| &mut part.vertices) {
-            vertex.position =
-                (base + Vec3::from_array(vertex.position) / METERS_PER_UNIT).to_array();
+            let orient = |v: [f32; 3]| runway.across.rotate(Vec2::new(v[0], v[1])).extend(v[2]);
+            vertex.position = (base + orient(vertex.position) / METERS_PER_UNIT).to_array();
+            vertex.normal = orient(vertex.normal).to_array();
         }
         groups.push(placed);
     }
@@ -26,15 +34,15 @@ fn on_grass(city: &City, groups: &mut Vec<Vec<Mesh>>, parts: &[Mesh], point: Vec
 
 pub(crate) fn groups(city: &City) -> Vec<Vec<Mesh>> {
     let mut groups = Vec::new();
-    for name in [WEST, EAST] {
-        if let Some(runway) = Runway::find(city, name) {
-            place_runway_props(city, &mut groups, &runway, name);
+    for strip in [Strip::A, Strip::B] {
+        if let Some(runway) = Runway::find(city, strip) {
+            place_runway_props(city, &mut groups, &runway, strip);
         }
     }
     groups
 }
 
-fn place_runway_props(city: &City, groups: &mut Vec<Vec<Mesh>>, r: &Runway, name: &str) {
+fn place_runway_props(city: &City, groups: &mut Vec<Vec<Mesh>>, r: &Runway, strip: Strip) {
     let mut base = Mesh::default();
     base.cuboid([-0.22, -0.22, 0.], [0.22, 0.22, 0.12], IRON, PROP);
     base.cuboid([-0.09, -0.09, 0.12], [0.09, 0.09, 0.41], YELLOW, PROP);
@@ -47,31 +55,32 @@ fn place_runway_props(city: &City, groups: &mut Vec<Vec<Mesh>>, r: &Runway, name
         SurfaceKind::Light,
     );
     let lamp = [base, lens];
-    let mut y = r.min.y + 0.10;
-    while y < r.max.y {
-        for x in [r.min.x - 0.025, r.max.x + 0.025] {
-            on_grass(city, groups, &lamp, Vec2::new(x, y));
+    let mut y = 0.10;
+    while y < r.size.y {
+        for x in [-0.025, r.size.x + 0.025] {
+            on_grass(city, groups, &lamp, r, Vec2::new(x, y));
         }
         y += 0.55;
     }
 
-    let east = name == EAST;
-    let sign = direction_sign(east);
-    let x = if east { r.min.x - 0.18 } else { r.max.x + 0.18 };
-    for y in [r.min.y + 1.02, r.max.y - 1.02] {
-        on_grass(city, groups, &sign, Vec2::new(x, y));
+    let is_b = strip == Strip::B;
+    let sign = direction_sign(is_b);
+    let x = if is_b { -0.18 } else { r.size.x + 0.18 };
+    for y in [1.02, r.size.y - 1.02] {
+        on_grass(city, groups, &sign, r, Vec2::new(x, y));
     }
-    if east {
+    if is_b {
         on_grass(
             city,
             groups,
             &station(),
-            Vec2::new(r.min.x - 2.03, r.max.y - 0.12),
+            r,
+            Vec2::new(-2.03, r.size.y - 0.12),
         );
     }
 }
 
-fn direction_sign(east: bool) -> [Mesh; 3] {
+fn direction_sign(is_b: bool) -> [Mesh; 3] {
     let [left, right] = [-1.1, 1.1].map(|x| {
         let mut post = Mesh::default();
         post.cuboid([x - 0.08, -0.09, 0.], [x + 0.08, 0.09, 0.52], IRON, PROP);
@@ -89,7 +98,7 @@ fn direction_sign(east: bool) -> [Mesh; 3] {
             YELLOW,
             PROP,
         );
-        let direction = if east { -face } else { face };
+        let direction = if is_b { -face } else { face };
         let ink = |x, z| point(x, z, 0.15);
         // Rotate the arrow in its plane to preserve its face normal.
         let arrow = |x, z: f32| ink(direction * x, 1.13 + direction * (z - 1.13));
@@ -114,7 +123,7 @@ fn direction_sign(east: bool) -> [Mesh; 3] {
         let mut stroke = |points: [(f32, f32); 4]| {
             mesh.quad(points.map(|(x, z)| letter(x, z)), IRON, PROP);
         };
-        if east {
+        if is_b {
             // B, with chamfered bowls.
             stroke([(-0.30, 0.74), (-0.16, 0.74), (-0.16, 1.52), (-0.30, 1.52)]);
             for bottom in [0.74, 1.08] {
@@ -211,6 +220,7 @@ mod tests {
     use super::*;
     use crate::dynamic_world::{props::Props, SpawnPoint, Vehicle};
     use crate::hermes::Hermes;
+    use glam::Vec3;
 
     #[test]
     fn airport_furniture_detaches_one_assembly_per_impact() {

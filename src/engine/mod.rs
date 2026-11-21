@@ -71,3 +71,5 @@ mod sound_settings;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod metro_tests;
+
+mod wildlife;

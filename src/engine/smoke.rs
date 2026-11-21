@@ -353,10 +353,11 @@ pub(super) fn run(
     }
 
     // Keep a zoomed map snapshot to exercise route/marker projection with the real shader.
-    let span = (width as f32 - 80.).min(height as f32 - 120.);
+    let [left, top, w, h] = super::hud::full_map_rect(width as f32, height as f32);
+    let span = w.min(h);
     let player_on_map = [
-        width as f32 * 0.5 - (navigation.player_uv[1] - 0.5) * span,
-        height as f32 * 0.5 + 20. + (navigation.player_uv[0] - 0.5) * span,
+        left + w * 0.5 + (navigation.player_uv[0] - 0.5) * span,
+        top + h * 0.5 + (navigation.player_uv[1] - 0.5) * span,
     ];
     renderer
         .full_map

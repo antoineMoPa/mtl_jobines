@@ -8,6 +8,8 @@ pub struct Landmark {
     pub point: [f32; 2],
     pub target_height: f32,
     pub radius: f32,
+    /// First approach to try when searching around the authored footprint.
+    pub approach_heading: f32,
 }
 
 pub fn title(model: &str) -> Option<&'static str> {
@@ -55,9 +57,9 @@ impl Hermes {
                     "airport_concourse" => "YULPET",
                     _ => title(feature.model.as_deref()?)?,
                 };
-                if feature.points.is_empty() {
+                let [first, second, ..] = feature.points.as_slice() else {
                     return None;
-                }
+                };
                 let sum = feature
                     .points
                     .iter()
@@ -66,6 +68,7 @@ impl Hermes {
                 Some(Landmark {
                     id,
                     title,
+                    approach_heading: (first[1] - second[1]).atan2(first[0] - second[0]),
                     point: [sum[0] / count, sum[1] / count],
                     target_height: feature.elevation + feature.height.unwrap_or(0.) * 0.75,
                     radius: feature

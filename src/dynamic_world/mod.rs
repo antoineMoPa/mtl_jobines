@@ -1,5 +1,7 @@
 //! Mutable game entities. OpenCity's City snapshot is static geography, not
 //! the owner of vehicles, players, traffic, or future mission objects.
+mod auto_drive;
+pub use auto_drive::{AutoDrive, DriveAvailability, DriveStep};
 mod aircraft;
 pub(crate) mod airport;
 mod boats;
@@ -63,7 +65,14 @@ pub struct StepProfile {
     pub stages_ns: [u64; 8],
     pub crowd_ns: [u64; 13],
 }
+pub mod wildlife;
+
 pub struct DynamicWorld {
+    wildlife_homes: Vec<wildlife::Home>,
+    wildlife_population: wildlife::Population,
+    wildlife_night: bool,
+    wildlife_vehicle_starts: Vec<Vec3>,
+    wildlife_time: f32,
     season: crate::season::Season,
     pub snow: snow::Tracks,
     snow_timer: f32,
@@ -143,6 +152,11 @@ impl DynamicWorld {
             )
         });
         let mut world = Self {
+            wildlife_homes: hermes.wildlife.clone(),
+            wildlife_population: Default::default(),
+            wildlife_night: false,
+            wildlife_vehicle_starts: Vec::new(),
+            wildlife_time: 0.,
             season: Default::default(),
             snow: snow::Tracks::default(),
             snow_timer: 0.,
@@ -218,6 +232,7 @@ impl DynamicWorld {
             &world.props,
         );
         world.update_riders();
+        world.update_wildlife_population(hermes, 0.);
         Ok(world)
     }
     fn populate_traffic(&mut self, hermes: &Hermes) {
@@ -534,6 +549,8 @@ impl DynamicWorld {
                 }
             };
         }
+        self.update_wildlife_population(hermes, dt);
+        self.step_wildlife_reactions(hermes.city(), dt);
         self.metro.step(dt, self.pedestrian.as_mut());
         self.airport.step(hermes.city(), dt);
         if self.traffic.needs_refill(dt) {
@@ -611,6 +628,7 @@ impl DynamicWorld {
                 .map(|route| (route.vehicle, route.controls(&self.vehicles[route.vehicle]))),
         );
         stage!(1);
+        self.capture_wildlife_vehicle_starts(center, center_velocity, dt);
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
             let signal = if driving && i == self.player_vehicle.0 {
                 hermes.route_signal()
@@ -671,6 +689,7 @@ impl DynamicWorld {
             self.traffic.vehicle_move(vehicle, before, hermes.city());
         }
         stage!(2);
+        self.check_wildlife_vehicle_contacts(dt);
         let contacts = contacts::resolve_with_contacts(&mut self.vehicles);
         self.patrol_contact(&contacts);
         self.traffic
@@ -701,6 +720,10 @@ impl DynamicWorld {
             });
             self.crowd
                 .player_move(hermes.city(), before, player.position, dt, &self.vehicles);
+            let after = player.position;
+            if !self.metro.aboard {
+                self.check_wildlife_walking_contacts(before, after, dt);
+            }
         }
         self.step_melee(hermes.city(), dt);
         self.step_wakes(dt);

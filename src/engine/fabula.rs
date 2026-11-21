@@ -9,7 +9,7 @@ pub(super) mod staging;
 mod ui;
 pub(super) use catalog::{scene_for, Cue};
 pub(super) use staging::Stage;
-pub(super) use ui::show;
+pub(super) use ui::{letterbox, show};
 #[cfg(test)]
 mod tests;
 

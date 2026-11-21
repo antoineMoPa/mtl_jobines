@@ -42,6 +42,34 @@ fn walk_materials(
     usage: ModelUse,
 ) -> Result<(), String> {
     let transform = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
+    append_node_mesh(&node, transform, binary, out, usage)?;
+    for child in node.children() {
+        walk_materials(child, transform, binary, out, usage)?;
+    }
+    Ok(())
+}
+/// Append one rigid GLB part, in game axes, without consuming its animated children.
+pub fn append_rigid_mesh(
+    node: &gltf::Node<'_>,
+    transform: Mat4,
+    binary: &[u8],
+    out: &mut Vec<Vertex>,
+) -> Result<(), String> {
+    let start = out.len();
+    append_node_mesh(node, transform, binary, out, ModelUse::StreetProp)?;
+    for vertex in &mut out[start..] {
+        vertex.surface[1] = 1.; // Opaque, eligible for the rigid instance LOD path.
+        vertex.surface[3] = -3.; // Fur and feathers do not accumulate the ground snow layer.
+    }
+    Ok(())
+}
+fn append_node_mesh(
+    node: &gltf::Node<'_>,
+    transform: Mat4,
+    binary: &[u8],
+    out: &mut Vec<Vertex>,
+    usage: ModelUse,
+) -> Result<(), String> {
     if !transform.is_finite() || transform.determinant().abs() < 1e-12 {
         return Err("GLB node has an invalid transform".into());
     }
@@ -190,9 +218,6 @@ fn walk_materials(
                 }
             }
         }
-    }
-    for child in node.children() {
-        walk_materials(child, transform, binary, out, usage)?;
     }
     Ok(())
 }

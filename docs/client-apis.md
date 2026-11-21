@@ -116,6 +116,20 @@ OWE_CLIENT(define_game, play)
 - **Failure:** the previous map stays active. Before the first load, world calls return `NoMap`.
 - **Window closed:** the load returns `Closed`.
 
+### Flora prefabs
+
+Use `Content::flora` to register one named plant definition. Choose a bundled maple canopy and its
+full height in metres. The host anchors the trunk at the placement position. Placed and spawned
+plants use the usual entity API on native and WebAssembly hosts.
+
+```cpp
+content.flora("courtyard_maple", {owe::Canopy::BroadMaple, 8.f});
+content.place("circuit", "east_tree", "courtyard_maple", {4.f, 12.f, 0.f}, true);
+```
+
+The other forms are `UprightMaple` and `YoungMaple`. Flora and box prefabs share a namespace.
+Heights must be finite and greater than zero.
+
 ### 2.3. Spawn, find, or destroy an object
 
 - `world.spawn(prefab, position) → Result<Entity>`

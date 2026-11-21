@@ -49,16 +49,13 @@ fn native_capture_thirty_map_signs_for_qa() {
             buckets[family(p.kind)].push((entry, member, p, hidden));
         }
     }
+    let start = glam::Vec2::from_array(hermes.default_start().unwrap().point);
     for bucket in &mut buckets {
         bucket.sort_by(|a, b| {
             a.3.cmp(&b.3).then_with(|| {
                 a.2.position
-                    .distance_squared(Vec3::new(1.1318498, -0.94828856, 0.122))
-                    .total_cmp(&b.2.position.distance_squared(Vec3::new(
-                        1.1318498,
-                        -0.94828856,
-                        0.122,
-                    )))
+                    .distance_squared(start.extend(0.122))
+                    .total_cmp(&b.2.position.distance_squared(start.extend(0.122)))
             })
         });
     }
@@ -208,7 +205,7 @@ fn native_capture_thirty_map_signs_for_qa() {
             .unwrap();
         let file = format!("sign-{:02}.png", number + 1);
         std::fs::write(output.join(&file), png).unwrap();
-        records.push(serde_json::json!({"number":number+1,"name":entries[entry].name,"member":member,"kind":p.kind.keyword(),"label":p.kind.label(),"design":format!("{design:?}"),"position":p.position.to_array(),"heading":p.heading,"hidden":hidden,"file":file,"distance_from_start_m":p.position.truncate().distance(glam::Vec2::new(1.1318498,-0.94828856))*100.}));
+        records.push(serde_json::json!({"number":number+1,"name":entries[entry].name,"member":member,"kind":p.kind.keyword(),"label":p.kind.label(),"design":format!("{design:?}"),"position":p.position.to_array(),"heading":p.heading,"hidden":hidden,"file":file,"distance_from_start_m":p.position.truncate().distance(start)*100.}));
         eprintln!(
             "QA sign {}/30: {}{}",
             number + 1,

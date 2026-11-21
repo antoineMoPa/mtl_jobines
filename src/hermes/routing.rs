@@ -33,7 +33,7 @@ pub enum RouteStatus {
 }
 pub struct Navigation {
     pub destination: Option<[f32; 2]>,
-    pub points: Vec<[f32; 2]>,
+    pub points: Vec<Vec3>,
     pub status: RouteStatus,
     pub revision: u64,
     target: Option<Snap>,
@@ -456,7 +456,7 @@ impl Navigation {
             if position.distance(target.point) < 0.06 {
                 self.status = RouteStatus::Arrived;
             } else if let Some(route) = router.route(position, target) {
-                self.points = route.into_iter().map(|p| p.truncate().to_array()).collect();
+                self.points = route;
                 self.status = RouteStatus::Active;
             }
         }
@@ -553,7 +553,7 @@ mod tests {
         nav.update(&graph, Vec3::new(1.001, 0., 0.));
         assert_eq!(nav.revision, revision);
         nav.update(&graph, Vec3::new(4., 0., 0.));
-        assert_eq!(nav.points.first(), Some(&[4., 0.]));
+        assert_eq!(nav.points.first(), Some(&Vec3::new(4., 0., 0.)));
         nav.update(&graph, Vec3::new(8., 0., 0.));
         assert_eq!(nav.status, RouteStatus::Arrived);
         assert!(nav.points.is_empty());

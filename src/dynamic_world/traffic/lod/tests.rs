@@ -232,7 +232,11 @@ fn player_collision_chain_keeps_wrecks_physical_retained_and_wakeable() {
         "test did not produce a real chassis contact"
     );
     traffic.record_contacts(&events, 1);
-    traffic.record_contacts(&[(2, 3), (0, 2)], 1);
+    let pileup = [(2, 3), (0, 2)].map(|vehicles| contacts::VehicleContact {
+        vehicles,
+        approach: [0.; 2],
+    });
+    traffic.record_contacts(&pileup, 1);
     assert!(
         (0..4).all(|id| traffic.interacted.contains_key(&id)),
         "indirect pile-up was not retained"

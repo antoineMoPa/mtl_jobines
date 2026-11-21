@@ -492,10 +492,7 @@ impl Traffic {
             let path = &self.graph.paths[driver.path];
             let remaining = path.length - driver.distance;
             let speed = car.velocity.truncate().length();
-            let wheelbase = car.definition().map_or(2.6, |d| d.config.physics.wheelbase);
-            let max_steer = car
-                .definition()
-                .map_or(0.52, |d| d.config.physics.max_steer_angle);
+            let wheelbase = car.wheelbase();
             let lookahead = (3.5 + speed * 0.7).clamp(wheelbase.max(3.5), 16.);
             // A queue ahead of a siren can clear the intersection once it is physically free.
             let clearing_for_patrol = self.chase.patrols.iter().any(|p| {
@@ -590,27 +587,16 @@ impl Traffic {
                 .perp_dot(aim)
                 .atan2(forward.truncate().dot(aim));
             // Pure pursuit with the same speed-dependent steering range as Vehicle.
-            let steering_angle = (2. * wheelbase * angle.sin() / aim.length().max(1.)).atan();
-            let steering = steering_angle * (1. + speed * 0.025) / max_steer;
-            limit = limit.min(
-                ((if patrol { 5. } else { 2.5 })
-                    / (2. * angle.sin().abs() / aim.length().max(1.)).max(0.0001))
-                .sqrt(),
-            );
+            let curvature = 2. * angle.sin() / aim.length().max(1.);
+            let steering = car.pursuit_steering(curvature, speed);
+            limit =
+                limit.min(((if patrol { 5. } else { 2.5 }) / curvature.abs().max(0.0001)).sqrt());
             for (index, other) in vehicles.iter().enumerate() {
                 if index == driver.vehicle {
                     continue;
                 }
-                let delta = other.position - car.position;
-                let along = delta.dot(forward);
-                let across = forward.truncate().perp_dot(delta.truncate()).abs();
-                if delta.z.abs() < 2.
-                    && along > 0.
-                    && across < (car.width() + other.width()) * 0.5 + 0.5
-                {
-                    clearance =
-                        clearance.min((along - (car.length() + other.length()) * 0.5 - 2.).max(0.));
-                }
+                clearance =
+                    clearance.min(car.following_clearance(car.position, forward.truncate(), other));
             }
             if let Some(point) = pedestrian {
                 let delta = point - car.position;

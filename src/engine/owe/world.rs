@@ -1,5 +1,7 @@
 //! Game-owned content, expressed in metres. OpenCity mesh coordinates use map units.
 
+mod flora;
+
 use crate::dynamic_world::ShotSurface as Material;
 use crate::engine::impact::{Contact, Effects, PanelLayer as Part};
 use glam::Vec3;
@@ -17,6 +19,8 @@ pub struct Package {
     view_models: HashMap<String, ViewAsset>,
     maps: HashMap<String, Map>,
     prefabs: HashMap<String, Vec<Part>>,
+    #[serde(default)]
+    flora: HashMap<String, flora::Definition>,
     #[serde(default)]
     materials: HashMap<String, Material>,
 }
@@ -69,6 +73,7 @@ pub struct World {
     pub first_person: Option<(glam::Quat, f32)>,
     pub look_delta: [f32; 2],
     pub view_models: HashMap<String, Mesh>,
+    flora_prefabs: HashMap<String, flora::Prefab>,
     pub view_model: Option<(String, Vec3)>,
     pub message: String,
     pub message_location: MessageLocation,
@@ -201,6 +206,13 @@ impl Package {
                 };
                 self.materials.insert(name.into(), material);
             }
+            10 => {
+                if self.flora.contains_key(name) {
+                    return Err(format!("duplicate flora prefab {name}"));
+                }
+                self.flora
+                    .insert(name.into(), flora::Definition::from_sdk(v)?);
+            }
             _ => return Err(format!("unknown content declaration {kind}")),
         }
         Ok(())
@@ -249,7 +261,15 @@ impl World {
             }
             view_models.insert(name, mesh);
         }
+        let mut flora_prefabs = HashMap::new();
+        for (name, definition) in std::mem::take(&mut package.flora) {
+            if package.prefabs.contains_key(&name) {
+                return Err(format!("duplicate prefab {name}"));
+            }
+            flora_prefabs.insert(name, definition.prepare()?);
+        }
         Ok(Self {
+            flora_prefabs,
             view_models,
             first_person: None,
             look_delta: [0.; 2],
@@ -288,7 +308,7 @@ impl World {
         let mut names = HashMap::new();
         let mut next = self.next_id;
         for (name, place) in &map.objects {
-            if !self.package.prefabs.contains_key(&place.prefab) {
+            if !self.has_prefab(&place.prefab) {
                 return Err(format!("{name}: unknown prefab {}", place.prefab));
             }
             names.insert(name.clone(), next);
@@ -435,7 +455,7 @@ impl World {
                     }
                     let inv = glam::Quat::from_rotation_z(-obj.yaw);
                     let origin = inv * (eye - obj.position);
-                    for part in &self.package.prefabs[&obj.prefab] {
+                    for part in self.package.prefabs.get(&obj.prefab).into_iter().flatten() {
                         if let Some((t, face)) = box_hit(origin, inv * dir, part, nearest) {
                             nearest = t;
                             hit = Some(Contact {
@@ -481,14 +501,12 @@ impl World {
                 if obj.fixed {
                     return READ_ONLY;
                 }
+                let Some(parts) = self.package.prefabs.get(&obj.prefab) else {
+                    return INVALID;
+                };
                 let floor = self.floor(xyz);
-                self.effects.shatter(
-                    obj.position,
-                    obj.yaw,
-                    &self.package.prefabs[&obj.prefab],
-                    xyz,
-                    floor,
-                );
+                self.effects
+                    .shatter(obj.position, obj.yaw, parts, xyz, floor);
                 self.impact_sound(xyz, crate::audio::Material::Timber, 9., true);
                 self.destroy(p.id);
                 OK
@@ -501,7 +519,7 @@ impl World {
                 OK
             }
             op::SPAWN => {
-                if !self.package.prefabs.contains_key(key) {
+                if !self.has_prefab(key) {
                     return UNKNOWN_PREFAB;
                 }
                 let id = self.next_id;
@@ -668,15 +686,36 @@ impl World {
         )
     }
 
+    fn has_prefab(&self, name: &str) -> bool {
+        self.package.prefabs.contains_key(name) || self.flora_prefabs.contains_key(name)
+    }
+    pub(super) fn flora_instances(
+        &self,
+    ) -> impl Iterator<Item = (crate::props::Kind, glam::Mat4)> + '_ {
+        self.visible_objects().filter_map(|obj| {
+            let prefab = self.flora_prefabs.get(&obj.prefab)?;
+            let transform = glam::Mat4::from_scale_rotation_translation(
+                Vec3::splat(prefab.scale),
+                glam::Quat::from_rotation_z(obj.yaw),
+                obj.position / SCALE,
+            );
+            Some((prefab.kind, transform))
+        })
+    }
+    fn visible_objects(&self) -> impl Iterator<Item = &Object> {
+        self.objects.iter().filter_map(|(&id, obj)| {
+            (self.first_person.is_none() || id != self.focus).then_some(obj)
+        })
+    }
     pub fn actors(&self) -> Mesh {
         let mut mesh = Mesh::default();
-        for (&id, obj) in &self.objects {
-            if self.first_person.is_some() && id == self.focus {
+        for obj in self.visible_objects() {
+            let Some(parts) = self.package.prefabs.get(&obj.prefab) else {
                 continue;
-            }
+            };
             let first = mesh.vertices.len();
             let base = obj.position / SCALE;
-            for part in &self.package.prefabs[&obj.prefab] {
+            for part in parts {
                 mesh.cuboid(
                     (Vec3::from(part.min) / SCALE).into(),
                     (Vec3::from(part.max) / SCALE).into(),
@@ -709,6 +748,50 @@ mod tests {
         p.text[..key.len()].copy_from_slice(key.as_bytes());
         let result = w.call(&mut p);
         (result, p)
+    }
+    #[test]
+    fn flora_prefab_places_and_spawns_at_declared_height() {
+        let mut pkg = Package::default();
+        let mut values = [0.; 9];
+        values[1] = 4.;
+        pkg.define(10, "maple", "", "", &values, &[]).unwrap();
+        assert!(pkg.define(10, "maple", "", "", &values, &[]).is_err());
+        assert!(pkg.define(10, "invalid", "", "", &[0.; 9], &[]).is_err());
+        pkg.define(2, "city", "", "", &[0.; 9], b"land(0,0,1,0,1,1,0,1);")
+            .unwrap();
+        let mut elevated = [0.; 9];
+        elevated[2] = 12.;
+        pkg.define(5, "courtyard", "city", "maple", &elevated, &[])
+            .unwrap();
+        let mut world = World::from_content(pkg).unwrap();
+        world.load("city").unwrap();
+        assert_eq!(command(&mut world, op::FIND, 0, [0.; 3], "courtyard").0, OK);
+        assert_eq!(
+            command(&mut world, op::SPAWN, 0, [2., 0., 0.], "maple").0,
+            OK
+        );
+        assert!(world.actors().vertices.is_empty());
+        let instances: Vec<_> = world.flora_instances().collect();
+        assert_eq!(instances.len(), 2);
+        let (kind, transform) = instances[0];
+        assert_eq!(kind, instances[1].0);
+        let ground = transform.transform_point3(Vec3::ZERO) * SCALE;
+        assert_eq!(ground, Vec3::Z * 12.);
+        assert_eq!(
+            instances[1].1.transform_point3(Vec3::ZERO) * SCALE,
+            Vec3::X * 2.
+        );
+        let part = &kind.far_parts()[0];
+        let (_, hi) = crate::hermes::external_models::bounds(part);
+        let top = transform.transform_point3(hi).z * SCALE;
+        let root = part
+            .vertices
+            .iter()
+            .filter(|v| v.surface[0] == SurfaceKind::TreeBark as u32 as f32)
+            .map(|v| transform.transform_point3(v.position.into()).z * SCALE)
+            .fold(f32::INFINITY, f32::min);
+        assert!((top - ground.z - 4.).abs() < 1e-4);
+        assert!(root <= ground.z && root > ground.z - 0.1);
     }
     #[test]
     fn strikes_respect_cover_and_reset_clears_surface_effects() {

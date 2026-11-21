@@ -150,13 +150,6 @@ fn lettering(p:vec2<f32>, origin:vec2<f32>, scale:f32, word:u32)->bool {
     }
     return (glyph(code) & (1u << (u32(q.y)*5u+col)))!=0u;
 }
-// Full-map display uses a clockwise quarter turn of the north-up atlas.
-fn atlas_to_map_offset(offset:vec2<f32>)->vec2<f32> {
-    return vec2<f32>(-offset.y,offset.x);
-}
-fn map_to_atlas_offset(offset:vec2<f32>)->vec2<f32> {
-    return vec2<f32>(offset.y,-offset.x);
-}
 fn map_color(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f32)->vec3<f32> {
     let base=textureSampleLevel(chart,filtering,(uv-hud.texture_region.xy)/hud.texture_region.zw,0.0).rgb;
     return map_overlay(uv,pixels,forward,atlas_pixels,base);
@@ -237,9 +230,9 @@ fn map_overlay(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f
         if p.y>=82. && p.y<84. {return vec4<f32>(0.149,0.243,0.239,1.);}
         if any(local<vec2<f32>(0.)) || any(local>size) {return vec4<f32>(0.965,0.976,0.969,1.);}
         let span=min(size.x,size.y)*hud.full_map.z;
-        let uv=hud.full_map.xy+map_to_atlas_offset((local-size*0.5)/span);
-        let forward=atlas_to_map_offset(vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w)));
-        return vec4<f32>(map_color(uv,atlas_to_map_offset(uv-hud.map.zw)*span,forward,span),1.);
+        let uv=hud.full_map.xy+(local-size*0.5)/span;
+        let forward=vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w));
+        return vec4<f32>(map_color(uv,(uv-hud.map.zw)*span,forward,span),1.);
     }
     let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));
     let uv=(p-vec2<f32>(16.,screen.y-size-16.))/size;
@@ -263,7 +256,7 @@ fn map_overlay(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f
 fn route_screen(uv:vec2<f32>)->vec2<f32> {
     if hud.mode.x==2. {
         let size=hud.screen.xy-vec2<f32>(48.,108.);
-        return vec2<f32>(24.,84.)+size*0.5+atlas_to_map_offset(uv-hud.full_map.xy)*min(size.x,size.y)*hud.full_map.z;
+        return vec2<f32>(24.,84.)+size*0.5+(uv-hud.full_map.xy)*min(size.x,size.y)*hud.full_map.z;
     }
     let screen=hud.screen.xy;
     let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));
@@ -311,7 +304,7 @@ struct MapVertex { @builtin(position) position:vec4<f32>, @location(0) uv:vec2<f
     if hud.mode.x==2. {
         if !inside(p,vec4<f32>(24.,84.,hud.screen.xy-vec2<f32>(48.,108.))) {discard;}
         let span=min(hud.screen.x-48.,hud.screen.y-108.)*hud.full_map.z;
-        let forward=atlas_to_map_offset(vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w)));
+        let forward=vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w));
         return vec4<f32>(map_overlay(v.uv,p-route_screen(hud.map.zw),forward,span,v.color),1.);
     }
     let screen=hud.screen.xy;

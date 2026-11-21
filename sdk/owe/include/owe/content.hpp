@@ -9,6 +9,11 @@ extern "C" int32_t owe_run_defined_v1(int32_t (*define)(), owe_resume_v1);
 #endif
 
 namespace owe {
+enum class Canopy : uint32_t { BroadMaple, UprightMaple, YoungMaple };
+struct FloraDefinition {
+    Canopy canopy;
+    float height_metres;
+};
 // Executed once before the engine opens the window. Asset bytes are copied by the host.
 struct Content {
     Error status = Error::Ok;
@@ -21,6 +26,9 @@ struct Content {
     }
     void box(const char *prefab, Vec3 min, Vec3 max, Vec3 colour) {
         add(4, prefab, "", "", min, max, colour);
+    }
+    void flora(const char *prefab, FloraDefinition definition) {
+        add(10, prefab, "", "", {static_cast<float>(definition.canopy), definition.height_metres, 0});
     }
     void impact_material(const char *prefab, ImpactMaterial material) {
         add(9, prefab, "", "", {static_cast<float>(material), 0, 0});

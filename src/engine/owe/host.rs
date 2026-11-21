@@ -4,8 +4,9 @@ use super::{
 };
 use crate::engine::muzzle::Equipment;
 use crate::engine::render::{GpuMesh, Renderer};
+use crate::props::Kind;
 use glam::Vec3;
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 use web_time::Instant;
 use winit::{
     application::ApplicationHandler,
@@ -16,6 +17,10 @@ use winit::{
 };
 
 struct Ready(Result<(Renderer, super::skydome::Skydome), String>);
+struct FloraBatch {
+    parts: Vec<GpuMesh>,
+    instances: Vec<[[f32; 4]; 4]>,
+}
 struct Host {
     world: Rc<RefCell<World>>,
     resume: Resume,
@@ -23,7 +28,8 @@ struct Host {
     renderer: Option<Renderer>,
     terrain: Option<(Vec3, GpuMesh)>,
     actors: Option<GpuMesh>,
-    models: std::collections::HashMap<String, Equipment>,
+    flora: HashMap<Kind, FloraBatch>,
+    models: HashMap<String, Equipment>,
     captured: bool,
     audio: crate::audio::Audio,
     #[cfg(not(target_arch = "wasm32"))]
@@ -50,6 +56,7 @@ pub(super) fn run(world: World, resume: Resume) -> Result<(), String> {
         renderer: None,
         terrain: None,
         actors: None,
+        flora: HashMap::new(),
         models: Default::default(),
         captured: false,
         audio: Default::default(),
@@ -176,6 +183,26 @@ impl Host {
             &self.terrain.as_ref().unwrap().1,
             self.actors.as_ref().unwrap(),
         ];
+        for batch in self.flora.values_mut() {
+            batch.instances.clear();
+        }
+        for (kind, transform) in w.flora_instances() {
+            let batch = self.flora.entry(kind).or_insert_with(|| FloraBatch {
+                parts: kind
+                    .far_parts()
+                    .iter()
+                    .map(|p| renderer.upload_instanced(&p.vertices))
+                    .collect(),
+                instances: Vec::new(),
+            });
+            batch.instances.push(transform.to_cols_array_2d());
+        }
+        for batch in self.flora.values_mut().filter(|b| !b.instances.is_empty()) {
+            for part in &mut batch.parts {
+                renderer.update_instances(part, &batch.instances);
+                meshes.push(part);
+            }
+        }
         let (eye, look) = if let Some((rotation, height)) = w.first_person {
             let eye = target + Vec3::Z * (height / super::world::SCALE);
             if let Some((name, offset)) = &w.view_model {

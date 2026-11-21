@@ -21,6 +21,7 @@ struct InstancedProp {
 }
 #[derive(Default)]
 pub struct PropScenery {
+    wildlife: super::wildlife::WildlifeScenery,
     models: HashMap<(crate::props::Kind, usize, usize, u8, bool), InstancedProp>,
     batches: HashMap<usize, CachedBatch>,
     visible: Vec<usize>,
@@ -54,6 +55,7 @@ impl PropScenery {
         world: &DynamicWorld,
         stage: Option<super::fabula::Stage<'_>>,
     ) {
+        self.wildlife.update(renderer, world);
         for model in self.models.values_mut() {
             model.transforms.clear();
         }
@@ -179,9 +181,13 @@ impl PropScenery {
         self.visible_with_authored(true)
     }
     pub fn visible_with_authored(&self, authored: bool) -> impl Iterator<Item = &GpuMesh> {
-        self.visible
-            .iter()
-            .filter_map(|key| self.batches.get(key).map(|batch| &batch.mesh))
+        self.wildlife
+            .visible()
+            .chain(
+                self.visible
+                    .iter()
+                    .filter_map(|key| self.batches.get(key).map(|batch| &batch.mesh)),
+            )
             .chain(
                 self.visible_signals
                     .iter()

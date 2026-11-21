@@ -10,7 +10,7 @@
       "note": "Frame definition, not a surveyed fit control.",
       "world": [
         -76.8,
-        -76.8
+        76.8
       ]
     },
     {
@@ -21,7 +21,7 @@
       ],
       "note": "Frame definition, not a surveyed fit control.",
       "world": [
-        76.8,
+        -76.8,
         -76.8
       ]
     },
@@ -33,7 +33,7 @@
       ],
       "note": "Frame definition, not a surveyed fit control.",
       "world": [
-        -76.8,
+        76.8,
         76.8
       ]
     },
@@ -46,7 +46,7 @@
       "note": "Frame definition, not a surveyed fit control.",
       "world": [
         76.8,
-        76.8
+        -76.8
       ]
     }
   ],
@@ -55,9 +55,10 @@
     "ground_metres_per_map_unit_at_center": 273.4375,
     "ground_span_metres": 42000,
     "linear_compression_at_center": 2.734375,
+    "north_direction_note": "Geographic north of the OSM reference in world coordinates. Gameplay north is +Y.",
     "north_direction": [
-      0,
-      -1
+      -1,
+      0
     ],
     "terrain_pixel_ground_spacing_metres": 41.05571847507331
   },
@@ -69,8 +70,8 @@
     ],
     "summit_osm_node": 2517010971,
     "summit_world": [
-      40.00983179076454,
-      8.715367425301006
+      8.715367425301006,
+      -40.00983179076454
     ]
   },
   "id": "mtl-osm-uniform-2026-11-01",
@@ -95,7 +96,7 @@
     "row_direction": "positive world Y",
     "water_level": 0,
     "width": 1024,
-    "sha256": "d94e1ff1cefb34731437ff28f90e0b202e733429097d116c2a7010e8ebb41f23"
+    "sha256": "995d226ce99b3e70577717f34efee15022e2295c3046463c895b907165388ff3"
   },
   "world_bounds": [
     -76.8,

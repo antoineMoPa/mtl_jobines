@@ -22,14 +22,14 @@ impl Plan {
     pub fn center(self) -> [f32; 2] {
         match self {
             Self::SourceCity => DENSITY_CENTER,
-            Self::InnerLoop => [10., 11.],
+            Self::InnerLoop => [11., -10.],
         }
     }
     pub fn contains(self, p: [f32; 2]) -> bool {
         match self {
             Self::SourceCity => true,
             // Stay inside the ring and behind the existing frontage/access roads.
-            Self::InnerLoop => (-10.2..26.0).contains(&p[0]) && (0.35..22.).contains(&p[1]),
+            Self::InnerLoop => (0.35..22.).contains(&p[0]) && (-10.2..26.0).contains(&-p[1]),
         }
     }
     pub fn cell(self) -> f32 {
@@ -66,7 +66,7 @@ impl Plan {
             let material = if seed % 4 == 0 { "concrete" } else { "brick" };
             return (height, format!("use:{use_kind},material:{material}"));
         }
-        let downtown = (8.3..24.35).contains(&p[0]) && (7.5..15.7).contains(&p[1]);
+        let downtown = (7.5..15.7).contains(&p[0]) && (8.3..24.35).contains(&-p[1]);
         if downtown {
             let (family, material, palette, floors) = match seed % 5 {
                 0 => ("heritage", "red_brick", "brownstone", 6),
@@ -76,7 +76,7 @@ impl Plan {
                 _ => ("concrete_frame", "concrete", "concrete", 8),
             };
             (floors as f32 * 0.0325, format!("use:mixed_use,material:{material},family:{family},palette:{palette},floor_height:0.0325,ground:retail,glazing:teal,front_edge:0,seed:{seed}"))
-        } else if (24.35..26.).contains(&p[0]) && (7.5..15.7).contains(&p[1]) {
+        } else if (7.5..15.7).contains(&p[0]) && (24.35..26.).contains(&-p[1]) {
             // The next block is a brick civic quarter around the landmark forecourt.
             let material = if seed % 3 == 0 {
                 "brown_brick"
@@ -119,7 +119,7 @@ mod tests {
                 })
                 .count();
             assert_eq!(attached, arms, "{name} must have connected arms");
-            assert!((junction.position.x - 23.8).abs() < 0.00001);
+            assert!((junction.position.y + 23.8).abs() < 0.00001);
         }
         let left = projection
             .segments
@@ -133,10 +133,10 @@ mod tests {
             .unwrap();
         let split = 0.7275714923095185_f32;
         let controls = [
-            [21.2_f32, 12.65_f32],
-            [22.4, 12.65],
-            [23.6, 12.],
-            [24.75, 12.],
+            [12.65_f32, -21.2_f32],
+            [12.65, -22.4],
+            [12., -23.6],
+            [12., -24.75],
         ];
         for i in 0..=100 {
             let t = i as f32 / 100.;
@@ -219,12 +219,12 @@ mod tests {
         assert!(plan.street("cross_street"));
         assert!(!plan.street("metro_track"));
         assert!(!plan.street("east_clover_interstate_three_lane"));
-        assert!(!plan.contains([28., 12.]));
-        assert!(!plan.contains([10., 24.]));
-        let (height, style) = plan.building([17., 12.], 3, true);
+        assert!(!plan.contains([12., -28.]));
+        assert!(!plan.contains([24., -10.]));
+        let (height, style) = plan.building([12., -17.], 3, true);
         assert_eq!(height, 0.65);
         assert!(style.contains("family:podium"));
-        let (height, style) = plan.building([3., 12.], 3, true);
+        let (height, style) = plan.building([12., -3.], 3, true);
         assert_eq!(height, 0.063);
         assert!(style.contains("use:residential"));
     }

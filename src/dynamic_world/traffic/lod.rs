@@ -188,10 +188,11 @@ impl Traffic {
 
     pub(in crate::dynamic_world) fn record_contacts(
         &mut self,
-        contacts: &[(usize, usize)],
+        contacts: &[crate::dynamic_world::contacts::VehicleContact],
         player: usize,
     ) {
-        for &(a, b) in contacts {
+        for contact in contacts {
+            let (a, b) = contact.vehicles;
             for driver in &mut self.drivers {
                 if driver.vehicle == a || driver.vehicle == b {
                     driver.motion = Motion::Physical;
@@ -208,7 +209,8 @@ impl Traffic {
         // A pile-up's contact ordering must not lose the player's indirect interactions.
         loop {
             let mut added = false;
-            for &(a, b) in contacts {
+            for contact in contacts {
+                let (a, b) = contact.vehicles;
                 if a == player
                     || b == player
                     || self.interacted.contains_key(&a)

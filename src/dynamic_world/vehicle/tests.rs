@@ -1229,7 +1229,7 @@ fn report_45_heritage_facade_stops_vehicles_and_follow_camera() {
     .unwrap();
     let city = map.city();
     // The recorded vehicle position was already inside this facade.
-    let reported = Vec2::new(2.9790354, -0.70686495);
+    let reported = Vec2::new(-0.70686495, -2.9790354);
     assert!(city.building_collision(reported.to_array(), 0.003, 0.103, 0.12));
     let building = city
         .landscape

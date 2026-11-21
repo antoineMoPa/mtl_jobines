@@ -32,10 +32,14 @@ fn point(p: [f64; 2], calibration: &Value) -> [f32; 2] {
     let east = b[0].as_f64().unwrap();
     let north = merc(a[1].as_f64().unwrap());
     let south = merc(c[1].as_f64().unwrap());
-    [
-        (-76.8 + (p[0] - west) * 153.6 / (east - west)) as f32,
-        (-76.8 + (merc(p[1]) - north) * 153.6 / (south - north)) as f32,
-    ]
+    let u = (p[0] - west) / (east - west);
+    let v = (merc(p[1]) - north) / (south - north);
+    let controls = &calibration["fit_controls"];
+    [0, 1].map(|axis| {
+        let coordinate = |i: usize| controls[i]["world"][axis].as_f64().unwrap();
+        let origin = coordinate(0);
+        (origin + u * (coordinate(1) - origin) + v * (coordinate(2) - origin)) as f32
+    })
 }
 pub(super) fn extract(base: &str) -> Result<Index, Box<dyn Error>> {
     let cached = format!("{base}/green-spaces.road");

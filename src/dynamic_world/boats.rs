@@ -42,20 +42,22 @@ impl DynamicWorld {
         {
             return;
         }
-        let Some(start) = hermes.default_start() else {
+        let Some(start) = hermes.boat_start.or(hermes.default_start()) else {
             return;
         };
         let origin = Vec2::from_array(start.point) * METERS_PER_UNIT;
         // Follow three bearings from town to the first shore. Moor just offshore and
         // check the entire patrol circle before assigning a skipper to a second boat.
-        for (crew, (id, angle)) in [
-            ("vehicle-boat-voile", -1.57_f32),
-            ("vehicle-boat-cabine", -2.35),
-            ("vehicle-boat-runabout", -0.85),
+        let bearing = hermes.boat_start.and_then(|s| s.heading).unwrap_or(-1.57);
+        for (crew, (id, offset)) in [
+            ("vehicle-boat-voile", 0.),
+            ("vehicle-boat-cabine", -0.78),
+            ("vehicle-boat-runabout", 0.72),
         ]
         .into_iter()
         .enumerate()
         {
+            let angle = bearing + offset;
             let out = Vec2::from_angle(angle);
             let model = catalog::definitions()
                 .iter()

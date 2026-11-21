@@ -1,5 +1,5 @@
-//! YULPET's three aircraft share a timed circuit on the west
-//! runway, with the east runway available for player departures and arrivals.
+//! YULPET's three aircraft share a timed circuit on the northern
+//! runway, with the southern runway available for player departures and arrivals.
 mod props;
 pub(crate) use props::groups as prop_groups;
 
@@ -7,59 +7,78 @@ use super::{aircraft, SpawnPoint, Vehicle, METERS_PER_UNIT};
 use glam::{Vec2, Vec3};
 use opencity::runtime::{City, Mesh, SurfaceKind};
 
-const WEST: &str = "airport_west_runway";
-const EAST: &str = "airport_east_runway";
+// A/B are the taxiway letters on the airfield signs.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Strip {
+    A,
+    B,
+}
 
 struct Runway {
-    min: Vec2,
-    max: Vec2,
+    origin: Vec2,
+    across: Vec2,
+    size: Vec2,
     height: f32,
 }
 
 impl Runway {
-    fn find(city: &City, name: &str) -> Option<Self> {
-        let feature = city
-            .landscape
-            .iter()
-            .find(|f| f.name.as_deref() == Some(name))?;
-        let min = feature
-            .points
-            .iter()
-            .copied()
-            .map(Vec2::from_array)
-            .reduce(Vec2::min)?;
-        let max = feature
-            .points
-            .iter()
-            .copied()
-            .map(Vec2::from_array)
-            .reduce(Vec2::max)?;
+    fn find(city: &City, strip: Strip) -> Option<Self> {
+        let names = match strip {
+            Strip::A => ["airport_north_runway", "airport_west_runway"],
+            Strip::B => ["airport_south_runway", "airport_east_runway"],
+        };
+        let feature = names.iter().find_map(|name| {
+            city.landscape
+                .iter()
+                .find(|f| f.name.as_deref() == Some(*name))
+        })?;
+        let [a, b, c, _] = feature.points.as_slice() else {
+            return None;
+        };
+        let origin = Vec2::from_array(*a);
+        let width = Vec2::from_array(*b) - origin;
+        let diagonal = Vec2::from_array(*c) - origin;
+        let size = Vec2::new(width.length(), (diagonal - width).length());
+        if size.min_element() <= 0. {
+            return None;
+        }
         let height = city
-            .surface_at(((min + max) * 0.5).to_array(), f32::INFINITY)?
+            .surface_at((origin + diagonal * 0.5).to_array(), f32::INFINITY)?
             .height;
-        Some(Self { min, max, height })
+        Some(Self {
+            origin,
+            across: width / size.x,
+            size,
+            height,
+        })
+    }
+
+    fn point(&self, local: Vec2) -> Vec2 {
+        self.origin + self.across.rotate(local)
     }
 
     fn center(&self) -> Vec2 {
-        (self.min + self.max) * 0.5
+        self.point(self.size * 0.5)
     }
 }
 
 #[derive(Default)]
 pub(super) struct Airport {
     center: Vec3,
+    course: Vec2,
     clock: f32,
     traffic: Vec<Vehicle>,
 }
 
 impl Airport {
     pub(super) fn new(city: &City) -> Result<Self, String> {
-        let Some(runway) = Runway::find(city, WEST) else {
+        let Some(runway) = Runway::find(city, Strip::A) else {
             return Ok(Self::default());
         };
         let center = runway.center().extend(runway.height) * METERS_PER_UNIT;
         let mut airport = Self {
             center,
+            course: -runway.across.perp(),
             ..Default::default()
         };
         for model in [
@@ -71,7 +90,7 @@ impl Airport {
                 city,
                 SpawnPoint {
                     point: runway.center().to_array(),
-                    heading: Some(-std::f32::consts::FRAC_PI_2),
+                    heading: Some(airport.course.to_angle()),
                 },
             )?;
             plane.set_catalog_model(Some(model.catalog_index()));
@@ -90,13 +109,12 @@ impl Airport {
         for (slot, plane) in self.traffic.iter_mut().enumerate() {
             let time = self.clock + 7. + (PERIOD / 3.) * slot as f32;
             let (point, motion) = circuit(time);
-            let world_angle = |velocity: Vec3| -velocity.x.atan2(velocity.y);
-            let heading = world_angle(motion);
-            let next_heading = world_angle(circuit(time + 0.25).1);
+            let world = |v: Vec3| self.course.rotate(v.truncate()).extend(v.z);
+            let heading = world(motion).truncate().to_angle();
+            let next_heading = world(circuit(time + 0.25).1).truncate().to_angle();
             let turn = (next_heading - heading).sin();
-            plane.position =
-                self.center + Vec3::new(point.y, -point.x, point.z + plane.ride_height());
-            plane.velocity = Vec3::new(motion.y, -motion.x, motion.z);
+            plane.position = self.center + world(point) + Vec3::Z * plane.ride_height();
+            plane.velocity = world(motion);
             plane.yaw = heading;
             plane.pitch = motion.z.atan2(motion.truncate().length());
             plane.grounded = point.z <= 0.05;
@@ -125,7 +143,7 @@ impl Airport {
 }
 
 const PERIOD: f32 = 244.;
-// Coordinates are metres relative to the runway centre: south, east, above
+// Coordinates are metres relative to the runway centre: along the takeoff heading, left, above
 // the pavement. Tangents are per second so transitions preserve speed.
 const CIRCUIT: &[(f32, [f32; 3], [f32; 3])] = &[
     (0., [-740., 0., 0.], [12., 0., 0.]),
@@ -192,17 +210,17 @@ pub(crate) fn append_scenery(city: &City, mesh: &mut Mesh) {
         }
     }
 
-    for name in [WEST, EAST] {
-        let Some(r) = Runway::find(city, name) else {
+    for strip in [Strip::A, Strip::B] {
+        let Some(r) = Runway::find(city, strip) else {
             continue;
         };
-        let center = r.center().x;
+        let center = r.size.x * 0.5;
         let base = r.height;
         let quad = |mesh: &mut Mesh, min: Vec2, max: Vec2, height, color, kind| {
-            let a = min.extend(height).to_array();
-            let b = Vec3::new(max.x, min.y, height).to_array();
-            let c = max.extend(height).to_array();
-            let d = Vec3::new(min.x, max.y, height).to_array();
+            let a = r.point(min).extend(height).to_array();
+            let b = r.point(Vec2::new(max.x, min.y)).extend(height).to_array();
+            let c = r.point(max).extend(height).to_array();
+            let d = r.point(Vec2::new(min.x, max.y)).extend(height).to_array();
             mesh.triangle([a, b, c], color, kind, [0.; 3]);
             mesh.triangle([a, c, d], color, kind, [0.; 3]);
         };
@@ -212,11 +230,12 @@ pub(crate) fn append_scenery(city: &City, mesh: &mut Mesh) {
         for triangle in mesh.vertices.chunks_exact_mut(3) {
             if triangle.iter().all(|v| {
                 let [x, y, z] = v.position;
-                let p = Vec2::new(x, y);
+                let offset = Vec2::new(x, y) - r.origin;
+                let p = Vec2::new(offset.dot(r.across), offset.dot(r.across.perp()));
                 v.surface[0] == SurfaceKind::Sidewalk as u32 as f32
                     && (z - base).abs() < 0.00004
-                    && p.cmpge(r.min - margin).all()
-                    && p.cmple(r.max + margin).all()
+                    && p.cmpge(-margin).all()
+                    && p.cmple(r.size + margin).all()
             }) {
                 for vertex in triangle {
                     vertex.color = [0.22, 0.25, 0.27];
@@ -234,21 +253,18 @@ pub(crate) fn append_scenery(city: &City, mesh: &mut Mesh) {
                 SurfaceKind::Marking,
             );
         };
-        for x in [r.min.x + 0.034, r.max.x - 0.038] {
-            paint(
-                Vec2::new(x, r.min.y + 0.095),
-                Vec2::new(x + 0.004, r.max.y - 0.095),
-            );
+        for x in [0.034, r.size.x - 0.038] {
+            paint(Vec2::new(x, 0.095), Vec2::new(x + 0.004, r.size.y - 0.095));
         }
-        let mut y = r.min.y + 0.50;
-        while y + 0.26 < r.max.y - 0.50 {
+        let mut y = 0.50;
+        while y + 0.26 < r.size.y - 0.50 {
             paint(
                 Vec2::new(center - 0.005, y),
                 Vec2::new(center + 0.005, y + 0.26),
             );
             y += 0.49;
         }
-        for y in [r.min.y + 0.095, r.max.y - 0.26] {
+        for y in [0.095, r.size.y - 0.26] {
             for offset in [-0.245, -0.186, -0.127, -0.068, 0.038, 0.097, 0.156, 0.215] {
                 paint(
                     Vec2::new(center + offset, y),
@@ -264,7 +280,7 @@ mod tests {
     use super::*;
     use crate::dynamic_world::{Controls, DynamicWorld};
     use crate::hermes::Hermes;
-    use std::f32::consts::FRAC_PI_2;
+    use std::f32::consts::PI;
 
     #[test]
     fn airport_map_has_two_runways_and_three_separated_circuits() {
@@ -272,21 +288,22 @@ mod tests {
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/maps/mtl/map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
         let city = hermes.city();
-        let west = Runway::find(city, WEST).unwrap();
-        let east = Runway::find(city, EAST).unwrap();
-        assert_eq!(west.center().y, east.center().y);
-        for y in [-7., -13.15, -21.5] {
-            let infield = city.surface_at([0., y], f32::INFINITY).unwrap();
+        let north = Runway::find(city, Strip::A).unwrap();
+        let south = Runway::find(city, Strip::B).unwrap();
+        assert_eq!(north.center().x, south.center().x);
+        assert!(north.center().x < -13.);
+        for x in [-7., -13.15, -21.5] {
+            let infield = city.surface_at([x, 0.], f32::INFINITY).unwrap();
             assert_eq!(infield.kind, SurfaceKind::Grass);
-            assert!((infield.height - west.height).abs() < 0.002);
+            assert!((infield.height - north.height).abs() < 0.002);
         }
 
-        assert!((east.center().x - west.center().x - 8.).abs() < 0.001);
+        assert!((north.center().y - south.center().y - 8.).abs() < 0.001);
         let mut world = DynamicWorld::with_start(
             &hermes,
             Some(SpawnPoint {
-                point: [0.41, -4.55],
-                heading: Some(-FRAC_PI_2),
+                point: [-4.55, -0.41],
+                heading: Some(-PI),
             }),
         )
         .unwrap();
@@ -661,7 +678,7 @@ mod tests {
             }
             assert!(world.player().position.x < edge && world.player().position.z > 89.);
 
-            let sea = Vec2::new(20., -35.);
+            let sea = Vec2::new(-35., -20.);
             assert_eq!(
                 city.surface_at(sea.to_array(), f32::INFINITY).unwrap().kind,
                 opencity::runtime::SurfaceKind::Water

@@ -54,12 +54,12 @@ fn report_80_is_a_three_way_and_the_hill_access_is_a_turn() {
         assert_eq!(junction.kind, kind);
         let arms = map::intersection_arms(&projection, name);
         assert_eq!(arms.len(), kind.arm_count());
-        // Neither junction should retain an east-facing road or lane movement.
+        // Neither junction should retain an south-facing road or lane movement.
         for (index, is_end) in arms {
             let segment = &projection.segments[index];
             let tangent = segment.tangent_at(if is_end { 1. } else { 0. });
-            let outward_x = if is_end { -tangent.x } else { tangent.x };
-            assert!(outward_x < tangent.y.abs(), "{name} has an eastern stub");
+            let south = if is_end { tangent.y } else { -tangent.y };
+            assert!(south < tangent.x.abs(), "{name} has an southern stub");
         }
         let instance = network::default_three_way_instance(&program, &projection, junction)
             .or_else(|| network::default_right_turn_instance(&program, &projection, junction))

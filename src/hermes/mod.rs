@@ -118,9 +118,12 @@ fn detailed_frontage(feature: &opencity::LandscapeFeature) -> bool {
         .is_some_and(|name| name.starts_with("generated_area_"))
 }
 pub struct Hermes {
+    pub(crate) wildlife: Vec<crate::dynamic_world::wildlife::Home>,
+    pub(crate) wildlife_habitats: crate::dynamic_world::wildlife::Habitats,
     authored_props: Vec<crate::props::Entry>,
     default_start: Option<crate::dynamic_world::SpawnPoint>,
     walking_start: Option<crate::dynamic_world::SpawnPoint>,
+    pub(crate) boat_start: Option<crate::dynamic_world::SpawnPoint>,
     mission_sites: mission_sites::MissionSites,
     taxi_run: Option<taxi_runs::TaxiRun>,
     taxi_seed: u64,
@@ -305,9 +308,15 @@ impl Hermes {
             external_models.push(stations);
         }
         Ok(Self {
+            wildlife_habitats: crate::dynamic_world::wildlife::Habitats::read(program, &city),
+            wildlife: crate::dynamic_world::wildlife::Home::read(program, &city)?,
             authored_props,
             default_start: crate::dynamic_world::SpawnPoint::from_program(program)?,
             walking_start: crate::dynamic_world::SpawnPoint::walking_from_program(program)?,
+            boat_start: crate::dynamic_world::SpawnPoint::from_named_program(
+                program,
+                "boat_start",
+            )?,
             mission_sites: mission_sites::MissionSites::from_program(program),
             taxi_run: None,
             taxi_seed: web_time::SystemTime::now()
@@ -514,6 +523,12 @@ impl Hermes {
     pub fn update_navigation(&mut self, position: [f32; 3]) {
         self.navigation.update(&self.router, position.into());
     }
+    pub fn route_status(&self) -> RouteStatus {
+        self.navigation.status
+    }
+    pub(crate) fn road_route(&self) -> &[glam::Vec3] {
+        &self.navigation.points
+    }
     pub fn route_revision(&self) -> u64 {
         self.navigation.revision
     }
@@ -521,7 +536,7 @@ impl Hermes {
         self.navigation
             .points
             .iter()
-            .map(|&p| self.minimap.map_uv(p))
+            .map(|p| self.minimap.map_uv(p.truncate().to_array()))
             .collect()
     }
     pub fn map_uv(&self, point: [f32; 2]) -> [f32; 2] {

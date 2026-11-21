@@ -17,7 +17,36 @@ struct Report {
 }
 #[derive(Deserialize)]
 struct Intersection {
+    point_ref: Option<String>,
     map_coordinates: [f32; 2],
+}
+
+impl Report {
+    /// A named junction anchors reports recorded before the city's quarter turn.
+    /// Replays of custom maps and current reports keep their recorded coordinates.
+    fn align_to_junction(&mut self, city: &opencity::runtime::City) {
+        let Some(anchor) = &mut self.nearest_intersection else {
+            return;
+        };
+        let Some(junction) = city
+            .junctions
+            .iter()
+            .find(|j| Some(&j.point_ref) == anchor.point_ref.as_ref())
+        else {
+            return;
+        };
+        let [x, y] = anchor.map_coordinates;
+        let actual = glam::Vec2::new(junction.position.x, junction.position.y);
+        let rotated = glam::Vec2::new(y, -x);
+        if actual.distance(rotated) > 0.0001 || actual.distance(glam::Vec2::new(x, y)) <= 0.0001 {
+            return;
+        }
+        anchor.map_coordinates = rotated.to_array();
+        let turn = |[x, y, z]: [f32; 3]| [y, -x, z];
+        self.map_coordinates = turn(self.map_coordinates);
+        self.camera_position = self.camera_position.map(turn);
+        self.camera_look_at = self.camera_look_at.map(turn);
+    }
 }
 
 pub(super) fn run(
@@ -38,10 +67,11 @@ pub(super) fn run(
         .collect();
     folders.sort();
     for folder in folders {
-        let report: Report = serde_json::from_slice(
+        let mut report: Report = serde_json::from_slice(
             &fs::read(folder.join("report.json")).map_err(|e| e.to_string())?,
         )
         .map_err(|e| e.to_string())?;
+        report.align_to_junction(hermes.city());
         let id = folder.file_name().unwrap().to_string_lossy();
         let recorded_heading = match (report.camera_position, report.camera_look_at) {
             (Some(eye), Some(look)) => Some((look[1] - eye[1]).atan2(look[0] - eye[0])),
@@ -166,4 +196,38 @@ fn capture(
     fs::write(path, png).map_err(|e| e.to_string())?;
     eprintln!("Captured {}", path.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_camera_and_player_follow_the_same_named_junction_once() {
+        let program = opencity::parse(
+            "road street: carlane; end
+             anchor=map_point(-2,-1); west=map_point(-3,-1); east=map_point(-1,-1);
+             south=map_point(-2,-2); north=map_point(-2,0);
+             street(west,-2.7,-1,-2.3,-1,anchor); street(anchor,-1.7,-1,-1.3,-1,east);
+             street(south,-2,-1.7,-2,-1.3,anchor); street(anchor,-2,-0.7,-2,-0.3,north);
+             intersection4(anchor,street);",
+        )
+        .unwrap();
+        let city = opencity::runtime::City::from_program(&program, None).unwrap();
+        let mut report = Report {
+            map_coordinates: [1., -3., 0.1],
+            camera_position: Some([0.8, -3., 0.2]),
+            camera_look_at: Some([1.2, -3., 0.1]),
+            nearest_intersection: Some(Intersection {
+                point_ref: Some("anchor".into()),
+                map_coordinates: [1., -2.],
+            }),
+        };
+        for _ in 0..2 {
+            report.align_to_junction(&city);
+            assert_eq!(report.map_coordinates, [-3., -1., 0.1]);
+            assert_eq!(report.camera_position, Some([-3., -0.8, 0.2]));
+            assert_eq!(report.camera_look_at, Some([-3., -1.2, 0.1]));
+        }
+    }
 }

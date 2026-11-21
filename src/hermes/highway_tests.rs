@@ -41,7 +41,7 @@ fn highway_climbs_have_pavement_and_connected_lanes() {
     };
 
     // The report location used to be grass inside an otherwise empty excavation.
-    let reported = city.surface_at([-7.4590015, -0.41013375], 1.).unwrap();
+    let reported = city.surface_at([-0.41013375, 7.4590015], 1.).unwrap();
     assert_eq!(reported.kind, SurfaceKind::Asphalt);
     assert!(reported.road.is_some());
 
@@ -118,7 +118,7 @@ fn highway_climbs_have_pavement_and_connected_lanes() {
         }
     }
 
-    // The eastern crest must reach the unmodified ground, not stop below a terrain wall.
+    // The southern crest must reach the unmodified ground, not stop below a terrain wall.
     let elevation = city.elevation.as_ref().unwrap();
     for (name, crest_t) in [
         ("highway_north_east_climb", 1.),
@@ -136,7 +136,7 @@ fn highway_climbs_have_pavement_and_connected_lanes() {
             assert!((pavement - ground - 0.002).abs() < 0.00001);
             // Check beyond the authored pavement as well as directly on its last row.
             assert!(
-                city.road_barrier_contact([p.x + 0.005, p.y], 0.008, ground, ground + 0.04)
+                city.road_barrier_contact([p.x, p.y - 0.005], 0.008, ground, ground + 0.04)
                     .is_none(),
                 "terrain wall across {name} lane {lane} crest"
             );

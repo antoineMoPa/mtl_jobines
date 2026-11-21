@@ -20,6 +20,7 @@ pub enum ShotSurface {
     Rubber,
     Water,
     Spectral,
+    Wildlife,
 }
 impl ShotSurface {
     pub(super) fn facade(material: opencity::BuildingMaterial) -> Self {
@@ -41,7 +42,7 @@ impl ShotSurface {
             Self::Metal => Material::Lamp,
             Self::Asphalt => Material::Asphalt,
             Self::Rubber => Material::Rubber,
-            Self::Earth | Self::Water | Self::Spectral => Material::Body,
+            Self::Earth | Self::Water | Self::Spectral | Self::Wildlife => Material::Body,
         }
     }
 }
@@ -55,10 +56,11 @@ pub struct ShotHit {
 #[derive(Clone, Copy)]
 enum Target {
     Fixed,
-    Car,
+    Car(usize),
     Tire(usize, Wheel),
     Prop(usize),
     Zombie(u32),
+    Wildlife(usize),
 }
 struct Contact {
     hit: ShotHit,
@@ -151,7 +153,12 @@ impl DynamicWorld {
     }
 
     pub(super) fn clear_officer_shot(&self, city: &City, hand: Vec3, target: Vec3) -> bool {
-        self.weapon_hit(city, hand, target).is_none()
+        match self.weapon_hit(city, hand, target) {
+            None => true,
+            Some(hit) => {
+                matches!(hit.target, Target::Car(id) | Target::Tire(id, _) if self.is_driving() && id == self.player_vehicle.0)
+            }
+        }
     }
 
     pub(super) fn right_hand(instance: super::crowd::Instance<'_>) -> Option<Vec3> {
@@ -217,7 +224,7 @@ impl DynamicWorld {
             if let Some((distance, normal, wheel)) = contact {
                 limit = distance;
                 hit = Some(Contact {
-                    target: wheel.map_or(Target::Car, |w| Target::Tire(index, w)),
+                    target: wheel.map_or(Target::Car(index), |w| Target::Tire(index, w)),
                     hit: ShotHit {
                         point: from + dir * limit,
                         normal: pose * normal,
@@ -251,6 +258,18 @@ impl DynamicWorld {
                     point: from + dir * t,
                     normal: n,
                     surface: ShotSurface::Spectral,
+                    stationary: false,
+                },
+            });
+        }
+        if let Some((id, t)) = self.wildlife_shot_candidate(from, dir, limit) {
+            limit = t;
+            hit = Some(Contact {
+                target: Target::Wildlife(id),
+                hit: ShotHit {
+                    point: from + dir * t,
+                    normal: -dir,
+                    surface: ShotSurface::Wildlife,
                     stationary: false,
                 },
             });
@@ -324,6 +343,7 @@ impl DynamicWorld {
             Target::Zombie(id) => self
                 .crowd
                 .damage_zombie(id, damage, dir, city, &self.vehicles),
+            Target::Wildlife(id) => self.hit_wildlife(id),
             _ => {}
         }
         self.sound_serial = self.sound_serial.wrapping_add(1).max(1);
@@ -345,6 +365,37 @@ mod tests {
     use super::*;
     use crate::hermes::Hermes;
     use opencity::runtime::{Mesh, SurfaceKind};
+
+    #[test]
+    fn wildlife_shot_uses_camera_aim_and_respects_cover() {
+        let map = Hermes::test_map_from_source(
+            "road street: sidewalk carlane carlane sidewalk; end
+             street(-1,0,1,0); land(-2,-2,2,-2,2,2,-2,2);
+             wall=building(0.05,{ material: red_brick },0.18,0.1,0.2,0.1,0.2,0.22,0.18,0.22);
+             wildlife_crow_garden=map_point(0.25,0.16);",
+        );
+        let mut world = DynamicWorld::with_start(&map, Some("0.25,0,0".parse().unwrap())).unwrap();
+        let animal = world.wildlife().next().unwrap();
+        let eye = animal.position + 4. * Vec3::Z;
+        let end = animal.position - Vec3::Z;
+        let aim = world.weapon_aim_point(map.city(), eye, end);
+        assert!(aim.z > animal.position.z);
+
+        let blocked = world
+            .fire_weapon_at(map.city(), Vec3::new(12., 16., 1.5), aim, 1)
+            .unwrap();
+        assert!(matches!(blocked.surface, ShotSurface::Brick(_)));
+        assert_eq!(world.weapon_aim_point(map.city(), eye, end), aim);
+
+        let hit = world.fire_weapon_at(map.city(), eye, aim, 1).unwrap();
+        assert_eq!(hit.surface, ShotSurface::Wildlife);
+        assert!(hit.point.abs_diff_eq(aim, 0.001));
+        assert!(!hit.stationary);
+        let next = world.fire_weapon_at(map.city(), eye, end, 2).unwrap();
+        assert!(next.stationary);
+        assert!(next.point.z < aim.z);
+    }
+
     #[test]
     fn weapon_shot_breaks_the_first_prop_and_stops_at_cover() {
         let h=Hermes::test_map_from_source("road street: sidewalk carlane carlane sidewalk; end street(-1,0,1,0); land(-2,-2,2,-2,2,2,-2,2); wall=building(0.05,{ material: red_brick },0.18,0.1,0.2,0.1,0.2,0.22,0.18,0.22);");

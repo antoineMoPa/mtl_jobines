@@ -68,9 +68,9 @@ This additive plan maps `cross_street` and `cycling_street` to street-facing inf
 It adds buildings in frontage gaps and leaves block interiors open. Existing buildings,
 including those on mountain edges, retain their exact placements and definitions.
 The mountain reservation prevents new construction; Parc Jarry sits behind the existing
-west-side apartment row near Jean-Talon station, without replacing any homes.
-The downtown grid extends east to x=23.8, with taller mixed-use facades throughout that
-column. The next column reaches x=25.4 and uses 4–6 storey brick heritage facades. Its civic
+north-side apartment row near Jean-Talon station, without replacing any homes.
+The downtown grid extends south to y=-23.8, with taller mixed-use facades throughout that
+column. The next column reaches y=-25.4 and uses 4–6 storey brick heritage facades. Its civic
 forecourt clusters the existing old city hall (`study_09`), domed cathedral (`study_12`)
 and old-town chateau (`study_20`) models. Both avenues join the ring access at proper
 four-way junctions; subdivisions retain the original access geometry.

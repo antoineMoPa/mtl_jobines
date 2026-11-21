@@ -40,6 +40,7 @@ const ARREST_REACH: f32 = 1.8;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Crime {
     VehicleTheft,
+    CruiserHit,
     Gunshot,
     PedestrianHit,
 }
@@ -215,14 +216,30 @@ impl DynamicWorld {
         self.traffic.chase.status
     }
 
-    pub(in crate::dynamic_world) fn patrol_contact(&mut self, contacts: &[(usize, usize)]) {
+    pub(in crate::dynamic_world) fn patrol_contact(
+        &mut self,
+        contacts: &[crate::dynamic_world::contacts::VehicleContact],
+    ) {
+        if self.is_driving()
+            && self.wanted_stars() == 0
+            && contacts
+                .iter()
+                .filter_map(|contact| contact.struck_by(self.player_vehicle.0))
+                .any(|id| {
+                    self.vehicles[id]
+                        .definition()
+                        .is_some_and(|d| d.config.research_id == CRUISER)
+                })
+        {
+            self.report_crime(Crime::CruiserHit);
+        }
         let chase = &mut self.traffic.chase;
         for patrol in &mut chase.patrols {
             if let Some(b) = patrol.intercept.suspect {
                 let a = patrol.vehicle;
                 if contacts
                     .iter()
-                    .any(|pair| *pair == (a, b) || *pair == (b, a))
+                    .any(|contact| contact.vehicles == (a, b) || contact.vehicles == (b, a))
                 {
                     patrol.intercept.contact();
                 }
@@ -327,7 +344,7 @@ impl DynamicWorld {
         let position = self.player_position();
         let chase = &mut self.traffic.chase;
         let severity = match crime {
-            Crime::VehicleTheft => 1,
+            Crime::VehicleTheft | Crime::CruiserHit => 1,
             Crime::PedestrianHit => 2,
             Crime::Gunshot => 3,
         };
@@ -624,7 +641,8 @@ impl DynamicWorld {
             && !matches!(self.chase_status(), ChaseStatus::Surrendering)
         {
             if let Some(hand) = Self::right_hand(officer.actor.instance(self.season)) {
-                let fired = if self.is_driving() {
+                let fired = if tire.is_some() || (self.is_driving() && !self.player().is_bicycle())
+                {
                     self.fire_weapon_at(city, hand, aim, 1);
                     true
                 } else if self.clear_officer_shot(city, hand, aim) {
@@ -660,6 +678,7 @@ impl DynamicWorld {
             _ => {}
         }
         chase.next_update -= dt;
+        let dispatch_report = matches!(chase.status, Reported(_)) && chase.next_update <= 0.;
         let player = self.player_position();
         let driving = self.is_driving();
         let slow = !driving || self.player().velocity.length() < 3.;
@@ -717,7 +736,7 @@ impl DynamicWorld {
                 self.clear_chase();
                 return;
             }
-            if !matches!(chase.status, Reported(_)) || !chase.patrols.is_empty() {
+            if !matches!(chase.status, Reported(_)) || dispatch_report {
                 chase.status = Searching;
             }
         }
@@ -766,7 +785,7 @@ impl DynamicWorld {
                 .count();
             if routed < usize::from(chase.stars)
                 && chase.reinforce_in <= 0.
-                && (seen || matches!(chase.status, Reported(_)))
+                && (seen || dispatch_report)
             {
                 if let Some(id) = self.dispatch_patrol(hermes.city()) {
                     self.traffic.chase.enlist(id);
@@ -1039,6 +1058,78 @@ mod tests {
     }
 
     #[test]
+    fn driving_away_interrupts_capture_and_eight_unseen_seconds_clear_all_stars() {
+        let map = Hermes::test_map_from_source(
+            "road street: sidewalk carlane carlane middle carlane carlane sidewalk; end
+            street(-3,0,3,0); land(-4,-3,4,-3,4,3,-4,3); player_start(0,0,0);",
+        );
+        let mut w = world_without_ambient_police(&map);
+        let compact = catalog::definitions()
+            .iter()
+            .position(|d| d.config.research_id == "vehicle-v2-09")
+            .unwrap();
+        let player = w.player_vehicle.0;
+        w.vehicles[player].set_catalog_model(Some(compact));
+        w.report_crime(Crime::Gunshot);
+        w.step_chase(&map, w.player_position(), 1.);
+        let patrol = w.traffic.chase.first_unit().unwrap();
+        let car = &mut w.vehicles[patrol];
+        car.velocity = Vec3::ZERO;
+        let side = glam::Vec2::from_angle(car.yaw).perp().extend(0.);
+        w.vehicles[player].position = car.position + side * 8.;
+        w.step_chase(&map, w.player_position(), 0.02);
+        assert_eq!(w.chase_status(), ChaseStatus::Pursued);
+        let officer = w.traffic.chase.patrols[0]
+            .officer
+            .as_ref()
+            .unwrap()
+            .actor
+            .position;
+        let outward = if (officer - w.vehicles[patrol].position).dot(side) > 0. {
+            side
+        } else {
+            -side
+        };
+        w.vehicles[player].position = officer + outward * 2.;
+        w.vehicles[player].yaw = outward.y.atan2(outward.x);
+        w.step_chase(&map, w.player_position(), 2.);
+        assert_eq!(w.chase_status(), ChaseStatus::Surrendering);
+        for _ in 0..45 {
+            w.step(
+                &map,
+                Controls {
+                    throttle: 1.,
+                    ..Default::default()
+                },
+                WalkControls::default(),
+                1. / 60.,
+            );
+            if w.chase_status() == ChaseStatus::Pursued {
+                break;
+            }
+        }
+        assert_eq!(w.chase_status(), ChaseStatus::Pursued);
+        let last_seen = w.traffic.chase.last_known;
+        let far = last_seen + outward * 180.;
+        w.vehicles[player].position = far;
+        w.step_chase(&map, last_seen, 7.75);
+        assert_eq!(w.chase_status(), ChaseStatus::Searching);
+        assert_eq!(w.traffic.chase.last_known, last_seen);
+        assert_eq!(w.wanted_stars(), 3);
+        w.vehicles[player].position = last_seen;
+        w.step_chase(&map, far, 0.02);
+        assert_eq!(w.chase_status(), ChaseStatus::Pursued);
+        w.vehicles[player].position = far;
+        w.step_chase(&map, last_seen, 7.75);
+        assert_eq!(w.wanted_stars(), 3);
+        w.step_chase(&map, far, 0.25);
+        assert_eq!(w.chase_status(), ChaseStatus::Clear);
+        assert_eq!(w.wanted_stars(), 0);
+        assert_eq!(w.player_position(), far);
+        assert_eq!(w.player_vehicle.0, player);
+    }
+
+    #[test]
     fn occupied_entry_reports_once_and_a_parked_vehicle_is_free_to_enter() {
         let map = Hermes::test_map();
         let mut w = DynamicWorld::new(&map);
@@ -1053,6 +1144,56 @@ mod tests {
         w.clear_chase();
         assert!(w.toggle_vehicle(&map) && w.toggle_vehicle(&map));
         assert_eq!(w.chase_status(), ChaseStatus::Clear);
+    }
+
+    #[test]
+    fn bumping_a_cruiser_while_driving_starts_a_one_star_chase() {
+        let map = Hermes::test_map_from_source(
+            "road street: sidewalk carlane carlane middle carlane carlane sidewalk; end
+            street(-2,0,2,0); land(-3,-2,3,-2,3,2,-3,2); player_start(0,0,0);",
+        );
+        let model = |name| {
+            catalog::definitions()
+                .iter()
+                .position(|d| d.config.research_id == name)
+                .unwrap()
+        };
+        let compact = model("vehicle-v2-09");
+        let cruiser = model(CRUISER);
+        for (other_model, driving, player_speed, other_speed, expected) in [
+            (cruiser, true, 1., 0., 1),
+            (cruiser, true, 0., -3., 0),
+            (compact, true, 2., 0., 0),
+            (cruiser, false, 2., 0., 0),
+        ] {
+            let mut w = world_without_ambient_police(&map);
+            let player = w.player_vehicle.0;
+            w.vehicles[player].set_catalog_model(Some(compact));
+            if !driving {
+                assert!(w.toggle_vehicle(&map));
+            }
+            let mut other = Vehicle::spawn(map.city());
+            other.set_catalog_model(Some(other_model));
+            other.yaw = 0.;
+            let gap = (w.vehicles[player].length() + other.length()) * 0.5 - 0.01;
+            let origin = w.vehicles[player].position;
+            let id = w.vehicles.len();
+            w.vehicles.push(other);
+            for _ in 0..2 {
+                w.vehicles[player].yaw = 0.;
+                w.vehicles[player].position = origin;
+                w.vehicles[player].velocity = Vec3::X * player_speed;
+                w.vehicles[id].position = origin + Vec3::X * gap;
+                w.vehicles[id].velocity = Vec3::X * other_speed;
+                let collisions = w.vehicles[id].collisions;
+                tick(&mut w, &map);
+                assert!(w.vehicles[id].collisions > collisions);
+                assert_eq!(w.wanted_stars(), expected);
+            }
+            if expected == 1 {
+                assert_eq!(w.chase_status(), ChaseStatus::Reported(Crime::CruiserHit));
+            }
+        }
     }
 
     #[test]
