@@ -1,5 +1,6 @@
-//! Habitat encounters and ground-following routes. Simulation positions use metres.
+//! Habitat encounters and wildlife routes. Simulation positions use metres.
 mod contact;
+mod flight;
 mod habitat;
 mod population;
 pub(crate) use habitat::Habitats;
@@ -18,7 +19,7 @@ macro_rules! species_catalog {
         impl Species {
             pub const ALL: [Self; 11] = [$(Self::$kind),+];
             pub fn slug(self) -> &'static str { match self { $(Self::$kind => $slug),+ } }
-            pub fn clips(self) -> [&'static str; 2] { match self { $(Self::$kind => $clips),+ } }
+            pub fn clips(self) -> &'static [&'static str] { match self { $(Self::$kind => &$clips),+ } }
             fn roam_radius(self) -> f32 { match self { $(Self::$kind => $radius),+ } }
             pub fn model(self) -> &'static [u8] {
                 match self { $(Self::$kind => crate::web_asset!(
@@ -31,19 +32,38 @@ macro_rules! species_catalog {
 }
 species_catalog! {
     Squirrel => ("squirrel", 0.65, ["bound", "forage"]),
-    Pigeon => ("pigeon", 0.30, ["HeadBob", "GroundPeck"]),
-    Crow => ("crow", 0.0, ["LookAround", "Caw"]),
-    Gull => ("gull", 0.0, ["Survey", "WingStretch"]),
+    Pigeon => ("pigeon", 0.30, ["HeadBob", "GroundPeck", "Flight"]),
+    Crow => ("crow", 0.0, ["LookAround", "Caw", "Flight"]),
+    Gull => ("gull", 0.0, ["Survey", "WingStretch", "Flight"]),
     Mallard => ("mallard", 0.55, ["Waddle", "Dabble"]),
     Goose => ("goose", 0.90, ["Walk", "Graze"]),
     Heron => ("heron", 0.35, ["Stalk", "Strike"]),
-    Chickadee => ("chickadee", 0.0, ["TailFlick", "Hop"]),
+    Chickadee => ("chickadee", 0.0, ["TailFlick", "Hop", "Flight"]),
     Fox => ("fox", 1.40, ["trot", "listen"]),
     Skunk => ("skunk", 0.60, ["waddle", "alert"]),
     Cat => ("cat", 1.0, ["walk", "groom"]),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CatCoat {
+    White,
+    Black,
+}
+impl CatCoat {
+    const ALL: [Self; 2] = [Self::White, Self::Black];
+}
+
 impl Species {
+    pub fn model_with_coat(self, coat: Option<CatCoat>) -> &'static [u8] {
+        match (self, coat) {
+            (Self::Cat, Some(CatCoat::Black)) => crate::web_asset!(
+                "../../data/wildlife/cat-black.glb",
+                "data/wildlife/cat-black.glb"
+            ),
+            _ => self.model(),
+        }
+    }
+
     fn foot_height(self, city: &City, sample: opencity::runtime::SurfaceSample) -> Option<f32> {
         if sample.kind == opencity::runtime::SurfaceKind::Water {
             let level = city.elevation.as_ref()?.spec.water_level?;
@@ -71,13 +91,16 @@ impl Species {
 #[derive(Clone)]
 pub(crate) struct Home {
     species: Species,
+    cat_coat: Option<CatCoat>,
     ground: [Vec3; 16],
+    flight: Option<flight::Flight>,
     phase: f32,
     reaction: Reaction,
 }
 #[derive(Clone, Copy)]
 pub struct Sighting {
     pub species: Species,
+    pub cat_coat: Option<CatCoat>,
     pub position: Vec3,
     pub heading: f32,
     pub roll: f32,
@@ -119,14 +142,23 @@ impl Home {
                 (h ^ u32::from(b)).wrapping_mul(16777619)
             });
             let phase = (seed % 4096) as f32 / 97.;
-            homes.push(
-                Self::at(species, center, phase, city)
-                    .ok_or_else(|| format!("{name} has no clear ground"))?,
-            );
+            let coat = (species == Species::Cat).then(|| CatCoat::ALL[((seed >> 12) & 1) as usize]);
+            let mut home = Self::at(species, center, phase, city, coat)
+                .ok_or_else(|| format!("{name} has no clear ground"))?;
+            if let Some(flight) = &mut home.flight {
+                flight.start_perched();
+            }
+            homes.push(home);
         }
         Ok(homes)
     }
-    fn at(species: Species, center: Vec2, phase: f32, city: &City) -> Option<Self> {
+    fn at(
+        species: Species,
+        center: Vec2,
+        phase: f32,
+        city: &City,
+        cat_coat: Option<CatCoat>,
+    ) -> Option<Self> {
         let mut ground = [Vec3::ZERO; 16];
         let body = species.body_radii();
         let width = body.x.max(body.y);
@@ -156,6 +188,8 @@ impl Home {
         }
         Some(Self {
             species,
+            cat_coat,
+            flight: flight::Flight::plan(species, ground[0], phase, city),
             ground,
             phase,
             reaction: Reaction::Roaming,
@@ -171,8 +205,9 @@ impl Home {
         let index = path as usize;
         let a = self.ground[index];
         let b = self.ground[(index + 1) % 16];
-        Sighting {
+        let mut pose = Sighting {
             species: self.species,
+            cat_coat: self.cat_coat,
             position: a.lerp(b, path.fract()),
             roll: 0.,
             heading: if self.species.roam_radius() > 0. {
@@ -182,7 +217,11 @@ impl Home {
             },
             clip: usize::from(!moving),
             seconds: if moving { stage } else { stage - 5. },
+        };
+        if let Some(flight) = &self.flight {
+            flight.pose(time, &mut pose);
         }
+        pose
     }
 }
 
@@ -216,7 +255,9 @@ impl super::DynamicWorld {
         let eye = self.player_position();
         self.wildlife_homes
             .iter()
-            .filter(move |h| h.ground[0].distance_squared(eye) < h.species.view_distance().powi(2))
             .map(|h| h.sighting(self.wildlife_time))
+            .filter(move |pose| {
+                pose.position.distance_squared(eye) < pose.species.view_distance().powi(2)
+            })
     }
 }

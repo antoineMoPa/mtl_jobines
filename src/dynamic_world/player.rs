@@ -128,7 +128,7 @@ impl Pedestrian {
     pub(super) fn new(city: &City, position: Vec3, yaw: f32) -> Self {
         Self::with_model(city, position, yaw, MODEL)
     }
-    fn with_model(city: &City, position: Vec3, yaw: f32, gait_model: usize) -> Self {
+    pub(super) fn with_model(city: &City, position: Vec3, yaw: f32, gait_model: usize) -> Self {
         Self {
             gait_model,
             position,

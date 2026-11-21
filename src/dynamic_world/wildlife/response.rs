@@ -48,8 +48,12 @@ impl Home {
     pub(super) fn is_active(&self) -> bool {
         matches!(self.reaction, Reaction::Roaming)
     }
-    pub(super) fn bump(&mut self, direction: Vec2, speed: f32) {
+    pub(super) fn bump(&mut self, direction: Vec2, speed: f32, time: f32) {
         if self.is_active() {
+            if let Some(flight) = &mut self.flight {
+                flight.launch(time);
+                return;
+            }
             self.reaction = Reaction::Startled {
                 direction,
                 speed: (speed + 1.2).clamp(2., 5.),
@@ -87,10 +91,26 @@ impl Home {
             }
         }
     }
-    fn advance(&mut self, city: &City, time: f32, dt: f32, eye: Vec3) {
+    pub(super) fn advance(&mut self, city: &City, time: f32, dt: f32, eye: Vec3) {
         match self.reaction {
-            Reaction::Roaming => {}
-            Reaction::Down { pose, elapsed } => {
+            Reaction::Roaming => {
+                if self.ground[0].distance_squared(eye) < 4.0_f32.powi(2) {
+                    if let Some(flight) = &mut self.flight {
+                        flight.launch(time);
+                    }
+                }
+            }
+            Reaction::Down { mut pose, elapsed } => {
+                if pose.clip == flight::FLIGHT_CLIP {
+                    if let Some(floor) = flight::surface_height(city, pose.position.truncate()) {
+                        pose.position.z =
+                            (pose.position.z - 9.81 * dt * (elapsed + 0.5 * dt)).max(floor);
+                        if pose.position.z <= floor {
+                            pose.clip = 0;
+                            pose.seconds = 0.;
+                        }
+                    }
+                }
                 let elapsed = (elapsed + dt).min(40.);
                 self.reaction = if elapsed >= 40.
                     && pose.position.distance_squared(eye)
@@ -157,7 +177,7 @@ impl Home {
 }
 impl super::super::DynamicWorld {
     pub(in crate::dynamic_world) fn step_wildlife_reactions(&mut self, city: &City, dt: f32) {
-        self.wildlife_time = (self.wildlife_time + dt).rem_euclid(24.);
+        self.wildlife_time = (self.wildlife_time + dt).rem_euclid(flight::CYCLE);
         let eye = self.player_position();
         for home in &mut self.wildlife_homes {
             home.advance(city, self.wildlife_time, dt, eye);
@@ -174,12 +194,12 @@ impl super::super::DynamicWorld {
             .iter()
             .enumerate()
             .filter_map(|(id, h)| {
+                let pose = h.sighting(self.wildlife_time);
                 if h.is_downed()
-                    || h.ground[0].distance_squared(eye) >= h.species.view_distance().powi(2)
+                    || pose.position.distance_squared(eye) >= pose.species.view_distance().powi(2)
                 {
                     return None;
                 }
-                let pose = h.sighting(self.wildlife_time);
                 let radii = h.species.body_radii();
                 let forward = Vec2::from_angle(pose.heading);
                 let local = |p: Vec3| {
@@ -214,7 +234,7 @@ impl super::super::DynamicWorld {
             let delta = other.sighting(self.wildlife_time).position - pose.position;
             let planar = delta.truncate();
             if delta.length_squared() < 4. * 4. && planar.length_squared() > 0.0001 {
-                other.bump(planar / planar.length(), 2.);
+                other.bump(planar / planar.length(), 2., self.wildlife_time);
             }
         }
     }
@@ -227,12 +247,12 @@ mod tests {
     #[test]
     fn disturbed_animals_move_and_downed_animals_recover_offscreen() {
         let program =
-            opencity::parse("land(-1,-1,1,-1,1,1,-1,1); wildlife_pigeon_test=map_point(0,0);")
+            opencity::parse("land(-1,-1,1,-1,1,1,-1,1); wildlife_squirrel_test=map_point(0,0);")
                 .unwrap();
         let city = City::from_program(&program, None).unwrap();
         let mut home = Home::read(&program, &city).unwrap().pop().unwrap();
         let eye = home.ground[0];
-        home.bump(Vec2::X, 3.);
+        home.bump(Vec2::X, 3., 0.);
         for frame in 1..=12 {
             home.advance(&city, frame as f32 / 60., 1. / 60., eye);
         }

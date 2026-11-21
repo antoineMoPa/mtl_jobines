@@ -7,7 +7,9 @@ use glam::{Mat4, Vec3};
 use opencity::runtime::City;
 use std::{cmp::Reverse, collections::BinaryHeap};
 
-use crate::dynamic_world::{crowd::Instance, pedestrian_catalog, player, Pedestrian, WalkControls};
+use crate::dynamic_world::{
+    crowd::Instance, pedestrian_catalog, player, ragdoll, Pedestrian, WalkControls,
+};
 
 pub(super) fn pursuit_speed(class: SpeedClass) -> f32 {
     let kmh = match class {
@@ -23,11 +25,23 @@ pub(super) fn pursuit_speed(class: SpeedClass) -> f32 {
 
 pub(super) struct Officer {
     actor: Pedestrian,
+    reaction: Option<Box<ragdoll::Reaction>>,
+    impact_immunity: f32,
     returning: bool,
     cooldown: f32,
     shot_age: f32,
     aim: Vec3,
     exit_target: Vec3,
+}
+
+impl Officer {
+    fn instance(&self, season: crate::season::Season) -> Instance<'_> {
+        let mut instance = self.actor.instance(season);
+        if let Some(reaction) = &self.reaction {
+            instance.pose = Some(reaction.palette());
+        }
+        instance
+    }
 }
 
 pub(super) const CRUISER: &str = "vehicle-j06";
@@ -264,13 +278,13 @@ impl DynamicWorld {
             .chase
             .patrols
             .iter()
-            .filter_map(|p| Some(p.officer.as_ref()?.actor.instance(self.season)))
+            .filter_map(|p| Some(p.officer.as_ref()?.instance(self.season)))
     }
 
     pub fn officer_handguns(&self) -> impl Iterator<Item = (Vec3, Vec3, f32)> + '_ {
         self.traffic.chase.patrols.iter().filter_map(|p| {
             let officer = p.officer.as_ref()?;
-            if officer.returning {
+            if officer.returning || officer.reaction.is_some() {
                 return None;
             }
             Some((
@@ -494,7 +508,81 @@ impl DynamicWorld {
         None
     }
 
+    pub(in crate::dynamic_world) fn step_officer_impacts(
+        &mut self,
+        city: &City,
+        walking: Option<(Vec3, Vec3)>,
+        dt: f32,
+    ) -> bool {
+        let mut hit_by_player = false;
+        let driving = self.is_driving();
+        for officer in self
+            .traffic
+            .chase
+            .patrols
+            .iter_mut()
+            .filter_map(|p| p.officer.as_mut())
+        {
+            officer.impact_immunity = (officer.impact_immunity - dt).max(0.);
+            if officer.impact_immunity > 0. {
+                continue;
+            }
+            let actor = &mut officer.actor;
+            let mut feet = actor.position - Vec3::Z * player::HALF_HEIGHT;
+            let instance = actor.instance(self.season);
+            let model = instance.model;
+            let definition = &pedestrian_catalog::definitions()[model];
+            if let Some(reaction) = &mut officer.reaction {
+                let step = reaction.step(
+                    definition,
+                    city,
+                    &self.vehicles,
+                    dt.min(0.1),
+                    &mut feet,
+                    true,
+                );
+                actor.position = feet + Vec3::Z * player::HALF_HEIGHT;
+                if step == ragdoll::ReactionStep::Recovered {
+                    *actor = Pedestrian::with_model(city, actor.position, actor.yaw, model);
+                    officer.reaction = None;
+                    officer.impact_immunity = ragdoll::RECOVERY_IMMUNITY;
+                }
+                continue;
+            }
+            let velocity = if let Some((id, velocity)) =
+                ragdoll::impact(feet, &self.crowd.previous_vehicles, &self.vehicles, dt)
+            {
+                hit_by_player |= driving && id == self.player_vehicle.0;
+                velocity
+            } else if let Some(velocity) =
+                walking.and_then(|(before, after)| ragdoll::walking_impact(feet, before, after, dt))
+            {
+                velocity
+            } else {
+                continue;
+            };
+            officer.reaction = Some(Box::new(ragdoll::Reaction::Falling(ragdoll::Ragdoll::new(
+                definition,
+                *instance.pose.unwrap(),
+                feet,
+                actor.yaw,
+                velocity,
+                city,
+                &self.vehicles,
+            ))));
+            officer.shot_age = f32::INFINITY;
+        }
+        hit_by_player
+    }
+
     fn patrol_sees(&self, city: &City, patrol: &Patrol, player: Vec3) -> bool {
+        if patrol
+            .officer
+            .as_ref()
+            .is_some_and(|o| o.reaction.is_some())
+        {
+            return false;
+        }
         let car = &self.vehicles[patrol.vehicle];
         let eye = patrol.officer.as_ref().map_or_else(
             || car.position + Vec3::Z * (1.2 - car.ride_height()),
@@ -522,6 +610,13 @@ impl DynamicWorld {
 
     fn step_officer(&mut self, city: &City, index: usize, dt: f32) {
         let patrol = &mut self.traffic.chase.patrols[index];
+        if patrol
+            .officer
+            .as_ref()
+            .is_some_and(|o| o.reaction.is_some())
+        {
+            return;
+        }
         let id = patrol.vehicle;
         let seen = patrol.seen;
         let without_car = patrol.without_car;
@@ -565,6 +660,8 @@ impl DynamicWorld {
                 }
                 patrol.officer = Some(Box::new(Officer {
                     actor,
+                    reaction: None,
+                    impact_immunity: 0.,
                     returning: false,
                     cooldown: 0.8,
                     shot_age: f32::INFINITY,
@@ -643,7 +740,15 @@ impl DynamicWorld {
             if let Some(hand) = Self::right_hand(officer.actor.instance(self.season)) {
                 let fired = if tire.is_some() || (self.is_driving() && !self.player().is_bicycle())
                 {
-                    self.fire_weapon_at(city, hand, aim, 1);
+                    let target = if tire.is_some() {
+                        let lateral = glam::Vec2::from_angle(officer.actor.yaw).perp().extend(0.);
+                        let spread = 0.06 + 0.008 * range + 0.014 * self.player().velocity.length();
+                        let mut offset = || (self.traffic.random(201) as f32 - 100.) * 0.01;
+                        aim + (lateral * offset() + Vec3::Z * offset()) * spread
+                    } else {
+                        aim
+                    };
+                    self.fire_weapon_at(city, hand, target, 1);
                     true
                 } else if self.clear_officer_shot(city, hand, aim) {
                     self.health = self.health.saturating_sub(12);
@@ -1015,7 +1120,126 @@ mod tests {
     }
 
     #[test]
-    fn officer_round_can_puncture_a_suspects_exposed_tire() {
+    fn pursuing_officer_ragdolls_on_contact_and_resumes_after_getting_up() {
+        let map = Hermes::test_map_from_source(
+            "road street: sidewalk carlane carlane middle carlane carlane sidewalk; end
+            street(-2,0,2,0); land(-3,-2,3,-2,3,2,-3,2); player_start(0,0,0);",
+        );
+        for driving in [false, true] {
+            let mut w = world_without_ambient_police(&map);
+            w.report_crime(Crime::VehicleTheft);
+            w.step_chase(&map, w.player_position(), 1.);
+            let id = w.traffic.chase.first_unit().unwrap();
+            let car = &w.vehicles[id];
+            let outward = glam::Vec2::from_angle(car.yaw).perp().extend(0.);
+            let target = car.position + outward * 14.;
+            if !driving {
+                assert!(w.toggle_vehicle(&map));
+                w.pedestrian.as_mut().unwrap().position = target;
+            } else {
+                w.vehicles[w.player_vehicle.0].position = target;
+            }
+            w.step_chase(&map, target, 0.02);
+            assert!(w.officer_out_of(id));
+            // Let the officer clear the door and approach the suspect.
+            for _ in 0..120 {
+                w.step_chase(&map, target, 1. / 60.);
+            }
+            let position = w
+                .officer_instances()
+                .next()
+                .unwrap()
+                .transform
+                .w_axis
+                .truncate()
+                * METERS_PER_UNIT;
+            let toward = (target - position).truncate();
+            let direction = toward / toward.length();
+            let yaw = (-direction.y).atan2(-direction.x);
+            if driving {
+                let car = &mut w.vehicles[w.player_vehicle.0];
+                car.position =
+                    position + (direction * (car.length() * 0.5 + 0.75)).extend(car.ride_height());
+                car.yaw = yaw;
+                car.velocity = (-direction * 8.).extend(0.);
+            } else {
+                w.pedestrian = Some(Pedestrian::new(
+                    map.city(),
+                    position + (direction * 0.8).extend(player::HALF_HEIGHT),
+                    yaw,
+                ));
+            }
+            let stars = w.wanted_stars();
+            for _ in 0..40 {
+                w.step(
+                    &map,
+                    Controls::default(),
+                    WalkControls {
+                        forward: 1.,
+                        run: true,
+                        ..Default::default()
+                    },
+                    1. / 60.,
+                );
+                if w.traffic.chase.patrols[0]
+                    .officer
+                    .as_ref()
+                    .unwrap()
+                    .reaction
+                    .is_some()
+                {
+                    break;
+                }
+            }
+            let patrol = &w.traffic.chase.patrols[0];
+            let officer = patrol.officer.as_ref().unwrap();
+            assert!(
+                matches!(
+                    officer.reaction.as_deref(),
+                    Some(ragdoll::Reaction::Falling(_))
+                ),
+                "driving={driving}"
+            );
+            assert_eq!(w.wanted_stars(), stars + u8::from(driving));
+            let model = officer.instance(w.season).model;
+            let pose = *officer.instance(w.season).pose.unwrap();
+            let health = w.player_health();
+            // Remove the impactor and keep the suspect visible to a standing officer.
+            if driving {
+                w.vehicles[w.player_vehicle.0].position = target;
+                w.vehicles[w.player_vehicle.0].velocity = Vec3::ZERO;
+            }
+            let mut rose = false;
+            for frame in 0..360 {
+                let officer = w.traffic.chase.patrols[0].officer.as_ref().unwrap();
+                let instance = w.officer_instances().next().unwrap();
+                assert_eq!(instance.model, model);
+                if officer.reaction.is_none() {
+                    break;
+                }
+                rose |= matches!(
+                    officer.reaction.as_deref(),
+                    Some(ragdoll::Reaction::Rising { .. })
+                );
+                if frame == 30 {
+                    assert_ne!(*instance.pose.unwrap(), pose);
+                }
+                assert!(w.officer_handguns().next().is_none());
+                assert_eq!(w.chase_status(), ChaseStatus::Searching);
+                assert_eq!(w.player_health(), health);
+                tick(&mut w, &map);
+            }
+            assert!(rose);
+            assert!(w.officer_handguns().next().is_some());
+            assert!(matches!(
+                w.chase_status(),
+                ChaseStatus::Pursued | ChaseStatus::Surrendering
+            ));
+        }
+    }
+
+    #[test]
+    fn officer_tire_shots_can_miss_and_a_moving_suspect_is_harder_to_hit() {
         let map = Hermes::test_map_from_source(
             "road street: sidewalk carlane carlane middle carlane carlane sidewalk; end
             street(-2,0,2,0); land(-3,-2,3,-2,3,2,-3,2); player_start(0,0,0);",
@@ -1045,14 +1269,43 @@ mod tests {
         let target = w.player_position();
         for _ in 0..360 {
             w.step_chase(&map, target - Vec3::X, 1. / 60.);
+            if w.traffic.chase.patrols[0].officer.is_some() {
+                break;
+            }
+        }
+        // Replay the same rounds from the same spot against a fresh tire each time.
+        let seed = w.traffic.seed;
+        let [parked, moving] = [0., 16.].map(|speed| {
+            w.traffic.seed = seed;
+            w.vehicles[player].velocity = forward * speed;
+            let mut pops = 0;
+            for _ in 0..100 {
+                w.vehicles[player].flat_tires = [false; 4];
+                w.traffic.chase.patrols[0]
+                    .officer
+                    .as_mut()
+                    .unwrap()
+                    .cooldown = 0.;
+                w.step_officer(map.city(), 0, 0.);
+                let count = w.drain_player_tire_pops().count();
+                assert_eq!(count, usize::from(w.player().flat_tires.contains(&true)));
+                pops += count;
+            }
+            pops
+        });
+        assert!(
+            0 < moving && moving < parked && parked < 100,
+            "{moving} moving, {parked} parked"
+        );
+        w.vehicles[player].velocity = Vec3::ZERO;
+        w.vehicles[player].flat_tires = [false; 4];
+        for _ in 0..360 {
+            w.step_chase(&map, target - Vec3::X, 1. / 60.);
             if w.player().flat_tires.contains(&true) {
                 break;
             }
         }
-        assert!(
-            w.player().flat_tires.contains(&true),
-            "the officer failed to puncture an exposed tire"
-        );
+        assert!(w.player().flat_tires.contains(&true));
         assert_eq!(w.wanted_stars(), 1);
         assert_eq!(w.health, 100);
     }

@@ -3,6 +3,8 @@ use crate::dynamic_world::METERS_PER_UNIT;
 use glam::Vec3;
 use opencity::{runtime::City, RoadDirection, RoadElementKind, RoadRole};
 use std::collections::HashMap;
+#[path = "junction_lanes.rs"]
+mod junction_lanes;
 #[path = "signal_placement.rs"]
 mod signal_placement;
 #[cfg(test)]
@@ -52,6 +54,25 @@ pub struct TrafficPath {
     end_ref: Option<String>,
 }
 impl TrafficPath {
+    fn new(points: Vec<Vec3>, speed: SpeedClass) -> Self {
+        let length = points.windows(2).map(|p| p[0].distance(p[1])).sum();
+        let bounds = points.iter().fold(
+            [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)],
+            |b, p| [b[0].min(*p), b[1].max(*p)],
+        );
+        Self {
+            points,
+            bounds,
+            length,
+            speed,
+            turn: Turn::Straight,
+            next: Vec::new(),
+            signal: None,
+            junction: None,
+            start_ref: None,
+            end_ref: None,
+        }
+    }
     pub fn near(&self, point: Vec3, radius: f32) -> bool {
         point.distance(point.clamp(self.bounds[0], self.bounds[1])) <= radius
     }
@@ -104,23 +125,7 @@ pub struct TrafficPaths {
 impl TrafficPaths {
     fn push(&mut self, points: Vec<Vec3>, speed: SpeedClass) -> usize {
         let id = self.paths.len();
-        let length = points.windows(2).map(|p| p[0].distance(p[1])).sum();
-        let bounds = points.iter().fold(
-            [Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)],
-            |b, p| [b[0].min(*p), b[1].max(*p)],
-        );
-        self.paths.push(TrafficPath {
-            points,
-            bounds,
-            length,
-            speed,
-            turn: Turn::Straight,
-            next: Vec::new(),
-            signal: None,
-            junction: None,
-            start_ref: None,
-            end_ref: None,
-        });
+        self.paths.push(TrafficPath::new(points, speed));
         id
     }
     /// Directed cycling paths: dedicated lanes where present, ordinary streets otherwise.
@@ -412,7 +417,33 @@ impl TrafficPaths {
                 }
             }
         }
+        let road_count = graph.paths.len();
+        let mut reference_movements = HashMap::<String, Vec<usize>>::new();
         for (junction, component) in city.components.iter().enumerate() {
+            let profile = city
+                .junctions
+                .iter()
+                .find(|j| component.id == format!("profile:{}", j.point_ref));
+            let (references, lanes) = if let Some(j) = profile {
+                let references: Vec<_> = std::iter::once(j.point_ref.clone())
+                    .chain(j.ports.iter().map(|p| p.point_ref.clone()))
+                    .collect();
+                let lanes = junction_lanes::port_offsets(
+                    component,
+                    &references,
+                    &graph.paths[..road_count],
+                );
+                (references, lanes)
+            } else {
+                let references = component
+                    .geometry
+                    .ports
+                    .iter()
+                    .map(|p| format!("{}.{}.{}", component.name, p.name, p.role.keyword()))
+                    .collect();
+                (references, HashMap::new())
+            };
+            let first_movement = graph.paths.len();
             let incoming: Vec<_> = component
                 .geometry
                 .ports
@@ -439,11 +470,11 @@ impl TrafficPaths {
                         Vec3::new(p.x, p.y, p.z) * METERS_PER_UNIT
                     })
                     .collect();
-                let id = graph.push(points, SpeedClass::Junction);
-                graph.paths[id].junction = Some(junction);
-                let incoming_heading = graph.paths[id].sample(0.).1.truncate();
-                let outgoing_heading = graph.paths[id].sample(graph.paths[id].length).1.truncate();
-                graph.paths[id].turn = match incoming_heading.perp_dot(outgoing_heading) {
+                let mut path = TrafficPath::new(points, SpeedClass::Junction);
+                path.junction = Some(junction);
+                let incoming_heading = path.sample(0.).1.truncate();
+                let outgoing_heading = path.sample(path.length).1.truncate();
+                path.turn = match incoming_heading.perp_dot(outgoing_heading) {
                     cross if cross > 0.2 => Turn::Left,
                     cross if cross < -0.2 => Turn::Right,
                     _ => Turn::Straight,
@@ -455,7 +486,7 @@ impl TrafficPaths {
                     {
                         let heading = port.heading.vector();
                         let phase = usize::from(heading[0].abs() > heading[1].abs());
-                        let (position, forward) = graph.paths[id].sample(0.);
+                        let (position, forward) = path.sample(0.);
                         let signal = graph
                             .signals
                             .iter()
@@ -477,42 +508,16 @@ impl TrafficPaths {
                                 });
                                 graph.signals.len() - 1
                             });
-                        graph.paths[id].signal = Some(signal);
+                        path.signal = Some(signal);
                     }
                 }
+                junction_lanes::append_movement(&mut graph, path, &lanes, &movement.movement);
             }
-        }
-        let mut reference_movements = HashMap::<String, Vec<usize>>::new();
-        for (junction, component) in city.components.iter().enumerate() {
-            let mut references = Vec::new();
-            if let Some(j) = city
-                .junctions
-                .iter()
-                .find(|j| component.id == format!("profile:{}", j.point_ref))
-            {
-                references.push(j.point_ref.clone());
-                references.extend(j.ports.iter().map(|p| p.point_ref.clone()));
-            } else {
-                references.extend(
-                    component
-                        .geometry
-                        .ports
-                        .iter()
-                        .map(|p| format!("{}.{}.{}", component.name, p.name, p.role.keyword())),
-                );
-            }
-            let movements: Vec<_> = graph
-                .paths
-                .iter()
-                .enumerate()
-                .filter(|(_, p)| p.junction == Some(junction))
-                .map(|(id, _)| id)
-                .collect();
             for reference in references {
                 reference_movements
                     .entry(reference)
                     .or_default()
-                    .extend(&movements);
+                    .extend(first_movement..graph.paths.len());
             }
         }
         // Runtime roads retain their authored centre endpoints; the rendered junction

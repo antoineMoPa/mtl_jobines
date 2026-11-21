@@ -10,6 +10,77 @@ use rapier3d::{
     prelude::*,
 };
 
+pub(super) const RECOVERY_IMMUNITY: f32 = 3.;
+
+pub(super) enum Reaction {
+    Falling(Ragdoll),
+    Rising {
+        source: Box<[Mat4; JOINT_LIMIT]>,
+        palette: Box<[Mat4; JOINT_LIMIT]>,
+        elapsed: f32,
+    },
+}
+
+#[derive(PartialEq, Eq)]
+pub(super) enum ReactionStep {
+    Ongoing,
+    StartedRising,
+    Recovered,
+}
+
+impl Reaction {
+    pub fn palette(&self) -> &[Mat4; JOINT_LIMIT] {
+        match self {
+            Self::Falling(doll) => &doll.palette,
+            Self::Rising { palette, .. } => palette,
+        }
+    }
+
+    /// Update the ground anchor while falling, then stand up in place.
+    pub fn step(
+        &mut self,
+        definition: &Definition,
+        city: &City,
+        vehicles: &[Vehicle],
+        dt: f32,
+        position: &mut Vec3,
+        can_rise: bool,
+    ) -> ReactionStep {
+        match self {
+            Self::Falling(doll) => {
+                if can_rise || !doll.ready_to_rise() {
+                    doll.step(definition, city, vehicles, dt);
+                }
+                *position = doll.anchor;
+                if can_rise && doll.ready_to_rise() {
+                    *self = Self::Rising {
+                        source: Box::new(doll.palette),
+                        palette: Box::new(doll.palette),
+                        elapsed: 0.,
+                    };
+                    ReactionStep::StartedRising
+                } else {
+                    ReactionStep::Ongoing
+                }
+            }
+            Self::Rising {
+                source,
+                palette,
+                elapsed,
+            } => {
+                *elapsed += dt;
+                let progress = (*elapsed / 1.6).clamp(0., 1.);
+                **palette = definition.get_up_pose(source, progress);
+                if progress >= 1. {
+                    ReactionStep::Recovered
+                } else {
+                    ReactionStep::Ongoing
+                }
+            }
+        }
+    }
+}
+
 struct Limb {
     joint: usize,
     body: RigidBodyHandle,

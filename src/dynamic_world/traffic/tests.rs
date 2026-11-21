@@ -22,7 +22,16 @@ fn one_driver(
     distance: f32,
 ) -> (Traffic, Vec<Vehicle>) {
     let mut traffic = Traffic::new(graph);
-    let (point, heading) = graph.paths[path].sample(distance);
+    let car = car_on_lane(city, &graph.paths[path], distance);
+    traffic.drivers.push(Driver::new(0, path, distance, 0.));
+    (traffic, vec![car])
+}
+fn car_on_lane(
+    city: &City,
+    path: &crate::hermes::traffic_paths::TrafficPath,
+    distance: f32,
+) -> Vehicle {
+    let (point, heading) = path.sample(distance);
     let mut car = Vehicle::spawn_at(
         city,
         SpawnPoint {
@@ -33,8 +42,7 @@ fn one_driver(
     .unwrap();
     car.definition = Some(0);
     car.position.z = point.z + car.ride_height();
-    traffic.drivers.push(Driver::new(0, path, distance, 0.));
-    (traffic, vec![car])
+    car
 }
 fn tick(traffic: &mut Traffic, city: &City, cars: &mut [Vehicle], dt: f32) {
     for (index, input) in traffic.controls(city, cars, None, dt) {
@@ -250,6 +258,89 @@ fn current_map_one_way_crossings_have_visible_signals_at_road_height() {
             .any(|v| { v.surface[0] == opencity::runtime::SurfaceKind::Light as u32 as f32 }));
     }
 }
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+fn report_84_both_service_lanes_drive_through_north_cross_on_green() {
+    let hermes = crate::hermes::Hermes::load_with_game_data(
+        &std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road"),
+        None,
+    )
+    .unwrap();
+    let graph = hermes.traffic_paths();
+    let junction = hermes
+        .city()
+        .components
+        .iter()
+        .position(|c| c.id == "profile:north_cross")
+        .unwrap();
+    let approach = hermes
+        .city()
+        .roads
+        .iter()
+        .find(|r| r.segment.name.as_deref() == Some("service_north_approach"))
+        .unwrap();
+    let center = approach.segment.point_at(0.75);
+    let center = Vec3::new(center.x, center.y, approach.segment.height_at(0.75)) * METERS_PER_UNIT;
+    let lanes: Vec<_> = graph
+        .paths
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| {
+            p.speed != SpeedClass::Junction && p.near(center, 5.) && p.project(center).1 < 5.
+        })
+        .collect();
+    assert_eq!(lanes.len(), 2);
+    let mut traffic = Traffic::new(graph);
+    let mut cars = Vec::new();
+    let mut exits = Vec::new();
+    let mut signals = Vec::new();
+    for &(lane, path) in &lanes {
+        let straight = path
+            .next
+            .iter()
+            .copied()
+            .find(|&n| {
+                graph.paths[n].junction == Some(junction) && graph.paths[n].turn == Turn::Straight
+            })
+            .expect("each service lane needs a straight movement through north_cross");
+        let movement = &graph.paths[straight];
+        assert_eq!(movement.next.len(), 1);
+        exits.push(movement.next[0]);
+        signals.push(movement.signal.unwrap());
+
+        let distance = path.length - 12.;
+        let mut driver = Driver::new(cars.len(), lane, distance, 0.);
+        driver.next = Some(straight);
+        traffic.drivers.push(driver);
+        cars.push(car_on_lane(hermes.city(), path, distance));
+    }
+    assert_ne!(
+        exits[0], exits[1],
+        "through traffic stays in separate lanes"
+    );
+    assert_eq!(signals[0], signals[1], "both lanes obey the same light");
+    let phase = graph.signals[signals[0]].phase;
+    // Start eight seconds before this approach turns green.
+    traffic.time = phase as f32 * 14. - (junction % 11) as f32 * 3. + 20.;
+    for _ in 0..420 {
+        tick(&mut traffic, hermes.city(), &mut cars, 1. / 60.);
+    }
+    for (id, &(lane, _)) in lanes.iter().enumerate() {
+        assert_eq!(traffic.drivers[id].path, lane);
+        assert!(cars[id].velocity.length() < 0.6);
+    }
+    for _ in 0..600 {
+        tick(&mut traffic, hermes.city(), &mut cars, 1. / 60.);
+    }
+    for (id, exit) in exits.into_iter().enumerate() {
+        assert_eq!(
+            traffic.drivers[id].path, exit,
+            "driver must clear the green light"
+        );
+        assert_eq!(cars[id].collisions, 0);
+    }
+}
+
 #[test]
 fn red_light_stops_before_line_then_green_releases_traffic() {
     let (city, graph) = map(CROSS);

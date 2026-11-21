@@ -1,5 +1,5 @@
 //! Merge rigid geometry below each animated joint once. Only joint matrices change during play.
-use crate::dynamic_world::wildlife::Species;
+use crate::dynamic_world::wildlife::{CatCoat, Species};
 use glam::{Mat4, Quat, Vec3};
 use opencity::runtime::Mesh;
 use std::collections::{HashMap, HashSet};
@@ -87,8 +87,12 @@ impl Builder<'_> {
     }
 }
 impl Model {
-    pub(super) fn read(species: Species) -> Result<(Self, Vec<Mesh>), String> {
-        let file = gltf::Gltf::from_slice(species.model()).map_err(|e| e.to_string())?;
+    pub(super) fn read(
+        species: Species,
+        coat: Option<CatCoat>,
+    ) -> Result<(Self, Vec<Mesh>), String> {
+        let file =
+            gltf::Gltf::from_slice(species.model_with_coat(coat)).map_err(|e| e.to_string())?;
         let binary = file
             .blob
             .as_deref()
@@ -125,7 +129,7 @@ impl Model {
             builder.visit(root, 0, Mat4::IDENTITY)?;
         }
         let mut clips = Vec::new();
-        for name in species.clips() {
+        for &name in species.clips() {
             let anim = file
                 .animations()
                 .find(|a| a.name() == Some(name))
@@ -213,6 +217,63 @@ impl Model {
         matrices.push(Mat4::IDENTITY);
         for (joint, pose) in self.joints.iter().zip(&self.poses).skip(1) {
             matrices.push(matrices[joint.parent] * joint.prefix * pose.matrix());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn walking_paws_push_back_on_the_ground_and_recover_forward() {
+        for (species, coat) in [
+            (Species::Cat, Some(CatCoat::White)),
+            (Species::Cat, Some(CatCoat::Black)),
+            (Species::Fox, None),
+            (Species::Skunk, None),
+        ] {
+            let (mut model, meshes) = Model::read(species, coat).unwrap();
+            let mut pose = Vec::new();
+            model.sample(1, 0., &mut pose);
+
+            // These three rigs stand on all fours at the start of their stationary clip.
+            // Track the lowest actual mesh vertex in each quadrant through the moving clip.
+            let mut soles = [(f32::INFINITY, 0, Vec3::ZERO); 4];
+            for (joint, mesh) in meshes.iter().enumerate() {
+                for vertex in &mesh.vertices {
+                    let [x, y, z] = vertex.position;
+                    let local = Vec3::new(x, z, -y); // GPU coordinates back to model space.
+                    let rest = pose[joint].transform_point3(local);
+                    let quadrant = 2 * usize::from(rest.x > 0.) + usize::from(rest.z > 0.);
+                    if rest.y < soles[quadrant].0 {
+                        soles[quadrant] = (rest.y, joint, local);
+                    }
+                }
+            }
+
+            let duration = model.clips[0].duration;
+            for (quadrant, &(height, joint, vertex)) in soles.iter().enumerate() {
+                assert!(height.abs() < 0.005, "{species:?} sole {quadrant} at rest");
+                let mut grounded = 0.;
+                let mut lifted = 0.;
+                model.sample(0, 0., &mut pose);
+                let mut previous = pose[joint].transform_point3(vertex);
+                for frame in 1..=128 {
+                    model.sample(0, duration * frame as f32 / 128., &mut pose);
+                    let current = pose[joint].transform_point3(vertex);
+                    if previous.y.max(current.y) < 0.004 {
+                        grounded += current.x - previous.x;
+                    } else if previous.y.min(current.y) > 0.010 {
+                        lifted += current.x - previous.x;
+                    }
+                    previous = current;
+                }
+                assert!(
+                    grounded < -0.025 && lifted > 0.025,
+                    "{species:?} sole {quadrant}: grounded travel {grounded} m, lifted travel {lifted} m"
+                );
+            }
         }
     }
 }

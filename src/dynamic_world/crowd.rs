@@ -4,7 +4,8 @@ use super::{
     pedestrian_catalog::{self, JOINT_LIMIT},
     pedestrian_gait::{footing, Gait},
     props::Props,
-    ragdoll, Vehicle, METERS_PER_UNIT,
+    ragdoll::{self, Reaction},
+    Vehicle, METERS_PER_UNIT,
 };
 use crate::hermes::walking_paths::{support, WalkingPaths};
 use glam::{Mat4, Vec2, Vec3};
@@ -103,24 +104,6 @@ struct Walker {
     returning: Option<ReturnPoint>,
     gait: Gait,
 }
-enum Reaction {
-    Falling(ragdoll::Ragdoll),
-    Rising {
-        source: Box<[Mat4; JOINT_LIMIT]>,
-        palette: Box<[Mat4; JOINT_LIMIT]>,
-        elapsed: f32,
-        from: Vec3,
-        destination: ReturnPoint,
-    },
-}
-impl Reaction {
-    fn palette(&self) -> &[Mat4; JOINT_LIMIT] {
-        match self {
-            Self::Falling(doll) => &doll.palette,
-            Self::Rising { palette, .. } => palette,
-        }
-    }
-}
 impl Walker {
     fn fall(&mut self, city: &City, vehicles: &[Vehicle], velocity: Vec3) {
         self.gait.melee = Default::default();
@@ -161,7 +144,7 @@ pub(crate) struct Crowd {
     serial: u32,
     step_number: u64,
     refill: f32,
-    previous_vehicles: Vec<Vec3>,
+    pub(super) previous_vehicles: Vec<Vec3>,
     pub(super) vehicle_knockdowns: Vec<usize>,
     pub(super) zombies: bool,
     kiosk_checked: bool,
@@ -557,65 +540,40 @@ impl Crowd {
             let walker_started = profile.as_ref().map(|_| web_time::Instant::now());
             walker.age += dt;
             walker.immunity = (walker.immunity - dt).max(0.);
-            if let Some(mut reaction) = walker.reaction.take() {
+            if let Some(reaction) = &mut walker.reaction {
                 let definition = &pedestrian_catalog::definitions()[walker.model];
-                let mut replacement = None;
-                let mut finished = false;
-                match reaction.as_mut() {
-                    Reaction::Falling(doll) => {
-                        if walker.health > 0 || !self.zombies || !doll.ready_to_rise() {
-                            doll.step(definition, city, vehicles, dt);
-                        }
-                        walker.position = doll.anchor;
-                        if doll.ready_to_rise() && (!self.zombies || walker.health > 0) {
-                            let destination =
-                                return_point(city, &self.graph, walker, vehicles, props);
-                            replacement = Some(Box::new(Reaction::Rising {
-                                source: Box::new(doll.palette),
-                                palette: Box::new(doll.palette),
-                                elapsed: 0.,
-                                from: walker.position,
-                                destination,
-                            }));
-                        }
+                match reaction.step(
+                    definition,
+                    city,
+                    vehicles,
+                    dt,
+                    &mut walker.position,
+                    !self.zombies || walker.health > 0,
+                ) {
+                    ragdoll::ReactionStep::Ongoing => {}
+                    ragdoll::ReactionStep::StartedRising => {
+                        let destination = return_point(city, &self.graph, walker, vehicles, props);
+                        walker.path = destination.path;
+                        walker.distance = destination.distance;
+                        walker.returning = Some(destination);
                     }
-                    Reaction::Rising {
-                        source,
-                        palette,
-                        elapsed,
-                        from,
-                        destination,
-                    } => {
-                        *elapsed += dt;
-                        let progress = (*elapsed / 1.6).clamp(0., 1.);
-                        // Stand where the ragdoll came to rest. Returning is locomotion,
-                        // never a translation hidden inside the get-up animation.
-                        walker.position = *from;
-                        **palette = definition.get_up_pose(source, progress);
-                        if progress >= 1. {
-                            walker.path = destination.path;
-                            walker.distance = destination.distance;
-                            walker.returning = Some(*destination);
-                            walker.lane = 0.42;
-                            walker.speed = 0.;
-                            walker.movement = 0.;
-                            walker.pause = 0.;
-                            walker.blocked_time = 0.;
-                            walker.until_pause = 12.;
-                            walker.immunity = 3.;
-                            walker.gait = Gait::new(
-                                definition,
-                                walker.position,
-                                walker.yaw,
-                                walker.serial,
-                                |p| footing(city, p, false),
-                            );
-                            finished = true;
-                        }
+                    ragdoll::ReactionStep::Recovered => {
+                        walker.lane = 0.42;
+                        walker.speed = 0.;
+                        walker.movement = 0.;
+                        walker.pause = 0.;
+                        walker.blocked_time = 0.;
+                        walker.until_pause = 12.;
+                        walker.immunity = ragdoll::RECOVERY_IMMUNITY;
+                        walker.gait = Gait::new(
+                            definition,
+                            walker.position,
+                            walker.yaw,
+                            walker.serial,
+                            |p| footing(city, p, false),
+                        );
+                        walker.reaction = None;
                     }
-                }
-                if !finished {
-                    walker.reaction = replacement.or(Some(reaction));
                 }
                 continue;
             }
@@ -1155,9 +1113,10 @@ mod tests {
             source: Box::new(definition.pose(0.3, 0., 0.)),
             palette: Box::new(definition.pose(0.3, 0., 0.)),
             elapsed: 0.,
-            from: displaced,
-            destination,
         }));
+        walker.path = destination.path;
+        walker.distance = destination.distance;
+        walker.returning = Some(destination);
         let mut return_steps = 0;
         for frame in 0..900 {
             let before = crowd.walkers[0].position;

@@ -1,6 +1,6 @@
 //! Local encounters are rolled on arrival and as the player travels. Animals keep
 //! their existing homes and reactions until the player has passed out of range.
-use super::{City, Habitats, Home, Species};
+use super::{CatCoat, City, Habitats, Home, Species};
 use glam::{Vec2, Vec3};
 use std::f32::consts::TAU;
 
@@ -213,9 +213,19 @@ impl Population {
                 {
                     continue;
                 }
-                let Some(home) = Home::at(species, point, self.roll() * 24., city) else {
+                let coat =
+                    (species == Species::Cat).then(|| CatCoat::ALL[(self.roll() * 2.) as usize]);
+                let Some(home) = Home::at(species, point, self.roll() * 24., city, coat) else {
                     continue;
                 };
+                if !arrival
+                    && home
+                        .flight
+                        .as_ref()
+                        .is_some_and(|flight| flight.enters_range(eye, view + 2.))
+                {
+                    continue;
+                }
                 // Check the actual orbit at its four extremes as well as its
                 // centre. A walking animal at the edge must still fit its habitat.
                 let stride = if species == Species::Cat {
@@ -256,6 +266,38 @@ mod tests {
         let program = opencity::parse(include_str!("../../../data/maps/mtl/map.road")).unwrap();
         let city = City::from_program(&program, Some(&path)).unwrap();
         let habitats = Habitats::read(&program, &city);
+        let start = crate::dynamic_world::SpawnPoint::from_program(&program)
+            .unwrap()
+            .unwrap();
+        let player_start = Vec2::from_array(start.point) * METERS_PER_UNIT;
+        let mut visits_with_flight = 0;
+        for seed in 0..48 {
+            let mut homes = Vec::new();
+            Population::with_seed(seed).step(
+                &mut homes,
+                &habitats,
+                &city,
+                player_start,
+                false,
+                0.,
+                |_| false,
+            );
+            if (0..24).any(|second| {
+                homes.iter().any(|home| {
+                    let bird = home.sighting(second as f32);
+                    bird.clip == super::super::flight::FLIGHT_CLIP
+                        && bird.position.z > home.ground[0].z + 1.5
+                        && bird.position.truncate().distance(player_start)
+                            < bird.species.view_distance()
+                })
+            }) {
+                visits_with_flight += 1;
+            }
+        }
+        assert!(
+            visits_with_flight >= 36,
+            "only {visits_with_flight}/48 player starts had visible flight"
+        );
         let row = city
             .landscape
             .iter()
@@ -266,6 +308,7 @@ mod tests {
             + Vec2::from_array(row.points[(front + 1) % row.points.len()]))
             * (0.5 * METERS_PER_UNIT);
         let mut cat_counts = [[0usize; 4]; 2];
+        let mut coats_seen = std::collections::HashSet::new();
         let lot = city
             .landscape
             .iter()
@@ -295,6 +338,7 @@ mod tests {
             assert!(cats.len() <= 3);
             cat_counts[usize::from(night)][cats.len()] += 1;
             for (i, cat) in cats.iter().enumerate() {
+                coats_seen.insert(cat.sighting(0.).cat_coat.unwrap());
                 assert!(cat.ground.iter().all(|p| {
                     habitats.permits(&city, Species::Cat, p.truncate())
                         && p.truncate().distance(doorstep) <= Species::Cat.view_distance()
@@ -341,6 +385,7 @@ mod tests {
             goose_flocks += usize::from(count(Species::Goose) != 0);
             herons += count(Species::Heron);
         }
+        assert!(CatCoat::ALL.iter().all(|coat| coats_seen.contains(coat)));
         for (size, (day, night)) in cat_counts[0].iter().zip(&cat_counts[1]).enumerate() {
             assert!(
                 day + night > 0,
@@ -425,10 +470,11 @@ mod tests {
         assert!(saw_squirrel && saw_skunk);
 
         homes.clear();
-        let mut skunk = Home::at(Species::Skunk, eye, 0., &city).unwrap();
+        let mut skunk = Home::at(Species::Skunk, eye, 0., &city, None).unwrap();
         skunk.knock_over(0.);
         homes.push(skunk);
-        let mut squirrel = Home::at(Species::Squirrel, eye + Vec2::X * 5., 0., &city).unwrap();
+        let mut squirrel =
+            Home::at(Species::Squirrel, eye + Vec2::X * 5., 0., &city, None).unwrap();
         squirrel.knock_over(0.);
         let down = squirrel.ground[0];
         homes.push(squirrel);

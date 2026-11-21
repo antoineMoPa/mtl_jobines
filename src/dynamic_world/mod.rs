@@ -76,6 +76,7 @@ pub struct DynamicWorld {
     season: crate::season::Season,
     pub snow: snow::Tracks,
     snow_timer: f32,
+    player_tire_pops: Vec<ShotHit>,
     sound_impacts: [crate::audio::Impact; crate::audio::IMPACT_VOICES],
     sound_serial: u64,
     sound_foliage: f32,
@@ -160,6 +161,7 @@ impl DynamicWorld {
             season: Default::default(),
             snow: snow::Tracks::default(),
             snow_timer: 0.,
+            player_tire_pops: Vec::new(),
             sound_impacts: [crate::audio::Impact::default(); crate::audio::IMPACT_VOICES],
             sound_serial: 0,
             sound_foliage: 0.15,
@@ -709,6 +711,7 @@ impl DynamicWorld {
             }
             vehicle.sound_impact_count = 0;
         }
+        let mut walking = None;
         if let Some(player) = self.pedestrian.as_mut().filter(|_| self.health > 0) {
             let before = player.position;
             self.metro.walk(hermes, player, walk, dt, |position| {
@@ -722,6 +725,7 @@ impl DynamicWorld {
                 .player_move(hermes.city(), before, player.position, dt, &self.vehicles);
             let after = player.position;
             if !self.metro.aboard {
+                walking = Some((before, after));
                 self.check_wildlife_walking_contacts(before, after, dt);
             }
         }
@@ -730,6 +734,8 @@ impl DynamicWorld {
         stage!(4);
         self.props.step(dt);
         stage!(5);
+        // Both populations sweep against the vehicle positions from the previous crowd step.
+        let officer_hit = self.step_officer_impacts(hermes.city(), walking, dt);
         if let Some(profile) = profile.as_deref_mut() {
             self.crowd.step_profiled(
                 hermes.city(),
@@ -750,11 +756,12 @@ impl DynamicWorld {
                 dt,
             );
         }
-        if driving
-            && self
-                .crowd
-                .vehicle_knockdowns
-                .contains(&self.player_vehicle.0)
+        if officer_hit
+            || (driving
+                && self
+                    .crowd
+                    .vehicle_knockdowns
+                    .contains(&self.player_vehicle.0))
         {
             self.report_crime(Crime::PedestrianHit);
         }

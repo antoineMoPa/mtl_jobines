@@ -1,5 +1,8 @@
 use super::render::{GpuMesh, Renderer};
-use crate::dynamic_world::{wildlife::Species, DynamicWorld, METERS_PER_UNIT};
+use crate::dynamic_world::{
+    wildlife::{CatCoat, Species},
+    DynamicWorld, METERS_PER_UNIT,
+};
 use glam::{Mat4, Vec3};
 use std::collections::HashMap;
 mod model;
@@ -15,7 +18,7 @@ struct Rig {
 }
 #[derive(Default)]
 pub(super) struct WildlifeScenery {
-    rigs: HashMap<Species, Rig>,
+    rigs: HashMap<(Species, Option<CatCoat>), Rig>,
     matrices: Vec<Mat4>,
 }
 impl WildlifeScenery {
@@ -28,9 +31,10 @@ impl WildlifeScenery {
         let to_game = Mat4::from_rotation_x(std::f32::consts::FRAC_PI_2);
         let from_game = to_game.transpose();
         for animal in world.wildlife() {
-            let rig = self.rigs.entry(animal.species).or_insert_with(|| {
-                let (model, meshes) =
-                    model::Model::read(animal.species).expect("bundled wildlife model");
+            let appearance = (animal.species, animal.cat_coat);
+            let rig = self.rigs.entry(appearance).or_insert_with(|| {
+                let (model, meshes) = model::Model::read(animal.species, animal.cat_coat)
+                    .expect("bundled wildlife model");
                 let parts = meshes
                     .into_iter()
                     .enumerate()
@@ -82,9 +86,9 @@ mod tests {
     fn all_wildlife_clips_move_finite_joints() {
         for s in Species::ALL {
             let (mut model, meshes) =
-                model::Model::read(s).unwrap_or_else(|e| panic!("{s:?}: {e}"));
+                model::Model::read(s, None).unwrap_or_else(|e| panic!("{s:?}: {e}"));
             assert!(meshes.iter().any(|m| !m.vertices.is_empty()));
-            for clip in 0..2 {
+            for clip in 0..s.clips().len() {
                 let (mut start, mut pose) = (Vec::new(), Vec::new());
                 model.sample(clip, 0., &mut start);
                 let mut changed = false;
@@ -125,10 +129,19 @@ mod tests {
             heading: None,
         };
         let mut world = DynamicWorld::with_start(&hermes, Some(start)).unwrap();
-        let animal = world
-            .wildlife()
-            .find(|a| a.species == Species::Gull)
-            .expect("gulls at Orange Julep");
+        let animal = (0..=240)
+            .find_map(|_| {
+                let airborne = world.wildlife().find(|a| {
+                    a.species == Species::Gull
+                        && a.species.clips()[a.clip] == "Flight"
+                        && a.position.z > world.player_position().z + 2.
+                });
+                if airborne.is_none() {
+                    world.step(&hermes, Default::default(), Default::default(), 0.1);
+                }
+                airborne
+            })
+            .expect("a gull flying above the Orange Julep lot");
 
         let mut renderer = pollster::block_on(Renderer::new(None, 1200, 800)).unwrap();
         renderer.daylight = Some(1.);
@@ -138,7 +151,7 @@ mod tests {
         actors.update(&renderer, &world);
         let look = (animal.position + Vec3::Z * 0.15) / METERS_PER_UNIT;
         let eye = look
-            + Mat4::from_rotation_z(animal.heading).transform_vector3(Vec3::new(0.48, -0.88, 0.30))
+            + Mat4::from_rotation_z(animal.heading).transform_vector3(Vec3::new(0.7, -2.5, -0.65))
                 / METERS_PER_UNIT;
         let mut meshes = scenery.visible([look.x, look.y]);
         let nav = hermes.minimap_view([look.x, look.y], animal.heading);

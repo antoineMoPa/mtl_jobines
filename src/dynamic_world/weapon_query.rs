@@ -311,6 +311,9 @@ impl DynamicWorld {
         self.fire_weapon_at(city, hand, target, 2)
             .map_or(target, |hit| hit.point)
     }
+    pub fn drain_player_tire_pops(&mut self) -> impl Iterator<Item = ShotHit> + '_ {
+        self.player_tire_pops.drain(..)
+    }
     pub fn fire_weapon_at(
         &mut self,
         city: &City,
@@ -335,6 +338,9 @@ impl DynamicWorld {
                 broken = self.vehicles[index].pop_tire(wheel);
                 if broken {
                     self.traffic.wake_after_tire_hit(index);
+                    if self.is_driving() && index == self.player_vehicle.0 {
+                        self.player_tire_pops.push(contact.hit);
+                    }
                 }
             }
             Target::Prop(id) => self

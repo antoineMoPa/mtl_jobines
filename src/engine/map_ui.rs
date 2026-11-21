@@ -25,65 +25,41 @@ pub(super) fn show(ctx: &egui::Context, map: FullMapView) {
         INK,
     );
 
-    if map.selection.is_route() {
+    if map.selection.is_route() && map.drive == DriveAvailability::Ready {
         let [x, y, w, h] = super::hud::full_map_drive_rect(width);
         let rect = egui::Rect::from_min_size(
             egui::pos2(x / scale, y / scale),
             egui::vec2(w / scale, h / scale),
         );
-        let ready = map.drive == DriveAvailability::Ready;
-        painter.rect_filled(rect, 8. / scale, if ready { INK } else { PAPER });
-        let caption = match map.drive {
-            DriveAvailability::SelectDestination => "Choisir un trajet",
-            DriveAvailability::NeedVehicle => "Véhicule requis",
-            DriveAvailability::Unreachable => "Trajet inaccessible",
-            DriveAvailability::Arrived => "Déjà sur place",
-            DriveAvailability::Ready if map.selection == MapSelection::DriveBlocked => {
-                "Passage bloqué · Réessayer"
-            }
-            DriveAvailability::Ready => "",
-        };
-        let title_y = if caption.is_empty() {
-            rect.center().y
-        } else {
-            rect.center().y - 7. / scale
-        };
+        painter.rect_filled(rect, 8. / scale, INK);
+        let blocked = map.selection == MapSelection::DriveBlocked;
+        let title_y = rect.center().y - if blocked { 7. / scale } else { 0. };
         painter.text(
             egui::pos2(rect.center().x, title_y),
             Align2::CENTER_CENTER,
             "Conduite cinéma",
             FontId::new(14. / scale, font.clone()),
-            if ready { PAPER } else { MUTED },
+            PAPER,
         );
-        if !caption.is_empty() {
+        if blocked {
             painter.text(
                 rect.center() + egui::vec2(0., 9. / scale),
                 Align2::CENTER_CENTER,
-                caption,
+                "Passage bloqué · Réessayer",
                 FontId::new(11. / scale, font.clone()),
-                if ready { PAPER } else { INK },
+                PAPER,
             );
         }
     }
 
-    if width >= 390. && (!map.selection.is_route() || width >= 610.) {
-        let label = match map.selection {
-            MapSelection::Route | MapSelection::DriveBlocked => "Cliquez pour tracer un trajet.",
-            MapSelection::Jump => {
-                if width >= 570. {
-                    "Cliquez pour vous déplacer."
-                } else {
-                    "Cliquez : déplacement"
-                }
-            }
-            MapSelection::JumpBlocked => {
-                if width >= 570. {
-                    "Choisissez un terrain dégagé."
-                } else {
-                    "Terrain dégagé requis"
-                }
-            }
-        };
+    let jump_hint = match map.selection {
+        MapSelection::Jump if width >= 570. => Some("Cliquez pour vous déplacer."),
+        MapSelection::Jump if width >= 390. => Some("Cliquez : déplacement"),
+        MapSelection::JumpBlocked if width >= 570. => Some("Choisissez un terrain dégagé."),
+        MapSelection::JumpBlocked if width >= 390. => Some("Terrain dégagé requis"),
+        _ => None,
+    };
+    if let Some(label) = jump_hint {
         painter.text(
             egui::pos2(140. / scale, center_y),
             Align2::LEFT_CENTER,
@@ -129,4 +105,40 @@ pub(super) fn resume_driving(ctx: &egui::Context) -> bool {
             .clicked()
         })
         .inner
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn route_header_only_offers_a_ready_drive() {
+        let ctx = egui::Context::default();
+        crate::engine::job_feed::install_font(&ctx);
+        let mut map = FullMapView::default();
+        for drive in [
+            DriveAvailability::SelectDestination,
+            DriveAvailability::NeedVehicle,
+            DriveAvailability::Unreachable,
+            DriveAvailability::Arrived,
+            DriveAvailability::Ready,
+        ] {
+            map.drive = drive;
+            let mut output = ctx.run_ui(Default::default(), |ui| show(ui.ctx(), map));
+            output.textures_delta.clear();
+            let labels: Vec<_> = output
+                .shapes
+                .iter()
+                .filter_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text) => Some(text.galley.text()),
+                    _ => None,
+                })
+                .collect();
+            if drive == DriveAvailability::Ready {
+                assert_eq!(labels, ["MTL", "Conduite cinéma", "×"]);
+            } else {
+                assert_eq!(labels, ["MTL", "×"]);
+            }
+        }
+    }
 }

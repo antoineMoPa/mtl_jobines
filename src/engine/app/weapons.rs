@@ -216,6 +216,46 @@ impl Game {
 mod tests {
     use super::*;
     #[test]
+    fn player_tire_pop_emits_one_smoke_burst_while_driving() {
+        use crate::dynamic_world::{catalog, ShotSurface};
+        let map =
+            Hermes::test_map_from_source("pad=concrete(-2,-2,2,-2,2,2,-2,2); player_start(0,0,0);");
+        let mut game = Game::new(map);
+        game.set_overlay(Overlay::Driving);
+        let (model, compact) = catalog::definitions()
+            .iter()
+            .enumerate()
+            .find(|(_, def)| def.config.research_id == "vehicle-v2-09")
+            .unwrap();
+        assert!(game.world.switch_vehicle(model));
+        let physics = &compact.config.physics;
+        let p = game.world.player().position;
+        let wheel = p + Vec3::new(
+            -physics.wheelbase * 0.5,
+            physics.track * 0.5,
+            -physics.height_offset,
+        );
+        let sprites = |game: &Game| game.loadout.effects.sprites(|_| None, Quat::IDENTITY, p);
+        for (height, fresh) in [(0.13, true), (0.48, false)] {
+            let sidewall = wheel + Vec3::Z * physics.wheel_radius * height;
+            let hit = game
+                .world
+                .fire_weapon_at(
+                    game.hermes.city(),
+                    sidewall + Vec3::Y * 5.,
+                    sidewall - Vec3::Y,
+                    1,
+                )
+                .unwrap();
+            assert_eq!(hit.surface, ShotSurface::Rubber);
+            game.simulate(DT);
+            assert_eq!(!sprites(&game).is_empty(), fresh);
+            game.loadout.effects.step(1.);
+            assert!(sprites(&game).is_empty());
+        }
+    }
+
+    #[test]
     fn police_report_requires_a_successful_normal_play_shot() {
         use crate::dynamic_world::{ChaseStatus, Crime};
         for zombies in [false, true] {

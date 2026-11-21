@@ -82,7 +82,7 @@ fn contact_on_travel(
             } else {
                 travel.truncate() / (speed * dt)
             };
-            home.bump(direction, speed);
+            home.bump(direction, speed, time);
         }
     }
 }
@@ -100,7 +100,10 @@ impl DynamicWorld {
         let approach = velocity.length() * dt + 16.;
         if self.wildlife_homes.iter().any(|home| {
             !home.is_downed()
-                && home.ground[0].distance_squared(eye)
+                && home
+                    .sighting(self.wildlife_time)
+                    .position
+                    .distance_squared(eye)
                     <= (home.species.view_distance() + approach).powi(2)
         }) {
             self.wildlife_vehicle_starts
@@ -163,7 +166,7 @@ mod tests {
     fn habitat() -> Hermes {
         Hermes::test_map_from_source(
             "road street: sidewalk carlane carlane sidewalk; end street(-1,0,1,0);
-             land(-2,-2,2,-2,2,2,-2,2); wildlife_crow_lawn = map_point(0.5,0.5);",
+             land(-2,-2,2,-2,2,2,-2,2); wildlife_squirrel_lawn = map_point(0.5,0.5);",
         )
     }
 
@@ -191,7 +194,7 @@ mod tests {
                 return;
             }
         }
-        panic!("walking across the crow did not startle it");
+        panic!("walking across the squirrel did not startle it");
     }
 
     #[test]
@@ -206,7 +209,7 @@ mod tests {
             let mut world = DynamicWorld::new(&map);
             let ground = world.wildlife_homes[0].sighting(0.).position;
             if fleeing {
-                world.wildlife_homes[0].bump(glam::Vec2::Y, 1.);
+                world.wildlife_homes[0].bump(glam::Vec2::Y, 1., 0.);
             }
             let car = &mut world.vehicles[world.player_vehicle.0];
             car.set_catalog_model(None);

@@ -94,6 +94,32 @@ fn push<T>(items: &mut VecDeque<T>, item: T, limit: usize) {
 }
 
 impl Effects {
+    pub fn tire_pop(&mut self, point: Vec3, normal: Vec3) {
+        let outward = normal.truncate().extend(0.);
+        for _ in 0..7 {
+            let rng = &mut self.rng;
+            push(
+                &mut self.dust,
+                Dust {
+                    origin: point + outward * 0.06,
+                    velocity: outward * rng.range(1.8, 3.8)
+                        + Vec3::new(
+                            rng.range(-1.3, 1.3),
+                            rng.range(-1.3, 1.3),
+                            rng.range(1.5, 3.),
+                        ),
+                    radius: rng.range(0.32, 0.50),
+                    life: rng.range(0.65, 0.95),
+                    age: 0.,
+                    opacity: 0.75,
+                    seed: rng.range(1., 90.),
+                    color: Vec3::splat(rng.range(0.48, 0.72)),
+                },
+                192,
+            );
+        }
+    }
+
     pub fn strike(
         &mut self,
         hit: Contact,

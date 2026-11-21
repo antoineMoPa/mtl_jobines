@@ -596,6 +596,9 @@ impl Game {
                 }
             }
             self.world.step(&self.hermes, driving, walk, DT);
+            for hit in self.world.drain_player_tire_pops() {
+                self.loadout.effects.tire_pop(hit.point, hit.normal);
+            }
             if self.world.arrest_progress().is_some() {
                 self.auto_drive = None;
                 self.keys.clear();
