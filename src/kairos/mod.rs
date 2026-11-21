@@ -1,5 +1,6 @@
 //! Session missions and durable player progress.
 mod bus;
+mod cat;
 mod save;
 mod snowplow;
 mod taxi;
@@ -15,6 +16,7 @@ pub enum MissionId {
     Bus,
     Snowplow,
     Zombie,
+    Cat,
 }
 
 impl MissionId {
@@ -24,6 +26,7 @@ impl MissionId {
             Self::Bus => "Autobus",
             Self::Snowplow => "Déneigeuse",
             Self::Zombie => "Mode zombie",
+            Self::Cat => "Chat perdu",
         }
     }
 
@@ -32,7 +35,7 @@ impl MissionId {
             Self::Taxi => Some("vehicle-j01"),
             Self::Bus => Some("vehicle-j02"),
             Self::Snowplow => Some("vehicle-j03"),
-            Self::Zombie => None,
+            Self::Zombie | Self::Cat => None,
         }
     }
 
@@ -40,7 +43,7 @@ impl MissionId {
         match self {
             Self::Taxi | Self::Bus => Some(crate::season::Season::Summer),
             Self::Snowplow => Some(crate::season::Season::Winter),
-            Self::Zombie => None,
+            Self::Zombie | Self::Cat => None,
         }
     }
 }
@@ -52,15 +55,19 @@ pub enum SiteId {
     BusStop1,
     BusStop2,
     BusStop3,
+    MissingCat,
+    CatDuplex,
 }
 
 impl SiteId {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
         Self::TaxiPickup,
         Self::TaxiDropoff,
         Self::BusStop1,
         Self::BusStop2,
         Self::BusStop3,
+        Self::MissingCat,
+        Self::CatDuplex,
     ];
 
     pub fn map_name(self) -> &'static str {
@@ -70,6 +77,8 @@ impl SiteId {
             Self::BusStop1 => "mission_bus_stop_1",
             Self::BusStop2 => "mission_bus_stop_2",
             Self::BusStop3 => "mission_bus_stop_3",
+            Self::MissingCat => "mission_missing_cat",
+            Self::CatDuplex => "mission_cat_duplex",
         }
     }
 }
@@ -82,6 +91,8 @@ pub struct SnowCell {
 }
 
 pub enum MissionEvent {
+    CatCaught,
+    CatReturned,
     PassengerBoarded,
     PassengerAlighted,
     StopServed,
@@ -108,6 +119,9 @@ pub enum MissionObjective {
     BusStop3,
     SnowClearing,
     SurviveZombies,
+    FindCat,
+    ReturnCat,
+    CatHome,
 }
 
 impl MissionObjective {
@@ -120,6 +134,9 @@ impl MissionObjective {
             Self::BusStop2 => "Approche-toi de l'arrêt 2/3 et arrête-toi",
             Self::BusStop3 => "Approche-toi de l'arrêt 3/3 et arrête-toi",
             Self::SnowClearing => "Déneige les rues",
+            Self::FindCat => "Retrouve le chat perdu.",
+            Self::ReturnCat => "Ramène le chat au duplex.",
+            Self::CatHome => "Le chat est rentré chez lui !",
             Self::SurviveZombies => "Survis aux zombies",
         }
     }
@@ -144,6 +161,7 @@ struct Completed {
     bus: u32,
     snowplow: u32,
     zombie: u32,
+    cat: u32,
 }
 
 impl Completed {
@@ -153,6 +171,7 @@ impl Completed {
             MissionId::Bus => self.bus,
             MissionId::Snowplow => self.snowplow,
             MissionId::Zombie => self.zombie,
+            MissionId::Cat => self.cat,
         }
     }
 
@@ -162,6 +181,7 @@ impl Completed {
             MissionId::Bus => &mut self.bus,
             MissionId::Snowplow => &mut self.snowplow,
             MissionId::Zombie => &mut self.zombie,
+            MissionId::Cat => &mut self.cat,
         };
         *count = count.saturating_add(1);
     }
@@ -266,6 +286,7 @@ impl Kairos {
             MissionId::Taxi => Box::new(taxi::TaxiMission::default()),
             MissionId::Bus => Box::new(bus::BusMission::default()),
             MissionId::Snowplow => Box::new(snowplow::SnowplowMission::default()),
+            MissionId::Cat => Box::new(cat::CatMission::default()),
             MissionId::Zombie => Box::new(zombie::ZombieMission),
         });
     }

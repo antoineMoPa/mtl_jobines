@@ -215,7 +215,7 @@ impl Dialog {
                     close = true;
                 }
                 if !self.message.is_empty() {
-                    ui.label(&self.message);
+                    crate::engine::tooltip::message(ui, &self.message);
                 }
             });
         if saved {

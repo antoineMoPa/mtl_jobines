@@ -1,5 +1,6 @@
 //! The game-native job feed, money display, and phone entry point.
 use super::hud::Overlay;
+use crate::engine::tooltip::HoverHint;
 use crate::kairos::{Kairos, MissionId, MissionProgress};
 use egui::{Color32, RichText};
 
@@ -35,7 +36,7 @@ pub(super) struct Portraits {
 impl Portraits {
     fn for_mission(&self, id: MissionId) -> &egui::TextureHandle {
         match id {
-            MissionId::Taxi | MissionId::Zombie => &self.taxi,
+            MissionId::Cat | MissionId::Taxi | MissionId::Zombie => &self.taxi,
             MissionId::Bus => &self.bus,
             MissionId::Snowplow => &self.snowplow,
         }
@@ -245,43 +246,21 @@ pub(super) fn show(
                 ),
             )
             .show(ctx, |ui| {
-                egui::Frame::new()
-                    .fill(HUD_PAPER)
-                    .stroke(egui::Stroke::new(
-                        if mobile { 3. } else { 7. },
-                        Color32::BLACK,
-                    ))
-                    .corner_radius(if mobile { 12 } else { 24 })
-                    .inner_margin(if mobile {
-                        egui::Margin::same(8)
-                    } else {
-                        egui::Margin::symmetric(18, 14)
-                    })
-                    .show(ui, |ui| {
-                        ui.set_max_width(if mobile {
-                            (ctx.content_rect().width() - 110.).clamp(100., 190.)
-                        } else {
-                            (ctx.content_rect().width() - 72.).clamp(120., 360.)
-                        });
-                        let label = match kairos.vehicle_return_seconds() {
-                            Some(seconds) => format!(
-                                "Retourne à ton véhicule avant la fin de la jobine ({seconds} s)"
-                            ),
-                            None => objective.label().to_owned(),
-                        };
-                        ui.label(RichText::new(label).color(Color32::BLACK).font(
-                            egui::FontId::new(
-                                if mobile { 15. } else { 24. },
-                                egui::FontFamily::Name(MONEY_FONT.into()),
-                            ),
-                        ));
-                        if let Some(MissionProgress::ClearedDistanceKm(km)) = kairos.progress() {
-                            ui.add_space(10.);
-                            ui.label(RichText::new(format!("{km:.2} km")).color(GREEN).font(
-                                egui::FontId::new(16., egui::FontFamily::Name(MONEY_FONT.into())),
-                            ));
-                        }
-                    });
+                ui.set_max_width(if mobile {
+                    (ctx.content_rect().width() - 110.).clamp(100., 190.)
+                } else {
+                    320.
+                });
+                let mut label = match kairos.vehicle_return_seconds() {
+                    Some(seconds) => {
+                        format!("Retourne à ton véhicule avant la fin de la jobine ({seconds} s)")
+                    }
+                    None => objective.label().to_owned(),
+                };
+                if let Some(MissionProgress::ClearedDistanceKm(km)) = kairos.progress() {
+                    label.push_str(&format!(" · {km:.2} km"));
+                }
+                super::tooltip::message(ui, &label);
             });
     }
     if let Some(phone_anchor) = phone_anchor.filter(|_| !*open) {
@@ -301,7 +280,7 @@ pub(super) fn show(
                 if response.clicked() {
                     *open = true;
                 }
-                response.on_hover_text("Ouvrir les jobines");
+                response.hover_hint("Ouvrir les jobines");
             });
     }
     if !*open {
@@ -400,6 +379,13 @@ pub(super) fn show(
                     "@cynthia_tremblay  construction civile",
                     "Y’a des zombies dans les rues! Tes munitions sont illimitées.",
                     "⚠",
+                ),
+                (
+                    MissionId::Cat,
+                    "Cynthia Tremblay",
+                    "@cynthia_tremblay  construction civile",
+                    "Mon chat blanc s’est sauvé ! J’ai marqué le coin sur ta carte. Peux-tu me le ramener au duplex ?",
+                    "🐈",
                 ),
             ] {
                 egui::Frame::new()
@@ -611,23 +597,17 @@ pub(super) fn player_status(
     status: crate::dynamic_world::ChaseStatus,
 ) {
     if status == crate::dynamic_world::ChaseStatus::Arrested {
-        outcome_banner(ctx, scene_size, "Busted", Color32::from_rgb(143, 197, 255));
+        outcome_banner(ctx, scene_size, "Busted");
     } else if health == 0 {
-        outcome_banner(ctx, scene_size, "Mangé", Color32::from_rgb(255, 110, 94));
+        outcome_banner(ctx, scene_size, "Mangé");
     }
 }
 
-fn outcome_banner(ctx: &egui::Context, scene_size: egui::Vec2, title: &str, color: Color32) {
-    let center = (scene_size * 0.5).to_pos2();
-    let size = (scene_size.y * 0.16)
-        .min(scene_size.x * 0.22)
-        .clamp(24., 112.);
-    let painter = ctx.layer_painter(egui::LayerId::new(
-        egui::Order::Foreground,
-        egui::Id::new("player outcome"),
-    ));
-    let band = egui::Rect::from_center_size(center, egui::vec2(scene_size.x, size * 1.45));
-    painter.rect_filled(band, 0., Color32::from_black_alpha(165));
-    let font = egui::FontId::new(size, egui::FontFamily::Name(MONEY_FONT.into()));
-    painter.text(center, egui::Align2::CENTER_CENTER, title, font, color);
+fn outcome_banner(ctx: &egui::Context, scene_size: egui::Vec2, title: &str) {
+    super::tooltip::positioned(
+        ctx,
+        (scene_size * 0.5).to_pos2(),
+        egui::Align2::CENTER_CENTER,
+        title,
+    );
 }

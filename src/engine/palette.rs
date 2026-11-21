@@ -52,6 +52,7 @@ pub(super) enum PaletteAction {
     SwitchVehicle(usize),
     JumpToLocation,
     ResumeDriving,
+    InteractWithCat,
     #[cfg(not(target_arch = "wasm32"))]
     ExpandNetwork,
     #[cfg(not(target_arch = "wasm32"))]
@@ -370,6 +371,13 @@ impl Palette {
         }
         #[cfg(target_arch = "wasm32")]
         {
+            if let WindowEvent::Touch(touch) = event {
+                let point = touch.location.to_logical::<f32>(window.scale_factor());
+                return self
+                    .ctx
+                    .layer_id_at(egui::pos2(point.x, point.y))
+                    .is_some_and(|layer| layer.id == egui::Id::new("cat_interaction"));
+            }
             false
         }
     }
@@ -570,6 +578,21 @@ impl Palette {
                 menu_selection,
             );
             if game_overlay == Overlay::Driving && !*help_visible && !self.is_open() {
+                if let Some(action) = world.cat_action() {
+                    let clicked = egui::Area::new("cat_interaction".into())
+                        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -30.))
+                        .show(&ctx, |ui| {
+                            super::tooltip::action(
+                                ui,
+                                (!super::app::mobile_enabled()).then_some("Entrée"),
+                                action.label(),
+                            )
+                        })
+                        .inner;
+                    if clicked {
+                        selected = Some(PaletteAction::InteractWithCat);
+                    }
+                }
                 super::job_feed::player_status(
                     &ctx,
                     egui::vec2(renderer.config.width as f32, renderer.scene_height() as f32)

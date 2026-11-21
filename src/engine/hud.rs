@@ -164,11 +164,11 @@ struct Uniform {
     full_map: [f32; 4],
     destination: [f32; 4],
     performance: [f32; 4],
-    text_metrics: [f32; 4],
-    letters: [[u32; 4]; 12],
+    job_marker: [f32; 4],
     police: [[f32; 4]; 80],
 }
 pub struct Hud {
+    pub(super) job_marker: [f32; 4],
     pub(super) police: [[f32; 4]; 80],
     texture: wgpu::Texture,
     uniform: wgpu::Buffer,
@@ -365,6 +365,7 @@ impl Hud {
             mapped_at_creation: false,
         });
         Self {
+            job_marker: [0.; 4],
             police: [[0.; 4]; 80],
             vector_city: None,
             vector_pipeline,
@@ -486,45 +487,6 @@ impl Hud {
             multiview_mask: None,
         })
     }
-    pub fn render_message(
-        &self,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-        target: &wgpu::TextureView,
-        width: u32,
-        height: u32,
-        text: &str,
-        centered: bool,
-    ) {
-        if text.is_empty() {
-            return;
-        }
-        let mut data = Uniform::zeroed();
-        let mut length = 0;
-        for (i, c) in text.chars().take(48).enumerate() {
-            data.letters[i / 4][i % 4] = c as u32;
-            length += 1;
-        }
-        let (w, h) = (width as f32, height as f32);
-        let ideal = if centered { h.min(w) / 48. } else { h / 320. };
-        let scale = ideal.max(1.).min(w / (length as f32 * 6. + 4.));
-        let box_width = (length as f32 * 6. + 3.) * scale;
-        let box_height = 9. * scale;
-        let (x, y) = if centered {
-            ((w - box_width) * 0.5, h * 0.34 - box_height * 0.5)
-        } else {
-            (scale * 4., scale * 4.)
-        };
-        data.rect = [x, y, box_width, box_height];
-        data.screen = [w, h, 0., 0.];
-        data.text_metrics = [length as f32, scale, 0., 0.];
-        data.mode[0] = 3.;
-        queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
-        let mut pass = self.begin_pass(encoder, target, None);
-        pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &self.group, &[]);
-        pass.draw(0..6, 0..1);
-    }
     pub fn render(
         &self,
         queue: &wgpu::Queue,
@@ -575,8 +537,7 @@ impl Hud {
                 0.,
             ],
             performance: [fps.unwrap_or(0.), 0., 0., 0.],
-            text_metrics: [0.; 4],
-            letters: [[0; 4]; 12],
+            job_marker: self.job_marker,
             police: self.police,
             mode: [
                 match overlay {

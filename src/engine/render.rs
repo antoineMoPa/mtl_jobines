@@ -834,6 +834,9 @@ impl Renderer {
     pub fn update_route(&mut self, points: &[[f32; 2]]) {
         self.hud.update_route(&self.device, points);
     }
+    pub fn set_job_marker(&mut self, uv: Option<[f32; 2]>) {
+        self.hud.job_marker = uv.map_or([0.; 4], |[x, y]| [x, y, 1., 0.]);
+    }
     pub fn set_police_markers(&mut self, markers: impl Iterator<Item = ([f32; 2], bool)>) {
         self.hud.police.fill([0.; 4]);
         for (slot, (uv, walking)) in self.hud.police.iter_mut().zip(markers) {
@@ -1052,7 +1055,7 @@ impl Renderer {
         time: f32,
         navigation: MinimapView,
     ) {
-        self.render_scene(target, meshes, eye, look, time, Some(navigation), None);
+        self.render_scene(target, meshes, eye, look, time, Some(navigation));
     }
 
     pub(super) fn render_scene(
@@ -1063,7 +1066,6 @@ impl Renderer {
         look: Vec3,
         time: f32,
         navigation: Option<MinimapView>,
-        message: Option<(&str, bool)>,
     ) {
         self.commerce.models.sync(&self.queue);
         self.contact_texture
@@ -1361,17 +1363,6 @@ impl Renderer {
                 writes
             }),
         );
-        if let Some((text, centered)) = message {
-            self.hud.render_message(
-                &self.queue,
-                &mut encoder,
-                target,
-                self.config.width,
-                self.scene_height(),
-                text,
-                centered,
-            );
-        }
         if let Some(navigation) = navigation.filter(|_| {
             !self.cinematic && (!super::app::mobile_enabled() || self.overlay == Overlay::Map)
         }) {

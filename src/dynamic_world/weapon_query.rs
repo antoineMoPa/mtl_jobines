@@ -117,7 +117,8 @@ pub fn ground_shot_contact(city: &City, from: Vec3, dir: Vec3, limit: f32) -> Op
 
 impl DynamicWorld {
     pub fn can_equip_weapon(&self) -> bool {
-        self.health > 0
+        self.cat_grip().is_none()
+            && self.health > 0
             && self.pedestrian.as_ref().is_some_and(|p| !p.swimming)
             && !self.metro.aboard
     }
@@ -130,8 +131,13 @@ impl DynamicWorld {
     }
 
     pub fn aim_weapon(&mut self, target: Option<Vec3>, two_handed: bool) {
+        let cat = self.cat_grip();
         if let Some(player) = self.pedestrian.as_mut() {
-            player.aim_weapon(self.season, target, two_handed);
+            if let Some((position, crouch)) = cat {
+                player.cradle_cat(self.season, position, crouch);
+            } else {
+                player.aim_weapon(self.season, target, two_handed);
+            }
         }
     }
 

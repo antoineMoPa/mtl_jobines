@@ -883,7 +883,7 @@ fn zombie_melee_contact_frames_in_game() {
         meshes.extend(actors.visible());
         let png = renderer
             .capture_png(|view| {
-                renderer.render_scene(view, &meshes, eye, look, 10., None, None);
+                renderer.render_scene(view, &meshes, eye, look, 10., None);
                 let ctx = egui::Context::default();
                 crate::engine::job_feed::install_font(&ctx);
                 let frame = |time| {

@@ -1,4 +1,5 @@
 use super::{card_frame, shade, FONT, GREEN, INK, MUTED};
+use crate::engine::tooltip::HoverHint;
 use egui::{Color32, FontFamily, FontId, RichText, Stroke};
 
 fn text(label: &str, size: f32, color: Color32) -> RichText {
@@ -51,7 +52,7 @@ pub(in crate::engine) fn show(ctx: &egui::Context, open: &mut bool, antialiasing
                                 .fill(if *antialiasing { GREEN } else { Color32::WHITE })
                                 .stroke(Stroke::new(2., INK))
                                 .corner_radius(10),
-                        ).on_hover_text("Activer ou désactiver l’anticrénelage");
+                        ).hover_hint("Activer ou désactiver l’anticrénelage");
                         if response.clicked() {
                             *antialiasing = !*antialiasing;
                         }

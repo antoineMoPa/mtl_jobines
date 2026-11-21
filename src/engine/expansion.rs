@@ -140,6 +140,14 @@ impl Document {
             ctx.content_rect().min,
             egui::vec2(scene_pixels[0] as f32, scene_pixels[1] as f32) / ctx.pixels_per_point(),
         );
+        if !self.picker.message.is_empty() {
+            super::tooltip::positioned(
+                &ctx,
+                viewport.center_bottom() - egui::vec2(0., 8.),
+                egui::Align2::CENTER_BOTTOM,
+                &self.picker.message,
+            );
+        }
         if input_enabled {
             self.iso_input(&ctx, view, viewport);
         } else {

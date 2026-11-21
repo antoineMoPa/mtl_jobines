@@ -1,4 +1,5 @@
 use super::*;
+use crate::engine::tooltip::HoverHint;
 use egui::{Color32, Stroke};
 const ORANGE: Color32 = Color32::from_rgb(255, 161, 20);
 impl Document {
@@ -188,7 +189,7 @@ impl Document {
                                     .speed(0.1)
                                     .range(1..=300),
                             )
-                            .on_hover_text(format!(
+                            .hover_hint(format!(
                                 "Floor count; drag or click to type. {:.2} m per floor. Keeps the footprint unchanged.",
                                 floor_height * 100.
                             ))
@@ -232,7 +233,7 @@ impl Document {
                             ui.label("Angle");
                             if ui
                                 .add(egui::DragValue::new(&mut angle).speed(5.).suffix("°"))
-                                .on_hover_text("Drag to rotate; hold Shift for precision or click to type an angle.")
+                                .hover_hint("Drag to rotate; hold Shift for precision or click to type an angle.")
                                 .changed()
                                 && angle.is_finite()
                             {
@@ -272,7 +273,7 @@ impl Document {
                         }
                         if ui
                             .button("Delete")
-                            .on_hover_text("Backspace / Delete")
+                            .hover_hint("Backspace / Delete")
                             .clicked()
                         {
                             self.error = self.delete(index).err().unwrap_or_default();
@@ -284,7 +285,7 @@ impl Document {
                         }
                     }
                     if !self.error.is_empty() {
-                        ui.colored_label(Color32::from_rgb(255, 140, 120), &self.error);
+                        crate::engine::tooltip::message(ui, &self.error);
                     }
                 });
             });

@@ -52,6 +52,7 @@ mod snow;
 mod snowplow_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod surface_tests;
+mod tooltip;
 mod vehicle_scenery;
 mod vehicle_textures;
 #[cfg(not(target_arch = "wasm32"))]

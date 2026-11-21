@@ -347,7 +347,7 @@ fn equipped_weapon_renders_in_the_player_chase_view() {
     meshes.extend(actors.visible());
     let capture = |meshes: &[&GpuMesh]| {
         renderer
-            .capture_png(|view| renderer.render_scene(view, meshes, eye, look, 10., None, None))
+            .capture_png(|view| renderer.render_scene(view, meshes, eye, look, 10., None))
             .unwrap()
     };
     let bare = capture(&meshes);
@@ -459,7 +459,7 @@ fn capture_asphalt_shot(capture_muzzle: bool) {
     assert_eq!(renderer.local_lights.flash.get().is_some(), capture_muzzle);
     renderer.update_impacts(&sprites);
     let frame = renderer
-        .capture_png(|view| renderer.render_scene(view, &meshes, eye, look, 10., None, None))
+        .capture_png(|view| renderer.render_scene(view, &meshes, eye, look, 10., None))
         .unwrap();
     if let Some(path) = std::env::var_os(if capture_muzzle {
         "MTL_MUZZLE_QA_PNG"
@@ -527,7 +527,7 @@ fn zombie_knockout_through_the_third_person_cursor() {
     );
     let capture = |renderer: &Renderer| {
         renderer
-            .capture_png(|view| renderer.render_scene(view, &meshes, eye, look, 10., None, None))
+            .capture_png(|view| renderer.render_scene(view, &meshes, eye, look, 10., None))
             .unwrap()
     };
     let normal = capture(renderer);

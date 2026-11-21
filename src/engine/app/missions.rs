@@ -12,6 +12,7 @@ impl Game {
     pub(super) fn abandon_mission(&mut self) {
         let winter = self.kairos.active_id() == Some(MissionId::Snowplow);
         self.kairos.abandon();
+        self.world.rescue_cat = None;
         self.mission_vehicle = None;
         self.world.set_zombie_mode(self.hermes.city(), false);
         self.world.clear_service_passengers();
@@ -34,6 +35,7 @@ impl Game {
             .is_some_and(|required| required != season)
         {
             self.kairos.abandon();
+            self.world.rescue_cat = None;
             self.mission_vehicle = None;
             self.world.clear_service_passengers();
             self.hermes.clear_destination();
@@ -65,10 +67,27 @@ impl Game {
                 return;
             }
         }
+        let cat = if id == MissionId::Cat {
+            let point = |site| {
+                let xy = self.hermes.mission_site(site)?;
+                let ground = self.hermes.city().surface_at(xy, f32::MAX)?;
+                Some(Vec3::new(xy[0], xy[1], ground.height) * METERS_PER_UNIT)
+            };
+            let (Some(street), Some(door)) = (point(SiteId::MissingCat), point(SiteId::CatDuplex))
+            else {
+                eprintln!("Missing cat mission sites");
+                return;
+            };
+            Some(crate::dynamic_world::rescue_cat::RescueCat::new(
+                street, door,
+            ))
+        } else {
+            None
+        };
         let required: &[(u32, SiteId)] = match id {
             MissionId::Taxi => &[(1, SiteId::TaxiPickup)],
             MissionId::Bus => BUS_PASSENGERS,
-            MissionId::Snowplow | MissionId::Zombie => &[],
+            MissionId::Cat | MissionId::Snowplow | MissionId::Zombie => &[],
         };
         let Some(passengers) = required
             .iter()
@@ -85,7 +104,7 @@ impl Game {
         let destinations: &[SiteId] = match id {
             MissionId::Taxi => &[SiteId::TaxiPickup, SiteId::TaxiDropoff],
             MissionId::Bus => &[SiteId::BusStop1, SiteId::BusStop2, SiteId::BusStop3],
-            MissionId::Snowplow | MissionId::Zombie => &[],
+            MissionId::Cat | MissionId::Snowplow | MissionId::Zombie => &[],
         };
         if destinations
             .iter()
@@ -102,6 +121,7 @@ impl Game {
         } else {
             self.mission_vehicle = None;
         }
+        self.world.rescue_cat = cat;
         let continuing_snow =
             id == MissionId::Snowplow && self.kairos.active_id() == Some(MissionId::Snowplow);
         if !continuing_snow {
@@ -135,6 +155,27 @@ impl Game {
         if let Some(window) = &self.window {
             window.request_redraw();
         }
+    }
+
+    pub(super) fn interact_with_cat(&mut self) -> bool {
+        use crate::{dynamic_world::rescue_cat::CatAction, kairos::MissionEvent};
+        if self.simulation_paused()
+            || self.auto_drive.is_some()
+            || self.kairos.active_id() != Some(MissionId::Cat)
+        {
+            return false;
+        }
+        let Some(action) = self.world.interact_with_cat() else {
+            return false;
+        };
+        self.kairos.event(match action {
+            CatAction::Catch => MissionEvent::CatCaught,
+            CatAction::Return => MissionEvent::CatReturned,
+        });
+        self.refresh_mission_route();
+        self.kairos.save_now();
+        self.scene_dirty = true;
+        true
     }
 
     fn assign_mission_vehicle(&mut self, id: MissionId, vehicle_id: &str) -> bool {
@@ -268,6 +309,40 @@ impl Game {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_cat_job_consumes_only_available_actions_and_pays_once() {
+        let map = Hermes::test_map_from_source(
+            "road street: sidewalk carlane carlane sidewalk; end
+            street(-1,0,1,0); land(-2,-2,2,-2,2,2,-2,2);
+            pedestrian_start(0.4,0.15,0); mission_missing_cat = map_point(0.4,0.15);
+            mission_cat_duplex = map_point(0.41,0.15);",
+        );
+        let mut game = Game::new(map);
+        game.set_overlay(Overlay::Driving);
+        game.apply_palette_action(PaletteAction::SelectMission(MissionId::Cat));
+        assert_eq!(game.kairos.target(), Some(SiteId::MissingCat));
+        game.set_overlay(Overlay::Map);
+        assert!(!game.interact_with_cat());
+        game.set_overlay(Overlay::Driving);
+        assert!(game.interact_with_cat());
+        assert_eq!(game.kairos.target(), Some(SiteId::CatDuplex));
+        assert!(!game.interact_with_cat());
+        for _ in 0..40 {
+            game.simulate(1. / 60.);
+        }
+        game.apply_palette_action(PaletteAction::InteractWithCat);
+        assert!(game.kairos.is_complete());
+        assert_eq!(game.kairos.completed(MissionId::Cat), 1);
+        assert_eq!(game.kairos.money_cents(), 1000);
+        assert!(!game.interact_with_cat());
+        game.abandon_mission();
+        assert!(game.world.cat_marker().is_none());
+        game.activate_mission_now(MissionId::Cat);
+        assert!(game.interact_with_cat());
+        game.activate_mission_now(MissionId::Zombie);
+        assert!(game.world.cat_marker().is_none());
+    }
 
     #[test]
     fn zombie_job_can_be_chosen_replaced_and_abandoned_from_the_phone() {

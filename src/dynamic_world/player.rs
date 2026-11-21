@@ -546,6 +546,18 @@ impl Pedestrian {
         target: Option<Vec3>,
         two_handed: bool,
     ) {
+        self.pose_arms(season, target, two_handed, None);
+    }
+    pub(super) fn cradle_cat(&mut self, season: crate::season::Season, cat: Vec3, crouch: f32) {
+        self.pose_arms(season, Some(cat), true, Some(crouch));
+    }
+    fn pose_arms(
+        &mut self,
+        season: crate::season::Season,
+        target: Option<Vec3>,
+        two_handed: bool,
+        cat_crouch: Option<f32>,
+    ) {
         self.weapon_pose = None;
         let Some(target) = target else {
             return;
@@ -556,7 +568,10 @@ impl Pedestrian {
             .transform
             .inverse()
             .transform_point3(target / METERS_PER_UNIT);
-        let mut joints = def.joint_worlds(&self.gait.palette);
+        let mut joints = match cat_crouch {
+            Some(depth) if depth > 0.01 => def.crouching_worlds(depth),
+            _ => def.joint_worlds(&self.gait.palette),
+        };
         let mut grip = Vec3::ZERO;
         for (support, names) in [
             (false, ["UpperArm_R", "Forearm_R", "Hand_R"]),
@@ -576,7 +591,9 @@ impl Pedestrian {
             let direction = delta / distance;
             let upper = shoulder.distance(elbow);
             let lower = elbow.distance(wrist);
-            let target = if support {
+            let target = if cat_crouch.is_some() {
+                local_target + Vec3::new(if support { 0.19 } else { -0.19 }, 0.08, 0.)
+            } else if support {
                 grip + direction * 0.28
             } else {
                 shoulder + direction * ((upper + lower) * 0.78) - Vec3::Y * 0.08

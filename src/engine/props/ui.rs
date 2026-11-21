@@ -233,7 +233,7 @@ impl Document {
                         self.open = false;
                     }
                     if !self.error.is_empty() {
-                        ui.colored_label(Color32::from_rgb(255, 140, 120), &self.error);
+                        crate::engine::tooltip::message(ui, &self.error);
                     }
                 });
                 let entry = self
@@ -256,7 +256,7 @@ impl Document {
                                     )
                                     .clicked();
                                 if let Some(error) = error {
-                                    ui.colored_label(ui.visuals().error_fg_color, error);
+                                    crate::engine::tooltip::message(ui, &error);
                                 }
                                 apply
                             })

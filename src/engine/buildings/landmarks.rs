@@ -1,5 +1,6 @@
 //! Visual catalogue of the same embedded models used by the game.
 use super::*;
+use crate::engine::tooltip::HoverHint;
 use crate::hermes::{external_models, landmark_destinations, landmarks};
 
 #[derive(Default)]
@@ -113,7 +114,7 @@ impl Document {
                                             choice = Some(id.clone());
                                         }
                                     });
-                                    card.response.on_hover_text(*title);
+                                    card.response.hover_hint(*title);
                                     count += 1;
                                     if count % columns == 0 {
                                         ui.end_row();
@@ -125,7 +126,7 @@ impl Document {
                         }
                     });
                 if !self.error.is_empty() {
-                    ui.colored_label(egui::Color32::LIGHT_RED, &self.error);
+                    crate::engine::tooltip::message(ui, &self.error);
                 }
             });
         if let Some(id) = choice {

@@ -65,9 +65,11 @@ pub struct StepProfile {
     pub stages_ns: [u64; 8],
     pub crowd_ns: [u64; 13],
 }
+pub mod rescue_cat;
 pub mod wildlife;
 
 pub struct DynamicWorld {
+    pub rescue_cat: Option<rescue_cat::RescueCat>,
     wildlife_homes: Vec<wildlife::Home>,
     wildlife_population: wildlife::Population,
     wildlife_night: bool,
@@ -153,6 +155,7 @@ impl DynamicWorld {
             )
         });
         let mut world = Self {
+            rescue_cat: None,
             wildlife_homes: hermes.wildlife.clone(),
             wildlife_population: Default::default(),
             wildlife_night: false,

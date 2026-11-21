@@ -1,13 +1,14 @@
 //! First-play controls and the in-game help key.
 use super::hud::{MenuItem, Overlay};
+use crate::engine::tooltip::HoverHint;
 use egui::{Color32, RichText, Stroke};
 
 mod settings;
 pub(super) use settings::show as settings;
 
 const INK: Color32 = Color32::from_rgb(38, 62, 61);
-const MUTED: Color32 = Color32::from_rgb(101, 126, 121);
 const GREEN: Color32 = Color32::from_rgb(49, 125, 109);
+const MUTED: Color32 = Color32::from_rgb(101, 126, 121);
 const PAPER: Color32 = Color32::from_rgb(246, 249, 247);
 const FONT: &str = "money_bold";
 const PHONE_BOTTOM: f32 = 20.;
@@ -108,37 +109,6 @@ fn arrows(ui: &mut egui::Ui) {
     arrow_key(painter, egui::pos2(x + 40., y + 40.), Arrow::Right);
 }
 
-fn letter_key(ui: &mut egui::Ui, label: &str) {
-    let (column, _) =
-        ui.allocate_exact_size(egui::vec2(CONTROL_KEY_COLUMN, 40.), egui::Sense::hover());
-    let rect = egui::Rect::from_center_size(
-        egui::pos2(column.center().x, column.top() + 19.),
-        egui::vec2(38., 38.),
-    );
-    let painter = ui.painter();
-    painter.rect_filled(rect, 7., Color32::WHITE);
-    painter.rect_stroke(rect, 7., Stroke::new(2., INK), egui::StrokeKind::Inside);
-    painter.text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        label,
-        egui::FontId::new(21., egui::FontFamily::Name(FONT.into())),
-        INK,
-    );
-}
-
-fn control_row(ui: &mut egui::Ui, key: &str, label: &str) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
-        letter_key(ui, key);
-        ui.label(
-            RichText::new(label)
-                .color(INK)
-                .font(egui::FontId::new(18., egui::FontFamily::Name(FONT.into()))),
-        );
-    });
-}
-
 fn card_frame() -> egui::Frame {
     egui::Frame::new()
         .fill(PAPER)
@@ -181,48 +151,35 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
                         "À droite : courir, sauter ou conduire.",
                         "En haut : carte, téléphone, menu et portière.",
                     ] {
-                        ui.label(
-                            RichText::new(text)
-                                .color(INK)
-                                .font(egui::FontId::new(17., egui::FontFamily::Name(FONT.into()))),
-                        );
+                        super::tooltip::message(ui, text);
                         ui.add_space(10.);
                     }
                 } else {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
                         arrows(ui);
-                        ui.label(
-                            RichText::new("Se déplacer")
-                                .color(INK)
-                                .font(egui::FontId::new(18., egui::FontFamily::Name(FONT.into()))),
-                        );
+                        super::tooltip::message(ui, "Se déplacer");
                     });
                     ui.separator();
                     ui.add_space(8.);
-                    control_row(ui, "F", "Entrer ou sortir du véhicule");
-                    control_row(ui, "O", "Ouvrir ou fermer la portière");
+                    super::tooltip::hint(ui, Some("F"), "Entrer ou sortir du véhicule");
+                    super::tooltip::hint(ui, Some("O"), "Ouvrir ou fermer la portière");
                     ui.add_space(8.);
                     ui.separator();
                     ui.add_space(8.);
-                    ui.label("À pied : 1 fusil · 2 pistolet · 0 ranger");
-                    ui.label("Souris pour viser · A/D pour se décaler");
-                    ui.label("Clic gauche à mains nues pour frapper");
-                    ui.label("Arme équipée : clic pour tirer · R pour recharger");
+                    super::tooltip::message(ui, "À pied : 1 fusil · 2 pistolet · 0 ranger");
+                    super::tooltip::message(ui, "Souris pour viser · A/D pour se décaler");
+                    super::tooltip::message(ui, "Clic gauche à mains nues pour frapper");
+                    super::tooltip::message(
+                        ui,
+                        "Arme équipée : clic pour tirer · R pour recharger",
+                    );
                     ui.add_space(8.);
-                    control_row(ui, "P", "Ouvrir le téléphone");
+                    super::tooltip::hint(ui, Some("P"), "Ouvrir le téléphone");
                     ui.add_space(8.);
                     ui.separator();
                     ui.add_space(16.);
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = CONTROL_COLUMN_GAP;
-                        letter_key(ui, "?");
-                        ui.label(
-                            RichText::new("Retrouvez cette aide à tout moment.")
-                                .color(MUTED)
-                                .font(egui::FontId::new(15., egui::FontFamily::Name(FONT.into()))),
-                        );
-                    });
+                    super::tooltip::hint(ui, Some("?"), "Retrouvez cette aide à tout moment.");
                 }
                 ui.add_space(18.);
                 let label = if first_play { "JOUER" } else { "REPRENDRE" };
@@ -330,10 +287,7 @@ pub(super) fn indicator(
                 egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1., 1.)),
                 Color32::WHITE,
             );
-            if response
-                .on_hover_text("Afficher les commandes (?)")
-                .clicked()
-            {
+            if response.hover_hint("Afficher les commandes (?)").clicked() {
                 *open = true;
             }
         });

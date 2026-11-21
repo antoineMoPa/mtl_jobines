@@ -106,15 +106,7 @@ mod tests {
         fn pixel(r: &Renderer) -> [u8; 3] {
             let png = r
                 .capture_png(|view| {
-                    r.render_scene(
-                        view,
-                        &[],
-                        Vec3::ZERO,
-                        Vec3::new(0., 1., 0.5),
-                        0.,
-                        None,
-                        None,
-                    );
+                    r.render_scene(view, &[], Vec3::ZERO, Vec3::new(0., 1., 0.5), 0., None);
                 })
                 .unwrap();
             let mut reader = png::Decoder::new(png.as_slice()).read_info().unwrap();

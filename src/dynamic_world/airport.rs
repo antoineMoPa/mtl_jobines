@@ -216,13 +216,24 @@ pub(crate) fn append_scenery(city: &City, mesh: &mut Mesh) {
         };
         let center = r.size.x * 0.5;
         let base = r.height;
+        // Layout 1 reserves ten bits for width (dm) and twelve for length (m).
+        let width_dm = (r.size.x * 1000.).round().clamp(1., 1023.) as u32;
+        let length_m = (r.size.y * 100.).round().clamp(1., 4095.) as u32;
+        let pavement = (1 | width_dm << 2 | length_m << 12) as f32;
         let quad = |mesh: &mut Mesh, min: Vec2, max: Vec2, height, color, kind| {
             let a = r.point(min).extend(height).to_array();
             let b = r.point(Vec2::new(max.x, min.y)).extend(height).to_array();
             let c = r.point(max).extend(height).to_array();
             let d = r.point(Vec2::new(min.x, max.y)).extend(height).to_array();
-            mesh.triangle([a, b, c], color, kind, [0.; 3]);
-            mesh.triangle([a, c, d], color, kind, [0.; 3]);
+            let start = mesh.vertices.len();
+            mesh.triangle([a, b, c], color, kind, [0., 0., 1.]);
+            mesh.triangle([a, c, d], color, kind, [0., 0., 1.]);
+            for (v, across) in mesh.vertices[start..]
+                .iter_mut()
+                .zip([0., 1., 1., 0., 1., 0.])
+            {
+                v.surface[1] = across;
+            }
         };
         // Reuse the actual runway faces so there are no coplanar concrete
         // and asphalt layers at long viewing distances.
@@ -239,7 +250,13 @@ pub(crate) fn append_scenery(city: &City, mesh: &mut Mesh) {
             }) {
                 for vertex in triangle {
                     vertex.color = [0.22, 0.25, 0.27];
-                    vertex.surface = [SurfaceKind::Asphalt as u32 as f32, 0., 0., 0.];
+                    let offset = Vec2::new(vertex.position[0], vertex.position[1]) - r.origin;
+                    vertex.surface = [
+                        SurfaceKind::Asphalt as u32 as f32,
+                        offset.dot(r.across),
+                        offset.dot(r.across.perp()),
+                        pavement,
+                    ];
                 }
             }
         }
@@ -281,6 +298,40 @@ mod tests {
     use crate::dynamic_world::{Controls, DynamicWorld};
     use crate::hermes::Hermes;
     use std::f32::consts::PI;
+
+    #[test]
+    fn rotated_runway_carries_edge_distances_and_wear_on_paint_only() {
+        let hermes = Hermes::test_map_from_source(
+            "airport_west_runway=concrete(0,0,0.39,0.52,-1.21,1.72,-1.60,1.20); elevation(airport_west_runway,0.12); player_start(0,0,0);"
+        );
+        let city = hermes.city();
+        let r = Runway::find(city, Strip::A).unwrap();
+        let mut mesh = city
+            .mesh(opencity::runtime::Region::WholeMap, 0.04)
+            .unwrap();
+        append_scenery(city, &mut mesh);
+        let asphalt: Vec<_> = mesh
+            .vertices
+            .iter()
+            .filter(|v| v.surface[0] == SurfaceKind::Asphalt as u32 as f32)
+            .collect();
+        assert_eq!(asphalt.len(), 6);
+        for v in asphalt {
+            let bits = v.surface[3] as u32;
+            assert_eq!((bits & 3, (bits >> 2) & 1023, bits >> 12), (1, 650, 200));
+            let corner = r.point(Vec2::new(v.surface[1], v.surface[2]));
+            assert!(corner.distance(Vec2::new(v.position[0], v.position[1])) < 1e-5);
+        }
+        let paint: Vec<_> = mesh
+            .vertices
+            .iter()
+            .filter(|v| v.surface[0] == SurfaceKind::Marking as u32 as f32)
+            .collect();
+        assert!(!paint.is_empty());
+        assert!(paint
+            .iter()
+            .all(|v| v.surface[3] == 1. && matches!(v.surface[1], 0. | 1.)));
+    }
 
     #[test]
     fn airport_map_has_two_runways_and_three_separated_circuits() {

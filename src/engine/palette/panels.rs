@@ -1,4 +1,6 @@
 use super::*;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::engine::tooltip::HoverHint;
 impl Palette {
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn remember_report_overlay(
@@ -72,7 +74,7 @@ impl Palette {
                 )
                 .show(&ctx, |ui| {
                     ui.add_enabled(enabled, egui::Link::new("[bug]"))
-                        .on_hover_text("Report a bug")
+                        .hover_hint("Report a bug")
                 })
                 .inner;
             if response.clicked() {

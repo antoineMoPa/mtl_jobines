@@ -26,6 +26,7 @@ struct Host {
     resume: Resume,
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
+    message_ui: Option<(egui::Context, crate::engine::palette::Painter)>,
     terrain: Option<(Vec3, GpuMesh)>,
     actors: Option<GpuMesh>,
     flora: HashMap<Kind, FloraBatch>,
@@ -55,6 +56,7 @@ pub(super) fn run(world: World, resume: Resume) -> Result<(), String> {
         window: None,
         renderer: None,
         terrain: None,
+        message_ui: None,
         actors: None,
         flora: HashMap::new(),
         models: Default::default(),
@@ -228,19 +230,42 @@ impl Host {
             (target + Vec3::new(0., -0.30, 0.36), target)
         };
         renderer.update_impacts(&shot_sprites);
-        let draw = |view: &wgpu::TextureView| {
-            renderer.render_scene(
-                view,
-                &meshes,
-                eye,
-                look,
-                w.time,
-                None,
-                match w.message_location {
-                    MessageLocation::Status => None,
-                    location => Some((&w.message, location == MessageLocation::Center)),
+        let mut draw = |view: &wgpu::TextureView| {
+            renderer.render_scene(view, &meshes, eye, look, w.time, None);
+            if w.message_location == MessageLocation::Status || w.message.is_empty() {
+                return;
+            }
+            let (ctx, painter) = self.message_ui.get_or_insert_with(|| {
+                let ctx = egui::Context::default();
+                crate::engine::job_feed::install_font(&ctx);
+                let painter = crate::engine::palette::Painter::new(
+                    &renderer.device,
+                    renderer.config.format.add_srgb_suffix(),
+                );
+                (ctx, painter)
+            });
+            let size = egui::vec2(renderer.config.width as f32, renderer.scene_height() as f32);
+            let output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                    ..Default::default()
                 },
-            )
+                |ui| {
+                    let (position, anchor) = if w.message_location == MessageLocation::Center {
+                        ((size * 0.5).to_pos2(), egui::Align2::CENTER_CENTER)
+                    } else {
+                        (egui::pos2(8., 8.), egui::Align2::LEFT_TOP)
+                    };
+                    crate::engine::tooltip::positioned(ui.ctx(), position, anchor, &w.message);
+                },
+            );
+            painter.paint(
+                renderer,
+                view,
+                ctx.tessellate(output.shapes, output.pixels_per_point),
+                output.textures_delta,
+                output.pixels_per_point,
+            );
         };
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = self.capture.take() {

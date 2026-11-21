@@ -91,7 +91,7 @@ mod tests {
             ));
             let image = renderer
                 .capture_png(|view| {
-                    renderer.render_scene(view, &meshes, eye, look, 10., None, None);
+                    renderer.render_scene(view, &meshes, eye, look, 10., None);
                     let ctx = egui::Context::default();
                     let output = ctx.run_ui(Default::default(), |ui| {
                         crate::engine::palette::weapon_reticle(ui.ctx(), renderer);

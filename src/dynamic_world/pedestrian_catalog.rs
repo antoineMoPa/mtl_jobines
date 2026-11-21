@@ -353,12 +353,7 @@ impl Definition {
         }
         result
     }
-    pub(super) fn get_up_pose(
-        &self,
-        fallen: &[Mat4; JOINT_LIMIT],
-        progress: f32,
-    ) -> [Mat4; JOINT_LIMIT] {
-        let crouch = (1. - (progress - 0.35).max(0.) / 0.65).clamp(0., 1.);
+    pub(super) fn crouching_worlds(&self, crouch: f32) -> [Mat4; JOINT_LIMIT] {
         let mut target = self.rest.clone();
         self.idle.apply(0.3, &mut target);
         let node = |name: &str| self.joints[self.joint(name)];
@@ -375,6 +370,15 @@ impl Definition {
         for (i, &joint) in self.joints.iter().enumerate() {
             target_worlds[i] = self.world_matrix(joint, &target, &mut cache);
         }
+        target_worlds
+    }
+    pub(super) fn get_up_pose(
+        &self,
+        fallen: &[Mat4; JOINT_LIMIT],
+        progress: f32,
+    ) -> [Mat4; JOINT_LIMIT] {
+        let crouch = (1. - (progress - 0.35).max(0.) / 0.65).clamp(0., 1.);
+        let target_worlds = self.crouching_worlds(crouch);
         let start = self.joint_worlds(fallen);
         let t = (progress / 0.42).clamp(0., 1.);
         let amount = t * t * (3. - 2. * t);

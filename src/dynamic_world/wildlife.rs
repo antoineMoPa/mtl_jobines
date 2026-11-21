@@ -238,6 +238,9 @@ impl super::DynamicWorld {
     }
 
     pub(super) fn update_wildlife_population(&mut self, hermes: &crate::hermes::Hermes, dt: f32) {
+        if let Some(cat) = &mut self.rescue_cat {
+            cat.step(dt);
+        }
         if hermes.wildlife.is_empty() {
             let eye = self.player_position().truncate();
             self.wildlife_population.step(
@@ -263,6 +266,7 @@ impl super::DynamicWorld {
         self.wildlife_homes
             .iter()
             .map(|h| h.sighting(self.wildlife_time))
+            .chain(self.rescue_cat_sighting())
             .filter(move |pose| {
                 pose.position.distance_squared(eye) < pose.species.view_distance().powi(2)
             })

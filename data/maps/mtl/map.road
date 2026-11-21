@@ -12,6 +12,10 @@ player_start(-0.94828856, -1.1318498, -170.17438820378175);
 boat_start(-0.94828856, -1.1318498, -180);
 
 # Bus stops; taxi stops are selected from the current road network at runtime.
+# Sidewalk outside the residential block; return at the front of district_home_241.
+mission_missing_cat = map_point(14.32, -13.20);
+mission_cat_duplex = map_point(13.35, -14.67);
+
 mission_bus_stop_1 = map_point(-0.63, -2.0);
 mission_bus_stop_2 = map_point(-0.59, -3.5);
 mission_bus_stop_3 = map_point(-0.54, -5.0);

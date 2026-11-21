@@ -679,6 +679,9 @@ impl Game {
             | PaletteAction::PlaceProps(_)
             | PaletteAction::ExpandNetwork
             | PaletteAction::GrowNetwork => self.open_construction(action),
+            PaletteAction::InteractWithCat => {
+                self.interact_with_cat();
+            }
             PaletteAction::ResumeDriving => self.auto_drive = None,
             PaletteAction::JumpToLocation => {
                 self.set_overlay(Overlay::Map);
@@ -993,6 +996,10 @@ impl Game {
         }
         self.mesh_center = center;
         let mut navigation = self.hermes.minimap_view(center, self.world.player_yaw());
+        renderer.set_job_marker(self.world.cat_marker().map(|point| {
+            self.hermes
+                .map_uv((point / METERS_PER_UNIT).truncate().to_array())
+        }));
         renderer.set_police_markers(self.world.nearby_police().map(|(point, walking)| {
             (
                 self.hermes
@@ -1113,9 +1120,12 @@ impl Game {
         if let Some(exits) = renderer.underground_exits.as_deref() {
             meshes.retain(|mesh| mesh.visible_underground(exits));
         }
-        renderer
-            .mission_markers
-            .update(&renderer.queue, self.world.waiting_service_passengers());
+        renderer.mission_markers.update(
+            &renderer.queue,
+            self.world
+                .waiting_service_passengers()
+                .chain(self.world.cat_marker()),
+        );
         let mut palette_action = None;
         let mut menu_clicked = None;
         let mut skip_cutscene = false;
@@ -1698,6 +1708,13 @@ impl ApplicationHandler<GameEvent> for Game {
                             Some(MenuItem::Resume) => self.start_playing(),
                             None => {}
                         }
+                        return;
+                    }
+                    if matches!(key, KeyCode::Enter | KeyCode::NumpadEnter)
+                        && event.state == ElementState::Pressed
+                        && !event.repeat
+                        && self.interact_with_cat()
+                    {
                         return;
                     }
                     if event.state == ElementState::Pressed {

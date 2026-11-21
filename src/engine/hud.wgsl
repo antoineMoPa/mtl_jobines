@@ -1,4 +1,4 @@
-struct Hud { texture_region:vec4<f32>, rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, full_map:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, text_metrics:vec4<f32>, letters:array<vec4<u32>,12>, police:array<vec4<f32>,80> };
+struct Hud { texture_region:vec4<f32>, rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, full_map:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, job_marker:vec4<f32>, police:array<vec4<f32>,80> };
 @group(0) @binding(0) var chart:texture_2d<f32>;
 @group(0) @binding(1) var filtering:sampler;
 @group(0) @binding(2) var<uniform> hud:Hud;
@@ -73,13 +73,6 @@ fn glyph(code:u32)->u32 {
     }
 }
 fn fps_scale()->f32 {return clamp(hud.screen.y/800.0,1.0,2.0);}
-fn packed_lettering(q:vec2<f32>)->bool {
-    if q.x<0.0 || q.y<0.0 || q.y>=5.0 {return false;}
-    let index=u32(q.x)/6u;let col=u32(q.x)%6u;
-    if index>=u32(hud.text_metrics.x) || col>=5u {return false;}
-    let code=hud.letters[index/4u][index%4u];
-    return (glyph(code)&(1u<<(u32(q.y)*5u+col)))!=0u;
-}
 fn fps_rect()->vec4<f32> {
     let scale=fps_scale();
     return vec4<f32>(16.0*scale,16.0*scale,126.0*scale,32.0*scale);
@@ -166,6 +159,12 @@ fn map_overlay(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f
         if distance<8. {color=marker;}
         if distance<4. {color=vec3<f32>(0.95);}
     }
+    if hud.job_marker.z > 0. {
+        let d = abs((uv - hud.job_marker.xy) * atlas_pixels);
+        let diamond = d.x + d.y;
+        if diamond < 9. { color = vec3<f32>(0.02); }
+        if diamond < 6.5 { color = vec3<f32>(1., 0.68, 0.18); }
+    }
     for (var i=0u; i<80u; i++) {
         let marker=hud.police[i];
         if marker.z==0. { break; }
@@ -191,12 +190,6 @@ fn map_overlay(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f
 @fragment fn fs(v:Vertex)->@location(0) vec4<f32> {
     let p=select(v.uv*hud.rect.zw,v.uv,hud.mode.x==0.);
     let screen=hud.screen.xy;
-    if hud.mode.x==3. {
-        let scale=hud.text_metrics.y;
-        let q=v.uv*hud.rect.zw/scale-vec2<f32>(2.);
-        if packed_lettering(q) {return vec4<f32>(1.,0.92,0.65,1.);}
-        return vec4<f32>(0.016,0.010,0.038,0.90);
-    }
     if hud.mode.x==0. && inside(p,fps_rect()) {
         let scale=fps_scale();
         let origin=fps_rect().xy+vec2<f32>(10.0,11.0)*scale;
@@ -282,6 +275,7 @@ fn route_screen(uv:vec2<f32>)->vec2<f32> {
         let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));
         if length(p-vec2<f32>(16.+size*0.5,screen.y-size*0.5-16.))>size*0.5-3. {discard;}
     }
+    if hud.job_marker.z > 0. && length(p-route_screen(hud.job_marker.xy)) < 9. {discard;}
     // Keep the destination and heading markers above the route.
     if length(p-route_screen(hud.map.zw))<14. || length(p-route_screen(hud.destination.xy))<10. {discard;}
     for (var i=0u; i<80u; i++) {

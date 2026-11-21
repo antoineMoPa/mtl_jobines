@@ -4,7 +4,6 @@ use crate::dynamic_world::DriveAvailability;
 use egui::{Align2, Color32, FontFamily, FontId, Stroke};
 
 const INK: Color32 = Color32::from_rgb(38, 62, 61);
-const MUTED: Color32 = Color32::from_rgb(101, 126, 121);
 const PAPER: Color32 = Color32::from_rgb(246, 249, 247);
 const FONT: &str = "money_bold";
 
@@ -33,7 +32,7 @@ pub(super) fn show(ctx: &egui::Context, map: FullMapView) {
         );
         painter.rect_filled(rect, 8. / scale, INK);
         let blocked = map.selection == MapSelection::DriveBlocked;
-        let title_y = rect.center().y - if blocked { 7. / scale } else { 0. };
+        let title_y = rect.center().y;
         painter.text(
             egui::pos2(rect.center().x, title_y),
             Align2::CENTER_CENTER,
@@ -42,13 +41,12 @@ pub(super) fn show(ctx: &egui::Context, map: FullMapView) {
             PAPER,
         );
         if blocked {
-            painter.text(
-                rect.center() + egui::vec2(0., 9. / scale),
-                Align2::CENTER_CENTER,
-                "Passage bloqué · Réessayer",
-                FontId::new(11. / scale, font.clone()),
-                PAPER,
-            );
+            egui::Area::new("map_drive_hint".into())
+                .anchor(Align2::CENTER_TOP, egui::vec2(0., rect.bottom() + 4.))
+                .interactable(false)
+                .show(ctx, |ui| {
+                    super::tooltip::message(ui, "Passage bloqué · Réessayer")
+                });
         }
     }
 
@@ -60,13 +58,10 @@ pub(super) fn show(ctx: &egui::Context, map: FullMapView) {
         _ => None,
     };
     if let Some(label) = jump_hint {
-        painter.text(
-            egui::pos2(140. / scale, center_y),
-            Align2::LEFT_CENTER,
-            label,
-            FontId::new(15. / scale, font.clone()),
-            MUTED,
-        );
+        egui::Area::new("map_jump_hint".into())
+            .fixed_pos(egui::pos2(112. / scale, center_y - 12.))
+            .interactable(false)
+            .show(ctx, |ui| super::tooltip::message(ui, label));
     }
 
     let close = super::hud::full_map_close_rect(width);
@@ -95,14 +90,7 @@ pub(super) fn resume_driving(ctx: &egui::Context) -> bool {
     egui::Area::new("cinematic_drive_controls".into())
         .anchor(Align2::RIGHT_TOP, egui::vec2(-18., bar + 10.))
         .show(ctx, |ui| {
-            ui.add(
-                egui::Button::new(
-                    egui::RichText::new("Reprendre les commandes").color(Color32::WHITE),
-                )
-                .fill(Color32::from_black_alpha(210))
-                .min_size(egui::vec2(0., 40.)),
-            )
-            .clicked()
+            super::tooltip::action(ui, None, "Reprendre les commandes")
         })
         .inner
 }
