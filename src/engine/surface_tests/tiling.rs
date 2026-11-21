@@ -1,4 +1,4 @@
-//! Read back production pavement sampling: tile repetition and both lattice seams.
+//! Read back pavement sampling across tiles, lattice seams and footprint transitions.
 use super::*;
 
 #[test]
@@ -37,10 +37,22 @@ fn native_pavement_sampling_breaks_repetition_and_keeps_seams_continuous() {
         var grid=cell+vec2<f32>(t,1.0-t+epsilon);
         if (px&2u)!=0u {grid=cell+vec2<f32>(epsilon,t);}
         let u=grid.x/0.65;let v=(grid.y/(0.65*0.577350269)+u)*0.5;
-        let material=scanned_pavement(vec3<f32>(u*meters,-v*meters,0.0),vec3<f32>(0.005,0.0,0.0),vec3<f32>(0.0,0.005,0.0),vec3<f32>(0.0,0.0,1.0),layer);
+        let near=0.5*PAVEMENT_MIDDLE_START;
+        let material=scanned_pavement(vec3<f32>(u*meters,-v*meters,0.0),vec3<f32>(near,0.0,0.0),vec3<f32>(0.0,near,0.0),vec3<f32>(0.0,0.0,1.0),layer);
         var color=material.color;
         if (px&4u)!=0u {color=material.normal*0.5+0.5;}
         if (px&8u)!=0u {color=vec3<f32>(material.roughness);}
+        return vec4<f32>(color,1.0);
+    }
+    if pixel.y>=508.0 {
+        let edges=array<f32,4>(PAVEMENT_MIDDLE_START,PAVEMENT_MIDDLE_END,0.12,0.20);
+        let footprint=edges[(px/2u)%4u]*select(0.9999,1.0001,pixel.y>=509.0);
+        let world=vec3<f32>(f32(px)*0.21,f32(px%29u)*0.97,0.0);
+        let material=scanned_pavement(world,vec3<f32>(footprint,0.0,0.0),
+            vec3<f32>(0.0,footprint,0.0),vec3<f32>(0.0,0.0,1.0),i32(px&1u));
+        var color=material.color;
+        if (px/8u)%3u==1u {color=material.normal*0.5+0.5;}
+        if (px/8u)%3u==2u {color=vec3<f32>(material.roughness);}
         return vec4<f32>(color,1.0);
     }
     let layer=i32(u32(pixel.y)/256u);let meters=select(3.0,2.0,layer==1);
@@ -163,13 +175,21 @@ fn native_pavement_sampling_breaks_repetition_and_keeps_seams_continuous() {
             "material still repeats at its source tile period"
         );
     }
-    let seam = (0..1024 * 4)
-        .filter(|i| i % 4 != 3)
-        .map(|i| pixels[510 * 1024 * 4 + i].abs_diff(pixels[511 * 1024 * 4 + i]))
-        .max()
-        .unwrap();
+    let max_row_difference = |row: usize| {
+        (0..1024 * 4)
+            .filter(|i| i % 4 != 3)
+            .map(|i| pixels[row * 1024 * 4 + i].abs_diff(pixels[(row + 1) * 1024 * 4 + i]))
+            .max()
+            .unwrap()
+    };
+    let seam = max_row_difference(510);
     eprintln!("maximum edge-pair color/normal/roughness difference: {seam}/255");
     assert!(seam <= 8, "stochastic patch edge is discontinuous");
+    let transition = max_row_difference(508);
+    assert!(
+        transition <= 3,
+        "pavement tier transition jumps by {transition}/255"
+    );
     if let Some(directory) = std::env::var_os("PAVEMENT_TILING_CAPTURE") {
         std::fs::create_dir_all(&directory).unwrap();
         let mut png = png::Encoder::new(
