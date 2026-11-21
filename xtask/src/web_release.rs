@@ -22,6 +22,7 @@ const WEB_SOURCES: &[&str] = &[
     "intro/claydash-deriveur.webp",
     "intro/centre-ville.webp",
     "intro/aeroport.webp",
+    "intro/survol-mtl.webp",
     "intro/plex.webp",
     "intro/lampadaire.webp",
     "intro/taxi.webp",

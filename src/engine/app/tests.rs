@@ -13,6 +13,19 @@ fn busted_camera_slides_from_the_playing_view_and_finishes_on_the_arrest() {
 }
 
 #[test]
+fn taxi_aim_eases_across_the_yaw_wrap_at_any_frame_rate() {
+    let start = 179_f32.to_radians();
+    let nose = (-171_f32).to_radians();
+    let first = taxi_aim_yaw(start, nose, 1. / 30.);
+    assert!(first > start && first < start + 2_f32.to_radians());
+    let after_one_second =
+        |fps| (0..fps).fold(start, |yaw, _| taxi_aim_yaw(yaw, nose, 1. / fps as f32));
+    let yaw = after_one_second(30);
+    assert!((yaw - after_one_second(120)).abs() < 1e-5);
+    assert!((yaw - 189_f32.to_radians()).abs() < 0.2_f32.to_radians());
+}
+
+#[test]
 fn aircraft_default_chase_frames_the_airframe_and_the_horizon() {
     let mut game = Game::new(Hermes::test_map());
     for (id, def) in crate::dynamic_world::catalog::definitions()

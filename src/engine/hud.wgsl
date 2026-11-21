@@ -240,7 +240,7 @@ fn map_overlay(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f
     let chart_offset=right*offset.x-forward*offset.y;
     var color=map_color(hud.map.xy+chart_offset*hud.screen.z,offset*size,vec2<f32>(0.,-1.),size/hud.screen.z);
     if edge<3. {color=vec3<f32>(0.035,0.055,0.065);}
-    // 100 m scale, positioned inside the circular mask.
+    // Quarter-span scale bar (100 m on the ground, 1 km in flight).
     if uv.x>0.375 && uv.x<0.625 && uv.y>0.88 && uv.y<0.89 {color=vec3<f32>(0.95);}
     return vec4<f32>(color,smoothstep(0.,1.,edge));
 }

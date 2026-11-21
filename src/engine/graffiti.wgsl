@@ -3,9 +3,14 @@
 @group(3) @binding(4) var cutout_sampler:sampler;
 struct PaintSettings {color_override:vec4<f32>,ranges:vec4<f32>};
 @group(3) @binding(5) var<uniform> paint_settings:PaintSettings;
-@fragment fn fs_graffiti(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
+@fragment fn fs_paint(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
+    let surface=prepare_surface(v);
+    let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);
+    if v.surface.x==6.0 {
+        return shade_local_surface(v,front,1.0,surface);
+    }
     let packed=u32(v.surface.w);
-    let tex=textureSample(cutout_atlas,cutout_sampler,v.fence_uv,i32(packed&1u));
+    let tex=textureSampleGrad(cutout_atlas,cutout_sampler,v.fence_uv,i32(packed&1u),du,dv);
     let seed=f32((packed>>17u)&127u);
     let opacity=mix(paint_settings.ranges.x,paint_settings.ranges.y,f32((packed>>1u)&255u)/255.0);
     let wash=mix(paint_settings.ranges.z,paint_settings.ranges.w,f32((packed>>9u)&255u)/255.0);
@@ -24,7 +29,6 @@ struct PaintSettings {color_override:vec4<f32>,ranges:vec4<f32>};
     paint.color=mix(base*0.16,base,smoothstep(0.10,0.86,tex.r));
     paint.color=mix(paint.color,base*0.55+vec3<f32>(0.38,0.37,0.32),tex.g*0.36);
     paint.surface=vec4<f32>(7.0,0.0,0.0,0.0);
-    let surface=prepare_surface(paint);
     if coverage<0.001 {discard;}
     return shade_local_surface(paint,front,coverage,surface);
 }

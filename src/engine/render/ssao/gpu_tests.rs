@@ -240,3 +240,42 @@ fn antialiasing_switch_preserves_scene_and_depth_effects() {
         assert!(pixels.chunks_exact(4).any(|p| p[0] > 10));
     }
 }
+
+#[test]
+#[ignore = "requires a native GPU adapter"]
+fn native_flight_visibility_reveals_landmarks_beyond_the_street_far_plane() {
+    let mut renderer = pollster::block_on(Renderer::new(None, 320, 240)).unwrap();
+    renderer.daylight = Some(1.);
+    let eye = Vec3::new(0., 0., 3.);
+    let look = Vec3::new(0., 15., 3.);
+    let mut mesh = Mesh::default();
+    mesh.cuboid(
+        [-2., 15., 0.],
+        [2., 16., 6.],
+        [0.5, 0.04, 0.02],
+        SurfaceKind::Prop,
+    );
+    let landmark = renderer.upload(&mesh);
+    let texture = target(&renderer);
+    let view = texture.create_view(&Default::default());
+    for scale in [1., 4.] {
+        renderer.flight_visibility = scale;
+        renderer.render_scene(&view, &[], eye, look, 0., None);
+        let sky = renderer.rgba_pixels(&texture).unwrap();
+        renderer.render_scene(&view, &[&landmark], eye, look, 0., None);
+        let scene = renderer.rgba_pixels(&texture).unwrap();
+        let i = (120 * 320 + 160) * 4;
+        let contrast = (0..3)
+            .map(|c| scene[i + c].abs_diff(sky[i + c]))
+            .max()
+            .unwrap();
+        if scale == 1. {
+            assert_eq!(contrast, 0);
+        } else {
+            assert!(
+                contrast > 16,
+                "distant landmark lost in flight haze: {contrast}"
+            );
+        }
+    }
+}

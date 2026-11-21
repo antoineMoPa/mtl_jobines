@@ -6,9 +6,10 @@ use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
 const TILE: f32 = 0.0032;
-const ROOTS: [u32; 4] = [2048, 512, 128, 24];
-const END: [f32; 4] = [0.0065, 0.015, 0.033, 0.07];
-const RADIUS: i32 = 23;
+const ROOTS: [u32; 5] = [2048, 512, 128, 48, 20];
+const END: [f32; 5] = [0.0065, 0.015, 0.033, 0.075, 0.125];
+const RANGE: f32 = END[END.len() - 1];
+const RADIUS: i32 = (RANGE / TILE).ceil() as i32 + 1;
 
 #[derive(Default)]
 pub(in crate::engine) struct SupportCache(HashMap<IVec2, Option<[f32; 4]>>);
@@ -17,7 +18,7 @@ pub(super) struct Ribbons {
     seeds: wgpu::Buffer,
     indices: wgpu::Buffer,
     tiles: wgpu::Buffer,
-    pub(super) counts: [u32; 4],
+    pub(super) counts: [u32; ROOTS.len()],
 }
 
 impl Ribbons {
@@ -73,7 +74,7 @@ impl Ribbons {
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
-            counts: [0; 4],
+            counts: [0; ROOTS.len()],
         }
     }
 
@@ -82,7 +83,7 @@ impl Ribbons {
         pass.set_vertex_buffer(1, self.tiles.slice(..));
         pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint16);
         let mut end = self.counts.iter().sum();
-        for band in (0..4).rev() {
+        for band in (0..ROOTS.len()).rev() {
             let start = end - self.counts[band];
             if start < end {
                 pass.draw_indexed(0..ROOTS[band] * 54, 0, start..end);
@@ -124,7 +125,7 @@ impl Renderer {
         eye: Vec3,
         look: Vec3,
     ) {
-        self.ribbons.counts = [0; 4];
+        self.ribbons.counts = [0; ROOTS.len()];
         if self.season == crate::season::Season::Winter || self.construction_span.is_some() {
             return;
         }
@@ -135,7 +136,7 @@ impl Renderer {
                 .retain(|p, _| (*p - origin).abs().max_element() <= RADIUS);
         }
         let frustum = Frustum::from_matrix(self.view_projection(eye, look));
-        let mut bands: [Vec<(f32, [f32; 12])>; 4] = Default::default();
+        let mut bands: [Vec<(f32, [f32; 12])>; ROOTS.len()] = Default::default();
         for y in -RADIUS..=RADIUS {
             for x in -RADIUS..=RADIUS {
                 let cell = origin + IVec2::new(x, y);
@@ -144,10 +145,10 @@ impl Renderer {
                 let horizontal = ((eye.truncate() - center).abs() - half)
                     .max(Vec2::ZERO)
                     .length();
-                if horizontal > END[3]
+                if horizontal > RANGE
                     || !frustum.intersects(Bounds {
-                        min: (center - half).extend(eye.z - END[3]),
-                        max: (center + half).extend(eye.z + END[3]),
+                        min: (center - half).extend(eye.z - RANGE),
+                        max: (center + half).extend(eye.z + RANGE),
                     })
                 {
                     continue;
@@ -159,7 +160,7 @@ impl Renderer {
                 else {
                     continue;
                 };
-                let dz = TILE * 0.5 * (p[1].abs() + p[2].abs()) + 0.0003;
+                let dz = TILE * 0.5 * (p[1].abs() + p[2].abs()) + 0.0009;
                 let dist = horizontal.hypot(((p[0] - eye.z).abs() - dz).max(0.));
                 let Some(band) = END.iter().position(|&e| dist < e) else {
                     continue;

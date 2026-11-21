@@ -32,7 +32,7 @@ fn solve(a: Vec3, target: Vec3, pole: Vec3, upper: f32, lower: f32) -> (Vec3, Ve
         a + direction * distance,
     )
 }
-fn limb(
+pub(super) fn limb(
     def: &Definition,
     locals: &[super::pedestrian_catalog::Transform],
     root: Mat4,

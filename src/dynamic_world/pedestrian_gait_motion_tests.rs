@@ -47,7 +47,15 @@ fn run_has_flight_and_keeps_support_fixed_before_toe_off() {
                 foot.position.distance(previous[i]) < 0.14,
                 "step discontinuity"
             );
-            assert!(foot.position.x.abs() < 0.03, "foot left narrow lane");
+            let outward = if i == 0 {
+                foot.position.x
+            } else {
+                -foot.position.x
+            };
+            assert!(
+                (0.10..0.12).contains(&outward),
+                "foot left its stance lane: {outward}"
+            );
         }
         previous = gait.feet.map(|f| f.position);
     }

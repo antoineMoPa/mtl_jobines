@@ -167,20 +167,41 @@ impl Pedestrian {
         model: usize,
         blocked: impl Fn(Vec3) -> bool,
     ) -> Option<Self> {
+        Self::beside_on_side(city, vehicle, model, false, blocked)
+    }
+
+    pub(super) fn beside_on_side(
+        city: &City,
+        vehicle: &Vehicle,
+        model: usize,
+        prefer_right: bool,
+        blocked: impl Fn(Vec3) -> bool,
+    ) -> Option<Self> {
+        use super::doors::Door;
         let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
-        let left = Vec2::new(-forward.y, forward.x);
+        let first_side = forward.perp() * if prefer_right { -1. } else { 1. };
+        let doors = if prefer_right {
+            [
+                Door::FrontRight,
+                Door::FrontLeft,
+                Door::RearRight,
+                Door::RearLeft,
+            ]
+        } else {
+            Door::ALL
+        };
         let candidates = vehicle
             .aircraft_boarding_point()
             .into_iter()
             .chain(
-                super::doors::Door::ALL
+                doors
                     .into_iter()
                     .filter_map(|door| vehicle.access_point(door)),
             )
             .chain(
                 [
-                    left * (vehicle.width() * 0.5 + 0.9),
-                    -left * (vehicle.width() * 0.5 + 0.9),
+                    first_side * (vehicle.width() * 0.5 + 0.9),
+                    -first_side * (vehicle.width() * 0.5 + 0.9),
                     -forward * (vehicle.length() * 0.5 + 0.9),
                     forward * (vehicle.length() * 0.5 + 0.9),
                 ]

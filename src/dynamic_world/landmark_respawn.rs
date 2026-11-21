@@ -180,8 +180,11 @@ impl DynamicWorld {
         self.clear_chase();
         self.health = super::melee::PLAYER_HEALTH;
         self.crowd.cancel_bites();
+        self.cyclists.undock(self.player_vehicle.0);
         self.vehicles[self.player_vehicle.0] = vehicle;
         self.vehicle_spawns[self.player_vehicle.0] = spawn;
+        self.entry = None;
+        self.exit_on_right = false;
         self.pedestrian = None;
         self.walking_spawn = None;
         self.sound_geography_timer = 0.;

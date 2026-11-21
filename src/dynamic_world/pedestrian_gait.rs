@@ -99,6 +99,7 @@ struct Foot {
     start_tilt: Quat,
     target_tilt: Quat,
 }
+#[derive(Clone)]
 struct Rig {
     legs: [[usize; 4]; 2],
     hips: usize,
@@ -106,6 +107,9 @@ struct Rig {
     scale: f32,
     spacing: f32,
     foot_heading: [f32; 2],
+    walk_shoulder_lead: f32,
+    arm_spread: f32,
+    resting_elbow_flex: f32,
 }
 impl Rig {
     fn new(def: &Definition) -> Self {
@@ -123,6 +127,9 @@ impl Rig {
             scale,
             spacing: 0.50,
             foot_heading: [0.; 2],
+            walk_shoulder_lead: 0.,
+            arm_spread: 0.16,
+            resting_elbow_flex: 0.,
         }
     }
     fn grounded_feet(
@@ -164,6 +171,7 @@ pub struct FootMotion {
     pub speed: f32,
     pub cadence: f32,
 }
+#[derive(Clone)]
 pub struct Gait {
     rig: Rig,
     feet: [Foot; 2],
@@ -194,6 +202,19 @@ pub struct Gait {
     landing: Option<([Mat4; JOINT_LIMIT], f32)>,
 }
 impl Gait {
+    pub(super) fn both_feet_settled(&self) -> bool {
+        !self.planned && self.feet_aligned()
+    }
+    fn feet_aligned(&self) -> bool {
+        !self.feet.iter().enumerate().any(|(i, f)| {
+            let ankle = self.rig.ankles[i];
+            let neutral = self.position
+                + Quat::from_rotation_y(self.yaw)
+                    * Vec3::new(ankle.x * self.rig.spacing, 0., ankle.z);
+            let d = neutral - f.position;
+            Vec3::new(d.x, 0., d.z).length() > 0.09 || angle_delta(f.yaw, self.yaw).abs() > 0.18
+        })
+    }
     pub(super) fn set_strafe_velocity(&mut self, velocity: Option<Vec2>) {
         self.strafe_velocity = velocity.map(|v| game_to_motion(v.extend(0.)));
     }
@@ -299,10 +320,14 @@ impl Gait {
     ) -> Self {
         let mut gait = Self::new(def, position, yaw, 0, &sample);
         gait.step_length = 0.78;
-        gait.rig.spacing = 0.26;
+        gait.rig.walk_shoulder_lead = 4f32.to_radians();
+        // Each shoe has its own lane just outside its hip (22 cm between ankles).
+        gait.rig.spacing = 1.15;
+        gait.rig.arm_spread = 19f32.to_radians();
+        gait.rig.resting_elbow_flex = 19f32.to_radians();
         // The shared player pose drives both outfits. Their meshes have authored
         // toe-out despite forward-facing ankle bones; compensate that bind shape.
-        gait.rig.foot_heading = [0.23, -0.25];
+        gait.rig.foot_heading = [0.055, -0.08];
         gait.feet = gait.rig.grounded_feet(position, yaw, sample);
         gait.update_pose(def);
         gait
@@ -521,15 +546,7 @@ impl Gait {
         sample: &impl Fn(Vec3) -> Option<Ground>,
     ) {
         if !self.planned {
-            let unsettled = self.feet.iter().enumerate().any(|(i, f)| {
-                let ankle = self.rig.ankles[i];
-                let neutral = self.position
-                    + Quat::from_rotation_y(self.yaw)
-                        * Vec3::new(ankle.x * self.rig.spacing, 0., ankle.z);
-                let d = neutral - f.position;
-                Vec3::new(d.x, 0., d.z).length() > 0.09 || angle_delta(f.yaw, self.yaw).abs() > 0.18
-            });
-            if self.speed.abs() < 0.015 && !unsettled {
+            if self.speed.abs() < 0.015 && self.feet_aligned() {
                 return;
             }
             // Faster travel needs a faster cadence; turns need short pivot steps even at rest.
@@ -691,17 +708,29 @@ impl Gait {
             let tuck = self.air_tuck_with_delay(if i == 0 { 0.06 } else { 0. });
             let sign = if i == 0 { 1. } else { -1. };
             let arm_phase = cycle - 0.16 + i as f32 * PI;
-            let swing = -arm_phase.cos() * (35f32.to_radians() + self.running * 0.24) * movement;
+            // Mario leads with the shoulder, then the elbow and wrist follow
+            // the live step phase. Fade the relaxed shoulder action into a run.
+            let lead = self.rig.walk_shoulder_lead * (1. - self.running);
+            if lead > 0. {
+                let shoulder = model.node(&format!("ShoulderCap_{side}"));
+                locals[shoulder].rotation *=
+                    Quat::from_rotation_x(-(cycle + i as f32 * PI).cos() * lead * movement);
+            }
+            let swing = -arm_phase.cos()
+                * (35f32.to_radians() - 3. * lead + self.running * 0.24)
+                * movement;
             locals[model.node(&format!("UpperArm_{side}"))].rotation *= Quat::from_rotation_x(
                 swing + self.compression * 0.35
                     - tuck * 1.25
                     - self.jump_extension
                         * (self.jump_motion.forward * 0.45 + sign * self.jump_motion.turn * 0.16),
             ) * Quat::from_rotation_z(
-                sign * (0.16 + self.running * 0.06 + lean.abs() * 0.4) - side_lean * 0.12,
+                sign * (self.rig.arm_spread + self.running * 0.06 + lean.abs() * 0.4)
+                    - side_lean * 0.12,
             );
             locals[model.node(&format!("Forearm_{side}"))].rotation *= Quat::from_rotation_x(
-                (-0.18 + (arm_phase - 0.30).cos() * 0.13) * movement
+                -self.rig.resting_elbow_flex * (1. - run)
+                    + (-0.18 + (arm_phase - 0.30).cos() * 0.13) * movement
                     - self.compression * 0.65
                     - run * 0.85
                     - tuck * 0.45,

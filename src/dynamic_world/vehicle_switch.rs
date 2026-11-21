@@ -8,6 +8,7 @@ impl DynamicWorld {
         }
         let index = self.player_vehicle.0;
         self.traffic.release(index);
+        self.cyclists.undock(index);
         self.cyclists.release(index);
         self.boat_routes.retain(|route| route.vehicle != index);
         let vehicle = &mut self.vehicles[index];
@@ -15,6 +16,8 @@ impl DynamicWorld {
         // the same ground, including bridges. Keep heading and driving momentum.
         vehicle.set_catalog_model(Some(model));
         vehicle.sound_controls = Controls::default();
+        self.entry = None;
+        self.exit_on_right = false;
         self.pedestrian = None;
         self.update_riders();
         self.sound_geography_timer = 0.;

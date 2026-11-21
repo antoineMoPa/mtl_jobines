@@ -36,7 +36,7 @@ impl Buildings {
         let blocked = |p: Vec3| {
             candidates.iter().any(|&id| {
                 let building = &city.landscape[id];
-                if building.elevation * METERS_PER_UNIT >= p.z + radius
+                if city.building_bottom(id) * METERS_PER_UNIT >= p.z + radius
                     || (building.elevation + building.height.unwrap_or(0.)) * METERS_PER_UNIT
                         <= p.z - radius
                 {
@@ -103,8 +103,9 @@ impl Buildings {
         let mut hit = None;
         for id in candidates {
             let b = &city.landscape[id];
-            let low = b.elevation * METERS_PER_UNIT;
-            let high = low + b.height.unwrap_or(0.) * METERS_PER_UNIT;
+            let low = city.building_bottom(id) * METERS_PER_UNIT;
+            let base = b.elevation * METERS_PER_UNIT;
+            let high = base + b.height.unwrap_or(0.) * METERS_PER_UNIT;
             for (a, end) in b.points.iter().zip(b.points.iter().cycle().skip(1)) {
                 let edge = (Vec2::from(*end) - Vec2::from(*a)) * METERS_PER_UNIT;
                 let offset = Vec2::from(*a) * METERS_PER_UNIT - from.truncate();
@@ -122,7 +123,13 @@ impl Buildings {
                     hit = Some((
                         t,
                         if n.dot(dir) > 0. { -n } else { n },
-                        super::ShotSurface::facade(b.building_style.unwrap_or_default().material),
+                        if z < base {
+                            super::ShotSurface::Concrete
+                        } else {
+                            super::ShotSurface::facade(
+                                b.building_style.unwrap_or_default().material,
+                            )
+                        },
                     ));
                 }
             }
@@ -194,6 +201,60 @@ impl Buildings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn report_91_foundation_closes_downhill_wall_and_stops_camera() {
+        let source = include_str!("../../data/maps/mtl/map.road")
+            .lines()
+            .filter(|line| {
+                line.starts_with("elevation_map(")
+                    || line.starts_with("placed_building_13 =")
+                    || line.starts_with("elevation(placed_building_13,")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let city =
+            City::from_program_with_elevation_loader(&opencity::parse(&source).unwrap(), |spec| {
+                opencity::heightmap::ElevationMap::from_png(
+                    spec.clone(),
+                    include_bytes!("../../data/maps/mtl/elevation.png"),
+                )
+            })
+            .unwrap();
+        let feature = &city.landscape[0];
+        let x = 1.3684925;
+        let y = feature.points[0][1];
+        let ground = city.surface_at([x, y], f32::INFINITY).unwrap().height;
+        let base = feature.elevation;
+        assert!(
+            base - ground > 0.01,
+            "reported downhill gap {ground}..{base}"
+        );
+        let mesh = city
+            .mesh(
+                opencity::runtime::Region::Radius {
+                    center: [x, y],
+                    radius: 0.01,
+                },
+                0.15,
+            )
+            .unwrap();
+        let wall = mesh
+            .vertices
+            .chunks_exact(3)
+            .filter(|face| face[0].surface[3] == -2. && face.iter().all(|v| v.position[1] == y))
+            .flatten()
+            .map(|v| v.position[2])
+            .collect::<Vec<_>>();
+        assert!(wall.iter().any(|&z| z <= ground) && wall.contains(&base));
+
+        let middle = (ground + base) * 0.5;
+        assert!(city.building_collision([x, y - 0.001], 0., middle, base));
+        let anchor = Vec3::new(x, y + 0.03, middle);
+        let inside = Vec3::new(x, y - 0.02, middle);
+        let buildings = Buildings::new(&city);
+        assert!(buildings.camera_eye(&city, anchor, inside).y > y);
+    }
+
     #[test]
     fn camera_stops_before_thin_wall_even_with_clear_endpoint_and_handles_roofs() {
         let city = City::from_program(

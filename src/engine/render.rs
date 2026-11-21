@@ -88,6 +88,7 @@ pub struct Renderer {
     pub surface: Option<wgpu::Surface<'static>>,
     pub config: wgpu::SurfaceConfiguration,
     pub(super) reserved_bottom: u32,
+    pub(super) flight_visibility: f32,
     pub(super) construction_span: Option<f32>,
     pub(super) underground_exits: Option<Vec<glam::Vec2>>,
     pub(super) ambient_occlusion: bool,
@@ -140,14 +141,17 @@ pub struct Renderer {
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x3,3=>Float32x4];
 fn material_vertices(source: &[Vertex]) -> (Cow<'_, [Vertex]>, u32, u32) {
+    let runway_paint =
+        |v: &Vertex| v.surface[0] == SurfaceKind::Marking as u32 as f32 && v.surface[3] == 1.;
     let paint = |triangle: &[Vertex]| {
         triangle
             .iter()
-            .any(|v| v.surface[0] == super::graffiti::MATERIAL)
+            .any(|v| v.surface[0] == super::graffiti::MATERIAL || runway_paint(v))
     };
     let masked = |triangle: &[Vertex]| {
         triangle.iter().any(|v| {
-            v.surface[0] == SurfaceKind::Water as u32 as f32
+            runway_paint(v)
+                || v.surface[0] == SurfaceKind::Water as u32 as f32
                 || v.surface[0] == SurfaceKind::Fence as u32 as f32
                 || (15.0..=23.0).contains(&v.surface[0])
                 || (24.0..=29.0).contains(&v.surface[0])
@@ -352,7 +356,7 @@ fn world_pipelines(
                     } else if skinned {
                         "fs_pedestrian"
                     } else if paint {
-                        "fs_graffiti"
+                        "fs_paint"
                     } else if instanced {
                         "fs_vehicle"
                     } else if masked {
@@ -719,6 +723,7 @@ impl Renderer {
             surface,
             config,
             reserved_bottom: 0,
+            flight_visibility: 1.,
             construction_span: None,
             underground_exits: None,
             ambient_occlusion: true,
@@ -1091,7 +1096,7 @@ impl Renderer {
                 58_f32.to_radians(),
                 self.config.width as f32 / self.scene_height() as f32,
                 0.003,
-                10.0,
+                10.0 * self.flight_visibility,
             )
         };
         projection * Mat4::look_at_rh(eye, look, Vec3::Z)
@@ -1218,7 +1223,7 @@ impl Renderer {
                 lighting.daylight,
                 f32::from(self.construction_span.is_some()),
                 self.season.snow_cover(),
-                0.,
+                self.flight_visibility.recip(),
             ],
             inverse_view_projection: view.inverse().to_cols_array_2d(),
             sun_color: [
@@ -1512,6 +1517,7 @@ impl Renderer {
                 && self.construction_span.is_none()
                 && !self.zombie_mode
                 && self.retro_lens == 0.,
+            self.flight_visibility.recip(),
             [time, f32::from(winter), lighting.daylight, self.retro_lens],
             winter.then_some(&self.snowfall),
             gpu.map(|g| g.pass(Pass::Occlusion)),
@@ -1636,6 +1642,21 @@ mod tests {
         assert_eq!(paint_start, 3);
         assert!(matches!(vertices, Cow::Borrowed(_)));
         assert_eq!(opaque, 3);
+    }
+    #[test]
+    fn runway_paint_blends_after_opaque_road_markings() {
+        use super::*;
+        let marking = |pattern| Vertex {
+            position: [0.; 3],
+            normal: [0., 0., 1.],
+            color: [1.; 3],
+            surface: [SurfaceKind::Marking as u32 as f32, 0., 0., pattern],
+        };
+        let triangles = [[marking(1.); 3], [marking(0.); 3]];
+        let (vertices, opaque, paint_start) = material_vertices(triangles.as_flattened());
+        assert_eq!((opaque, paint_start), (3, 3));
+        assert!(vertices[..3].iter().all(|v| v.surface[3] == 0.));
+        assert!(vertices[3..].iter().all(|v| v.surface[3] == 1.));
     }
     use super::{Bounds, Frustum};
     use glam::{Mat4, Vec3};

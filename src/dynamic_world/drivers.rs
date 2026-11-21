@@ -3,7 +3,7 @@ use super::{crowd::Instance, pedestrian_catalog, DynamicWorld, Vehicle, METERS_P
 use glam::{Mat4, Quat, Vec3, Vec4};
 use std::sync::OnceLock;
 
-fn seat(id: &str) -> Option<Vec3> {
+pub(super) fn seat(id: &str) -> Option<Vec3> {
     let position = match id {
         "vehicle-v2-09" | "vehicle-j01" | "vehicle-j06" => [0.10, 0.35, 0.46],
         "vehicle-v2-01" => [0.44, 0.47, 0.97],
@@ -25,7 +25,7 @@ fn seat(id: &str) -> Option<Vec3> {
 }
 impl DynamicWorld {
     pub(super) fn seated_drivers(&self) -> impl Iterator<Item = Instance<'_>> {
-        let player = self.is_driving().then(|| {
+        let player = (self.is_driving() && self.entry.is_none()).then(|| {
             (
                 self.player(),
                 pedestrian_catalog::player_model(self.season),
@@ -60,6 +60,12 @@ impl DynamicWorld {
                 }
                 driver(v, model, opacity)
             })
+            .chain(
+                self.entry
+                    .iter()
+                    .filter(|_| self.is_driving() && !self.player().is_bicycle())
+                    .map(|entry| entry.instance(self.player())),
+            )
     }
 }
 fn driver(v: &Vehicle, model: usize, opacity: f32) -> Option<Instance<'static>> {
@@ -80,8 +86,14 @@ fn driver(v: &Vehicle, model: usize, opacity: f32) -> Option<Instance<'static>> 
         idle_time: 0.,
         walk_time: 0.,
         movement: 0.,
-        pose: Some(&seated(low_roof(id))[model]),
+        pose: Some(seat_pose(id, model)),
     })
+}
+pub(super) fn seat_pose(
+    id: &str,
+    model: usize,
+) -> &'static [Mat4; pedestrian_catalog::JOINT_LIMIT] {
+    &seated(low_roof(id))[model]
 }
 fn low_roof(id: &str) -> bool {
     matches!(

@@ -113,16 +113,19 @@ fn ribbon_key(cell:vec2<i32>)->u32 {
     let breeze=vec2<f32>(cos(sweep),sin(sweep));
     let bend=0.23*fan+breeze*(0.15+0.07*growth+0.13*sin(dot(foot,vec2<f32>(3.7,2.1))-camera.eye_time.w*1.9));
     let linear=0.035*fan;
-    let h=0.0003*(0.45+0.52*seed.z)*(0.75+0.125*((blade+floor(seed.y*2.99))%3.0))*(1.0+0.075*growth);
+    // Sparse lower-detail blades represent a tuft as its individual leaves become subpixel.
+    let tuft=smoothstep(0.014,0.085,distance);
+    let h=mix(0.0003,0.00085,tuft)*(0.45+0.52*seed.z)*(0.75+0.125*((blade+floor(seed.y*2.99))%3.0))*(1.0+0.075*growth);
     var clip=camera.view_projection*vec4<f32>(root+h*vec3<f32>(linear*t+bend*t*t,t),1.0);
     let tangent=camera.view_projection*vec4<f32>(linear+2.0*t*bend,1.0,0.0);
     let dir=(tangent.xy*clip.w-clip.xy*tangent.w)*viewport.xy;
     let across=vec2<f32>(-dir.y,dir.x)/max(length(dir),1e-9);
     // Perspective focal length for the game's 58-degree vertical field of view.
     let px=(0.0000021+0.0000015*seed.y)*(1.0-t*t)*0.902024*viewport.y/max(0.00005,clip.w);
+    let visible_px=max(px,0.62*tuft*(1.0-t*t));
     let side=select(-1.0,1.0,(index&1u)==1u);
-    clip=vec4<f32>(clip.xy+across*(2.0/viewport.xy)*max(px,0.52)*side*clip.w,clip.zw);
-    return Ribbon(clip,root,vec2<f32>(mix(0.76,1.42,t)*(1.0+0.055*growth),0.5*min(1.0,px/0.52)*fade),terrain.xy);
+    clip=vec4<f32>(clip.xy+across*(2.0/viewport.xy)*max(visible_px,0.52)*side*clip.w,clip.zw);
+    return Ribbon(clip,root,vec2<f32>(mix(0.68,1.54,t)*(1.0+0.055*growth),0.5*min(1.0,visible_px/0.52)*fade),terrain.xy);
 }
 @fragment fn fs_ribbon(r:Ribbon)->@location(0) vec4<f32> {
     var v:Output;

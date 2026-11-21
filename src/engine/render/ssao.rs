@@ -251,6 +251,7 @@ impl Ssao {
         enabled: bool,
         zombie_mode: bool,
         montreal_grade: bool,
+        haze_distance_scale: f32,
         weather: [f32; 4],
         snowfall: Option<&super::snowfall::Snowfall>,
         ao_timestamp: Option<wgpu::RenderPassTimestampWrites<'_>>,
@@ -259,7 +260,12 @@ impl Ssao {
         let data = Settings {
             inverse: matrix.inverse().to_cols_array_2d(),
             eye_radius: [eye.x, eye.y, eye.z, 0.015],
-            viewport: [width as f32, height as f32, f32::from(montreal_grade), 0.],
+            viewport: [
+                width as f32,
+                height as f32,
+                f32::from(montreal_grade),
+                haze_distance_scale,
+            ],
             tuning: [0.00012, 1.8, f32::from(enabled), f32::from(zombie_mode)],
             weather,
         };

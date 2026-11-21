@@ -52,16 +52,29 @@ fn shade_local_surface(v:Output,front:bool,coverage:f32,surface:SurfaceData)->ve
     }
     var n=surface.normal;
     if v.surface.x>10.5&&v.surface.x<11.5&&!front {n=-n;}
-    let shaded=shade_surface_lit(v,front,coverage,seasonal,local_irradiance(v.world,n));
+    var shaded=shade_surface_lit(v,front,coverage,seasonal,local_irradiance(v.world,n));
     let bits=u32(max(0.0,round(v.surface.w)));
-    let concrete_rim=v.surface.x==2.0 && v.surface.w== -1.5;
+    let concrete_rim=v.surface.x==2.0 && (v.surface.w== -1.5 || v.surface.w== -1.75);
     if concrete_rim || (v.surface.x==0.0 && (bits&3u)==1u && bits>3u) {
-        let rim=select(runway_rim_distance(v.fence_uv,bits),v.fence_uv.x,concrete_rim);
-        if rim<0.009 {
+        let rim=select(runway_rim_distance(v.fence_uv,bits),v.fence_uv.x/max(v.fence_uv.y,0.0001),concrete_rim);
+        if rim<select(0.009,0.012,concrete_rim) {
             let aa=surface.world_footprint.xy;
             let turf=architecture_noise(v.world.xy*130.0,aa*130.0,43.0);
             let clumps=architecture_noise(v.world.xy*850.0,aa*850.0,71.0);
-            let reach=0.0007+0.0055*turf*turf+0.0016*clumps;
+            var reach=0.0007+0.0055*turf*turf+0.0016*clumps;
+            if concrete_rim {
+                // Exposed aggregate follows the wandering turf line into the slab.
+                reach=0.0012+0.006*turf*turf+0.0016*clumps;
+                let margin=select(rim-reach,rim*2.0,v.surface.w== -1.75);
+                let shoulder=1.0-smoothstep(0.0004,0.0021+0.0023*clumps,margin);
+                var gravel=v;
+                gravel.surface=vec4<f32>(7.0,0.0,0.0,0.0);
+                let grit=architecture_noise(v.world.xy*4100.0,aa*4100.0,97.0);
+                gravel.color=mix(vec3<f32>(0.095,0.075,0.052),vec3<f32>(0.35,0.32,0.27),grit);
+                gravel.color=broken_surface_edge(gravel.color,v.world.xy,aa,max(margin,0.0),2u,false);
+                shaded=mix(shaded,shade_surface_lit(gravel,front,coverage,seasonal,local_irradiance(v.world,n)),shoulder);
+            }
+            if concrete_rim && v.surface.w== -1.75 {return shaded;}
             let feather=clamp(max(aa.x,aa.y),0.00025,0.0012);
             let cover=1.0-smoothstep(reach-feather,reach+feather,rim);
             if cover>0.0 {

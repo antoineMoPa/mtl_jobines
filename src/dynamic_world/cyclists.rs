@@ -9,14 +9,18 @@ use crate::hermes::{
     Hermes,
 };
 use glam::{Mat4, Vec3};
+#[path = "bikeshare/trips.rs"]
+mod trips;
 pub(super) const CAPACITY: usize = 24;
 struct Cyclist {
     vehicle: usize,
     path: usize,
     next: Option<usize>,
     model: usize,
+    checkout_station: Option<usize>,
 }
 pub(super) struct Cyclists {
+    pub(super) stations: Vec<super::bikeshare::Station>,
     graph: TrafficPaths,
     dedicated: Vec<bool>,
     riders: Vec<Cyclist>,
@@ -30,6 +34,7 @@ impl Cyclists {
     pub fn new(hermes: &Hermes) -> Self {
         let (graph, dedicated) = TrafficPaths::for_bicycles(hermes.city());
         Self {
+            stations: Vec::new(),
             graph,
             dedicated,
             riders: Vec::new(),
@@ -83,8 +88,9 @@ impl Cyclists {
             a.1.distance_squared(center)
                 .total_cmp(&b.1.distance_squared(center))
         });
+        let waiting = self.stations.iter().map(|s| s.waiters.len()).sum::<usize>();
         for (path, point, heading) in candidates {
-            if self.riders.len() >= CAPACITY {
+            if self.riders.len() + waiting >= CAPACITY {
                 break;
             }
             if vehicles.iter().any(|v| {
@@ -114,6 +120,7 @@ impl Cyclists {
                 vehicle: id,
                 path,
                 next: None,
+                checkout_station: None,
                 model: self.serial % pedestrian_catalog::CROWD_MODEL_COUNT,
             });
             self.serial += 1;
@@ -136,6 +143,9 @@ impl Cyclists {
     }
     pub fn clear_population(&mut self, vehicles: &mut [Vehicle]) {
         self.retain_bikes(vehicles, |_| false);
+        for station in &mut self.stations {
+            station.waiters.clear();
+        }
         self.refill = 0.;
     }
     fn retain_bikes(&mut self, vehicles: &mut [Vehicle], keep: impl Fn(&Vehicle) -> bool) {
@@ -143,6 +153,25 @@ impl Cyclists {
             if keep(&vehicles[r.vehicle]) {
                 true
             } else {
+                // Finish an offscreen rental before recycling ambient traffic slots.
+                if let Some(origin) = r.checkout_station {
+                    let available = self.stations[origin]
+                        .free_dock()
+                        .map(|slot| (origin, slot))
+                        .or_else(|| {
+                            self.stations
+                                .iter()
+                                .enumerate()
+                                .find_map(|(id, s)| s.free_dock().map(|slot| (id, slot)))
+                        });
+                    if let Some((station, slot)) = available {
+                        let station = &mut self.stations[station];
+                        station.align(slot, &mut vehicles[r.vehicle]);
+                        station.docks[slot].bike = Some(r.vehicle);
+                        station.waiters.push_back((r.model, 8.));
+                        return false;
+                    }
+                }
                 self.free.push(r.vehicle);
                 vehicles[r.vehicle].position.z = -1000.;
                 vehicles[r.vehicle].velocity = Vec3::ZERO;
@@ -190,6 +219,18 @@ impl Cyclists {
             } else {
                 path.sample(distance + look).0
             };
+            // Peel off the lane and slow down for an available dock.
+            let dock = self
+                .stations
+                .iter()
+                .enumerate()
+                .filter(|(id, s)| {
+                    Some(*id) != r.checkout_station
+                        && s.path == r.path
+                        && s.lane.distance_squared(bike.position) < 10_f32.powi(2)
+                })
+                .find_map(|(_, s)| s.open_dock(vehicles, r.vehicle).map(|slot| &s.docks[slot]));
+            let target = dock.map_or(target, |d| d.ground);
             let delta = target - bike.position;
             let angle = (delta.y.atan2(delta.x) - bike.yaw)
                 .sin()
@@ -212,7 +253,9 @@ impl Cyclists {
             let blocked = obstacle
                 || red
                 || (r.next.is_none() && path.next.is_empty() && path.length - distance < 2.);
-            let desired = if path.speed == SpeedClass::Junction {
+            let desired = if dock.is_some() {
+                2.0
+            } else if path.speed == SpeedClass::Junction {
                 2.5
             } else {
                 5.

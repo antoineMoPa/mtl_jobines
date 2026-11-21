@@ -1,6 +1,5 @@
 //! YULPET's three aircraft share a timed circuit on the northern
 //! runway, with the southern runway available for player departures and arrivals.
-mod concrete;
 mod props;
 pub(crate) use props::groups as prop_groups;
 
@@ -211,7 +210,6 @@ pub(crate) fn append_scenery(city: &City, mesh: &mut Mesh) {
         }
     }
 
-    concrete::add_edges(city, mesh);
     for strip in [Strip::A, Strip::B] {
         let Some(r) = Runway::find(city, strip) else {
             continue;

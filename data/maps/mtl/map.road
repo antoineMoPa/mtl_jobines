@@ -96,6 +96,16 @@ road cross_street:
     sidewalk carlane middle carlane sidewalk;
 end
 
+# Shared bicycle racks on the forward-side sidewalks.
+bikeshare_station(road_1);
+bikeshare_station(cross_island_extension);
+bikeshare_station(road_11);
+bikeshare_station(road_12);
+bikeshare_station(district_street_x_0_1);
+bikeshare_station(district_street_x_1_1);
+bikeshare_station(district_street_x_2_3);
+bikeshare_station(brick_street_x_3);
+
 # Paired curbside bike lanes on the local and full-length district cycling corridors.
 road cycling_street:
     sidewalk bikelane carlane middle carlane bikelane sidewalk;

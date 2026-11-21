@@ -49,6 +49,7 @@ pub struct Controls {
     pub handbrake: bool,
     pub boost: bool,
 }
+#[derive(Clone)]
 pub struct Vehicle {
     pub(super) route_signal: crate::hermes::RouteSignal,
     pub(super) signal_time: f32,
@@ -728,10 +729,11 @@ impl Vehicle {
             }
         }
         for index in 0..buildings.map_or(city.landscape.len(), |ids| ids.len()) {
-            let building = &city.landscape[buildings.map_or(index, |ids| ids[index])];
+            let id = buildings.map_or(index, |ids| ids[index]);
+            let building = &city.landscape[id];
             if building.kind != opencity::LandscapeKind::Building
                 || !building.building_style.unwrap_or_default().collidable
-                || building.elevation >= top
+                || city.building_bottom(id) >= top
                 || (building.elevation + building.height.unwrap_or(0.)) * METERS_PER_UNIT
                     <= bottom * METERS_PER_UNIT
             {

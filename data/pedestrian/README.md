@@ -4,22 +4,23 @@ Six shared medium-poly, textured pedestrian GLBs, in metres: +Y up and +Z forwar
 Each contains a 22-joint skin and Idle, Walk, Start and Stop animation clips. The
 runtime maps their axes explicitly to the game's +Z up and +X forward convention.
 
-`player.glb` is the separately skinned main character. Its mesh and embedded
-texture come from the supplied T pose; it uses the same 22-joint skeleton and
-four animation clips as the crowd assets. Only the player selects this model.
-The summer albedo has its baked rear shadows removed so the white tank top and
-skin remain consistent front-to-back under the renderer’s dynamic lighting.
-`player-winter.glb` uses the supplied winter outfit on the identical rig. The
-player selects it when the session season is winter, including a live season
-change while walking; the crowd keeps the six shared models.
+Mario's summer and winter game assets are `player.glb` and `player-winter.glb`.
+Both use a 20,000-triangle body with a broader rib cage, rounder shoulders and
+fuller upper arms. Each GLB embeds a 1536-square albedo and a fitted auburn
+mullet with strand-aligned UVs, tangents and KHR_materials_anisotropy. The winter nape is trimmed to
+fit the hood. Hair tips
+move before skinning in both the regular and shadow passes. The static models
+in `mario-v2/` carry the same build in the source pose and orientation.
 
-The assets retain the shoulder helper joints, narrower foot placement and delayed
+Both outfits use the same 22-joint bind pose and switch with the session season.
+During gameplay Mario's shoulders, arms and hands follow the procedural step
+phase. His resting elbows bend slightly and his feet plant in separate lanes
+about 22 cm apart. The GLBs retain the
+standard clips for export and compatibility.
+
+The crowd assets retain the shoulder helper joints, narrower foot placement and delayed
 forearm/hand motion from the pedestrian research. Their distinct baked cadences are
 combined with independently seeded playback phases, walking speeds and pauses.
 
 These are complete exportable GLBs, including their embedded albedo images, skin
 weights and animations. No service credentials or remote requests are needed at runtime.
-
-The summer shorts extend to just above the knees. Their mesh is split at level
-waist/hem boundaries and mapped to opaque fabric across the front, back and inner
-legs, avoiding skin-colored gaps at the crotch and uneven UV-island hems.

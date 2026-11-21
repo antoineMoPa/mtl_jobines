@@ -13,7 +13,7 @@ use crate::dynamic_world::{
     AutoDrive, Controls, DriveStep, DynamicWorld, SpawnPoint, WalkControls, METERS_PER_UNIT,
     WALK_TURN_SPEED,
 };
-use crate::hermes::Hermes;
+use crate::hermes::{Hermes, MinimapScale};
 use crate::kairos::{Kairos, MissionEvent};
 use glam::{Mat4, Quat, Vec3};
 use opencity::runtime::Mesh;
@@ -82,6 +82,12 @@ fn aircraft_chase(length: f32, forward: Vec3, zoom: f32, orbit_pitch: f32) -> (V
     let eye = (-forward * elevation.cos() + Vec3::Z * elevation.sin()) * distance;
     let aim = (forward * 2.8 + Vec3::Z * 0.10) * scale;
     (eye, aim)
+}
+
+/// Turn the taxi chase aim along the shorter arc, independent of render frame rate.
+fn taxi_aim_yaw(previous: f32, nose: f32, elapsed: f32) -> f32 {
+    let turn = nose - previous;
+    previous + turn.sin().atan2(turn.cos()) * (1. - (-4. * elapsed).exp())
 }
 
 /// Ease sideways from the current lens, pulling back just enough to frame the arrest.
@@ -189,6 +195,7 @@ struct Game {
     mesh_center: [f32; 2],
     eye: Vec3,
     camera_anchor: Vec3,
+    taxi_aim_yaw: Option<f32>,
     zoom: f32,
     orbit: f32,
     camera_pitch: f32,
@@ -440,6 +447,7 @@ impl Game {
             mesh_center: [p.x, p.y],
             eye: ground_chase(p, forward, DEFAULT_CHASE_ZOOM, 0.).0,
             camera_anchor: p,
+            taxi_aim_yaw: None,
             zoom: DEFAULT_CHASE_ZOOM,
             orbit: 0.,
             camera_pitch: 0.,
@@ -680,6 +688,12 @@ impl Game {
             | PaletteAction::PlaceProps(_)
             | PaletteAction::ExpandNetwork
             | PaletteAction::GrowNetwork => self.open_construction(action),
+            PaletteAction::UseBikeshare => {
+                if self.world.bikeshare_hint().is_some() && self.world.toggle_vehicle(&self.hermes)
+                {
+                    self.reset_boarding_camera();
+                }
+            }
             PaletteAction::InteractWithCat => {
                 self.interact_with_cat();
             }
@@ -839,8 +853,8 @@ impl Game {
             self.camera_pitch *= (-elapsed * CAMERA_RETURN_RATE).exp();
         }
         let plane = self.world.player();
-        let flight_chase =
-            self.world.is_driving() && plane.is_aircraft() && !plane.grounded && !self.hood;
+        let flying = self.world.is_driving() && plane.is_aircraft() && !plane.grounded;
+        let flight_chase = flying && !self.hood;
         let nose = glam::Vec2::new(render_yaw.cos(), render_yaw.sin());
         let heading = if flight_chase && plane.velocity.truncate().dot(nose) > 2. {
             plane.velocity.y.atan2(plane.velocity.x)
@@ -855,6 +869,16 @@ impl Game {
             .is_driving()
             .then(|| self.world.player())
             .filter(|vehicle| vehicle.is_aircraft());
+        // Gain one street-level visibility range per 100 m climbed, up to four ranges.
+        renderer.flight_visibility = if aircraft.is_some_and(|plane| !plane.grounded)
+            && build_camera.is_none()
+            && !self.fabula.active()
+        {
+            1. + (p.z - 0.1).clamp(0., crate::performance::draw_radius(3.))
+        } else {
+            1.
+        };
+        let previous_taxi_yaw = self.taxi_aim_yaw.take();
         let (target_eye, look) = if let Some(drive) = &self.auto_drive {
             location::drive_view(p, render_yaw, plane.length(), drive.elapsed)
         } else if let Some(plane) = aircraft {
@@ -865,6 +889,18 @@ impl Game {
             } else {
                 let (eye, aim) =
                     aircraft_chase(plane.length(), forward, self.zoom, self.camera_pitch);
+                let aim = if plane.grounded {
+                    let yaw = taxi_aim_yaw(
+                        previous_taxi_yaw.unwrap_or(render_yaw),
+                        render_yaw,
+                        if paused { 0. } else { elapsed },
+                    );
+                    self.taxi_aim_yaw = Some(yaw);
+                    // Orbit is already in the aim. Only ease the aircraft's own turn.
+                    Quat::from_rotation_z(yaw - render_yaw) * aim
+                } else {
+                    aim
+                };
                 (p + eye, p + aim)
             }
         } else if !self.world.is_driving() {
@@ -994,6 +1030,11 @@ impl Game {
             );
             self.scene_dirty = false;
         }
+        self.hermes.set_minimap_scale(if flying {
+            MinimapScale::Flight
+        } else {
+            MinimapScale::Ground
+        });
         if let Err(error) = renderer.update_vector_map(self.hermes.city()) {
             eprintln!("Vector map: {error}");
             let view = (self.overlay == Overlay::Map).then(|| {
@@ -1083,6 +1124,7 @@ impl Game {
             renderer.construction_span,
             renderer.config.width as f32 / renderer.scene_height() as f32,
             surface_preview.is_some(),
+            renderer.flight_visibility,
         );
         meshes.extend(surface_preview.iter().map(|mesh| mesh.as_ref()));
         meshes.extend(prop_preview.iter().flatten().map(|mesh| mesh.as_ref()));
@@ -1344,19 +1386,16 @@ impl ApplicationHandler<GameEvent> for Game {
             },
         }
     }
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn resumed(&mut self, _event_loop: &ActiveEventLoop) {
         self.suspended = false;
         self.window_activity_changed();
-        if self.window.is_some() {
-            return;
-        }
-        let attributes = Window::default_attributes()
-            .with_title("MTL Jobines")
-            .with_inner_size(winit::dpi::LogicalSize::new(1440., 900.));
         #[cfg(target_arch = "wasm32")]
-        let attributes = {
+        {
             use wasm_bindgen::JsCast;
             use winit::platform::web::WindowAttributesExtWebSys;
+            if self.window.is_some() {
+                return;
+            }
             let canvas = web_sys::window()
                 .unwrap()
                 .document()
@@ -1367,23 +1406,14 @@ impl ApplicationHandler<GameEvent> for Game {
                 .unwrap();
             let width = canvas.client_width().max(1) as f64;
             let height = canvas.client_height().max(1) as f64;
-            attributes
+            let attributes = Window::default_attributes()
+                .with_title("MTL Jobines")
                 .with_canvas(Some(canvas))
                 .with_prevent_default(true)
-                .with_inner_size(winit::dpi::LogicalSize::new(width, height))
-        };
-        let window = Arc::new(event_loop.create_window(attributes).expect("window"));
-        let size = window.inner_size();
-        self.window = Some(window.clone());
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let renderer =
-                pollster::block_on(Renderer::new(Some(window.clone()), size.width, size.height))
-                    .expect("wgpu renderer");
-            self.finish_startup(renderer);
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
+                .with_inner_size(winit::dpi::LogicalSize::new(width, height));
+            let window = Arc::new(_event_loop.create_window(attributes).expect("window"));
+            let size = window.inner_size();
+            self.window = Some(window.clone());
             let proxy = self.proxy.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 let result = Renderer::new(Some(window), size.width, size.height).await;

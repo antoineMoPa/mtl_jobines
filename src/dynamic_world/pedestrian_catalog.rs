@@ -205,13 +205,29 @@ impl Definition {
             let uvs: Vec<_> = reader.read_tex_coords(0).unwrap().into_f32().collect();
             let joint_ids: Vec<_> = reader.read_joints(0).unwrap().into_u16().collect();
             let weights: Vec<_> = reader.read_weights(0).unwrap().into_f32().collect();
+            let material = primitive.material();
+            let pbr = material.pbr_metallic_roughness();
+            let [r, g, b, _] = pbr.base_color_factor();
+            let colors: Option<Vec<_>> = reader.read_colors(0).map(|c| c.into_rgb_f32().collect());
+            // Encoded in surface.y for the pedestrian shader.
+            let finish = match (pbr.base_color_texture(), material.name()) {
+                (Some(_), _) => 0.,
+                (_, Some("Mullet")) => 2.,
+                _ => 1.,
+            };
             for index in reader.read_indices().unwrap().into_u32() {
                 let i = index as usize;
+                let tint = colors.as_ref().map_or([1.; 3], |c| c[i]);
                 vertices.push(Vertex {
                     position: positions[i],
                     normal: normals[i],
-                    color: [1.; 3],
-                    surface: [SurfaceKind::Prop as u32 as f32, 1., uvs[i][0], uvs[i][1]],
+                    color: [r * tint[0], g * tint[1], b * tint[2]],
+                    surface: [
+                        SurfaceKind::Prop as u32 as f32,
+                        finish,
+                        uvs[i][0],
+                        uvs[i][1],
+                    ],
                 });
                 skin.push(SkinVertex {
                     joints: joint_ids[i],
@@ -382,6 +398,14 @@ impl Definition {
         let start = self.joint_worlds(fallen);
         let t = (progress / 0.42).clamp(0., 1.);
         let amount = t * t * (3. - 2. * t);
+        self.blend_worlds(&start, &target_worlds, amount)
+    }
+    pub(super) fn blend_worlds(
+        &self,
+        start: &[Mat4; JOINT_LIMIT],
+        target_worlds: &[Mat4; JOINT_LIMIT],
+        amount: f32,
+    ) -> [Mat4; JOINT_LIMIT] {
         let mut locals = [Mat4::IDENTITY; JOINT_LIMIT];
         for i in 0..self.joints.len() {
             let parent = self.joint_parent(i);
@@ -443,9 +467,14 @@ mod tests {
         let models = definitions();
         assert_eq!(models.len(), CROWD_MODEL_COUNT + 2);
         let mut cadences = Vec::new();
-        for model in models {
+        for (index, model) in models.iter().enumerate() {
             assert_eq!(model.joints.len(), 22);
-            assert!((3_000..8_000).contains(&(model.vertices.len() / 3)));
+            let triangle_budget = if matches!(index, PLAYER_SUMMER_MODEL | PLAYER_WINTER_MODEL) {
+                22_000
+            } else {
+                8_000
+            };
+            assert!((3_000..triangle_budget).contains(&(model.vertices.len() / 3)));
             assert_eq!(model.skin.len(), model.vertices.len());
             assert!(model.texture_png.starts_with(b"\x89PNG"));
             let mut cache = vec![None; model.rest.len()];
@@ -475,6 +504,22 @@ mod tests {
         assert_eq!(cadences.len(), 6);
         let summer = &models[PLAYER_SUMMER_MODEL];
         let winter = &models[PLAYER_WINTER_MODEL];
+        for (index, outfit) in [(PLAYER_SUMMER_MODEL, summer), (PLAYER_WINTER_MODEL, winter)] {
+            assert!(assets()[index].len() < 2_000_000);
+            let head = outfit.joint("Head");
+            let head_weighted_hair = outfit.vertices.iter().zip(&outfit.skin).any(|(v, skin)| {
+                v.surface[1] == 2.
+                    && skin
+                        .joints
+                        .iter()
+                        .zip(skin.weights)
+                        .any(|(&joint, weight)| joint as usize == head && weight > 0.5)
+            });
+            assert!(
+                head_weighted_hair,
+                "missing strand-shaded skinned hair on outfit {index}"
+            );
+        }
         assert_eq!(summer.names, winter.names);
         assert_eq!(summer.walk_duration, winter.walk_duration);
         for (a, b) in summer.inverse_bind.iter().zip(&winter.inverse_bind) {

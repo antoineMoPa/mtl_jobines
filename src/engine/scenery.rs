@@ -169,7 +169,7 @@ impl Scenery {
         span: Option<f32>,
         aspect: f32,
     ) -> Vec<&GpuMesh> {
-        self.visible_with_road_preview(center, span, aspect, false)
+        self.visible_with_road_preview(center, span, aspect, false, 1.)
     }
     pub fn visible_with_road_preview(
         &self,
@@ -177,6 +177,7 @@ impl Scenery {
         span: Option<f32>,
         aspect: f32,
         preview: bool,
+        flight_visibility: f32,
     ) -> Vec<&GpuMesh> {
         let intersects = |b: &Batch, radius: f32| {
             b.bounds[0] <= center[0] + radius
@@ -184,17 +185,13 @@ impl Scenery {
                 && b.bounds[1] <= center[1] + radius
                 && b.bounds[3] >= center[1] - radius
         };
+        let world_radius = span.map_or_else(
+            || crate::performance::draw_radius(8.) + 8. * (flight_visibility - 1.),
+            |span| (span * aspect.max(1.) * 1.5).max(8.),
+        );
         self.world
             .iter()
-            .filter(|b| {
-                (!preview || !b.infrastructure)
-                    && intersects(
-                        b,
-                        span.map_or(crate::performance::draw_radius(8.), |span| {
-                            (span * aspect.max(1.) * 1.5).max(8.)
-                        }),
-                    )
-            })
+            .filter(|b| (!preview || !b.infrastructure) && intersects(b, world_radius))
             .chain(
                 self.details
                     .iter()

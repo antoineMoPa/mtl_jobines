@@ -149,7 +149,7 @@ fn shade_river(v: Output, surface: SurfaceData, shore: CoastalWater) -> vec4<f32
     let foamLight = vec3(0.87, 0.93, 0.94) * (mix(vec3(0.024, 0.032, 0.048),
         vec3(0.58, 0.65, 0.74), daylight) + sunlight*(0.22 + 0.45*max(sun.z, 0.0)) + local);
     let foamed = mix(lit, foamLight, max(max(shore.foam,water.z*(1.0-shore.transmission)),wake*(0.32+0.45*threshold_rank(p*0.45))));
-    let fog = (1.0 - exp(-distance*0.025)*(1.0 - smoothstep(5.8, 7.6, distance))) * (1.0 - camera.daylight_sky.y);
+    let fog = world_fog(distance);
     let sky = textureSampleLevel(sky_environment, sky_sampler, -view, 0.0).rgb;
     return vec4(filmic_display(mix(foamed, sky, fog) * camera.sun_exposure.w), 1.0);
 }

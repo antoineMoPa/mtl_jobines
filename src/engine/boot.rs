@@ -1,4 +1,4 @@
-//! Lightweight native image window shown while the map and game renderer load.
+//! Draws the boot image in the native game window while the map loads.
 use std::{io::Cursor, sync::Arc};
 use winit::window::Window;
 
@@ -205,9 +205,11 @@ impl Boot {
     }
 
     fn update_vertices(&mut self) {
+        const WINDOW_FRACTION: f32 = 0.5;
         let width = self.config.width as f32;
         let height = self.config.height as f32;
-        let scale = (width / self.image_size[0] as f32).min(height / self.image_size[1] as f32);
+        let scale = WINDOW_FRACTION
+            * (width / self.image_size[0] as f32).min(height / self.image_size[1] as f32);
         let x = self.image_size[0] as f32 * scale / width;
         let y = self.image_size[1] as f32 * scale / height;
         let vertices = [

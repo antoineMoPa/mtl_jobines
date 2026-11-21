@@ -259,6 +259,7 @@ impl Game {
         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
         self.eye = ground_chase(p, forward, self.zoom, self.camera_pitch).0;
         self.camera_anchor = p;
+        self.taxi_aim_yaw = None;
         self.previous_car_position = self.world.player().position;
         self.previous_car_orientation = self.world.player().orientation();
         self.previous_car_yaw = self.world.player().yaw;

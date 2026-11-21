@@ -260,6 +260,7 @@ figcaption .play { margin-top: 1.8rem; }
 }
 .engine-objects h3 { font-size: clamp(3.2rem, 5.5vw, 7rem); }
 .engine-example { grid-area: example; }
+.engine-example pre + .play { margin-top: 1.2rem; }
 .engine-example pre {
   margin: 1.2rem 0 0;
   padding: .85rem 1rem;

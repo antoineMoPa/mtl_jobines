@@ -1,10 +1,10 @@
 use super::*;
 use crate::engine::boot::Boot;
 use std::sync::mpsc::{self, Receiver};
-use winit::window::WindowLevel;
 
 struct NativeApp {
     boot: Option<Boot>,
+    occluded: bool,
     game: Option<Game>,
     result: Option<Receiver<Result<Hermes, String>>>,
     proxy: winit::event_loop::EventLoopProxy<GameEvent>,
@@ -28,6 +28,7 @@ pub(super) fn run(
         .map_err(|error| error.to_string())?;
     let mut app = NativeApp {
         boot: None,
+        occluded: false,
         game: None,
         result: None,
         proxy: event_loop.create_proxy(),
@@ -71,6 +72,33 @@ pub(super) fn run(
     result
 }
 
+impl NativeApp {
+    fn start_game(&mut self, hermes: Hermes) -> Result<(), String> {
+        let mut game = Game::new_at(hermes, self.start)?;
+        if let Some(rule) = self.rule {
+            game.kairos
+                .set_vehicle_return_rule(move |away, previous, elapsed| {
+                    rule(u32::from(away), previous, elapsed)
+                });
+        }
+        game.live_reload = Some(reload::LiveReload::new(self.path.clone()));
+        game.profile_shutdown = self.profile_shutdown;
+
+        // Release the splash surface before configuring the game surface.
+        let window = self.boot.take().expect("map loaded during boot").window;
+        let size = window.inner_size();
+        game.focused = window.has_focus();
+        game.hidden = self.occluded;
+        game.minimized = size.width == 0 || size.height == 0;
+        let renderer =
+            pollster::block_on(Renderer::new(Some(window.clone()), size.width, size.height))?;
+        game.window = Some(window);
+        game.finish_startup(renderer);
+        self.game = Some(game);
+        Ok(())
+    }
+}
+
 impl ApplicationHandler<GameEvent> for NativeApp {
     fn device_event(&mut self, event_loop: &ActiveEventLoop, id: DeviceId, event: DeviceEvent) {
         // Captured camera input arrives as device motion, not cursor positions.
@@ -89,8 +117,7 @@ impl ApplicationHandler<GameEvent> for NativeApp {
         }
         let attributes = Window::default_attributes()
             .with_title("MTL Jobines")
-            .with_inner_size(winit::dpi::LogicalSize::new(800., 482.))
-            .with_window_level(WindowLevel::AlwaysOnTop);
+            .with_inner_size(winit::dpi::LogicalSize::new(1440., 900.));
         let window = match event_loop.create_window(attributes) {
             Ok(window) => Arc::new(window),
             Err(error) => {
@@ -140,63 +167,35 @@ impl ApplicationHandler<GameEvent> for NativeApp {
         match event {
             GameEvent::MapLoaded => {
                 let _span = mtl_world::telemetry::span("map.startup.apply");
-                let result = self.result.take().and_then(|receiver| receiver.recv().ok());
-                match result {
-                    Some(Ok(hermes)) => match Game::new_at(hermes, self.start) {
-                        Ok(mut game) => {
-                            if let Some(rule) = self.rule {
-                                game.kairos.set_vehicle_return_rule(
-                                    move |away, previous, elapsed| {
-                                        rule(u32::from(away), previous, elapsed)
-                                    },
-                                );
-                            }
-                            game.live_reload = Some(reload::LiveReload::new(self.path.clone()));
-                            game.profile_shutdown = self.profile_shutdown;
-                            game.resumed(event_loop);
-                            self.game = Some(game);
-                        }
-                        Err(error) => {
-                            self.startup_error = Some(error);
-                            event_loop.exit();
-                        }
-                    },
-                    Some(Err(error)) => {
-                        self.startup_error = Some(error);
-                        event_loop.exit();
-                    }
-                    None => {
-                        self.startup_error = Some("Map loader stopped unexpectedly".into());
-                        event_loop.exit();
-                    }
+                let result = self
+                    .result
+                    .take()
+                    .and_then(|receiver| receiver.recv().ok())
+                    .unwrap_or_else(|| Err("Map loader stopped unexpectedly".into()))
+                    .and_then(|hermes| self.start_game(hermes));
+                if let Err(error) = result {
+                    self.startup_error = Some(error);
+                    event_loop.exit();
                 }
             }
         }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
-        if self
-            .game
-            .as_ref()
-            .and_then(|game| game.window.as_ref())
-            .map(|window| window.id())
-            == Some(id)
-        {
-            let game = self.game.as_mut().unwrap();
+        if let Some(game) = &mut self.game {
             game.window_event(event_loop, id, event);
-            if !game.first_frame {
-                if let Some(boot) = self.boot.take() {
-                    boot.window.set_visible(false);
-                    game.window.as_ref().unwrap().focus_window();
-                }
-            }
             return;
         }
         if let Some(boot) = &mut self.boot {
             if boot.window.id() == id {
                 match event {
                     WindowEvent::RedrawRequested => boot.draw(),
-                    WindowEvent::Occluded(false) => boot.window.request_redraw(),
+                    WindowEvent::Occluded(occluded) => {
+                        self.occluded = occluded;
+                        if !occluded {
+                            boot.window.request_redraw();
+                        }
+                    }
                     WindowEvent::Resized(_) => boot.resize(),
                     WindowEvent::CloseRequested => event_loop.exit(),
                     _ => {}

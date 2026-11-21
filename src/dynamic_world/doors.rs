@@ -40,12 +40,16 @@ impl Doors {
         self.fraction[door as usize] = 1.;
         self.hold[door as usize] = f32::INFINITY;
     }
-    fn toggle(&mut self, door: Door) {
+    fn toggle(&mut self, door: Door) -> bool {
         let hold = &mut self.hold[door as usize];
         *hold = if *hold > 0. { 0. } else { f32::INFINITY };
+        *hold > 0.
     }
     pub fn claim(&mut self) {
         self.hold = [0.; 4];
+    }
+    pub fn set_fraction(&mut self, door: Door, fraction: f32) {
+        self.fraction[door as usize] = fraction;
     }
     pub fn fraction(&self, door: Door) -> f32 {
         self.fraction[door as usize]
@@ -200,7 +204,7 @@ impl Vehicle {
 
 impl super::DynamicWorld {
     pub fn toggle_door(&mut self) -> bool {
-        if self.health == 0 || self.metro.aboard {
+        if self.health == 0 || self.metro.aboard || self.entry.is_some() {
             return false;
         }
         let target = if let Some(person) = &self.pedestrian {
@@ -232,7 +236,13 @@ impl super::DynamicWorld {
                 .map(|_| (self.player_vehicle.0, Door::FrontLeft))
         };
         if let Some((id, door)) = target {
-            self.vehicles[id].doors.toggle(door);
+            let open = self.vehicles[id].doors.toggle(door);
+            if let Some(p) = &self.pedestrian {
+                self.entry = super::vehicle_entry::Entry::new(&self.vehicles[id], p, self.season);
+                if let Some(gesture) = &mut self.entry {
+                    gesture.operate_handle(id, open);
+                }
+            }
             true
         } else {
             false
@@ -291,14 +301,25 @@ mod tests {
         assert!(world.switch_vehicle(0));
         assert!(world.toggle_vehicle(&map));
         assert_eq!(world.seated_drivers().count(), 0);
-        world.vehicles[0].doors.step(0.3);
+        for _ in 0..30 {
+            world.step(&map, Default::default(), Default::default(), 1. / 60.);
+        }
         assert_eq!(world.player().doors.fraction(Door::FrontLeft), 1.);
-        world.vehicles[0].doors.step(1.);
+        for _ in 0..95 {
+            world.step(&map, Default::default(), Default::default(), 1. / 60.);
+        }
         let right = world.player().access_point(Door::RearRight).unwrap();
         let foot = world.pedestrian.as_mut().unwrap();
         foot.position = right.extend(foot.position.z);
         assert!(world.toggle_door());
-        world.vehicles[0].doors.step(1.);
+        for _ in 0..20 {
+            world.step(&map, Default::default(), Default::default(), 1. / 60.);
+        }
+        assert_eq!(world.player().doors.fraction(Door::RearRight), 0.);
+        for _ in 0..65 {
+            world.step(&map, Default::default(), Default::default(), 1. / 60.);
+        }
+        assert!(world.entry.is_none());
         assert_eq!(world.player().doors.fraction(Door::RearRight), 1.);
         assert!(world.toggle_vehicle(&map));
         assert_eq!(world.seated_drivers().count(), 1);

@@ -53,6 +53,7 @@ impl Game {
         self.orbit = 0.;
         self.camera_pitch = 0.;
         self.hood = false;
+        self.taxi_aim_yaw = None;
         let plane = self.world.player();
         if self.world.is_driving() && plane.is_aircraft() {
             self.zoom = AIRCRAFT_CHASE_ZOOM;

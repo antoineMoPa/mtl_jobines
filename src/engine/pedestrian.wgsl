@@ -25,10 +25,25 @@ fn combat_position(pos: vec3<f32>, actor_state: f32) -> vec3<f32> {
     return vec3<f32>(sign(pos.x)*(knuckle+offset*sin(bend)), 1.301-radius+offset*cos(bend),
                      pos.z-select(0.0, 0.035*sin(bend*0.65), thumb));
 }
+// Loose edges move in source metres before skinning, including in the shadow pass.
+fn dressed_position(v: Input, actor_state: f32) -> vec3<f32> {
+    var p = combat_position(v.position, actor_state);
+    let phase = camera.eye_time.w * 2.7 + p.x * 13.0;
+    if v.surface.y == 2.0 {
+        let tips = smoothstep(0.55, 1.0, v.surface.w) * (1.0 - smoothstep(1.38, 1.58, p.y));
+        p.x += 0.003 * tips * sin(phase);
+        p.z += 0.004 * tips * sin(phase * 0.77);
+    } else if v.surface.y == 1.0 {
+        let shirt = 1.0 - smoothstep(0.0, 0.10, abs(p.y - 0.93));
+        let shorts = 1.0 - smoothstep(0.0, 0.07, abs(p.y - 0.56));
+        p += v.normal * (0.0025 * max(shirt, shorts) * sin(phase + p.z * 16.0));
+    }
+    return p;
+}
 @vertex fn vs_pedestrian(v: Input, instance: VehicleTransform, skin: SkinInput) -> Output {
     let bones=pedestrian_skin(skin,u32(instance.z.w));
     let model=mat4x4<f32>(instance.x,instance.y,instance.z,instance.translation);
-    let world=(model*bones*vec4<f32>(combat_position(v.position,instance.y.w),1.0)).xyz;
+    let world=(model*bones*vec4<f32>(dressed_position(v,instance.y.w),1.0)).xyz;
     var o: Output;
     o.clip=camera.view_projection*vec4<f32>(world,1.0);
     o.world=world;
@@ -36,14 +51,14 @@ fn combat_position(pos: vec3<f32>, actor_state: f32) -> vec3<f32> {
     o.color=v.color;
     o.surface=vec4<f32>(7.0,instance.translation.w,instance.y.w,instance.x.w);
     o.fence_uv=v.surface.zw;
-    o.snow_control=vec2<f32>(0.0,1.0);
+    o.snow_control=vec2<f32>(v.surface.y,1.0);
     return o;
 }
 @vertex fn vs_pedestrian_shadow(v: Input, instance: VehicleTransform, skin: SkinInput) -> ShadowOutput {
     let bones=pedestrian_skin(skin,u32(instance.z.w));
     let model=mat4x4<f32>(instance.x,instance.y,instance.z,instance.translation);
     var o: ShadowOutput;
-    o.clip=camera.light_view_projection*vec4<f32>((model*bones*vec4<f32>(combat_position(v.position,instance.y.w),1.0)).xyz,1.0);
+    o.clip=camera.light_view_projection*vec4<f32>((model*bones*vec4<f32>(dressed_position(v,instance.y.w),1.0)).xyz,1.0);
     o.fence_uv=vec2<f32>(0.0);
     o.kind_pattern=vec2<f32>(7.0,instance.translation.w);
     return o;
@@ -51,7 +66,19 @@ fn combat_position(pos: vec3<f32>, actor_state: f32) -> vec3<f32> {
 @fragment fn fs_pedestrian(v: Output, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
     var material=v;
     let albedo=textureSample(pedestrian_albedo,pedestrian_sampler,v.fence_uv,i32(v.surface.w));
-    material.color*=albedo.rgb;
+    material.color *= select(vec3(1.0), albedo.rgb, v.snow_control.x == 0.0);
+    material.snow_control.x = 0.0;
+    // Across-strand UV is constant along a lock. Its screen derivatives give
+    // the deformed strand direction even when the head turns.
+    let fiber = dpdx(v.world) * dpdy(v.fence_uv.x) - dpdy(v.world) * dpdx(v.fence_uv.x);
+    if v.snow_control.x == 2.0 {
+        let tangent = fiber * inverseSqrt(max(dot(fiber, fiber), 1e-22));
+        let eye = camera.eye_time.xyz - v.world;
+        let half_dir = camera.sun_exposure.xyz + eye * inverseSqrt(max(dot(eye, eye), 1e-10));
+        let along = dot(tangent, half_dir) * inverseSqrt(max(dot(half_dir, half_dir), 1e-8));
+        let sheen = pow(clamp(1.0 - along * along, 0.0, 1.0), 18.0);
+        material.color += vec3(0.10, 0.061, 0.035) * sheen * camera.daylight_sky.x;
+    }
     if v.surface.z>0.5 {
         let luma=dot(material.color,vec3(0.26,0.57,0.17));
         material.color=mix(material.color,vec3(0.42,0.64,0.41)*luma,0.77);

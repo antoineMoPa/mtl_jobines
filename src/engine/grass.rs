@@ -206,6 +206,48 @@ mod tests {
             }
             captures.push(png);
         }
+        // Default car chase framing over turf, with identical lighting, time and HUD.
+        renderer.season = Season::Summer;
+        let eye = Vec3::new(0., -0.063, 0.0255);
+        let look = Vec3::new(0., 0.06, 0.014);
+        let frame = |renderer: &Renderer| {
+            renderer
+                .report_screenshot(&[&ground], eye, look, 0., hermes.minimap_view([0., 0.], 0.))
+                .unwrap()
+        };
+        let ground_only = frame(&renderer);
+        renderer.prepare_grass(&mut grass_cache, hermes.city(), eye, look);
+        let with_blades = frame(&renderer);
+        let pixels = |png: &[u8]| {
+            let mut reader = png::Decoder::new(png).read_info().unwrap();
+            let mut data = vec![0; reader.output_buffer_size()];
+            reader.next_frame(&mut data).unwrap();
+            data
+        };
+        let bare = pixels(&ground_only);
+        let blades = pixels(&with_blades);
+        // Foreground turf below the horizon, clear of the minimap.
+        let mut changed = 0;
+        for y in 630..870 {
+            for x in 300..850 {
+                let i = (y * 900 + x) * 4;
+                if (0..3).any(|c| bare[i + c].abs_diff(blades[i + c]) >= 6) {
+                    changed += 1;
+                }
+            }
+        }
+        eprintln!("Chase-camera grass changes {changed} of 132000 foreground pixels by at least six levels");
+        if let Some(dir) = std::env::var_os("GRASS_CAPTURE_DIR") {
+            std::fs::write(
+                std::path::Path::new(&dir).join("grass-chase.png"),
+                with_blades,
+            )
+            .unwrap();
+        }
+        assert!(
+            changed > 6600,
+            "blades must read in the gameplay foreground"
+        );
         assert_ne!(captures[1], captures[3], "grass must retain seasonal snow");
     }
 

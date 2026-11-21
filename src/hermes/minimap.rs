@@ -1,7 +1,19 @@
 use opencity::runtime::City;
 use resvg::{tiny_skia, usvg};
 pub const TEXTURE_SIZE: u32 = 1024;
-const VISIBLE_SPAN: f32 = 4.;
+#[derive(Clone, Copy)]
+pub enum MinimapScale {
+    Ground,
+    Flight,
+}
+impl MinimapScale {
+    fn visible_span(self) -> f32 {
+        match self {
+            Self::Ground => 4.,  // 400 m across
+            Self::Flight => 40., // 4 km across
+        }
+    }
+}
 #[derive(Clone, Copy)]
 pub struct MinimapView {
     pub texture_region: [f32; 4],
@@ -16,6 +28,7 @@ pub struct Minimap {
     #[cfg(test)]
     svg: String,
     tree: Option<usvg::Tree>,
+    pub(super) scale: MinimapScale,
     bounds: [f32; 4],
     span: f32,
     pixels: Vec<u8>,
@@ -33,6 +46,7 @@ impl Minimap {
             #[cfg(test)]
             svg,
             tree: Some(tree),
+            scale: MinimapScale::Ground,
             bounds: city.bounds,
             span: (city.bounds[2] - city.bounds[0]).max(city.bounds[3] - city.bounds[1]),
             pixels: Vec::new(),
@@ -116,9 +130,9 @@ impl Minimap {
             Some(view) => view,
             None => {
                 let center = self.map_uv(point);
-                let span = VISIBLE_SPAN * 1.5 / self.span;
+                let span = self.scale.visible_span() * 1.5 / self.span;
                 if let Some(region) = self.local_region {
-                    let margin = VISIBLE_SPAN * 0.5 / self.span;
+                    let margin = self.scale.visible_span() * 0.5 / self.span;
                     let inside = (0..2).all(|i| {
                         center[i] - margin >= region[i]
                             && center[i] + margin <= region[i] + region[2]
@@ -173,7 +187,7 @@ impl Minimap {
         MinimapView {
             texture_region: self.active_region,
             uv_center: self.map_uv(point),
-            uv_span: VISIBLE_SPAN / self.span,
+            uv_span: self.scale.visible_span() / self.span,
             heading,
             player_uv: self.map_uv(point),
             destination_uv: [0.; 2],
@@ -202,6 +216,39 @@ mod tests {
         assert_eq!(map.active_region, [0., 0., 1., 1.]);
         assert!(map.update_view([1.1, 0.], None).is_some());
         assert_eq!(map.local_pixels.as_ptr(), allocation);
+    }
+    #[test]
+    fn flight_view_shows_runway_alignment_from_a_kilometre_out() {
+        let city = City::from_program(
+            &opencity::parse("strip = concrete(0,0,16,0,16,0.65,0,0.65);").unwrap(),
+            None,
+        )
+        .unwrap();
+        let mut map = Minimap::new(&city).unwrap();
+        let approach = [-10., 0.325];
+        let visible = |view: MinimapView, uv: [f32; 2]| {
+            (uv[0] - view.uv_center[0]).hypot(uv[1] - view.uv_center[1]) < view.uv_span * 0.5
+        };
+        let threshold = map.map_uv([0., 0.325]);
+        let midpoint = map.map_uv([8., 0.325]);
+        map.update_view(approach, None).unwrap();
+        let ground = map.view(approach, 0.);
+        assert!(!visible(ground, threshold));
+
+        map.scale = MinimapScale::Flight;
+        map.update_view(approach, None).unwrap();
+        let flight = map.view(approach, 0.);
+        assert!(visible(flight, threshold) && visible(flight, midpoint));
+        let [left, top, width, height] = flight.texture_region;
+        let x = ((midpoint[0] - left) / width * TEXTURE_SIZE as f32) as usize;
+        let y = ((midpoint[1] - top) / height * TEXTURE_SIZE as f32) as usize;
+        let pixel = (y * TEXTURE_SIZE as usize + x) * 4;
+        assert_eq!(&map.local_pixels[pixel..pixel + 3], &[150, 157, 148]);
+        assert!(map.update_view(approach, None).is_none());
+
+        map.scale = MinimapScale::Ground;
+        map.update_view(approach, None).unwrap();
+        assert_eq!(map.view(approach, 0.).texture_region, ground.texture_region);
     }
     #[test]
     fn zoomed_raster_draws_road_at_its_global_coordinate() {

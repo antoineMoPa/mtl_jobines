@@ -53,6 +53,7 @@ pub(super) enum PaletteAction {
     JumpToLocation,
     ResumeDriving,
     InteractWithCat,
+    UseBikeshare,
     #[cfg(not(target_arch = "wasm32"))]
     ExpandNetwork,
     #[cfg(not(target_arch = "wasm32"))]
@@ -376,7 +377,7 @@ impl Palette {
                 return self
                     .ctx
                     .layer_id_at(egui::pos2(point.x, point.y))
-                    .is_some_and(|layer| layer.id == egui::Id::new("cat_interaction"));
+                    .is_some_and(|layer| layer.id == egui::Id::new("world_interaction"));
             }
             false
         }
@@ -578,19 +579,27 @@ impl Palette {
                 menu_selection,
             );
             if game_overlay == Overlay::Driving && !*help_visible && !self.is_open() {
-                if let Some(action) = world.cat_action() {
-                    let clicked = egui::Area::new("cat_interaction".into())
+                let prompt = world
+                    .cat_action()
+                    .map(|a| ("Entrée", a.label(), PaletteAction::InteractWithCat))
+                    .or_else(|| {
+                        world
+                            .bikeshare_hint()
+                            .map(|label| ("F", label, PaletteAction::UseBikeshare))
+                    });
+                if let Some((key, label, action)) = prompt {
+                    let clicked = egui::Area::new("world_interaction".into())
                         .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -30.))
                         .show(&ctx, |ui| {
                             super::tooltip::action(
                                 ui,
-                                (!super::app::mobile_enabled()).then_some("Entrée"),
-                                action.label(),
+                                (!super::app::mobile_enabled()).then_some(key),
+                                label,
                             )
                         })
                         .inner;
                     if clicked {
-                        selected = Some(PaletteAction::InteractWithCat);
+                        selected = Some(action);
                     }
                 }
                 super::job_feed::player_status(

@@ -5,6 +5,7 @@ mod building_style;
 pub mod commerce_mesh;
 mod commerce_props;
 mod commercial;
+mod concrete_edges;
 mod details;
 pub mod external_models;
 mod game_data;
@@ -31,8 +32,7 @@ pub mod walking_paths;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data))]
 use game_data::CacheKey;
 use game_data::GameData;
-pub use minimap::MinimapView;
-pub use minimap::TEXTURE_SIZE;
+pub use minimap::{MinimapScale, MinimapView, TEXTURE_SIZE};
 use opencity::runtime::City;
 use opencity::runtime::{Mesh, Region};
 pub use routing::RouteStatus;
@@ -127,6 +127,7 @@ pub struct Hermes {
     mission_sites: mission_sites::MissionSites,
     taxi_run: Option<taxi_runs::TaxiRun>,
     taxi_seed: u64,
+    pub(crate) bikeshare_sites: Vec<crate::dynamic_world::bikeshare::Site>,
     parked_vehicles: Vec<crate::dynamic_world::parked::ParkedVehicle>,
     city: Arc<City>,
     minimap: minimap::Minimap,
@@ -333,6 +334,7 @@ impl Hermes {
             taxi_seed: web_time::SystemTime::now()
                 .duration_since(web_time::UNIX_EPOCH)
                 .map_or(1, |time| time.as_nanos() as u64 | 1),
+            bikeshare_sites: crate::dynamic_world::bikeshare::Site::from_program(program, &city)?,
             parked_vehicles: crate::dynamic_world::parked::ParkedVehicle::from_program(program)?,
             traffic_paths: Arc::new(traffic_paths::TrafficPaths::new(&city, program)),
             walking_paths: Arc::new(walking_paths::WalkingPaths::new(&city)),
@@ -425,6 +427,7 @@ impl Hermes {
         metro::MetroMap::from_city(&self.city).open_portals(&mut world);
         world.vertices.append(&mut self.landmark_mesh.vertices);
         crate::dynamic_world::airport::append_scenery(&self.city, &mut world);
+        concrete_edges::add_edges(&self.city, &mut world);
         let details = self.details.take_scenery(&self.city);
         eprintln!(
             "Prepared {} world vertices and {} detail vertices",
@@ -511,6 +514,9 @@ impl Hermes {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn minimap_svg(&self) -> String {
         metro::navigation_svg(&self.city).expect("loaded map SVG")
+    }
+    pub fn set_minimap_scale(&mut self, scale: MinimapScale) {
+        self.minimap.scale = scale;
     }
     pub fn update_minimap_view(
         &mut self,
