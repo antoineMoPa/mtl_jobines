@@ -190,10 +190,6 @@ fn cab_glazing(config: &Config, name: &str, vertices: &mut Vec<Vertex>) {
             "vehicle-j07",
             "cab_windscreen" | "cab_window_left" | "cab_window_right"
         ) | ("vehicle-r02", "front_windshield")
-            | (
-                "vehicle-air-estuaire" | "vehicle-air-fleche",
-                "Windscreen -1" | "Windscreen 1"
-            )
     );
     if decal {
         for v in vertices {
@@ -208,8 +204,6 @@ fn cab_glazing(config: &Config, name: &str, vertices: &mut Vec<Vertex>) {
             [1.62, 3.81, 1.1, 1.3, 1.63, 2.28],
         ],
         ("vehicle-r02", "front_bulkhead") => &[[8.1, 8.3, 0., 1.18, 1.98, 2.93]],
-        ("vehicle-air-fleche", "Fuselage") => &[[5.10, 5.46, 0.03, 0.51, 1.83, 2.13]],
-        ("vehicle-air-estuaire", "Nose hemisphere") => &[[12.52, 13.21, 0.08, 1.15, 4.21, 4.79]],
         _ => return,
     };
     let ride = config.physics.height_offset;

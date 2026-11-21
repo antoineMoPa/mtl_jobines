@@ -110,6 +110,13 @@ struct VehicleTransform {
     if material.surface.w == 67.0 {
         return vec4<f32>(max(material.color * 2.6, vec3<f32>(0.10)), material.surface.y);
     }
+    if material.surface.w == 68.0 || material.surface.w == 69.0 {
+        let darkness = 1.0 - smoothstep(0.04, 0.65, camera.daylight_sky.x);
+        let phase = fract(camera.eye_time.w * 0.85);
+        let pulse = select(1.0, 1.0 - smoothstep(0.045, 0.15, abs(phase - 0.5)), material.surface.w == 69.0);
+        let lens = shade_local_surface(material, front, material.surface.y, surface);
+        return vec4<f32>(lens.rgb + material.color * 3.5 * darkness * pulse, lens.a);
+    }
     if material.surface.w==64.0 {
         let night=1.0-clamp(camera.daylight_sky.x,0.0,1.0);
         return mix(shade_local_surface(material,front,clamp(material.surface.y,0.0,1.0),surface),lamp_color(material),night*night);

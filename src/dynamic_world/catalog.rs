@@ -297,6 +297,8 @@ fn vehicle_lamp_marker(name: &str) -> f32 {
     match name {
         "roof_beacon_red" => 65.,
         "roof_beacon_blue" => 66.,
+        "Port position light" | "Starboard position light" | "Tail position light" => 68.,
+        "Dorsal beacon" => 69.,
         name if headlight_lens(name) => 64.,
         _ => 0.,
     }
@@ -675,9 +677,11 @@ impl Definition {
                         "Livery",
                         "Boarding door",
                         "Hub ",
+                        "Fan ",
                     ]
                     .iter()
                     .any(|prefix| name.starts_with(prefix))
+                    && !matches!(vehicle_lamp_marker(name), 68. | 69.)
                 {
                     use rapier3d::prelude::{Point, SharedShape};
                     let mut points: Vec<_> =

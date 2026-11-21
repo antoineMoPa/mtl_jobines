@@ -1,4 +1,6 @@
 //! Native platform, frame coordination, cameras and GPU presentation.
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod aircraft_tests;
 mod app;
 #[cfg(not(target_arch = "wasm32"))]
 mod boot;

@@ -1068,6 +1068,12 @@ impl Game {
         ) = (None, true);
         #[cfg(target_arch = "wasm32")]
         let surface_preview: Option<std::sync::Arc<super::render::GpuMesh>> = None;
+        renderer.prepare_grass(
+            &mut self.scenery.as_mut().unwrap().grass,
+            self.hermes.city(),
+            eye,
+            look,
+        );
         self.scenery
             .as_mut()
             .unwrap()

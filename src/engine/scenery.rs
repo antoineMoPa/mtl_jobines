@@ -14,6 +14,7 @@ struct Batch {
     meshes: Vec<GpuMesh>,
 }
 pub struct Scenery {
+    pub(super) grass: super::render::SupportCache,
     pub(super) metro: crate::hermes::metro::MetroMap,
     world: Vec<Batch>,
     details: Vec<Batch>,
@@ -148,6 +149,7 @@ impl Scenery {
             .flat_map(|group| model_batches(renderer, &group.mesh, &group.transforms))
             .collect();
         Self {
+            grass: Default::default(),
             metro: crate::hermes::metro::MetroMap::from_city(hermes.city()),
             models,
             world: batches(renderer, world),

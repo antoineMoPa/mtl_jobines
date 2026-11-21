@@ -8,6 +8,8 @@ use crate::hermes::MinimapView;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 mod culling;
+mod projected_grass;
+pub(super) use projected_grass::SupportCache;
 mod impacts;
 mod lod;
 mod mission_markers;
@@ -100,6 +102,8 @@ pub struct Renderer {
     snowfall: snowfall::Snowfall,
     pub(super) mission_markers: mission_markers::MissionMarkers,
     pipeline: wgpu::RenderPipeline,
+    ribbons: projected_grass::Ribbons,
+    ribbon_pipeline: wgpu::RenderPipeline,
     impacts: Option<impacts::ImpactPass>,
     opaque_pipeline: wgpu::RenderPipeline,
     graffiti_pipeline: wgpu::RenderPipeline,
@@ -247,7 +251,7 @@ fn world_pipelines(
     environment_layout: &wgpu::BindGroupLayout,
     commerce_layout: &wgpu::BindGroupLayout,
     samples: u32,
-) -> [wgpu::RenderPipeline; 9] {
+) -> [wgpu::RenderPipeline; 10] {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("OpenCity procedural game shader"),
         source: wgpu::ShaderSource::Wgsl(
@@ -396,6 +400,51 @@ fn world_pipelines(
     let vehicle_shadow_pipeline = make_pipeline(true, true, true, false, false);
     let pedestrian_pipeline = make_pipeline(false, true, true, false, true);
     let pedestrian_shadow_pipeline = make_pipeline(true, true, true, false, true);
+    let ribbon_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("projected grass"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_ribbon"),
+            compilation_options: Default::default(),
+            buffers: &[
+                Some(wgpu::VertexBufferLayout {
+                    array_stride: 4,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0=>Unorm8x4],
+                }),
+                Some(wgpu::VertexBufferLayout {
+                    array_stride: 48,
+                    step_mode: wgpu::VertexStepMode::Instance,
+                    attributes: &wgpu::vertex_attr_array![1=>Float32x4,2=>Float32x4,3=>Float32x4],
+                }),
+            ],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_ribbon"),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: Default::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
+            stencil: Default::default(),
+            bias: Default::default(),
+        }),
+        multisample: wgpu::MultisampleState {
+            count: samples,
+            ..Default::default()
+        },
+        multiview_mask: None,
+        cache: None,
+    });
     [
         pipeline,
         opaque_pipeline,
@@ -406,6 +455,7 @@ fn world_pipelines(
         vehicle_shadow_pipeline,
         pedestrian_pipeline,
         pedestrian_shadow_pipeline,
+        ribbon_pipeline,
     ]
 }
 
@@ -607,7 +657,7 @@ impl Renderer {
             entries: &shadow_bindings,
         });
         let commerce = Commerce::new(&device, &queue, montreal_actors);
-        let [pipeline, opaque_pipeline, graffiti_pipeline, shadow_pipeline, opaque_shadow_pipeline, vehicle_pipeline, vehicle_shadow_pipeline, pedestrian_pipeline, pedestrian_shadow_pipeline] =
+        let [pipeline, opaque_pipeline, graffiti_pipeline, shadow_pipeline, opaque_shadow_pipeline, vehicle_pipeline, vehicle_shadow_pipeline, pedestrian_pipeline, pedestrian_shadow_pipeline, ribbon_pipeline] =
             world_pipelines(
                 &device,
                 format,
@@ -660,6 +710,8 @@ impl Renderer {
         #[cfg(target_arch = "wasm32")]
         let render_lod = RenderLod::Adaptive;
         Ok(Self {
+            ribbons: projected_grass::Ribbons::new(&device),
+            ribbon_pipeline,
             local_lights,
             instance,
             device,
@@ -753,6 +805,7 @@ impl Renderer {
             self.vehicle_shadow_pipeline,
             self.pedestrian_pipeline,
             self.pedestrian_shadow_pipeline,
+            self.ribbon_pipeline,
         ] = pipelines;
         self.sky.set_samples(&self.device, samples);
         self.impacts = None;
@@ -1416,6 +1469,14 @@ impl Renderer {
             next_shader!(Sky);
             let _phase = mtl_world::telemetry::span("render.encode.sky_and_effects");
             self.sky.draw(&mut pass, &self.camera_group);
+            if self.ribbons.counts.iter().any(|&n| n > 0) {
+                pass.set_pipeline(&self.ribbon_pipeline);
+                pass.set_bind_group(0, &self.camera_group, &[]);
+                pass.set_bind_group(1, &self.shadow_group, &[]);
+                pass.set_bind_group(2, &self.sky.environment.group, &[]);
+                pass.set_bind_group(3, &self.commerce.group, &[]);
+                self.ribbons.draw(&mut pass);
+            }
             if let Some(impacts) = &self.impacts {
                 impacts.draw(&mut pass, &self.camera_group);
             }

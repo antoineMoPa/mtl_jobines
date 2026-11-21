@@ -29,7 +29,7 @@ fn native_street_surface_capture() {
         main=avenue(0,-1.5,0,1.5);elevation(main,0.002);
         road bridge: sidewalk carlane carlane sidewalk; end
         crossing=bridge(-1,0.35,1,0.35);elevation(crossing,0.10);
-        yard=concrete(0.1,-0.7,0.5,-0.7,0.5,0.1,0.1,0.1);elevation(yard,0.061);
+        airport_apron=concrete(0.1,-0.7,0.5,-0.7,0.5,0.1,0.1,0.1);elevation(airport_apron,0.061);
         airport_west_runway=concrete(-1.65,-1.5,-1.0,-1.5,-1.0,1.5,-1.65,1.5);
         elevation(airport_west_runway,0.06015);",
     )
@@ -43,12 +43,19 @@ fn native_street_surface_capture() {
     let geometry = hermes.take_geometry();
     let world = renderer.upload(&geometry.0);
     let details = renderer.upload(&geometry.1);
+    let mut grass_cache = Default::default();
     for (name, span, eye, look) in [
         (
             "street",
             None,
             Vec3::new(0., -0.46, 0.028),
             Vec3::new(0., 0.3, 0.025),
+        ),
+        (
+            "apron-edge",
+            None,
+            Vec3::new(0.08, -0.25, 0.049),
+            Vec3::new(0.103, -0.20, 0.041),
         ),
         (
             "runway-threshold",
@@ -64,6 +71,7 @@ fn native_street_surface_capture() {
         ),
     ] {
         renderer.construction_span = span;
+        renderer.prepare_grass(&mut grass_cache, hermes.city(), eye, look);
         let png = renderer
             .report_screenshot(
                 &[&world, &details],

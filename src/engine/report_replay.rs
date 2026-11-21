@@ -181,6 +181,7 @@ fn capture(
     let mut props = PropScenery::default();
     props.update(renderer, world);
     renderer.update_vector_map(hermes.city())?;
+    renderer.prepare_grass(&mut scenery.grass, hermes.city(), eye, look);
     scenery.update_graffiti(renderer, [p.x, p.y]);
     let mut meshes = scenery.visible([p.x, p.y]);
     meshes.push(&car);

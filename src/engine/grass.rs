@@ -138,7 +138,8 @@ mod tests {
         use crate::{engine::render::Renderer, hermes::Hermes, season::Season};
         use glam::Vec3;
         use opencity::runtime::{Mesh, SurfaceKind};
-        let mut hermes = Hermes::test_map_from_source("land(-1,-1,1,-1,1,1,-1,1);");
+        let mut hermes =
+            Hermes::test_map_from_source("yard=land(-1,-1,1,-1,1,1,-1,1); elevation(yard,0.02);");
         let mut renderer = pollster::block_on(Renderer::new(None, 900, 900)).unwrap();
         renderer.daylight = Some(1.);
         if let Some(pixels) = hermes.update_minimap([0., 0.]) {
@@ -152,13 +153,15 @@ mod tests {
         );
         let ground = renderer.upload(&ground);
         let mut captures = Vec::new();
+        let mut grass_cache = Default::default();
         for (season, name, eye) in [
-            (Season::Summer, "close", Vec3::new(0., -0.025, 0.018)),
+            (Season::Summer, "close", Vec3::new(0., -0.008, 0.0025)),
             (Season::Summer, "middle", Vec3::new(0., -0.20, 0.16)),
             (Season::Summer, "wide", Vec3::new(0., -0.85, 0.70)),
             (Season::Winter, "snow", Vec3::new(0., -0.20, 0.16)),
         ] {
             renderer.season = season;
+            renderer.prepare_grass(&mut grass_cache, hermes.city(), eye, Vec3::ZERO);
             let png = renderer
                 .report_screenshot(
                     &[&ground],
@@ -175,6 +178,31 @@ mod tests {
                     &png,
                 )
                 .unwrap();
+            }
+            if name == "close" {
+                let gust = renderer
+                    .report_screenshot(
+                        &[&ground],
+                        eye,
+                        Vec3::ZERO,
+                        0.8,
+                        hermes.minimap_view([0., 0.], 0.),
+                    )
+                    .unwrap();
+                assert_ne!(png, gust, "wind moves the close canopy");
+                renderer.construction_span = Some(1.);
+                renderer.prepare_grass(&mut grass_cache, hermes.city(), eye, Vec3::ZERO);
+                renderer.construction_span = None;
+                let bare = renderer
+                    .report_screenshot(
+                        &[&ground],
+                        eye,
+                        Vec3::ZERO,
+                        0.,
+                        hermes.minimap_view([0., 0.], 0.),
+                    )
+                    .unwrap();
+                assert_ne!(png, bare, "the ribbon pass must contribute visible pixels");
             }
             captures.push(png);
         }

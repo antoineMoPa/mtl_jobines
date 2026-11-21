@@ -54,8 +54,9 @@ fn shade_local_surface(v:Output,front:bool,coverage:f32,surface:SurfaceData)->ve
     if v.surface.x>10.5&&v.surface.x<11.5&&!front {n=-n;}
     let shaded=shade_surface_lit(v,front,coverage,seasonal,local_irradiance(v.world,n));
     let bits=u32(max(0.0,round(v.surface.w)));
-    if v.surface.x==0.0 && (bits&3u)==1u && bits>3u {
-        let rim=runway_rim_distance(v.fence_uv,bits);
+    let concrete_rim=v.surface.x==2.0 && v.surface.w== -1.5;
+    if concrete_rim || (v.surface.x==0.0 && (bits&3u)==1u && bits>3u) {
+        let rim=select(runway_rim_distance(v.fence_uv,bits),v.fence_uv.x,concrete_rim);
         if rim<0.009 {
             let aa=surface.world_footprint.xy;
             let turf=architecture_noise(v.world.xy*130.0,aa*130.0,43.0);
