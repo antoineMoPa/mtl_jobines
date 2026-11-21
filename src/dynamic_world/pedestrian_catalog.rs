@@ -8,7 +8,8 @@ pub const JOINT_LIMIT: usize = 32;
 pub const CROWD_MODEL_COUNT: usize = 6;
 pub const PLAYER_SUMMER_MODEL: usize = 6;
 pub const PLAYER_WINTER_MODEL: usize = 7;
-fn assets() -> [&'static [u8]; 8] {
+pub const POLICE_OFFICER_MODEL: usize = 8;
+fn assets() -> [&'static [u8]; 9] {
     [
         crate::web_asset!("../../data/pedestrian/01.glb", "data/pedestrian/01.glb"),
         crate::web_asset!("../../data/pedestrian/02.glb", "data/pedestrian/02.glb"),
@@ -23,6 +24,10 @@ fn assets() -> [&'static [u8]; 8] {
         crate::web_asset!(
             "../../data/pedestrian/player-winter.glb",
             "data/pedestrian/player-winter.glb"
+        ),
+        crate::web_asset!(
+            "../../data/pedestrian/officer.glb",
+            "data/pedestrian/officer.glb"
         ),
     ]
 }
@@ -465,7 +470,7 @@ mod tests {
     #[test]
     fn pedestrian_assets_have_valid_skin_bind_pose_and_distinct_moving_clips() {
         let models = definitions();
-        assert_eq!(models.len(), CROWD_MODEL_COUNT + 2);
+        assert_eq!(models.len(), CROWD_MODEL_COUNT + 3);
         let mut cadences = Vec::new();
         for (index, model) in models.iter().enumerate() {
             assert_eq!(model.joints.len(), 22);

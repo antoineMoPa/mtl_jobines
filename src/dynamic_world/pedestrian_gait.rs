@@ -106,6 +106,7 @@ struct Rig {
     ankles: [Vec3; 2],
     scale: f32,
     spacing: f32,
+    standing_spacing: f32,
     foot_heading: [f32; 2],
     walk_shoulder_lead: f32,
     arm_spread: f32,
@@ -126,6 +127,7 @@ impl Rig {
             ankles,
             scale,
             spacing: 0.50,
+            standing_spacing: 0.50,
             foot_heading: [0.; 2],
             walk_shoulder_lead: 0.,
             arm_spread: 0.16,
@@ -141,8 +143,9 @@ impl Rig {
         let root = game_to_motion(position);
         std::array::from_fn(|i| {
             let ankle = self.ankles[i];
-            let mut p =
-                root + Quat::from_rotation_y(yaw) * Vec3::new(ankle.x * self.spacing, 0., ankle.z);
+            let mut p = root
+                + Quat::from_rotation_y(yaw)
+                    * Vec3::new(ankle.x * self.standing_spacing, 0., ankle.z);
             let ground = sample(motion_to_game(p));
             let tilt = ground.map_or(Quat::IDENTITY, Ground::tilt);
             p.y = ground.map_or(root.y, |s| s.point.z) + ankle.y;
@@ -158,6 +161,57 @@ impl Rig {
                 target_tilt: tilt,
             }
         })
+    }
+}
+#[derive(Clone, Copy)]
+struct PlayerIdle {
+    elapsed: f32,
+    blend: f32,
+}
+impl PlayerIdle {
+    fn advance(&mut self, standing: bool, dt: f32) {
+        if standing {
+            self.elapsed = (self.elapsed + dt) % 9.;
+            self.blend = (self.blend + dt / 0.7).min(1.);
+        } else {
+            self.blend = (self.blend - dt / 0.22).max(0.);
+            if self.blend == 0. {
+                self.elapsed = 0.;
+            }
+        }
+    }
+    fn pose(&self, model: &Definition, locals: &mut [super::pedestrian_catalog::Transform]) {
+        if self.blend == 0. {
+            return;
+        }
+        let weight = ease(self.blend);
+        let wrist = ease(self.elapsed - 3.5) * (1. - ease((self.elapsed - 6.8) / 1.1));
+        let pocket = weight * (1. - wrist);
+        let watch = weight * wrist;
+        locals[model.node("UpperArm_L")].rotation *= Quat::from_rotation_z(-0.17 * pocket);
+        locals[model.node("UpperArm_R")].rotation *= Quat::from_rotation_z(0.17 * watch);
+        // Right wrist at the pocket opening, elbow behind the side seam.
+        locals[model.node("UpperArm_R")].rotation *= Quat::from_euler(
+            glam::EulerRot::XZY,
+            0.17 * pocket,
+            -0.26 * pocket,
+            0.53 * pocket,
+        );
+        locals[model.node("Forearm_R")].rotation *=
+            Quat::from_rotation_x(-0.53 * pocket) * Quat::from_rotation_z(0.68 * pocket);
+        // Turn the left wrist toward the face and let the gaze follow its rise.
+        locals[model.node("UpperArm_L")].rotation *= Quat::from_euler(
+            glam::EulerRot::XZY,
+            -0.87 * watch,
+            -0.09 * watch,
+            -0.35 * watch,
+        );
+        locals[model.node("Forearm_L")].rotation *=
+            Quat::from_rotation_x(-1.17 * watch) * Quat::from_rotation_z(-0.29 * watch);
+        locals[model.node("Hand_L")].rotation *= Quat::from_rotation_y(-0.65 * watch);
+        locals[model.node("Neck")].rotation *=
+            Quat::from_rotation_y(0.22 * watch) * Quat::from_rotation_x(0.46 * watch);
+        locals[model.node("Hips")].translation.x += 0.025 * (pocket - watch);
     }
 }
 /// World-space ankle trajectories and ground anchors, in metres.
@@ -189,6 +243,7 @@ pub struct Gait {
     planned: bool,
     movement: f32,
     idle_time: f32,
+    player_idle: Option<PlayerIdle>,
     compression: f32,
     jump_extension: f32,
     jump_motion: JumpMotion,
@@ -210,9 +265,12 @@ impl Gait {
             let ankle = self.rig.ankles[i];
             let neutral = self.position
                 + Quat::from_rotation_y(self.yaw)
-                    * Vec3::new(ankle.x * self.rig.spacing, 0., ankle.z);
+                    * Vec3::new(ankle.x * self.rig.standing_spacing, 0., ankle.z);
             let d = neutral - f.position;
-            Vec3::new(d.x, 0., d.z).length() > 0.09 || angle_delta(f.yaw, self.yaw).abs() > 0.18
+            let lateral = (Quat::from_rotation_y(-self.yaw) * d).x;
+            (self.rig.standing_spacing > self.rig.spacing && lateral.abs() > 0.025)
+                || Vec3::new(d.x, 0., d.z).length() > 0.09
+                || angle_delta(f.yaw, self.yaw).abs() > 0.18
         })
     }
     pub(super) fn set_strafe_velocity(&mut self, velocity: Option<Vec2>) {
@@ -297,6 +355,7 @@ impl Gait {
             planned: false,
             movement: 0.,
             idle_time: (seed % 19) as f32 * 0.17,
+            player_idle: None,
             compression: 0.,
             jump_extension: 0.,
             jump_motion: JumpMotion::default(),
@@ -318,16 +377,34 @@ impl Gait {
         yaw: f32,
         sample: impl Fn(Vec3) -> Option<Ground>,
     ) -> Self {
+        Self::new_controlled(def, position, yaw, true, sample)
+    }
+    pub(super) fn new_controlled(
+        def: &Definition,
+        position: Vec3,
+        yaw: f32,
+        mario: bool,
+        sample: impl Fn(Vec3) -> Option<Ground>,
+    ) -> Self {
         let mut gait = Self::new(def, position, yaw, 0, &sample);
         gait.step_length = 0.78;
         gait.rig.walk_shoulder_lead = 4f32.to_radians();
         // Each shoe has its own lane just outside its hip (22 cm between ankles).
         gait.rig.spacing = 1.15;
-        gait.rig.arm_spread = 19f32.to_radians();
-        gait.rig.resting_elbow_flex = 19f32.to_radians();
+        gait.rig.standing_spacing = if mario { 1.88 } else { 1.65 };
+        gait.player_idle = mario.then_some(PlayerIdle {
+            elapsed: 0.,
+            blend: 1.,
+        });
         // The shared player pose drives both outfits. Their meshes have authored
         // toe-out despite forward-facing ankle bones; compensate that bind shape.
-        gait.rig.foot_heading = [0.055, -0.08];
+        // The uniform already has its relaxed arm carriage authored into Idle.
+        gait.rig.arm_spread = 0.;
+        if mario {
+            gait.rig.arm_spread = 19f32.to_radians();
+            gait.rig.resting_elbow_flex = 19f32.to_radians();
+            gait.rig.foot_heading = [0.055, -0.08];
+        }
         gait.feet = gait.rig.grounded_feet(position, yaw, sample);
         gait.update_pose(def);
         gait
@@ -348,7 +425,10 @@ impl Gait {
     ) {
         let previous = def.joint_worlds(&self.palette);
         let running = self.running;
-        *self = Self::new_player(def, position, yaw, sample);
+        *self = Self::new_controlled(def, position, yaw, self.player_idle.is_some(), sample);
+        if let Some(idle) = &mut self.player_idle {
+            idle.blend = 0.;
+        }
         self.running = running;
         self.landing = Some((previous, 0.));
         self.palette = def.skin_from_worlds(&previous);
@@ -407,6 +487,9 @@ impl Gait {
         self.turn_rate = 0.;
         self.movement = 0.;
         self.idle_time += dt;
+        if let Some(idle) = &mut self.player_idle {
+            idle.advance(false, dt);
+        }
         self.update_pose(def);
     }
     /// Body travel is bounded by available support; a blocked foothold cannot leave a leg behind.
@@ -449,6 +532,9 @@ impl Gait {
         self.jump_motion.follow(motion, dt);
         let elapsed = self.air_time.map_or(0., |t| t + dt);
         self.air_time = Some(elapsed);
+        if let Some(idle) = &mut self.player_idle {
+            idle.advance(false, dt);
+        }
         self.jump_extension = 1. - ease((elapsed - 0.15) / 0.65);
         self.idle_time += dt;
         self.update_pose(def);
@@ -526,6 +612,12 @@ impl Gait {
             self.acceleration = acceleration;
             self.turn_rate = turn_rate;
             self.idle_time += h;
+            if let Some(idle) = &mut self.player_idle {
+                idle.advance(
+                    speed.abs() < 0.015 && turn_rate.abs() < 0.1 && !self.melee.active(),
+                    h,
+                );
+            }
             let amount = (speed.abs() / desired_speed.abs().max(0.35)).min(1.);
             self.movement += (amount - self.movement).clamp(-h * 3., h * 3.);
             self.tick(def, desired_speed, game_to_motion(aim), h, &sample);
@@ -580,10 +672,15 @@ impl Gait {
                     .min(0.30 / self.turn_rate.abs().max(0.01))
                     .clamp(minimum_duration, 0.75);
             let ankle = self.rig.ankles[self.swing];
+            let spacing = if self.speed.abs() < 0.015 && desired_speed.abs() < 0.015 {
+                self.rig.standing_spacing
+            } else {
+                self.rig.spacing
+            };
             let (target, yaw) = if let Some(velocity) = self.strafe_velocity {
                 // Feet keep their lateral spacing relative to the hips during a sidestep.
                 let yaw = self.yaw + self.turn_rate * self.duration;
-                let stance = Vec3::new(ankle.x * self.rig.spacing, 0., ankle.z);
+                let stance = Vec3::new(ankle.x * spacing, 0., ankle.z);
                 (
                     self.position
                         + velocity * self.duration * 1.45
@@ -612,7 +709,7 @@ impl Gait {
                 }
                 let target = p + Quat::from_rotation_y(yaw)
                     * Vec3::new(
-                        ankle.x * self.rig.spacing,
+                        ankle.x * spacing,
                         0.,
                         ankle.z + speed * self.duration * 0.45,
                     );
@@ -641,9 +738,14 @@ impl Gait {
         let walking_flight = ((self.phase - 0.08) / 0.80).clamp(0., 1.);
         let flight = walking_flight + (self.phase - walking_flight) * self.running;
         let foot = &mut self.feet[self.swing];
-        foot.position = foot.start.lerp(foot.target, ease(flight));
-        foot.position.y +=
-            (0.065 + self.running * 0.22) * self.rig.scale * (PI * flight).sin().max(0.).powf(1.4);
+        // Fold the heel behind the hip before driving the foot forward. The
+        // reference run recovers the shin earlier and higher than the walk.
+        let swing_arc = (PI * flight).sin().max(0.);
+        let reach = flight - self.running * 0.13 * swing_arc;
+        let lift_phase = flight + (0.04 + self.running * 0.10) * swing_arc;
+        let lift = (PI * lift_phase).sin().max(0.).powf(1.4);
+        foot.position = foot.start.lerp(foot.target, ease(reach));
+        foot.position.y += (0.065 + self.running * 0.25) * self.rig.scale * lift;
         foot.yaw = foot.start_yaw + angle_delta(foot.start_yaw, foot.target_yaw) * ease(flight);
         foot.tilt = foot.start_tilt.slerp(foot.target_tilt, ease(flight));
         // Late toe-off precedes the opposite landing, giving running a flight phase.
@@ -697,15 +799,20 @@ impl Gait {
         locals[model.node("Spine")].rotation *=
             Quat::from_rotation_x(forward_lean * 0.12) * Quat::from_rotation_z(-side_lean * 0.10);
         locals[model.node("Chest")].rotation *=
-            Quat::from_rotation_y(-cycle.cos() * 0.14 * 0.8 * movement);
+            Quat::from_rotation_y(-cycle.cos() * (0.06 * movement + 0.24 * run));
         locals[model.node("Chest")].rotation *=
             Quat::from_rotation_y(self.jump_motion.turn * self.jump_extension * 0.10);
         locals[model.node("Neck")].rotation *=
             Quat::from_rotation_z(lean * 0.5 - pelvis_roll * 0.2)
                 * Quat::from_rotation_x(-run * 0.15);
+        // Leave room between each elbow and the ribs while the hands swing by the hips.
+        let mut arm_spread = self.rig.arm_spread;
+        if self.player_idle.is_some() {
+            arm_spread += (14f32.to_radians() - arm_spread) * movement;
+        }
         for (i, side) in ["L", "R"].iter().enumerate() {
             // Let the left arm follow the right, but release both before landing.
-            let tuck = self.air_tuck_with_delay(if i == 0 { 0.06 } else { 0. });
+            let tuck = self.air_tuck_with_delay(if i == 0 { 0.12 } else { 0. });
             let sign = if i == 0 { 1. } else { -1. };
             let arm_phase = cycle - 0.16 + i as f32 * PI;
             // Mario leads with the shoulder, then the elbow and wrist follow
@@ -725,16 +832,21 @@ impl Gait {
                     - self.jump_extension
                         * (self.jump_motion.forward * 0.45 + sign * self.jump_motion.turn * 0.16),
             ) * Quat::from_rotation_z(
-                sign * (self.rig.arm_spread + self.running * 0.06 + lean.abs() * 0.4)
-                    - side_lean * 0.12,
+                sign * (arm_spread + self.running * 0.06 + lean.abs() * 0.4) - side_lean * 0.12,
             );
             locals[model.node(&format!("Forearm_{side}"))].rotation *= Quat::from_rotation_x(
                 -self.rig.resting_elbow_flex * (1. - run)
-                    + (-0.18 + (arm_phase - 0.30).cos() * 0.13) * movement
+                    + (-0.18 + (arm_phase - 0.30).cos() * (0.21 + self.running * 0.21)) * movement
                     - self.compression * 0.65
-                    - run * 0.85
+                    - run * 0.95
                     - tuck * 0.45,
             );
+            if self.player_idle.is_some() {
+                let forward_swing = 0.5 + 0.5 * arm_phase.cos();
+                let flex = (0.10 + forward_swing * (0.28 + 0.10 * self.running)) * movement;
+                locals[model.node(&format!("Forearm_{side}"))].rotation *=
+                    Quat::from_rotation_z(-sign * 0.33 * movement) * Quat::from_rotation_x(-flex);
+            }
             locals[model.node(&format!("Hand_{side}"))].rotation *=
                 Quat::from_rotation_x(-(arm_phase - 0.50).cos() * 0.10 * movement * 0.8);
         }
@@ -744,6 +856,9 @@ impl Gait {
                 let arm = model.node(&format!("UpperArm_{side}"));
                 locals[arm].rotation *= Quat::from_rotation_x(-lift + 0.10 * cycle.sin());
             }
+        }
+        if let Some(idle) = &self.player_idle {
+            idle.pose(model, &mut locals);
         }
         self.melee.pose(model, &mut locals);
         let contact = [self.foot_contact(model, 0), self.foot_contact(model, 1)];
@@ -873,6 +988,13 @@ impl Gait {
         let ground = foot.tilt * Quat::from_rotation_y(foot.yaw - self.rig.foot_heading[side]);
         let roll = Quat::from_rotation_x(pitch);
         let sign = if side == 0 { 1. } else { -1. };
+        // Lead with one knee and recover the other heel under the pelvis.
+        // Both offsets release with vertical velocity before contact.
+        let leg_tuck = if side == 0 {
+            self.air_tuck()
+        } else {
+            self.air_tuck_with_delay(0.055)
+        };
         let flight = Quat::from_rotation_y(self.yaw)
             * Vec3::new(
                 0.,
@@ -891,8 +1013,8 @@ impl Gait {
                 + Quat::from_rotation_y(self.yaw)
                     * Vec3::new(
                         0.,
-                        self.air_tuck() * 0.24 * self.rig.scale,
-                        sign * self.air_tuck() * 0.07,
+                        leg_tuck * (0.24 + sign * 0.06) * self.rig.scale,
+                        leg_tuck * (sign * 0.11 - 0.05) * self.rig.scale,
                     ),
             ground * roll,
         )
@@ -917,6 +1039,105 @@ pub(super) fn solve_two_bone(hip: Vec3, target: Vec3, pole: Vec3, a: f32, b: f32
 mod tests {
     use super::*;
     use crate::dynamic_world::pedestrian_catalog;
+    #[test]
+    fn patrol_stance_keeps_the_hands_outside_the_belt_and_boots_apart() {
+        let index = pedestrian_catalog::POLICE_OFFICER_MODEL;
+        let model = &pedestrian_catalog::definitions()[index];
+        let gait = Gait::new_controlled(model, Vec3::ZERO, 0., false, |_| None);
+        let joints = model.joint_worlds(&gait.palette);
+        let point = |name: &str| joints[model.joint(name)].w_axis.truncate();
+        assert!((0.29..0.34).contains(&point("Foot_L").distance(point("Foot_R"))));
+        for side in ["L", "R"] {
+            let hand = point(&format!("Hand_{side}"));
+            assert!((0.20..0.32).contains(&hand.x.abs()), "{side}: {hand:?}");
+        }
+    }
+
+    #[test]
+    fn mario_checks_his_wrist_with_both_feet_planted_then_walks_with_arms_close() {
+        let def = &pedestrian_catalog::definitions()[pedestrian_catalog::PLAYER_SUMMER_MODEL];
+        let flat = |p: Vec3| {
+            Some(Ground {
+                point: p.truncate().extend(0.),
+                gradient: [0., 0.],
+            })
+        };
+        let mut gait = Gait::new_player(def, Vec3::ZERO, 0., flat);
+        let point = |gait: &Gait, name: &str| {
+            def.joint_worlds(&gait.palette)[def.joint(name)]
+                .w_axis
+                .truncate()
+        };
+        let pocket = point(&gait, "Hand_R");
+        let anchors = gait.feet.map(|foot| foot.position);
+        assert!((0.34..0.38).contains(&anchors[0].distance(anchors[1])));
+        for _ in 0..300 {
+            gait.advance(def, Vec3::ZERO, 0., 0., Vec3::X, 1. / 60., flat);
+        }
+        assert_eq!(anchors, gait.feet.map(|foot| foot.position));
+        assert!(point(&gait, "Hand_L").y > pocket.y + 0.23);
+        for frame in 1..=100 {
+            let pos = Vec3::X * frame as f32 * 1.5 / 60.;
+            gait.advance(def, pos, 0., 1.5, pos + Vec3::X, 1. / 60., flat);
+            if frame > 30 {
+                for side in ["L", "R"] {
+                    let wrist = point(&gait, &format!("Hand_{side}"));
+                    let shoulder = point(&gait, &format!("UpperArm_{side}"));
+                    assert!(
+                        wrist.x.abs() - shoulder.x.abs() < 0.12,
+                        "{side} shoulder {shoulder:?} wrist {wrist:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn mario_carries_bent_elbows_clear_of_his_ribs_at_both_speeds() {
+        let model = &pedestrian_catalog::definitions()[pedestrian_catalog::PLAYER_SUMMER_MODEL];
+        let ground = |p: Vec3| {
+            Some(Ground {
+                point: p.truncate().extend(0.),
+                gradient: [0.; 2],
+            })
+        };
+        for (speed, running) in [(1.5, false), (3.45, true)] {
+            let mut gait = Gait::new_player(model, Vec3::ZERO, 0., ground);
+            let mut clearance = [0.; 2];
+            let mut flex = [0.; 2];
+            for frame in 1..=180 {
+                let p = Vec3::X * speed * frame as f32 / 60.;
+                gait.set_running(running, 1. / 60.);
+                gait.advance(model, p, 0., speed, p + Vec3::X, 1. / 60., ground);
+                if frame > 60 {
+                    let joints = model.joint_worlds(&gait.palette);
+                    for (i, side) in ["L", "R"].iter().enumerate() {
+                        let [shoulder, elbow, wrist] =
+                            ["UpperArm", "Forearm", "Hand"].map(|name| {
+                                joints[model.joint(&format!("{name}_{side}"))]
+                                    .w_axis
+                                    .truncate()
+                            });
+                        clearance[i] += elbow.x.abs() - shoulder.x.abs();
+                        flex[i] += (elbow - shoulder).angle_between(wrist - elbow);
+                    }
+                }
+            }
+            for (gap, bend) in clearance.into_iter().zip(flex) {
+                assert!(
+                    gap / 120. > 0.035,
+                    "speed {speed}, mean lateral elbow clearance {}",
+                    gap / 120.
+                );
+                assert!(
+                    bend / 120. > if running { 1.25 } else { 0.75 },
+                    "speed {speed}, mean bend {}",
+                    bend / 120.
+                );
+            }
+        }
+    }
+
     #[test]
     fn player_has_longer_slower_steps_at_the_same_travel_speed() {
         let def = &pedestrian_catalog::definitions()[pedestrian_catalog::PLAYER_SUMMER_MODEL];

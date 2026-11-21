@@ -1,5 +1,6 @@
 use glam::{Quat, Vec2, Vec3};
 mod bicycle;
+pub(crate) mod damage;
 mod rotation;
 mod support;
 pub(super) mod tire;
@@ -78,6 +79,7 @@ pub struct Vehicle {
     pub surface: SurfaceKind,
     pub grounded: bool,
     pub collisions: u64,
+    pub(crate) damage: Option<Box<damage::Damage>>,
     /// World angular momentum divided by mass, in square metres per second.
     pub angular_momentum: Vec3,
     /// Sprung-body pitch and roll relative to the wheel support plane.
@@ -164,6 +166,7 @@ impl Vehicle {
             surface: SurfaceKind::Asphalt,
             grounded: true,
             collisions: 0,
+            damage: None,
             angular_momentum: Vec3::ZERO,
             body_lean: Vec2::ZERO,
             body_lean_rate: Vec2::ZERO,
@@ -175,6 +178,7 @@ impl Vehicle {
     pub(super) fn set_catalog_model(&mut self, definition: Option<usize>) {
         let previous_height = self.ride_height();
         self.definition = definition;
+        self.damage = None;
         self.flat_tires = [false; 4];
         self.doors = Default::default();
         self.metro_doors = 0.;
@@ -642,6 +646,7 @@ impl Vehicle {
                 self.position.y += separation.y;
                 let inward_speed = self.velocity.truncate().dot(normal);
                 let contact_speed = self.velocity_at(arm).truncate().dot(normal);
+                self.crash_damage(arm, -normal.extend(0.), -contact_speed);
                 self.sound_impact(-contact_speed, crate::audio::Material::Hard, false);
                 if inward_speed < 0. {
                     let incoming = self.velocity.truncate();

@@ -7,7 +7,11 @@ struct PaintSettings {color_override:vec4<f32>,ranges:vec4<f32>};
     let surface=prepare_surface(v);
     let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);
     if v.surface.x==6.0 {
-        return shade_local_surface(v,front,1.0,surface);
+        // The supporting pavement already shades its own snow. Reveal paint only
+        // through the uncovered fraction, including the soft edge of a plow pass.
+        let visible=1.0-winter_coverage(v,surface);
+        if visible<=0.0 {discard;}
+        return shade_surface_lit(v,front,visible,surface,local_irradiance(v.world,surface.normal));
     }
     let packed=u32(v.surface.w);
     let tex=textureSampleGrad(cutout_atlas,cutout_sampler,v.fence_uv,i32(packed&1u),du,dv);

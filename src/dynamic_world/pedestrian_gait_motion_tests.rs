@@ -15,6 +15,7 @@ fn run_has_flight_and_keeps_support_fixed_before_toe_off() {
     gait.set_running(true, 1.);
     let mut flight_frames = 0;
     let mut contact_frames = 0;
+    let mut recovery_frames = 0;
     let mut previous = gait.feet.map(|f| f.position);
     for frame in 1..=360 {
         let position = Vec3::X * frame as f32 * 3.45 / 120.;
@@ -34,6 +35,13 @@ fn run_has_flight_and_keeps_support_fixed_before_toe_off() {
             assert!(gait.feet[support].position.distance(previous[support]) < 0.0001);
             contact_frames += 1;
         }
+        if gait.steps >= 2 && (0.30..0.40).contains(&gait.phase) {
+            let heel = &gait.feet[gait.swing];
+            let stride = heel.target.z - heel.start.z;
+            assert!(heel.position.y > heel.target.y + 0.26 * gait.rig.scale);
+            assert!((heel.position.z - heel.start.z).abs() < 0.21 * stride.abs());
+            recovery_frames += 1;
+        }
         if gait
             .feet
             .iter()
@@ -52,14 +60,16 @@ fn run_has_flight_and_keeps_support_fixed_before_toe_off() {
             } else {
                 -foot.position.x
             };
+            let outside = if gait.steps >= 2 { 0.12 } else { 0.19 };
             assert!(
-                (0.10..0.12).contains(&outward),
+                (0.10..outside).contains(&outward),
                 "foot left its stance lane: {outward}"
             );
         }
         previous = gait.feet.map(|f| f.position);
     }
     assert!(contact_frames > 20);
+    assert!(recovery_frames > 10);
     assert!(flight_frames > 20, "running never entered flight");
 }
 
@@ -73,10 +83,23 @@ fn jump_tucks_at_apex_reaches_before_landing_and_blends_on_contact() {
         gait.airborne(model, Vec3::Z, 0., JumpMotion::default(), 1. / 120.);
         if frame == 60 {
             assert!(gait.air_tuck() > 0.9);
+            let joints = model.joint_worlds(&gait.palette);
+            let lead = joints[model.joint("Foot_L")].w_axis;
+            let trailing = joints[model.joint("Foot_R")].w_axis;
+            assert!(lead.y - trailing.y > 0.09 * gait.rig.scale);
+            assert!(lead.z - trailing.z > 0.18 * gait.rig.scale);
         }
     }
     gait.set_air_velocity(-5.4);
     assert_eq!(gait.air_tuck(), 0.);
+    for side in 0..2 {
+        assert!(
+            gait.foot_contact(model, side)
+                .0
+                .distance(gait.feet[side].position)
+                < 0.001
+        );
+    }
     let before = gait.palette;
     gait.land(model, Vec3::ZERO, 0., flat);
     for (a, b) in before.iter().zip(gait.palette) {

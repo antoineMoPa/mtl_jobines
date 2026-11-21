@@ -142,10 +142,11 @@ impl Pedestrian {
             swim_phase: 0.,
             fallen: None,
             weapon_pose: None,
-            gait: Gait::new_player(
+            gait: Gait::new_controlled(
                 &pedestrian_catalog::definitions()[gait_model],
                 position - Vec3::Z * HALF_HEIGHT,
                 yaw,
+                gait_model == MODEL,
                 |p| footing(city, p, false),
             ),
         }

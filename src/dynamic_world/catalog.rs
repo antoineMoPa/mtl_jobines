@@ -1,6 +1,8 @@
 //! Embedded, shared web/native vehicle assets. GLB: +X nose, +Y up, +Z right, metres.
 //! Exact wheel_* names select axle-local spin/steering; other nodes belong to the sprung body.
+mod crash_mesh;
 mod door_mesh;
+use super::vehicle::damage::Piece;
 mod shot_mesh;
 use super::doors::{self, Door, Motion};
 use super::vehicle::tire::{Wheel, FLAT_HEIGHT};
@@ -82,6 +84,7 @@ pub struct Config {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum PartRole {
     Body,
+    Crash(Piece),
     Door(Door, f32),
     Outboard,
     RearWheel,
@@ -729,20 +732,18 @@ impl Definition {
                         rear_lenses.push(vertex);
                     }
                 } else {
-                    door_mesh::separate(
-                        config,
-                        name,
-                        Part {
-                            role,
-                            pivot,
-                            vertices,
-                            shadow_vertices: match shadow_role(node.name().unwrap_or("")) {
-                                ShadowRole::Interior => Some(Vec::new()),
-                                ShadowRole::Exterior => None,
-                            },
+                    let part = Part {
+                        role,
+                        pivot,
+                        vertices,
+                        shadow_vertices: match shadow_role(node.name().unwrap_or("")) {
+                            ShadowRole::Interior => Some(Vec::new()),
+                            ShadowRole::Exterior => None,
                         },
-                        parts,
-                    );
+                    };
+                    if let Some(part) = crash_mesh::assign(&config.research_id, name, part, parts) {
+                        door_mesh::separate(config, name, part, parts);
+                    }
                 }
             }
             for child in node.children() {
@@ -786,7 +787,7 @@ impl Definition {
             if part.role == PartRole::Body {
                 shadow_body.extend(part.opaque_shadow_vertices());
                 body.extend(part.vertices);
-            } else if matches!(part.role, PartRole::Door(..)) {
+            } else if matches!(part.role, PartRole::Door(..) | PartRole::Crash(_)) {
                 if let Some(group) = articulated.iter_mut().find(|g| g.role == part.role) {
                     group
                         .shadow_vertices
@@ -813,6 +814,17 @@ impl Definition {
                 }
             } else {
                 articulated.push(part);
+            }
+        }
+        for part in &mut articulated {
+            if matches!(part.role, PartRole::Crash(_)) {
+                let (mut lo, mut hi) = (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY));
+                for v in &part.vertices {
+                    let p = Vec3::from(v.position);
+                    lo = lo.min(p);
+                    hi = hi.max(p);
+                }
+                part.pivot = (lo + hi) * 0.5;
             }
         }
         articulated.insert(
@@ -880,6 +892,21 @@ impl Definition {
             rear_emitters,
         })
     }
+    pub(crate) fn crash_pieces(&self) -> impl Iterator<Item = (usize, Piece, Vec3)> + '_ {
+        self.parts
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| match p.role {
+                PartRole::Crash(piece) => Some((i, piece, p.pivot)),
+                _ => None,
+            })
+    }
+    pub(crate) fn receives_dents(&self, index: usize) -> bool {
+        matches!(
+            self.parts[index].role,
+            PartRole::Body | PartRole::Door(..) | PartRole::Crash(Piece::Panel(_))
+        )
+    }
     pub fn part_vertices(&self) -> impl Iterator<Item = &[Vertex]> {
         self.parts.iter().map(|p| p.vertices.as_slice())
     }
@@ -904,6 +931,16 @@ impl Definition {
     fn part_transform(&self, index: usize, vehicle: &super::Vehicle, lean: Quat) -> Mat4 {
         let part = &self.parts[index];
         let rotation = match part.role {
+            PartRole::Crash(piece) => {
+                let mut pose = Mat4::from_quat(lean);
+                if let (Piece::Panel(zone), Some(damage)) = (piece, &vehicle.damage) {
+                    let sag = damage.strain(zone).min(1.);
+                    pose *= Mat4::from_translation(part.pivot - Vec3::Z * (0.035 * sag))
+                        * Mat4::from_rotation_y(0.09 * sag)
+                        * Mat4::from_translation(-part.pivot);
+                }
+                return pose;
+            }
             PartRole::Body => return Mat4::from_quat(lean),
             PartRole::FlightControl(control, axis) => control.rotation(axis, vehicle),
             PartRole::AircraftGear(_) => gear_rotation(vehicle.aircraft_gear),
@@ -959,7 +996,7 @@ impl Definition {
         let orientation = vehicle.orientation();
         for (index, part) in self.parts.iter().enumerate() {
             let q = match part.role {
-                PartRole::Body => lean,
+                PartRole::Body | PartRole::Crash(_) => lean,
                 PartRole::FlightControl(control, axis) => control.rotation(axis, vehicle),
                 PartRole::AircraftGear(_) => gear_rotation(vehicle.aircraft_gear),
                 PartRole::Door(..) => lean,
@@ -990,7 +1027,7 @@ impl Definition {
                     local.z *= FLAT_HEIGHT;
                     normal.z /= FLAT_HEIGHT;
                 }
-                if part.role != PartRole::Body {
+                if !matches!(part.role, PartRole::Body | PartRole::Crash(_)) {
                     local += part.animated_pivot(vehicle);
                 }
                 v.position =

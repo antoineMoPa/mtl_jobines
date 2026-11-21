@@ -96,6 +96,18 @@ fn native_winter_summer_roof_shelter_glass_deck_and_cache_roundtrip() {
         [0.25; 3],
         SurfaceKind::Asphalt,
     );
+    let unpainted = renderer.upload(&mesh);
+    let stripe = Vec3::new(-0.1, -0.1, 0.00025);
+    mesh.quad(
+        [
+            [-0.15, -0.105, stripe.z],
+            [-0.05, -0.105, stripe.z],
+            [-0.05, -0.095, stripe.z],
+            [-0.15, -0.095, stripe.z],
+        ],
+        [1., 0.7, 0.05],
+        SurfaceKind::Marking,
+    );
     renderer.snow.set_geometry(&[&mesh]);
     let gpu = renderer.upload(&mesh);
     let eye = Vec3::new(-0.3, -0.5, 0.30);
@@ -111,10 +123,25 @@ fn native_winter_summer_roof_shelter_glass_deck_and_cache_roundtrip() {
         }
         decode(&png)
     };
+    let bare_sample = |r: &Renderer| {
+        let png = r
+            .report_screenshot(&[&unpainted], eye, look, 0., navigation())
+            .unwrap();
+        sample(r, &decode(&png), stripe, eye, look)
+    };
     let summer = capture(&renderer, "summer");
+    assert_ne!(
+        sample(&renderer, &summer, stripe, eye, look),
+        bare_sample(&renderer)
+    );
     renderer.season = Season::Winter;
     renderer.snow.update(&renderer.queue, [0., 0.], &tracks);
     let winter = capture(&renderer, "winter");
+    assert_eq!(
+        sample(&renderer, &winter, stripe, eye, look),
+        bare_sample(&renderer),
+        "covered paint must disappear into the pavement"
+    );
     let bright = winter
         .chunks_exact(4)
         .zip(summer.chunks_exact(4))
@@ -148,6 +175,11 @@ fn native_winter_summer_roof_shelter_glass_deck_and_cache_roundtrip() {
     }
     renderer.snow.update(&renderer.queue, [0., 0.], &tracks);
     let cleared = capture(&renderer, "winter-cleared");
+    assert_ne!(
+        sample(&renderer, &cleared, stripe, eye, look),
+        bare_sample(&renderer),
+        "plowing must reveal the marking"
+    );
     assert_eq!(
         sample(&renderer, &winter, bridge, eye, look),
         sample(&renderer, &cleared, bridge, eye, look),

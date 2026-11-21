@@ -476,6 +476,7 @@ impl Props {
                 );
                 vehicle.apply_impulse(arm, impulse / vehicle.mass());
                 vehicle.collisions += 1;
+                vehicle.crash_damage(arm, -normal, magnitude / vehicle.mass());
                 vehicle.sound_impact(-inward * 0.35, crate::audio::Material::Hard, false);
             }
         }
@@ -512,10 +513,14 @@ impl Props {
                     vehicle.apply_impulse(arm, normal * impulse);
                 }
                 vehicle.collisions += 1;
+                vehicle.crash_damage(arm, -normal, -inward);
                 vehicle.sound_impact(-inward, material, false);
                 break;
             }
             // One assembly break event, before its individual parts detach.
+            if !cone {
+                vehicle.crash_damage(arm, -normal, -inward * 0.35);
+            }
             vehicle.sound_impact(-inward, material, true);
             let velocity = vehicle.velocity_at(arm);
             self.break_assembly(id, velocity, city);

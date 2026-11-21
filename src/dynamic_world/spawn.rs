@@ -168,6 +168,7 @@ impl Vehicle {
             surface: support.kind,
             grounded: true,
             collisions: 0,
+            damage: None,
             angular_momentum: Vec3::ZERO,
             body_lean: Vec2::ZERO,
             body_lean_rate: Vec2::ZERO,

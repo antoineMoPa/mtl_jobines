@@ -163,6 +163,10 @@ pub(super) fn resolve_with_contacts(vehicles: &mut [Vehicle]) -> Vec<VehicleCont
                 }
             }
             if impact > 0. {
+                let center =
+                    constraints.iter().map(|c| c.0).sum::<Vec3>() / constraints.len() as f32;
+                a.crash_damage(center, n, impact * inv_a / sum);
+                b.crash_damage(a.position + center - b.position, -n, impact * inv_b / sum);
                 a.collisions += 1;
                 b.collisions += 1;
                 // Report the physical pair once, at one participant's chassis.

@@ -1,6 +1,6 @@
 //! Responding patrols share the last sighting and a lane graph, and drive and dismount independently.
 mod intercept;
-use super::{Driver, SpeedClass, TrafficPaths};
+use super::{Driver, SpeedClass, TrafficPaths, CRUISER};
 use crate::dynamic_world::{catalog, DynamicWorld, SpawnPoint, Vehicle, METERS_PER_UNIT};
 use crate::hermes::Hermes;
 use glam::{Mat4, Vec3};
@@ -44,7 +44,6 @@ impl Officer {
     }
 }
 
-pub(super) const CRUISER: &str = "vehicle-j06";
 const SEARCH_SECONDS: f32 = 8.;
 const ARREST_SHOT_SECONDS: f32 = 4.5;
 const SURRENDER_SECONDS: f32 = 3.;
@@ -649,7 +648,7 @@ impl DynamicWorld {
                 let Some(actor) = Pedestrian::beside_with_model(
                     city,
                     car,
-                    id % pedestrian_catalog::CROWD_MODEL_COUNT,
+                    pedestrian_catalog::POLICE_OFFICER_MODEL,
                     blocked,
                 )
                 .filter(|p| !p.swimming) else {
@@ -1024,16 +1023,33 @@ mod tests {
             .unwrap();
             w.vehicles[id].set_catalog_model(Some(cruiser));
         }
+        let officer_model = pedestrian_catalog::POLICE_OFFICER_MODEL;
+        assert_eq!(
+            w.seated_drivers()
+                .filter(|d| d.model == officer_model)
+                .count(),
+            2
+        );
         let target = w.player_position();
         w.report_crime(Crime::VehicleTheft);
         w.step_chase(&map, target, 0.8);
         w.step_chase(&map, target, 0.02);
+        assert_eq!(
+            w.officer_instances()
+                .filter(|o| o.model == officer_model)
+                .count(),
+            2
+        );
+        assert!(w.seated_drivers().all(|d| d.model != officer_model));
         assert!(ids.into_iter().all(|id| w.officer_out_of(id)));
         assert_eq!(w.officer_handguns().count(), 2);
         assert_eq!(w.nearby_police().filter(|(_, walking)| *walking).count(), 2);
         w.pedestrian.as_mut().unwrap().position = w.vehicles[ids[0]].position;
         assert!(w.toggle_vehicle(&map));
         assert_eq!(w.player_vehicle.0, ids[0]);
+        assert!(w
+            .seated_drivers()
+            .any(|d| d.model == pedestrian_catalog::player_model(w.season)));
         assert_eq!(w.officer_handguns().count(), 2);
         assert!(!w.traffic.is_patrol(ids[0]));
         assert!(w.traffic.is_patrol(ids[1]));

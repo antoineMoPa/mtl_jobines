@@ -6,7 +6,7 @@ use super::{
     drivers,
     pedestrian_catalog::{self, JOINT_LIMIT},
     pedestrian_gait::game_to_motion,
-    Pedestrian, Vehicle, METERS_PER_UNIT,
+    Controls, Pedestrian, Vehicle, WalkControls, METERS_PER_UNIT,
 };
 use glam::{Mat4, Quat, Vec3, Vec4};
 
@@ -400,6 +400,25 @@ impl Entry {
         }
         self.elapsed >= duration
     }
+    pub fn yields_to_input(&self, ride: Controls, walk: WalkControls) -> bool {
+        if !matches!(self.mount, Mount::Bicycle) {
+            return false;
+        }
+        match self.action {
+            Action::Enter => {
+                ride.throttle != 0. || ride.steering != 0. || ride.brake || ride.handbrake
+            }
+            Action::Exit => {
+                walk.forward != 0.
+                    || walk.turn != 0.
+                    || walk.jump
+                    || walk
+                        .aim_move
+                        .is_some_and(|movement| movement != glam::Vec2::ZERO)
+            }
+            Action::Handle { .. } => false,
+        }
+    }
     pub fn begin_exit(&mut self, vehicle: &mut Vehicle) {
         self.action = Action::Exit;
         self.step(vehicle, 0.);
@@ -441,9 +460,53 @@ impl Entry {
 mod tests {
     use super::*;
     use crate::{
-        dynamic_world::{catalog, Controls, DynamicWorld},
+        dynamic_world::{catalog, DynamicWorld},
         hermes::Hermes,
     };
+
+    #[test]
+    fn directional_input_takes_over_a_bike_transition_in_one_tick() {
+        let map = Hermes::test_map_from_source(
+            "pad=concrete(-2,-2,2,-2,2,2,-2,2); elevation(pad,0.1); player_start(0,0,0);",
+        );
+        let mut world = DynamicWorld::new(&map);
+        let bike = catalog::definitions()
+            .iter()
+            .position(|d| d.is_bicycle())
+            .unwrap();
+        assert!(world.switch_vehicle(bike));
+        assert!(world.toggle_vehicle(&map));
+        assert!(world.toggle_vehicle(&map));
+        assert!(world.entry.is_some());
+        let tick = 1. / 60.;
+        world.step(
+            &map,
+            Controls {
+                throttle: 1.,
+                ..Default::default()
+            },
+            Default::default(),
+            tick,
+        );
+        assert!(world.entry.is_none());
+        assert_eq!(world.player().sound_controls.throttle, 1.);
+
+        assert!(world.toggle_vehicle(&map));
+        world.step(&map, Default::default(), Default::default(), tick);
+        assert!(world.entry.is_some());
+        let yaw = world.player_yaw();
+        world.step(
+            &map,
+            Default::default(),
+            WalkControls {
+                turn: 1.,
+                ..Default::default()
+            },
+            tick,
+        );
+        assert!(world.entry.is_none());
+        assert_ne!(world.player_yaw(), yaw);
+    }
 
     #[test]
     fn entry_and_exit_on_either_side_preserve_clearance_and_handoff() {
@@ -488,7 +551,11 @@ mod tests {
                     world.step(
                         &map,
                         Controls {
-                            throttle: 1.,
+                            throttle: if bike && world.entry.is_some() {
+                                0.
+                            } else {
+                                1.
+                            },
                             ..Default::default()
                         },
                         Default::default(),

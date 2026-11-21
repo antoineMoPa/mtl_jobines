@@ -635,6 +635,13 @@ impl DynamicWorld {
             }
             self.sound_foliage = foliage / 5.;
         }
+        if self
+            .entry
+            .as_ref()
+            .is_some_and(|entry| entry.yields_to_input(input, walk))
+        {
+            self.entry = None;
+        }
         let driving = self.is_driving();
         let center = self.player_position();
         let center_velocity = if driving {
@@ -696,6 +703,9 @@ impl DynamicWorld {
             } else {
                 crate::hermes::RouteSignal::Off
             };
+            if let Some(damage) = &mut vehicle.damage {
+                damage.tick(dt);
+            }
             vehicle.doors.step(dt);
             vehicle.update_route_signal(signal, dt);
             vehicle.sound_running = false;
@@ -1040,6 +1050,18 @@ impl DynamicWorld {
     pub fn vehicle_instances_with_patrol(
         &self,
     ) -> impl Iterator<Item = ((usize, Vec<glam::Mat4>, f32, bool, bool, u8), bool)> + '_ {
+        self.vehicle_render_instances()
+            .map(|(instance, patrol, _)| (instance, patrol))
+    }
+    pub fn vehicle_render_instances(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            (usize, Vec<glam::Mat4>, f32, bool, bool, u8),
+            bool,
+            &Vehicle,
+        ),
+    > + '_ {
         self.vehicles
             .iter()
             .enumerate()
@@ -1056,6 +1078,7 @@ impl DynamicWorld {
                             catalog::definitions()[id].paint_variant(index),
                         ),
                         self.traffic.is_patrol(index),
+                        v,
                     )
                 })
             })
@@ -1079,6 +1102,7 @@ impl DynamicWorld {
                                 0,
                             ),
                             false,
+                            v,
                         )
                     }),
             )

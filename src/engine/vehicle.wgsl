@@ -13,9 +13,23 @@ struct VehicleTransform {
     @location(4) x: vec4<f32>, @location(5) y: vec4<f32>,
     @location(6) z: vec4<f32>, @location(7) translation: vec4<f32>,
 };
+// Six three-bit local crush depths share the instance paint word above its two paint bits.
+fn crash_position(p: vec3<f32>, packed: f32) -> vec3<f32> {
+    let bits = u32(packed) >> 2u;
+    if bits == 0u { return p; }
+    let nose = f32(bits & 7u);
+    let tail = f32((bits >> 3u) & 7u);
+    let ends = nose * smoothstep(0.8, 2.25, p.x) - tail * smoothstep(0.8, 2.25, -p.x);
+    let front = smoothstep(-0.75, 0.75, p.x);
+    let left = mix(f32((bits >> 9u) & 7u), f32((bits >> 6u) & 7u), front);
+    let right = mix(f32((bits >> 15u) & 7u), f32((bits >> 12u) & 7u), front);
+    let sides = left * smoothstep(0.2, 0.9, p.y) - right * smoothstep(0.2, 0.9, -p.y);
+    let lower = 1.0 - 0.65 * smoothstep(0.2, 1.2, p.z);
+    return p + vec3<f32>(-ends * 0.09, -sides * 0.068, abs(ends) * 0.012) * lower;
+}
 @vertex fn vs_vehicle(v: Input, instance: VehicleTransform) -> Output {
     let model = mat4x4<f32>(instance.x, instance.y, instance.z, instance.translation);
-    var world = (model * vec4<f32>(v.position, 1.0)).xyz;
+    var world = (model * vec4<f32>(crash_position(v.position, instance.z.w), 1.0)).xyz;
     let tree=v.surface.x>=15.0 && v.surface.x<=23.0;
     let image=v.surface.x>=24.0 && v.surface.x<=29.0;
     if tree {world=tree_vertex(world,instance.translation.xyz);}
@@ -44,7 +58,7 @@ struct VehicleTransform {
         o.surface.w=select(0.0,64.0,fract(-v.surface.x)==0.25 && instance.x.w>0.0);
     }
     if v.surface.x>=0.0 && floor(v.surface.z)==1.0 && v.surface.w==0.0 {
-        let variant=u32(instance.z.w);
+        let variant=u32(instance.z.w) & 3u;
         if variant==1u {o.color=vec3<f32>(0.035,0.09,0.19);}
         else if variant==2u {o.color=vec3<f32>(0.86,0.85,0.80);}
         else if variant==3u {o.color=vec3<f32>(0.30,0.022,0.045);}
@@ -60,7 +74,7 @@ struct VehicleTransform {
 @vertex fn vs_vehicle_shadow(v: Input, instance: VehicleTransform) -> ShadowOutput {
     let model = mat4x4<f32>(instance.x, instance.y, instance.z, instance.translation);
     var o: ShadowOutput;
-    var world=(model * vec4<f32>(v.position, 1.0)).xyz;
+    var world=(model * vec4<f32>(crash_position(v.position, instance.z.w), 1.0)).xyz;
     if v.surface.x>=15.0 && v.surface.x<=23.0 {world=tree_vertex(world,instance.translation.xyz);}
     o.clip = camera.light_view_projection * vec4<f32>(world, 1.0);
     o.fence_uv = v.surface.yz; o.kind_pattern = vec2<f32>(v.surface.x, v.surface.y * instance.translation.w);

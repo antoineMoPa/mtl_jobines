@@ -77,8 +77,8 @@ impl VehicleScenery {
         }
         let mut hulls = [crate::dynamic_world::Waterline::default(); 8];
         let mut hull_slots = hulls.iter_mut();
-        for ((model, transforms, opacity, headlights, player, paint), patrol) in
-            world.vehicle_instances_with_patrol()
+        for ((model, transforms, opacity, headlights, player, paint), patrol, vehicle) in
+            world.vehicle_render_instances()
         {
             if let (Some(hull), Some(level)) =
                 (&catalog::definitions()[model].water_hull, world.water_level)
@@ -94,11 +94,15 @@ impl VehicleScenery {
                     }
                 }
             }
-            for (part, transform) in self.models[model].iter_mut().zip(transforms) {
+            for (i, (part, transform)) in self.models[model].iter_mut().zip(transforms).enumerate()
+            {
                 let transform = if player {
                     player_pose_delta * transform
                 } else {
                     transform
+                };
+                let Some((transform, dents)) = vehicle.damaged_instance(i, transform) else {
+                    continue;
                 };
                 let mut columns = transform.to_cols_array_2d();
                 // Affine W is spare: vehicle shaders use XYZ and carry W as coverage.
@@ -112,7 +116,7 @@ impl VehicleScenery {
                 } else {
                     0.
                 };
-                columns[2][3] = f32::from(paint);
+                columns[2][3] = ((dents << 2) | u32::from(paint)) as f32;
                 part.transforms.push(columns);
             }
         }

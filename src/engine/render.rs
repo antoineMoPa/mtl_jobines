@@ -141,16 +141,15 @@ pub struct Renderer {
 const ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x3,2=>Float32x3,3=>Float32x4];
 fn material_vertices(source: &[Vertex]) -> (Cow<'_, [Vertex]>, u32, u32) {
-    let runway_paint =
-        |v: &Vertex| v.surface[0] == SurfaceKind::Marking as u32 as f32 && v.surface[3] == 1.;
+    let marking = |v: &Vertex| v.surface[0] == SurfaceKind::Marking as u32 as f32;
     let paint = |triangle: &[Vertex]| {
         triangle
             .iter()
-            .any(|v| v.surface[0] == super::graffiti::MATERIAL || runway_paint(v))
+            .any(|v| v.surface[0] == super::graffiti::MATERIAL || marking(v))
     };
     let masked = |triangle: &[Vertex]| {
         triangle.iter().any(|v| {
-            runway_paint(v)
+            marking(v)
                 || v.surface[0] == SurfaceKind::Water as u32 as f32
                 || v.surface[0] == SurfaceKind::Fence as u32 as f32
                 || (15.0..=23.0).contains(&v.surface[0])
@@ -1644,7 +1643,7 @@ mod tests {
         assert_eq!(opaque, 3);
     }
     #[test]
-    fn runway_paint_blends_after_opaque_road_markings() {
+    fn road_and_runway_markings_blend_over_the_supporting_pavement() {
         use super::*;
         let marking = |pattern| Vertex {
             position: [0.; 3],
@@ -1654,9 +1653,8 @@ mod tests {
         };
         let triangles = [[marking(1.); 3], [marking(0.); 3]];
         let (vertices, opaque, paint_start) = material_vertices(triangles.as_flattened());
-        assert_eq!((opaque, paint_start), (3, 3));
-        assert!(vertices[..3].iter().all(|v| v.surface[3] == 0.));
-        assert!(vertices[3..].iter().all(|v| v.surface[3] == 1.));
+        assert_eq!((opaque, paint_start), (0, 0));
+        assert_eq!(vertices.len(), 6);
     }
     use super::{Bounds, Frustum};
     use glam::{Mat4, Vec3};

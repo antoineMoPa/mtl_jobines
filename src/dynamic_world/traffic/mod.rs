@@ -14,6 +14,7 @@ use glam::Vec3;
 use opencity::runtime::City;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+pub(super) const CRUISER: &str = "vehicle-j06";
 pub(super) const TARGET: usize = 36;
 const SPAWN_RADIUS: f32 = 180.;
 const RETAIN_RADIUS: f32 = 240.;
@@ -224,7 +225,7 @@ impl Traffic {
             .enumerate()
             .filter(|(_, d)| {
                 d.config.road_vehicle
-                    && (self.chase.stars == 0 || d.config.research_id != police::CRUISER)
+                    && (self.chase.stars == 0 || d.config.research_id != CRUISER)
                     && !d.is_bicycle()
                     && (d.config.dimensions.length < 6.
                         || d.config.category == "bus"

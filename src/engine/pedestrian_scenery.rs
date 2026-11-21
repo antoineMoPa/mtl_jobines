@@ -1,4 +1,4 @@
-//! Six immutable meshes, per-actor poses, one texture array; shared render lifecycle.
+//! Shared skinned meshes, per-actor poses, one texture array; shared render lifecycle.
 use super::render::{GpuMesh, Renderer};
 use crate::dynamic_world::{
     pedestrian_catalog::{self, JOINT_LIMIT},

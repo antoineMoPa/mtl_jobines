@@ -113,3 +113,62 @@ fn canonical_station_forecourt_is_driveable_and_shop_remains_solid() {
         assert!((car.position.truncate() / METERS_PER_UNIT - front).dot(toward_shop) < 0.);
     }
 }
+
+#[test]
+fn catalog_crash_releases_only_the_struck_end_and_keeps_debris_in_world_space() {
+    use super::damage::{Piece, Zone};
+    use crate::dynamic_world::catalog;
+    let city = station();
+    for id in ["vehicle-v2-09", "vehicle-v2-01", "vehicle-12"] {
+        let index = catalog::definitions()
+            .iter()
+            .position(|d| d.config.research_id == id)
+            .unwrap();
+        let mut car = Vehicle::spawn(&city);
+        car.set_catalog_model(Some(index));
+        car.position = Vec3::new(-5., 10., car.ride_height());
+        car.yaw = 0.;
+        car.velocity = Vec3::X * 25.;
+        car.move_with_building_candidates(&city, 0.7, None);
+        let def = &catalog::definitions()[index];
+        assert!(car.collisions > 0);
+        assert!(car.damaged_instance(0, glam::Mat4::IDENTITY).unwrap().1 > 0);
+        let released: Vec<_> = def
+            .crash_pieces()
+            .filter(|(i, _, _)| {
+                car.damage
+                    .as_ref()
+                    .unwrap()
+                    .loose
+                    .iter()
+                    .any(|p| p.part == *i)
+            })
+            .collect();
+        assert_eq!(released.len(), 5, "{id}");
+        assert!(released
+            .iter()
+            .all(|(_, piece, _)| piece.zone() == Zone::Nose));
+        let panel = released
+            .iter()
+            .find(|(_, p, _)| matches!(p, Piece::Panel(_)))
+            .unwrap()
+            .0;
+        let pose = car.damaged_instance(panel, glam::Mat4::IDENTITY).unwrap().0;
+        car.position.x += 15.;
+        assert_eq!(
+            car.damaged_instance(panel, glam::Mat4::from_translation(car.position))
+                .unwrap()
+                .0,
+            pose
+        );
+        car.damage.as_mut().unwrap().tick(0.2);
+        assert_ne!(
+            car.damaged_instance(panel, glam::Mat4::IDENTITY).unwrap().0,
+            pose
+        );
+        car.damage.as_mut().unwrap().tick(5.);
+        assert!(car.damaged_instance(panel, glam::Mat4::IDENTITY).is_none());
+        car.set_catalog_model(Some(index));
+        assert!(car.damage.is_none());
+    }
+}

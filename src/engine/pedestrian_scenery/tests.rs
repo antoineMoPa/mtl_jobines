@@ -263,6 +263,7 @@ fn native_pedestrian_skins_textures_and_independent_poses() {
         ("pedestrians-idle", 0.35),
     ] {
         scenery.poses.clear();
+        let center = (scenery.models.len() - 1) as f32 * 0.5;
         for (i, (model, definition)) in scenery
             .models
             .iter_mut()
@@ -271,7 +272,7 @@ fn native_pedestrian_skins_textures_and_independent_poses() {
         {
             model.transforms.clear();
             let mut columns = pedestrian_catalog::instance_transform(
-                Vec3::new((i as f32 - 2.5) * 2., 0., 0.),
+                Vec3::new((i as f32 - center) * 1.5, 0., 0.),
                 -std::f32::consts::FRAC_PI_2,
             )
             .to_cols_array_2d();
@@ -292,7 +293,7 @@ fn native_pedestrian_skins_textures_and_independent_poses() {
             bytemuck::cast_slice(&scenery.poses),
         );
         let meshes: Vec<_> = scenery.visible().collect();
-        assert_eq!(meshes.len(), 6);
+        assert_eq!(meshes.len(), pedestrian_catalog::definitions().len());
         let png = renderer
             .report_screenshot(
                 &meshes,

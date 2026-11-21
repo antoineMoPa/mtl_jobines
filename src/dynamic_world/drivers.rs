@@ -37,7 +37,18 @@ impl DynamicWorld {
             .traffic
             .driven_slots()
             .filter(|(id, _)| !self.officer_out_of(*id))
-            .map(move |(id, opacity)| (&self.vehicles[id], npc(id), opacity));
+            .map(move |(id, opacity)| {
+                let vehicle = &self.vehicles[id];
+                let model = if vehicle
+                    .definition()
+                    .is_some_and(|d| d.config.research_id == super::traffic::CRUISER)
+                {
+                    pedestrian_catalog::POLICE_OFFICER_MODEL
+                } else {
+                    npc(id)
+                };
+                (vehicle, model, opacity)
+            });
         let boats = self
             .skippers()
             .map(|(id, model)| (&self.vehicles[id], model, 1.));

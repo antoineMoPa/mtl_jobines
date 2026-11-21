@@ -66,6 +66,13 @@ impl Definition {
         let lean = vehicle.cabin_lean();
         let mut hit = None;
         for (i, shape) in shapes.iter().enumerate() {
+            if vehicle
+                .damage
+                .as_ref()
+                .is_some_and(|d| d.loose.iter().any(|p| p.part == i))
+            {
+                continue;
+            }
             let inverse = self.part_transform(i, vehicle, lean).inverse();
             let ray = Ray::new(
                 Point::from(inverse.transform_point3(origin).to_array()),
