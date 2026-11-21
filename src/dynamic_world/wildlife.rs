@@ -54,6 +54,13 @@ impl CatCoat {
 }
 
 impl Species {
+    pub fn model_scale(self) -> f32 {
+        match self {
+            Self::Cat => 2.,
+            _ => 1.,
+        }
+    }
+
     pub fn model_with_coat(self, coat: Option<CatCoat>) -> &'static [u8] {
         match (self, coat) {
             (Self::Cat, Some(CatCoat::Black)) => crate::web_asset!(

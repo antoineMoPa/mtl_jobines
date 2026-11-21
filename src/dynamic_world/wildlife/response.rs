@@ -32,7 +32,7 @@ impl Species {
             Self::Skunk => [0.34, 0.11, 0.25],
             Self::Cat => [0.245, 0.083, 0.17],
         };
-        Vec3::from_array(dimensions)
+        Vec3::from_array(dimensions) * self.model_scale()
     }
 }
 impl Home {

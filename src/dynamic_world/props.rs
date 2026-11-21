@@ -30,7 +30,14 @@ pub struct PropBatch {
     pub ids: Vec<usize>,
 }
 
+fn is_tree_bark(surface: f32) -> bool {
+    surface == SurfaceKind::TreeBark as u32 as f32
+        || surface == SurfaceKind::TreeBarkLinden as u32 as f32
+        || surface == SurfaceKind::TreeBarkLocust as u32 as f32
+}
+
 struct Prop {
+    tree: bool,
     lamp: Option<Vec3>,
     group: usize,
     mesh: Part,
@@ -246,7 +253,16 @@ impl Props {
                 ))
                 .or_default()
                 .push(id);
+            let tree = match mesh.template {
+                Some((kind, _)) => kind.is_tree(),
+                None => mesh
+                    .mesh
+                    .vertices
+                    .iter()
+                    .any(|v| is_tree_bark(v.surface[0])),
+            };
             result.items.push(Prop {
+                tree,
                 lamp: lamp.map(|p| mesh.transform.transform_point3(p)),
                 group,
                 mesh,
@@ -279,12 +295,6 @@ impl Props {
         } else if cone {
             Self::cone_shape()
         } else {
-            let tree = item.mesh.template.is_some_and(|(kind, _)| kind.is_tree())
-                || item.mesh.mesh.vertices.iter().any(|v| {
-                    v.surface[0] == SurfaceKind::TreeBark as u32 as f32
-                        || v.surface[0] == SurfaceKind::TreeBarkLinden as u32 as f32
-                        || v.surface[0] == SurfaceKind::TreeBarkLocust as u32 as f32
-                });
             let points: Vec<_> = item
                 .mesh
                 .mesh
@@ -292,11 +302,8 @@ impl Props {
                 .iter()
                 // Tree foliage is decorative; collision follows its trunk.
                 .filter(|v| {
-                    if tree {
-                        (v.surface[0] == SurfaceKind::TreeBark as u32 as f32
-                            || v.surface[0] == SurfaceKind::TreeBarkLinden as u32 as f32
-                            || v.surface[0] == SurfaceKind::TreeBarkLocust as u32 as f32)
-                            && v.position[2] - v.surface[3] < 0.022
+                    if item.tree {
+                        is_tree_bark(v.surface[0]) && v.position[2] - v.surface[3] < 0.022
                     } else {
                         v.surface[0] != SurfaceKind::Grass as u32 as f32
                             && !(15.0..=23.0).contains(&v.surface[0])
@@ -498,7 +505,7 @@ impl Props {
                 .mesh
                 .template
                 .is_some_and(|(k, _)| k == crate::props::Kind::Cone);
-            if inward >= -(if cone { 0.05 } else { 3. }) {
+            if self.items[id].tree || inward >= -(if cone { 0.05 } else { 3. }) {
                 vehicle.position = before + delta * (contact.time_of_impact - 0.001).max(0.);
                 if inward < 0. {
                     let impulse = -inward / vehicle.impulse_response(arm, normal);
@@ -1071,6 +1078,35 @@ mod tests {
         assert!(props.blocked(Vec3::new(0., 0., 0.5)));
         assert!(!props.blocked(Vec3::new(2., 0., 4.)));
     }
+    #[test]
+    fn vehicle_impact_stops_at_the_tree_and_keeps_its_trunk_collidable() {
+        use super::*;
+        let city = City::from_program(
+            &opencity::parse("road street: carlane; end street(-25,3,-20,3);").unwrap(),
+            None,
+        )
+        .unwrap();
+        let mut vehicle = Vehicle::spawn(&city);
+        let start = vehicle.position;
+        let trunk = start + Vec3::X * 8.;
+        let placement = crate::props::Placement {
+            kind: crate::props::Kind::RandomTree,
+            position: trunk / METERS_PER_UNIT,
+            heading: 0.,
+            sign: None,
+        };
+        let mut props = Props::from_parts_near(vec![placement.parts()], start);
+        vehicle.position.x += 16.;
+        vehicle.velocity = Vec3::X * 25.;
+        props.vehicle_move(&mut vehicle, start, &city);
+
+        assert!(vehicle.position.x > start.x && vehicle.position.x < trunk.x);
+        assert_eq!(vehicle.collisions, 1);
+        assert!(!vehicle.sound_impacts[0].broken);
+        assert!(props.blocked(trunk + Vec3::Z * 0.5));
+        assert!(props.active.is_empty());
+    }
+
     #[test]
     fn authored_streetlamp_emitter_loses_power_when_its_base_breaks() {
         use super::*;

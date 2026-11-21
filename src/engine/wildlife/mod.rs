@@ -51,13 +51,19 @@ impl WildlifeScenery {
                     .collect();
                 Rig { model, parts }
             });
+            let scale = animal.species.model_scale();
             let location = Mat4::from_translation(animal.position / METERS_PER_UNIT)
                 * Mat4::from_rotation_z(animal.heading)
                 * Mat4::from_rotation_x(animal.roll)
-                * Mat4::from_scale(Vec3::splat(1. / METERS_PER_UNIT))
+                * Mat4::from_scale(Vec3::splat(scale / METERS_PER_UNIT))
                 * to_game;
-            rig.model
-                .sample(animal.clip, animal.seconds, &mut self.matrices);
+            // A larger stride covers the same route at a lower cadence.
+            let seconds = if animal.clip == 0 {
+                animal.seconds / scale
+            } else {
+                animal.seconds
+            };
+            rig.model.sample(animal.clip, seconds, &mut self.matrices);
             for part in &mut rig.parts {
                 let mut columns =
                     (location * self.matrices[part.joint] * from_game).to_cols_array_2d();

@@ -143,3 +143,49 @@ fn highway_climbs_have_pavement_and_connected_lanes() {
         }
     }
 }
+
+#[test]
+fn report_85_ring_road_has_drivable_shoulder_openings() {
+    let root = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl");
+    let program = opencity::parse(include_str!("../../data/maps/mtl/map.road")).unwrap();
+    let city = City::from_program(&program, Some(&root)).unwrap();
+    let projection = map::project(&program);
+    let geometry = opencity::road_geometry::RoadGeometry::compile(&program, &projection);
+    for (name, expected_gaps) in [("ring_east_lead", 2), ("highway_north", 0)] {
+        let index = projection
+            .segments
+            .iter()
+            .position(|s| s.name.as_deref() == Some(name))
+            .unwrap();
+        let rows = geometry.cross_sections(index);
+        for side in [0, rows[0].boundaries.len() - 1] {
+            let mut gaps = 0;
+            let mut length = 0.;
+            for pair in rows.windows(2) {
+                // The underground carriageway has authored ramp mouths outside this stretch.
+                if name == "highway_north" && !(0.35..0.75).contains(&pair[0].t) {
+                    continue;
+                }
+                let a = pair[0].boundaries[side];
+                let b = pair[1].boundaries[side];
+                let xy = [(a.point.x + b.point.x) * 0.5, (a.point.y + b.point.y) * 0.5];
+                let blocked = city
+                    .road_barrier_contact(xy, 0.01, a.height, a.height + 0.02)
+                    .is_some();
+                if name == "highway_north" {
+                    assert!(blocked, "underground barrier missing at {xy:?}");
+                }
+                if !blocked {
+                    length += (b.point.x - a.point.x).hypot(b.point.y - a.point.y);
+                } else {
+                    if length >= 0.06 {
+                        gaps += 1;
+                    }
+                    length = 0.;
+                }
+            }
+            gaps += usize::from(length >= 0.06);
+            assert_eq!(gaps, expected_gaps, "{name} side {side}");
+        }
+    }
+}
