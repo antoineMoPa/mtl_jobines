@@ -6,6 +6,8 @@ use glam::Vec3;
 pub(super) struct Shift {
     tug: VehicleId,
     aircraft: usize,
+    tug_model: Option<usize>,
+    aircraft_model: Option<usize>,
     aircraft_position: Vec3,
     aircraft_yaw: f32,
     pub loaded: bool,
@@ -29,6 +31,8 @@ impl DynamicWorld {
         self.baggage_shift = Some(Shift {
             tug: VehicleId(tug),
             aircraft,
+            tug_model: self.vehicles[tug].definition,
+            aircraft_model: self.vehicles[aircraft].definition,
             aircraft_position: self.vehicles[aircraft].position,
             aircraft_yaw: self.vehicles[aircraft].yaw,
             loaded: false,
@@ -45,7 +49,11 @@ impl DynamicWorld {
         let aircraft = s.aircraft;
         let restored = [tug, aircraft].map(|i| {
             let mut v = super::Vehicle::spawn_at(hermes.city(), self.vehicle_spawns[i]).ok()?;
-            v.set_catalog_model(self.vehicles[i].definition);
+            v.set_catalog_model(if i == tug {
+                s.tug_model
+            } else {
+                s.aircraft_model
+            });
             if i == tug {
                 v.load_airport_train();
             }
@@ -136,7 +144,7 @@ impl DynamicWorld {
             self.baggage_service_ready(),
         ))
     }
-    pub fn baggage_markers(&self, hermes: &Hermes, site: Option<SiteId>) -> Vec<Vec3> {
+    pub fn baggage_markers(&self, site: Option<SiteId>) -> Vec<Vec3> {
         let Some(s) = &self.baggage_shift else {
             return Vec::new();
         };
@@ -146,8 +154,14 @@ impl DynamicWorld {
         ];
         if site == Some(SiteId::BaggageAircraft) {
             // Service corridor west of the tower and hangar, within the apron.
-            for y in [0.1, -0.4, -0.7] {
-                points.push(Vec3::new(-4.65, y, 0.122001) * METERS_PER_UNIT);
+            for (x, y) in [
+                (-4.65, 0.1),
+                (-4.65, -0.48),
+                (-4.57, -0.65),
+                (-4.57, -1.13),
+                (-4.85, -1.13),
+            ] {
+                points.push(Vec3::new(x, y, 0.122001) * METERS_PER_UNIT);
             }
         }
         points
@@ -157,5 +171,127 @@ impl DynamicWorld {
             .as_ref()
             .filter(|s| s.tug.0 == vehicle)
             .map_or(true, |s| cart == 0 && s.loaded && !s.invalid)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::kairos::{Kairos, MissionEvent, MissionId};
+    fn setup() -> (Hermes, DynamicWorld) {
+        let h = Hermes::test_map_from_source("pad=concrete(-3,-3,3,-3,3,3,-3,3); elevation(pad,0.122001); player_start(-1,0,0); parked_vehicle(\"vehicle-airport-baggage-tractor\",0,0,90); parked_vehicle(\"vehicle-air-estuaire\",2,0,-90); mission_baggage_dispatch=map_point(0,1); mission_baggage_aircraft=map_point(0,-1);");
+        let mut w = DynamicWorld::new(&h);
+        w.begin_baggage_shift().unwrap();
+        w.player_vehicle = w.baggage_shift.as_ref().unwrap().tug;
+        w.pedestrian = None;
+        (h, w)
+    }
+    fn park(w: &mut DynamicWorld, h: &Hermes, site: SiteId, yaw: f32) {
+        let id = w.baggage_shift.as_ref().unwrap().tug.0;
+        w.vehicles[id].yaw = yaw;
+        w.vehicles[id].pitch = 0.;
+        w.vehicles[id].roll = 0.;
+        w.vehicles[id].baggage_links.fill(Default::default());
+        let axle = w.vehicles[id].carts().next().unwrap().axle();
+        let p = glam::Vec2::from_array(h.mission_site(site).unwrap()) * METERS_PER_UNIT;
+        let delta = p - axle.truncate();
+        w.vehicles[id].position += delta.extend(0.);
+        w.vehicles[id].velocity = Vec3::ZERO;
+        w.vehicles[id].grounded = true;
+    }
+    fn settle(w: &mut DynamicWorld, h: &Hermes, site: SiteId) {
+        for _ in 0..11 {
+            w.update_baggage_shift(h, Some(site), 0.1);
+        }
+    }
+    #[test]
+    fn baggage_service_requires_cart_alignment_stop_and_assigned_driver() {
+        let (h, mut w) = setup();
+        let site = SiteId::BaggageDispatch;
+        park(&mut w, &h, site, 0.);
+        settle(&mut w, &h, site);
+        assert!(!w.baggage_service_ready());
+        park(&mut w, &h, site, std::f32::consts::FRAC_PI_2);
+        w.update_baggage_shift(&h, Some(site), 0.5);
+        assert!(!w.baggage_service_ready());
+        let tug = w.player_vehicle;
+        w.player_vehicle = VehicleId(0);
+        settle(&mut w, &h, site);
+        assert!(!w.baggage_service_ready());
+        w.player_vehicle = tug;
+        w.vehicles[tug.0].velocity = Vec3::X;
+        settle(&mut w, &h, site);
+        assert!(!w.baggage_service_ready());
+        w.vehicles[tug.0].velocity = Vec3::ZERO;
+        // Tractor alone in the box leaves the first cart more than 4 m away.
+        let target = glam::Vec2::from_array(h.mission_site(site).unwrap()) * METERS_PER_UNIT;
+        let delta = target - w.vehicles[tug.0].position.truncate();
+        w.vehicles[tug.0].position += delta.extend(0.);
+        settle(&mut w, &h, site);
+        assert!(!w.baggage_service_ready());
+        park(&mut w, &h, site, -std::f32::consts::FRAC_PI_2);
+        settle(&mut w, &h, site);
+        assert!(w.baggage_service_ready());
+    }
+    #[test]
+    fn baggage_rotation_loads_four_delivers_once_and_recovers_after_reset() {
+        let (h, mut w) = setup();
+        let mut k = Kairos::test_session();
+        k.accept(MissionId::Baggage);
+        assert!(!w.baggage_cargo_visible(w.player_vehicle.0, 0));
+        assert!(!w.confirm_baggage_service(false));
+        park(
+            &mut w,
+            &h,
+            SiteId::BaggageDispatch,
+            std::f32::consts::FRAC_PI_2,
+        );
+        settle(&mut w, &h, SiteId::BaggageDispatch);
+        assert!(w.confirm_baggage_service(true));
+        k.event(MissionEvent::BaggageLoaded);
+        assert!(w.baggage_cargo_visible(w.player_vehicle.0, 0));
+        assert!(!w.baggage_cargo_visible(w.player_vehicle.0, 1));
+        assert!(!w.confirm_baggage_service(true));
+        w.reset_player(&h);
+        assert!(w.baggage_shift_invalid());
+        assert!(!w.baggage_cargo_visible(w.player_vehicle.0, 0));
+        k.event(MissionEvent::BaggageRestarted);
+        assert!(w.restart_baggage_shift(&h));
+        for (site, loaded) in [
+            (SiteId::BaggageDispatch, true),
+            (SiteId::BaggageAircraft, false),
+        ] {
+            park(&mut w, &h, site, -std::f32::consts::FRAC_PI_2);
+            settle(&mut w, &h, site);
+            assert!(w.confirm_baggage_service(loaded));
+            k.event(if loaded {
+                MissionEvent::BaggageLoaded
+            } else {
+                MissionEvent::BaggageDelivered
+            });
+        }
+        k.event(MissionEvent::BaggageDelivered);
+        k.event(MissionEvent::BaggageLoaded);
+        k.event(MissionEvent::BaggageRestarted);
+        assert_eq!(k.money_cents(), 2000);
+        assert_eq!(k.completed(MissionId::Baggage), 1);
+        assert!(k.is_complete());
+        assert!(w.begin_baggage_shift().is_some());
+        k.accept(MissionId::Baggage);
+        assert_eq!(k.target(), Some(SiteId::BaggageDispatch));
+        assert_eq!(k.money_cents(), 2000);
+    }
+    #[test]
+    fn baggage_aircraft_movement_clears_pending_load_and_restarts_at_dispatch() {
+        let (h, mut w) = setup();
+        w.baggage_shift.as_mut().unwrap().loaded = true;
+        let aircraft = w.baggage_shift.as_ref().unwrap().aircraft;
+        w.vehicles[aircraft].position.x += 2.;
+        w.update_baggage_shift(&h, Some(SiteId::BaggageAircraft), 0.1);
+        assert!(w.baggage_shift_invalid());
+        assert!(!w.baggage_shift.as_ref().unwrap().loaded);
+        assert!(!w.confirm_baggage_service(false));
+        assert!(w.restart_baggage_shift(&h));
+        assert!(!w.baggage_shift_invalid());
     }
 }

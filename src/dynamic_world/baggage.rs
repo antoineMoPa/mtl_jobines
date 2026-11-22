@@ -199,7 +199,7 @@ impl DynamicWorld {
             self.parked_carts
                 .iter()
                 .copied()
-                .map(|cart| (cart, false, true)),
+                .map(|cart| (cart, false, self.baggage_shift.is_none())),
         );
         let (id, definition) = super::catalog::definitions()
             .iter()
@@ -263,7 +263,7 @@ mod tests {
         assert!(world.toggle_vehicle(&map));
         assert!(world.player().is_baggage_tug());
         assert_eq!(world.baggage_hitch_status(), Some((4, false, true)));
-        assert_eq!(world.baggage_cart_instances().count(), 20);
+        assert_eq!(world.baggage_cart_instances().count(), 24);
         assert!(!world.attach_baggage_cart());
         for remaining in (0..4).rev() {
             assert!(world.detach_baggage_cart());
@@ -273,7 +273,7 @@ mod tests {
         let slot = world.player_vehicle.0;
         world.vehicles[slot].position -= Vec3::X * 2.;
         assert!(!world.attach_baggage_cart());
-        assert_eq!(world.baggage_cart_instances().filter(|c| !c.3).count(), 20);
+        assert_eq!(world.baggage_cart_instances().filter(|c| !c.3).count(), 24);
         let reverse = Controls {
             throttle: -1.,
             ..Default::default()

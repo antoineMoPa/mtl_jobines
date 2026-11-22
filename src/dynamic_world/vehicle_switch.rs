@@ -29,7 +29,9 @@ impl DynamicWorld {
         let links = if vehicle.definition == Some(model) {
             std::mem::take(&mut vehicle.baggage_links)
         } else {
-            self.parked_carts.extend(vehicle.carts());
+            if self.baggage_shift.is_none() {
+                self.parked_carts.extend(vehicle.carts());
+            }
             Vec::new()
         };
         vehicle.set_catalog_model(Some(model));

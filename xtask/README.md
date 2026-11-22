@@ -42,6 +42,10 @@ without waiting on the game's Cargo lock. When `CARGO_TARGET_DIR` is set,
 the game cache is its `moon-game` child directory. The first game build
 populates this separate cache; subsequent launches reuse it.
 
+On macOS the game build packs debug symbols into a `.dSYM` bundle so previous
+links do not leave loose object files in the game cache. Set
+`CARGO_PROFILE_DEV_SPLIT_DEBUGINFO` to override this default.
+
 Native game and OpenCity libraries emit only `rlib` artifacts, allowing Cargo to
 keep hashed filenames for different feature/profile variants in the shared
 target directory. The web build scripts explicitly request `cdylib` output with

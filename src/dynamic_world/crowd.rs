@@ -15,6 +15,10 @@ use std::sync::Arc;
 pub(crate) const CAPACITY: usize = 32;
 pub(crate) const KIOSK_CAPACITY: usize = 3;
 const SPAWN_RADIUS: f32 = 100.;
+const SPAWN_CLEARANCE: f32 = 12.;
+const SPAWN_HEIGHT: f32 = 8.;
+const METERS_PER_WALKER: f32 = 10.;
+const SPAWN_SPACING: f32 = 6.;
 const RETAIN_RADIUS: f32 = 140.;
 const DRAW_RADIUS: f32 = 100.;
 const KIOSK_SPAWN_RADIUS: f32 = 70.;
@@ -188,6 +192,47 @@ fn nearest_sidewalk(graph: &WalkingPaths, position: Vec3) -> Option<(usize, f32)
         .min_by(|a, b| a.2.total_cmp(&b.2))
         .map(|(index, distance, _)| (index, distance))
 }
+fn length_in_sphere(a: Vec3, b: Vec3, center: Vec3, radius: f32) -> f32 {
+    let delta = b - a;
+    let length = delta.length();
+    if length < 0.0001 {
+        return 0.;
+    }
+    let offset = center - a;
+    let along = offset.dot(delta) / length;
+    let half_squared = radius * radius - (offset.length_squared() - along * along).max(0.);
+    if half_squared <= 0. {
+        return 0.;
+    }
+    let half = half_squared.sqrt();
+    ((along + half).min(length) - (along - half).max(0.)).max(0.)
+}
+fn spawnable_length(points: &[Vec3], center: Vec3) -> f32 {
+    points
+        .windows(2)
+        .map(|pair| {
+            let (mut a, mut b) = (pair[0], pair[1]);
+            let dz = b.z - a.z;
+            if dz.abs() < 0.0001 {
+                if (a.z - center.z).abs() > SPAWN_HEIGHT {
+                    return 0.;
+                }
+            } else {
+                let low = (center.z - SPAWN_HEIGHT - a.z) / dz;
+                let high = (center.z + SPAWN_HEIGHT - a.z) / dz;
+                let start = low.min(high).max(0.);
+                let end = low.max(high).min(1.);
+                if start >= end {
+                    return 0.;
+                }
+                b = a.lerp(b, end);
+                a = pair[0].lerp(pair[1], start);
+            }
+            length_in_sphere(a, b, center, SPAWN_RADIUS)
+                - length_in_sphere(a, b, center, SPAWN_CLEARANCE)
+        })
+        .sum()
+}
 impl StandingActor {
     fn into_walker(
         self,
@@ -356,13 +401,25 @@ impl Crowd {
             self.previous_vehicles
                 .extend(vehicles.iter().map(|v| v.position));
         }
-        let nearby: Vec<_> = self
+        let mut nearby: Vec<_> = self
             .graph
             .paths
             .iter()
             .enumerate()
-            .filter(|(_, p)| !p.connector && p.length > 8. && p.near(center, SPAWN_RADIUS))
-            .map(|(i, _)| i)
+            // Each sidewalk has two directed routes; count its space only once.
+            .filter(|(i, p)| {
+                *i < p.reverse && !p.connector && p.length > 8. && p.near(center, SPAWN_RADIUS)
+            })
+            .filter_map(|(i, p)| {
+                let capacity = (spawnable_length(&p.points, center) / METERS_PER_WALKER) as usize;
+                let occupied = self
+                    .walkers
+                    .iter()
+                    .filter(|w| w.path == i || w.path == p.reverse)
+                    .count();
+                let remaining = capacity.saturating_sub(occupied);
+                (remaining > 0).then_some((i, remaining))
+            })
             .collect();
         if nearby.is_empty() {
             return;
@@ -371,19 +428,28 @@ impl Crowd {
             if self.walkers.len() >= crate::performance::npc_budget(CAPACITY) {
                 break;
             }
-            let path = nearby[(random(&mut self.seed) * nearby.len() as f32) as usize];
+            if nearby.is_empty() {
+                break;
+            }
+            let direction = (random(&mut self.seed) * (nearby.len() * 2) as f32) as usize;
+            let slot = direction / 2;
+            let path = if direction % 2 == 0 {
+                nearby[slot].0
+            } else {
+                self.graph.paths[nearby[slot].0].reverse
+            };
             let length = self.graph.paths[path].length;
             let distance = 1. + random(&mut self.seed) * (length - 2.);
             let Some((position, direction)) = placement(city, &self.graph, path, distance) else {
                 continue;
             };
             let reach = position.distance(center);
-            if !(12. ..SPAWN_RADIUS).contains(&reach)
-                || (position.z - center.z).abs() > 8.
+            if !(SPAWN_CLEARANCE..SPAWN_RADIUS).contains(&reach)
+                || (position.z - center.z).abs() > SPAWN_HEIGHT
                 || self
                     .walkers
                     .iter()
-                    .any(|w| w.position.distance_squared(position) < 2.8f32.powi(2))
+                    .any(|w| w.position.distance_squared(position) < SPAWN_SPACING.powi(2))
                 || blocked_by_vehicle(position, vehicles)
                 || props.blocked(position + Vec3::Z * 0.8)
             {
@@ -432,6 +498,10 @@ impl Crowd {
                 ),
             });
             self.serial = self.serial.wrapping_add(1);
+            nearby[slot].1 -= 1;
+            if nearby[slot].1 == 0 {
+                nearby.swap_remove(slot);
+            }
         }
     }
     pub(super) fn overlaps_vehicle(&self, car: &Vehicle) -> bool {
@@ -979,6 +1049,52 @@ fn return_point(
 mod tests {
     use super::*;
     use crate::hermes::Hermes;
+    #[test]
+    fn spawnable_sidewalk_length_excludes_distant_and_other_level_segments() {
+        let center = Vec3::ZERO;
+        let straight = [Vec3::new(-500., 0., 0.), Vec3::new(500., 0., 0.)];
+        assert!((spawnable_length(&straight, center) - 176.).abs() < 0.001);
+        let overhead = straight.map(|p| p + Vec3::Z * 10.);
+        assert_eq!(spawnable_length(&overhead, center), 0.);
+        let distant = straight.map(|p| p + Vec3::Y * 101.);
+        assert_eq!(spawnable_length(&distant, center), 0.);
+        let sloped = [Vec3::new(20., 0., 0.), Vec3::new(40., 0., 16.)];
+        let expected = sloped[0].distance(sloped[1]) * 0.5;
+        assert!((spawnable_length(&sloped, center) - expected).abs() < 0.001);
+        assert!((spawnable_length(&[sloped[1], sloped[0]], center) - expected).abs() < 0.001);
+    }
+    #[test]
+    fn city_entry_limits_population_to_nearby_sidewalk_space_on_every_refill() {
+        let hermes = Hermes::test_map_from_source(
+            "road street: sidewalk carlane carlane sidewalk; end street(0,0,5,0);",
+        );
+        let city = hermes.city();
+        let props = Props::new(Vec::new());
+        let mut crowd = Crowd::new(hermes.walking_paths());
+        // Only the first 35 metres of this long street are in range.
+        let entry = Vec3::new(-65., 0., 0.);
+        crowd.populate(city, entry, &[], &props);
+        assert!((1..=6).contains(&crowd.walkers.len()));
+        let population = crowd.walkers.len();
+        for _ in 0..20 {
+            // A walker turning around still occupies the same sidewalk.
+            for walker in &mut crowd.walkers {
+                let path = &crowd.graph.paths[walker.path];
+                walker.distance = path.length - walker.distance;
+                walker.path = path.reverse;
+            }
+            crowd.populate(city, entry, &[], &props);
+            assert_eq!(crowd.walkers.len(), population);
+        }
+        for (i, walker) in crowd.walkers.iter().enumerate() {
+            assert!(crowd.walkers[i + 1..]
+                .iter()
+                .all(|other| { walker.position.distance(other.position) >= SPAWN_SPACING }));
+        }
+        // More of the city coming into range allows the full population again.
+        crowd.populate(city, Vec3::X * 200., &[], &props);
+        assert_eq!(crowd.walkers.len(), CAPACITY);
+    }
     #[test]
     fn kiosk_queue_exists_only_near_its_authored_frontage() {
         let program = opencity::parse(concat!(

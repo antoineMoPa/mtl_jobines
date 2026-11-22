@@ -123,6 +123,11 @@ fn executable(output: impl BufRead) -> Result<Option<PathBuf>> {
 
 fn cargo(root: &Path) -> Command {
     let mut command = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
+    // Keep symbols in a dSYM so repeated macOS links can discard loose objects.
+    #[cfg(target_os = "macos")]
+    if std::env::var_os("CARGO_PROFILE_DEV_SPLIT_DEBUGINFO").is_none() {
+        command.env("CARGO_PROFILE_DEV_SPLIT_DEBUGINFO", "packed");
+    }
     // Agent checks/tests and editor builds keep the ordinary cache. The game
     // launcher gets a separate Cargo lock and feature/profile artifact cache.
     let target = root

@@ -105,7 +105,8 @@ impl Game {
         let destinations: &[SiteId] = match id {
             MissionId::Taxi => &[SiteId::TaxiPickup, SiteId::TaxiDropoff],
             MissionId::Bus => &[SiteId::BusStop1, SiteId::BusStop2, SiteId::BusStop3],
-            MissionId::Baggage | MissionId::Cat | MissionId::Snowplow | MissionId::Zombie => &[],
+            MissionId::Baggage => &[SiteId::BaggageDispatch, SiteId::BaggageAircraft],
+            MissionId::Cat | MissionId::Snowplow | MissionId::Zombie => &[],
         };
         if destinations
             .iter()
@@ -115,6 +116,10 @@ impl Game {
             return;
         }
         if id == MissionId::Baggage {
+            if self.world.baggage_shift_invalid() && !self.world.restart_baggage_shift(&self.hermes)
+            {
+                return;
+            }
             let Some(tug) = self.world.begin_baggage_shift() else {
                 return;
             };
@@ -336,6 +341,30 @@ impl Game {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn baggage_job_keeps_the_parked_tug_marks_the_apron_and_pauses_on_foot() {
+        let h = Hermes::test_map_from_source("pad=concrete(-3,-3,3,-3,3,3,-3,3); elevation(pad,0.122001); player_start(-1,0,0); parked_vehicle(\"vehicle-airport-baggage-tractor\",0,0,90); parked_vehicle(\"vehicle-air-estuaire\",2,0,-90); mission_baggage_dispatch=map_point(0,1); mission_baggage_aircraft=map_point(0,-1);");
+        let mut game = Game::new(h);
+        game.set_overlay(Overlay::Driving);
+        let before = game.world.player_position();
+        game.activate_mission_now(MissionId::Baggage);
+        assert_eq!(game.kairos.active_id(), Some(MissionId::Baggage));
+        assert_eq!(game.world.player_position(), before);
+        assert!(!game.driving_mission_vehicle());
+        assert_eq!(
+            game.hermes.route_status(),
+            crate::hermes::RouteStatus::Active
+        );
+        assert!(game.hermes.route_uvs().is_empty());
+        game.simulate(11.);
+        assert_eq!(game.kairos.active_id(), Some(MissionId::Baggage));
+        assert_eq!(game.kairos.vehicle_return_seconds(), None);
+        game.service_baggage();
+        assert_eq!(game.kairos.target(), Some(SiteId::BaggageDispatch));
+        game.abandon_mission();
+        assert!(game.world.baggage_markers(None).is_empty());
+    }
 
     #[test]
     fn one_cat_job_consumes_only_available_actions_and_pays_once() {

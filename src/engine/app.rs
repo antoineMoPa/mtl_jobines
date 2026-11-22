@@ -1235,10 +1235,7 @@ impl Game {
             self.world
                 .waiting_service_passengers()
                 .chain(self.world.cat_marker())
-                .chain(
-                    self.world
-                        .baggage_markers(&self.hermes, self.kairos.target()),
-                ),
+                .chain(self.world.baggage_markers(self.kairos.target())),
             self.world.baggage_bay(&self.hermes, self.kairos.target()),
         );
         let mut palette_action = None;
