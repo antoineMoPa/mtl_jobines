@@ -57,7 +57,8 @@
         throw error;
       }
       document.getElementById('loading-message').textContent = 'Preparing the city…';
-      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+      // Give the loading message a chance to paint even though hidden tabs pause animation frames.
+      await new Promise(resolve => setTimeout(resolve, 0));
       if (new URLSearchParams(location.search).get('client') === 'cpp') {
         const response = await fetch('./vehicle-return.wasm');
         if (!response.ok) throw new Error(`Could not load C++ client: HTTP ${response.status}`);
