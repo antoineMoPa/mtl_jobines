@@ -63,12 +63,35 @@ impl Driver {
         }
     }
 }
+#[derive(Default)]
+struct InactiveSlots {
+    stack: Vec<usize>,
+    vacant: Vec<bool>,
+}
+impl InactiveSlots {
+    fn push(&mut self, id: usize) {
+        if self.vacant.len() <= id {
+            self.vacant.resize(id + 1, false);
+        }
+        self.vacant[id] = true;
+        self.stack.push(id);
+    }
+    fn pop(&mut self) -> Option<usize> {
+        let id = self.stack.pop()?;
+        self.vacant[id] = false;
+        Some(id)
+    }
+    fn contains(&self, id: usize) -> bool {
+        self.vacant.get(id).copied().unwrap_or(false)
+    }
+}
+
 pub(super) struct Traffic {
     chase: police::Chase,
     season: crate::season::Season,
     graph: Arc<TrafficPaths>,
     drivers: Vec<Driver>,
-    inactive: Vec<usize>,
+    inactive: InactiveSlots,
     // While on foot, the player still owns a stable slot for explicit vehicle switches.
     despawned_player: Option<usize>,
     abandoned: Vec<usize>,
@@ -99,7 +122,7 @@ impl Traffic {
             chase: Default::default(),
             graph: graph.clone(),
             drivers: Vec::new(),
-            inactive: Vec::new(),
+            inactive: InactiveSlots::default(),
             despawned_player: None,
             abandoned: Vec::new(),
             spawns: Vec::new(),
@@ -355,7 +378,7 @@ impl Traffic {
             .map_or(1., |d| self.fade(d))
     }
     pub fn inactive(&self, index: usize) -> bool {
-        self.despawned_player == Some(index) || self.inactive.contains(&index)
+        self.despawned_player == Some(index) || self.inactive.contains(index)
     }
     pub(super) fn despawn_player_vehicle(&mut self, index: usize, vehicle: &mut Vehicle) {
         self.release(index);

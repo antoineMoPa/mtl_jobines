@@ -295,7 +295,7 @@ impl Traffic {
             .filter(|state| matches!(state, Protected::Sleeping))
             .count();
         [
-            total - self.inactive.len() - lane - sleeping,
+            total - self.inactive.stack.len() - lane - sleeping,
             lane,
             sleeping,
         ]

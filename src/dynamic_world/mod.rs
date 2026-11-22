@@ -73,6 +73,38 @@ pub struct StepProfile {
 pub mod rescue_cat;
 pub mod wildlife;
 
+// Recheck audible vehicles and the player immediately. Discover the rest in
+// rotating batches so a larger fleet changes discovery latency only.
+const MAX_SOUND_SOURCES: usize = 45;
+const SOUND_SCAN: usize = MAX_SOUND_SOURCES - crate::audio::CAR_VOICES - 1;
+
+fn sound_batch(cursor: &mut usize, count: usize) -> impl Iterator<Item = usize> + Clone {
+    let start = if *cursor < count { *cursor } else { 0 };
+    let end = start + SOUND_SCAN.min(count - start);
+    let wrap = SOUND_SCAN.min(count) - (end - start);
+    *cursor = if end == count { wrap } else { end };
+    (start..end).chain(0..wrap)
+}
+
+fn sound_slots(
+    cursor: &mut usize,
+    count: usize,
+    player: Option<usize>,
+    retained: [usize; crate::audio::CAR_VOICES],
+) -> impl Iterator<Item = usize> + Clone {
+    player
+        .into_iter()
+        .chain(
+            retained
+                .into_iter()
+                .filter(move |&id| id < count && Some(id) != player),
+        )
+        .chain(
+            sound_batch(cursor, count)
+                .filter(move |id| Some(*id) != player && !retained.contains(id)),
+        )
+}
+
 pub struct DynamicWorld {
     pub rescue_cat: Option<rescue_cat::RescueCat>,
     wildlife_homes: Vec<wildlife::Home>,
@@ -87,6 +119,9 @@ pub struct DynamicWorld {
     crash: Option<Crash>,
     sound_impacts: [crate::audio::Impact; crate::audio::IMPACT_VOICES],
     sound_serial: u64,
+    sound_cursor: usize,
+    impact_cursor: usize,
+    audible_slots: [usize; crate::audio::CAR_VOICES],
     sound_foliage: f32,
     sound_geography_timer: f32,
     metro: metro::Metro,
@@ -178,6 +213,9 @@ impl DynamicWorld {
             crash: None,
             sound_impacts: [crate::audio::Impact::default(); crate::audio::IMPACT_VOICES],
             sound_serial: 0,
+            sound_cursor: 0,
+            impact_cursor: 0,
+            audible_slots: [usize::MAX; crate::audio::CAR_VOICES],
             sound_foliage: 0.15,
             sound_geography_timer: 0.,
             dispatch_view: None,
@@ -378,7 +416,7 @@ impl DynamicWorld {
     /// Snapshot only nearby active vehicles. Parked lineup cars have no engine.
     /// Slots are bounded, ordered by distance; slot zero reserves the player.
     pub fn sound_frame(
-        &self,
+        &mut self,
         eye: Vec3,
         forward: Vec3,
         velocity: Vec3,
@@ -400,12 +438,20 @@ impl DynamicWorld {
             0.
         };
         let mut distances = [f32::INFINITY; CAR_VOICES];
-        for (id, v) in self
-            .vehicles
-            .iter()
-            .chain(self.airport.planes())
-            .enumerate()
-        {
+        let player_slot = self.is_driving().then_some(self.player_vehicle.0);
+        let fleet = self.vehicles.len();
+        let planes = self.airport.plane_slice();
+        for id in sound_slots(
+            &mut self.sound_cursor,
+            fleet + planes.len(),
+            player_slot,
+            self.audible_slots,
+        ) {
+            let v = if id < fleet {
+                &self.vehicles[id]
+            } else {
+                &planes[id - fleet]
+            };
             let siren = self.traffic.is_patrol(id);
             if self.traffic.inactive(id)
                 || (!siren && !v.sound_running && v.velocity.length_squared() < 0.25)
@@ -416,7 +462,7 @@ impl DynamicWorld {
             if distance > 140. * 140. {
                 continue;
             }
-            let player = self.is_driving() && id == self.player_vehicle.0;
+            let player = Some(id) == player_slot;
             let rank = if player {
                 -40_000.
             } else if siren {
@@ -460,6 +506,7 @@ impl DynamicWorld {
                 engine_on: v.sound_running,
             };
         }
+        self.audible_slots = frame.cars.map(|car| car.id);
         frame
     }
     fn nearest_enterable_vehicle(&self, position: Vec3) -> Option<usize> {
@@ -765,6 +812,20 @@ impl DynamicWorld {
         drop(phase);
         let phase = crate::telemetry::span("physics.vehicles");
         self.capture_wildlife_vehicle_starts(center, center_velocity, dt);
+        let fleet = self.vehicles.len();
+        let impact_slots = sound_slots(
+            &mut self.impact_cursor,
+            fleet,
+            Some(self.player_vehicle.0),
+            self.audible_slots,
+        );
+        // A newly sampled slot can still contain impacts from an earlier tick.
+        // Start this tick with empty buffers before physics generates contacts.
+        if fleet > SOUND_SCAN {
+            for id in impact_slots.clone() {
+                self.vehicles[id].sound_impact_count = 0;
+            }
+        }
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
             let signal = if driving && i == self.player_vehicle.0 {
                 hermes.route_signal()
@@ -876,7 +937,8 @@ impl DynamicWorld {
         for hit in &mut self.sound_impacts {
             hit.age += dt;
         }
-        for vehicle in &mut self.vehicles {
+        for id in impact_slots {
+            let vehicle = &mut self.vehicles[id];
             for hit in &vehicle.sound_impacts[..vehicle.sound_impact_count] {
                 hit.publish(&mut self.sound_impacts, &mut self.sound_serial);
             }
@@ -1281,6 +1343,51 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn overloaded_sound_selection_has_a_fixed_budget_and_reaches_every_slot() {
+        use crate::audio::CAR_VOICES;
+        let count = SOUND_SCAN * 23 + 1;
+        let retained = std::array::from_fn(|i| count - i - 2);
+        let player = count - 1;
+        let mut seen = vec![false; count];
+        let mut cursor = 0;
+        for _ in 0..count.div_ceil(SOUND_SCAN) {
+            let ids: Vec<_> = sound_slots(&mut cursor, count, Some(player), retained).collect();
+            assert_eq!(ids[0], player);
+            assert_eq!(&ids[1..=CAR_VOICES], &retained);
+            assert!(ids.len() <= 45);
+            for (i, id) in ids.iter().enumerate() {
+                assert!(!ids[..i].contains(id));
+                seen[*id] = true;
+            }
+        }
+        assert!(seen.into_iter().all(|visited| visited));
+        assert_eq!(
+            sound_slots(&mut cursor, 2, None, retained).collect::<Vec<_>>(),
+            [0, 1]
+        );
+    }
+
+    #[test]
+    fn newly_discovered_nearby_car_keeps_its_voice_between_sweeps() {
+        let mut world = DynamicWorld::new(&Hermes::test_map());
+        let far = Vec3::X * 300.;
+        let mut car = world.player().clone();
+        car.position = far;
+        car.sound_running = true;
+        world.vehicles = vec![car; SOUND_SCAN * 3];
+        let player = world.vehicles.len() - 1;
+        world.player_vehicle = VehicleId(player);
+        world.vehicles[player].position = Vec3::ZERO;
+        let nearby = SOUND_SCAN + 1;
+        world.vehicles[nearby].position = Vec3::X;
+        let mut snapshot =
+            || world.sound_frame(Vec3::ZERO, Vec3::X, Vec3::ZERO, Default::default());
+        assert_eq!(snapshot().cars[0].id, player);
+        assert_eq!(snapshot().cars[1].id, nearby);
+        assert_eq!(snapshot().cars[1].id, nearby);
+    }
+
     #[test]
     fn sound_snapshot_uses_real_drivers_controls_and_bounded_recent_events() {
         let hermes = Hermes::test_map();

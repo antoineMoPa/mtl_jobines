@@ -117,6 +117,8 @@ impl Patrol {
 #[derive(Default)]
 pub(super) struct Chase {
     pub(super) patrols: Vec<Patrol>,
+    // Vehicle slot to mounted patrol, shared by dispatch and audio admission.
+    mounted: Vec<Option<usize>>,
     reinforce_in: f32,
     pub(super) stars: u8,
     status: ChaseStatus,
@@ -133,23 +135,29 @@ pub(super) struct Chase {
 
 impl Chase {
     pub(super) fn patrol(&self, id: usize) -> Option<usize> {
-        self.patrols
-            .iter()
-            .position(|p| p.vehicle == id && !p.without_car)
+        self.mounted.get(id).copied().flatten()
     }
 
     pub(super) fn release(&mut self, id: usize) {
         if let Some(i) = self.patrol(id) {
+            self.mounted[id] = None;
             if let Some(officer) = &mut self.patrols[i].officer {
                 officer.returning = false;
                 self.patrols[i].without_car = true;
             } else {
                 self.patrols.swap_remove(i);
+                if let Some(moved) = self.patrols.get(i).filter(|p| !p.without_car) {
+                    self.mounted[moved.vehicle] = Some(i);
+                }
             }
         }
     }
 
     fn enlist(&mut self, id: usize) {
+        if self.mounted.len() <= id {
+            self.mounted.resize(id + 1, None);
+        }
+        self.mounted[id] = Some(self.patrols.len());
         self.patrols.push(Patrol {
             vehicle: id,
             ..Default::default()
@@ -978,7 +986,7 @@ mod tests {
         w.vehicles[ids[3]].set_catalog_model(Some(cruiser));
         w.step_chase(&map, at, 0.8);
         assert!(ids.iter().all(|&id| w.traffic.is_patrol(id)));
-        let audible = |world: &DynamicWorld, id: usize| {
+        let audible = |world: &mut DynamicWorld, id: usize| {
             world
                 .sound_frame(
                     world.vehicles[id].position,
@@ -990,9 +998,9 @@ mod tests {
                 .iter()
                 .any(|car| car.id == id && car.siren)
         };
-        assert!(ids.iter().all(|&id| audible(&w, id)));
+        assert!(ids.iter().all(|&id| audible(&mut w, id)));
         w.traffic.release(ids[1]);
-        assert!(!audible(&w, ids[1]));
+        assert!(!audible(&mut w, ids[1]));
         assert!(!w.traffic.is_patrol(ids[1]));
         assert!(w.traffic.is_patrol(ids[0]));
         w.clear_chase();

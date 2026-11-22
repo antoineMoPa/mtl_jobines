@@ -103,6 +103,10 @@ impl Airport {
         Ok(airport)
     }
 
+    pub(super) fn plane_slice(&self) -> &[Vehicle] {
+        &self.traffic
+    }
+
     pub(super) fn planes(&self) -> impl Iterator<Item = &Vehicle> {
         self.traffic.iter()
     }

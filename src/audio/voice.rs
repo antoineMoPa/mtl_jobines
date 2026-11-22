@@ -147,7 +147,11 @@ impl VoiceBus {
             .map(|t| t.cursor as f32 / RATE as f32)
     }
     fn sample(&self) -> Option<[f32; 2]> {
-        let mut state = self.0.lock().unwrap();
+        // Control operations can own the track briefly. Keep the callback and
+        // scene clock together by emitting one silent frame during contention.
+        let Ok(mut state) = self.0.try_lock() else {
+            return Some([0.; 2]);
+        };
         let t = state.as_mut()?;
         if !t.playing || t.cursor >= t.end {
             return Some([0.; 2]);
@@ -235,6 +239,11 @@ mod tests {
         assert_eq!(bus.sample(), Some([0., 0.]));
         assert_eq!(bus.time(), Some(0.));
         bus.set_playing(true);
+        {
+            let _guard = bus.0.lock().unwrap();
+            assert_eq!(bus.sample(), Some([0.; 2]));
+        }
+        assert_eq!(bus.time(), Some(0.));
         assert_eq!(bus.sample(), Some([0., 0.]));
         assert_eq!(bus.sample(), Some([0.4, -0.2]));
         bus.set_playing(false);
