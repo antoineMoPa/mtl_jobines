@@ -299,7 +299,12 @@ fn world_pipelines(
             let targets = [Some(wgpu::ColorTargetState {
                 format,
                 blend: paint.then_some(wgpu::BlendState::ALPHA_BLENDING),
-                write_mask: wgpu::ColorWrites::ALL,
+                // Decals blend by coverage while retaining the pavement’s haze mask.
+                write_mask: if paint {
+                    wgpu::ColorWrites::COLOR
+                } else {
+                    wgpu::ColorWrites::ALL
+                },
             })];
             let buffers = [
                 Some(layout()),
@@ -382,6 +387,12 @@ fn world_pipelines(
                             constant: 2,
                             slope_scale: 2.,
                             clamp: 0.,
+                        }
+                    } else if paint {
+                        // Distant paint and pavement can round to adjacent depth values in either order.
+                        wgpu::DepthBiasState {
+                            constant: -2,
+                            ..Default::default()
                         }
                     } else {
                         Default::default()

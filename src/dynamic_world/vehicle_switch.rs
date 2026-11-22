@@ -7,6 +7,17 @@ impl DynamicWorld {
             return false;
         }
         let index = self.player_vehicle.0;
+        let on_foot = self
+            .pedestrian
+            .as_ref()
+            .filter(|_| self.traffic.inactive(index))
+            .map(|person| {
+                (
+                    person.position - glam::Vec3::Z * super::player::HALF_HEIGHT,
+                    person.yaw,
+                )
+            });
+        self.traffic.claim_player_slot(index);
         self.traffic.release(index);
         self.cyclists.undock(index);
         self.cyclists.release(index);
@@ -14,7 +25,25 @@ impl DynamicWorld {
         let vehicle = &mut self.vehicles[index];
         // Adjust chassis height through the shared model setter so tires stay on
         // the same ground, including bridges. Keep heading and driving momentum.
+        let links = if vehicle.definition == Some(model) {
+            std::mem::take(&mut vehicle.baggage_links)
+        } else {
+            self.parked_carts.extend(vehicle.carts());
+            Vec::new()
+        };
         vehicle.set_catalog_model(Some(model));
+        if let Some((ground, yaw)) = on_foot {
+            vehicle.position = ground + glam::Vec3::Z * vehicle.ride_height();
+            vehicle.yaw = yaw;
+            vehicle.pitch = 0.;
+            vehicle.roll = 0.;
+            vehicle.grounded = true;
+            self.vehicle_spawns[index] = super::SpawnPoint {
+                point: (ground.truncate() / super::METERS_PER_UNIT).to_array(),
+                heading: Some(yaw),
+            };
+        }
+        vehicle.baggage_links = links;
         vehicle.sound_controls = Controls::default();
         self.entry = None;
         self.exit_on_right = false;

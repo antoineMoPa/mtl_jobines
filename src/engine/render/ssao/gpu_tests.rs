@@ -282,7 +282,7 @@ fn native_flight_visibility_reveals_landmarks_beyond_the_street_far_plane() {
 
 #[test]
 #[ignore = "requires a native GPU adapter"]
-fn native_elevation_ground_stays_clear_in_flight() {
+fn native_ground_and_airport_pavement_stay_clear_in_flight() {
     use crate::season::Season;
     use opencity::runtime::Vertex;
 
@@ -296,15 +296,44 @@ fn native_elevation_ground_stays_clear_in_flight() {
 
     for season in [Season::Summer, Season::Winter] {
         renderer.season = season;
-        for tag in [Vertex::DRY_TERRAIN, Vertex::SHORE_PROFILE, 0.] {
+        let runway = Vertex::runway_layout(0.65, 16.);
+        let mut runway_pixel = [0; 3];
+        for (kind, tag, painted, clear) in [
+            (SurfaceKind::Grass, Vertex::DRY_TERRAIN, false, true),
+            (SurfaceKind::Grass, Vertex::SHORE_PROFILE, false, true),
+            (SurfaceKind::Sidewalk, -3.25, false, true),
+            (SurfaceKind::Sidewalk, -3.5, false, true),
+            (SurfaceKind::Sidewalk, -3.75, false, true),
+            (SurfaceKind::Asphalt, runway, false, true),
+            (SurfaceKind::Asphalt, runway, true, true),
+            (SurfaceKind::Asphalt, 3., false, false),
+            (SurfaceKind::Sidewalk, 2., false, false),
+            (SurfaceKind::Grass, 0., false, false),
+        ] {
             let mut mesh = Mesh::default();
             mesh.quad(
                 [[-4., -4., 0.], [4., -4., 0.], [4., 4., 0.], [-4., 4., 0.]],
                 [0.12, 0.23, 0.075],
-                SurfaceKind::Grass,
+                kind,
             );
             for v in &mut mesh.vertices {
-                v.surface[1..].copy_from_slice(&[0.1, 0., tag]);
+                v.surface[1..].copy_from_slice(&[0.1, 1., tag]);
+            }
+            if painted {
+                let start = mesh.vertices.len();
+                mesh.quad(
+                    [
+                        [-1., -1., 0.00045],
+                        [1., -1., 0.00045],
+                        [1., 1., 0.00045],
+                        [-1., 1., 0.00045],
+                    ],
+                    [0.9, 0.92, 0.9],
+                    SurfaceKind::Marking,
+                );
+                for v in &mut mesh.vertices[start..] {
+                    v.surface[1..].copy_from_slice(&[0.5, 0., 1.]);
+                }
             }
             let ground = renderer.upload(&mesh);
             let mut capture = |scale| {
@@ -314,6 +343,18 @@ fn native_elevation_ground_stays_clear_in_flight() {
             };
             let street = capture(1.);
             let flight = capture(4.);
+            if tag == runway && season == Season::Summer {
+                let i = (120 * 320 + 160) * 4;
+                if painted {
+                    assert_ne!(
+                        runway_pixel,
+                        flight[i..i + 3],
+                        "runway paint must be visible"
+                    );
+                } else {
+                    runway_pixel.copy_from_slice(&flight[i..i + 3]);
+                }
+            }
             let mut differences = Vec::new();
             for y in 104..136 {
                 for x in 144..176 {
@@ -329,12 +370,15 @@ fn native_elevation_ground_stays_clear_in_flight() {
             }
             differences.sort_unstable();
             let median = differences[differences.len() / 2];
-            if tag == 0. {
-                assert!(median > 3, "authored grass lost atmospheric fog: {median}");
+            if !clear {
+                assert!(
+                    median > 3,
+                    "control surface lost atmospheric fog in {season:?} with tag {tag}: {median}"
+                );
             } else {
                 assert!(
                     median <= 1,
-                    "terrain color shifted with fog distance: {median}"
+                    "ground shifted in {season:?} with tag {tag}, painted {painted}: {median}"
                 );
             }
         }

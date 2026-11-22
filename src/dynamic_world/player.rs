@@ -89,15 +89,8 @@ pub struct Pedestrian {
     swim_phase: f32,
 }
 pub(super) fn blocked_by_vehicle(position: Vec3, vehicle: &Vehicle) -> bool {
-    if vehicle.has_baggage_trailer() {
-        let offset = position.truncate() - vehicle.trailer_axle();
-        let front = Vec2::from_angle(vehicle.yaw + vehicle.trailer_angle);
-        if (position.z - vehicle.position.z).abs() < 1.5
-            && offset.dot(front).abs() < 1.46 + RADIUS
-            && offset.dot(front.perp()).abs() < 0.81 + RADIUS
-        {
-            return true;
-        }
+    if !vehicle.baggage_links.is_empty() && vehicle.carts().any(|c| c.blocks(position, RADIUS)) {
+        return true;
     }
     let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
     let left = Vec2::new(-forward.y, forward.x);

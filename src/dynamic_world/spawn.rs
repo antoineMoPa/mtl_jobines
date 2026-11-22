@@ -157,7 +157,7 @@ impl Vehicle {
             roll: gradient.dot(left).atan(),
             steering: 0.,
             wheel_angle: 0.,
-            trailer_angle: 0.,
+            baggage_links: Vec::new(),
             flat_tires: [false; 4],
             metro_doors: 0.,
             doors: Default::default(),

@@ -42,7 +42,7 @@ impl DynamicWorld {
             heading: None,
         };
         let mut car = Vehicle::spawn_at(hermes.city(), spawn)?;
-        car.set_catalog_model(self.player().definition);
+        self.prepare_respawn(&mut car);
         if !self.clear_respawn(hermes, &car) {
             return Err("Choose clear ground with room for your car".into());
         }
@@ -71,7 +71,7 @@ impl DynamicWorld {
                 let Ok(mut car) = Vehicle::spawn_at(hermes.city(), spawn) else {
                     continue;
                 };
-                car.set_catalog_model(self.player().definition);
+                self.prepare_respawn(&mut car);
                 if !self.clear_respawn(hermes, &car) {
                     continue;
                 }
@@ -163,7 +163,7 @@ impl DynamicWorld {
             let Ok(mut vehicle) = Vehicle::spawn_at(hermes.city(), spawn) else {
                 continue;
             };
-            vehicle.set_catalog_model(self.player().definition);
+            self.prepare_respawn(&mut vehicle);
             // spawn_at chooses the uppermost support; reject a different stacked deck.
             if (vehicle.position.z - vehicle.ride_height() - position.z).abs() > 0.5
                 || !self.clear_respawn(hermes, &vehicle)
@@ -176,8 +176,15 @@ impl DynamicWorld {
         Err(format!("No clear driving lane within {max_distance} m"))
     }
 
+    fn prepare_respawn(&self, car: &mut Vehicle) {
+        car.set_catalog_model(self.player().definition);
+        car.baggage_links
+            .resize(self.player().baggage_links.len(), Default::default());
+    }
+
     fn finish_respawn(&mut self, hermes: &Hermes, vehicle: Vehicle, spawn: SpawnPoint) {
         self.crash = None;
+        self.traffic.claim_player_slot(self.player_vehicle.0);
         self.clear_chase();
         self.health = super::melee::PLAYER_HEALTH;
         self.crowd.cancel_bites();
@@ -214,41 +221,57 @@ impl DynamicWorld {
         let left = Vec2::new(-forward.y, forward.x);
         let base = vehicle.position.z - vehicle.ride_height();
         let steps = vehicle.length().ceil() as usize;
-        for step in 0..=steps {
+        let chassis = (0..=steps).flat_map(|step| {
             let along = (step as f32 / steps as f32 - 0.5) * vehicle.length();
-            for across in [-vehicle.width() * 0.5, 0., vehicle.width() * 0.5] {
+            [-vehicle.width() * 0.5, 0., vehicle.width() * 0.5].map(|across| {
                 let p = vehicle.position.truncate() + forward * along + left * across;
-                let xy = (p / METERS_PER_UNIT).to_array();
-                let expected = base + along * vehicle.pitch.tan() + across * vehicle.roll.tan();
-                let Some(support) = city.surface_at(xy, (expected + 0.5) / METERS_PER_UNIT) else {
-                    return false;
-                };
-                let ground = support.height * METERS_PER_UNIT;
-                let supported = matches!(
-                    support.kind,
-                    SurfaceKind::Asphalt | SurfaceKind::Grass | SurfaceKind::Sand
-                ) || (support.kind == SurfaceKind::Sidewalk
-                    && support.road.is_none());
-                if !supported
-                    || (ground - expected).abs() > 0.5
-                    || city.building_collision(
+                (
+                    p,
+                    base + along * vehicle.pitch.tan() + across * vehicle.roll.tan(),
+                )
+            })
+        });
+        let carts = vehicle.carts().flat_map(|cart| {
+            [-1.46, 0., 1.46].into_iter().flat_map(move |along| {
+                [-0.81, 0., 0.81].map(|across| {
+                    let p = cart.axle() + cart.rotation * Vec3::new(along, across, -0.52);
+                    (p.truncate(), p.z)
+                })
+            })
+        });
+        for (p, expected) in chassis.chain(carts) {
+            let xy = (p / METERS_PER_UNIT).to_array();
+            let Some(support) = city.surface_at(xy, (expected + 0.5) / METERS_PER_UNIT) else {
+                return false;
+            };
+            let ground = support.height * METERS_PER_UNIT;
+            let supported = matches!(
+                support.kind,
+                SurfaceKind::Asphalt | SurfaceKind::Grass | SurfaceKind::Sand
+            ) || (support.kind == SurfaceKind::Sidewalk && support.road.is_none());
+            if !supported
+                || (ground - expected).abs() > 0.5
+                || city.building_collision(
+                    xy,
+                    0.004,
+                    (ground + 0.1) / METERS_PER_UNIT,
+                    (ground + vehicle.height()) / METERS_PER_UNIT,
+                )
+                || city
+                    .road_barrier_contact(
                         xy,
                         0.004,
                         (ground + 0.1) / METERS_PER_UNIT,
                         (ground + vehicle.height()) / METERS_PER_UNIT,
                     )
-                    || city
-                        .road_barrier_contact(
-                            xy,
-                            0.004,
-                            (ground + 0.1) / METERS_PER_UNIT,
-                            (ground + vehicle.height()) / METERS_PER_UNIT,
-                        )
-                        .is_some()
-                    || self.props.blocked(p.extend(ground + 0.65))
-                {
-                    return false;
-                }
+                    .is_some()
+                || self.props.blocked(p.extend(ground + 0.65))
+                || self
+                    .parked_carts
+                    .iter()
+                    .any(|cart| cart.blocks(p.extend(ground + 0.65), 0.1))
+            {
+                return false;
             }
         }
         true

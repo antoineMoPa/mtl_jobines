@@ -75,6 +75,7 @@ impl Material {
     fn texture(self, broken: bool) -> ImpactTexture {
         let (pressure_decay, crush_decay, debris_decay, debris_filter) = match self {
             Self::Hard => (28., 18., 9., 0.13),
+            Self::Crash => (8., 6., 3.5, 0.24),
             Self::Body => (18., 11., 6., 0.19),
             Self::Fence => (34., 14., 3.8, 0.29),
             Self::Lamp => (26., 20., 5., 0.22),
@@ -687,7 +688,13 @@ impl Mix {
                         .0;
                     self.impact_position[slot] = hit.position;
                     self.impact_life[slot] = 1.4;
-                    self.impact_strength[slot] = (hit.speed / 14.).clamp(0.05, 1.) * 3.;
+                    // Keep the main crash transient audible as the exterior camera pulls back.
+                    let gain = if hit.material == Material::Crash {
+                        7.
+                    } else {
+                        3.
+                    };
+                    self.impact_strength[slot] = (hit.speed / 14.).clamp(0.05, 1.) * gain;
                     let p = &self.voices[CAR_VOICES + slot].parameters;
                     impact_parameters(p, hit.material, hit.broken);
                     p.impact.store(hit.serial as u32, Ordering::Relaxed);

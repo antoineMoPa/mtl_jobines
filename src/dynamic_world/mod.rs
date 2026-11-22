@@ -95,6 +95,7 @@ pub struct DynamicWorld {
     wakes: boats::Wakes,
     pub water_level: Option<f32>,
     vehicles: Vec<Vehicle>,
+    parked_carts: Vec<baggage::Cart>,
     // Authored parking occupies the slots after the initial player, before traffic.
     parked_vehicle_count: usize,
     player_vehicle: VehicleId,
@@ -189,6 +190,7 @@ impl DynamicWorld {
             metro: metro::Metro::new(hermes),
             airport: airport::Airport::new(hermes.city())?,
             vehicles: vec![vehicle],
+            parked_carts: Vec::new(),
             parked_vehicle_count: 0,
             boat_routes: Vec::new(),
             wakes: Default::default(),
@@ -464,8 +466,9 @@ impl DynamicWorld {
         self.vehicles
             .iter()
             .enumerate()
-            .filter(|(_, vehicle)| {
-                (!vehicle.is_aircraft() || vehicle.grounded)
+            .filter(|(index, vehicle)| {
+                !self.traffic.inactive(*index)
+                    && (!vehicle.is_aircraft() || vehicle.grounded)
                     && vehicle.velocity.length() <= 3.
                     && vehicle.entry_distance(position) <= 2.
             })
@@ -525,6 +528,7 @@ impl DynamicWorld {
                 self.cyclists.undock(index);
                 self.cyclists.release(index);
                 self.boat_routes.retain(|route| route.vehicle != index);
+                self.traffic.claim_player_slot(index);
                 self.player_vehicle = VehicleId(index);
                 self.pedestrian = None;
                 if occupied {
@@ -596,7 +600,17 @@ impl DynamicWorld {
         self.crowd.cancel_bites();
         self.metro.aboard = false;
         self.cyclists.undock(self.player_vehicle.0);
+        if self.traffic.inactive(self.player_vehicle.0) {
+            if let Some(start) = self.walking_spawn {
+                self.pedestrian =
+                    Some(Pedestrian::at(hermes.city(), start).expect("validated walking start"));
+                self.update_riders();
+                return;
+            }
+            self.traffic.claim_player_slot(self.player_vehicle.0);
+        }
         let definition = self.player().definition;
+        let cart_count = self.player().baggage_links.len();
         self.vehicles[self.player_vehicle.0] = Vehicle::spawn_supported(
             hermes.city(),
             self.vehicle_spawns[self.player_vehicle.0],
@@ -604,6 +618,9 @@ impl DynamicWorld {
         )
         .expect("validated parking position");
         self.vehicles[self.player_vehicle.0].set_catalog_model(definition);
+        self.vehicles[self.player_vehicle.0]
+            .baggage_links
+            .resize(cart_count, Default::default());
         self.pedestrian = self
             .walking_spawn
             .map(|start| Pedestrian::at(hermes.city(), start).expect("validated walking start"));
@@ -847,6 +864,7 @@ impl DynamicWorld {
         drop(phase);
         let phase = crate::telemetry::span("physics.contacts");
         self.check_wildlife_vehicle_contacts(dt);
+        contacts::parked_cart_contacts(&mut self.vehicles, &self.parked_carts);
         let contacts = contacts::resolve_with_contacts(&mut self.vehicles);
         self.cyclists.anchor_docked_bikes(&mut self.vehicles);
         self.patrol_contact(&contacts);
@@ -860,12 +878,7 @@ impl DynamicWorld {
         }
         for vehicle in &mut self.vehicles {
             for hit in &vehicle.sound_impacts[..vehicle.sound_impact_count] {
-                self.sound_serial = self.sound_serial.wrapping_add(1).max(1);
-                let slot = (self.sound_serial as usize - 1) % crate::audio::IMPACT_VOICES;
-                self.sound_impacts[slot] = crate::audio::Impact {
-                    serial: self.sound_serial,
-                    ..*hit
-                };
+                hit.publish(&mut self.sound_impacts, &mut self.sound_serial);
             }
             vehicle.sound_impact_count = 0;
         }
@@ -881,7 +894,10 @@ impl DynamicWorld {
         {
             let before = player.position;
             self.metro.walk(hermes, player, walk, dt, |position| {
-                self.props.blocked(position)
+                self.parked_carts
+                    .iter()
+                    .any(|c| c.blocks(position, player::RADIUS))
+                    || self.props.blocked(position)
                     || self
                         .vehicles
                         .iter()
@@ -1102,7 +1118,7 @@ impl DynamicWorld {
         }
     }
     fn vehicle_in_render_range(&self, index: usize, vehicle: &Vehicle) -> bool {
-        if self.cyclists.inactive(index) {
+        if self.traffic.inactive(index) || self.cyclists.inactive(index) {
             return false;
         }
         let distance = if vehicle.is_aircraft() {

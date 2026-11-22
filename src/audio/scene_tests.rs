@@ -98,6 +98,36 @@ fn pause_is_exact_silence_and_old_impacts_do_not_retrigger() {
     assert_eq!(mix.impact_life, [0.; 3]);
 }
 #[test]
+fn severe_crash_is_a_single_spatial_hit_at_chase_camera_distance() {
+    let bridge = bridge();
+    let mut mix = Mix::new(bridge.clone());
+    let mut frame = Frame::default();
+    frame.settings.ambience = 0.;
+    publish(&bridge, frame);
+    render(&mut mix, BLOCK * 2);
+    frame.impacts[0] = Impact {
+        serial: 1,
+        position: Vec3::X * 24.,
+        speed: 21.,
+        broken: true,
+        material: Material::Crash,
+        ..Default::default()
+    };
+    publish(&bridge, frame);
+    let energy = render(&mut mix, BLOCK * 5);
+    assert!(
+        energy > 0.001,
+        "crash should reach the chase camera: {energy}"
+    );
+    assert_eq!(mix.impact_position[0], frame.impacts[0].position);
+    let remaining = mix.impact_life[0];
+    publish(&bridge, frame);
+    render(&mut mix, BLOCK * 2);
+    assert!(mix.impact_life[0] < remaining);
+    assert_eq!(mix.impact_life.iter().filter(|life| **life > 0.).count(), 1);
+}
+
+#[test]
 fn latest_frame_has_no_backlog_and_callback_never_waits_for_publisher() {
     let bridge = bridge();
     let mut mix = Mix::new(bridge.clone());
@@ -261,6 +291,11 @@ fn material_changes_broadband_spectrum_and_debris_duration_at_equal_gain() {
     assert!(
         fence.1 > hard.1 * 2.,
         "breakable fence debris must outlast a hard contact: {fence:?} {hard:?}"
+    );
+    let crash = texture(Material::Crash);
+    assert!(
+        crash.1 > hard.1 * 2.,
+        "a severe crash should leave a longer audible tail than a bump"
     );
     let lamp = texture(Material::Lamp);
     let body = texture(Material::Body);

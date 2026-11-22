@@ -33,7 +33,7 @@ impl DynamicWorld {
 
     pub(super) fn begin_player_crash(&mut self) {
         let vehicle = &mut self.vehicles[self.player_vehicle.0];
-        let Some((origin, _)) = vehicle.severe_contact.take() else {
+        let Some((origin, speed)) = vehicle.severe_contact.take() else {
             return;
         };
         if self.pedestrian.is_some() || vehicle.is_bicycle() || vehicle.is_boat() {
@@ -52,6 +52,14 @@ impl DynamicWorld {
         vehicle.velocity = Vec3::ZERO;
         vehicle.angular_momentum = Vec3::ZERO;
         vehicle.sound_running = false;
+        crate::audio::Impact {
+            position: origin,
+            speed,
+            material: crate::audio::Material::Crash,
+            broken: true,
+            ..Default::default()
+        }
+        .publish(&mut self.sound_impacts, &mut self.sound_serial);
         self.entry = None;
         self.clear_chase();
     }
@@ -85,6 +93,9 @@ impl DynamicWorld {
             .or(hermes.walking_start())
             .or(hermes.default_start())
             .unwrap_or(self.vehicle_spawns[self.player_vehicle.0]);
+        let index = self.player_vehicle.0;
+        self.traffic
+            .despawn_player_vehicle(index, &mut self.vehicles[index]);
         let center = Vec2::from_array(start.point);
         self.props
             .update_focus((center * METERS_PER_UNIT).extend(0.));
@@ -161,7 +172,18 @@ mod tests {
             }
             assert!(world.player().collisions > 0);
             assert_eq!(world.crash().is_some(), severe);
+            let crash_sounds = || {
+                world
+                    .sound_impacts
+                    .iter()
+                    .filter(|hit| hit.material == crate::audio::Material::Crash)
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(crash_sounds().len(), usize::from(severe));
             if severe {
+                let event = *crash_sounds()[0];
+                assert_eq!(event.position, world.crash().unwrap().origin);
+                assert!(event.speed >= ROAD_IMPACT_MPS);
                 let wreck = world.player().position;
                 assert!(!world.toggle_vehicle(&hermes));
                 world.step(
@@ -175,8 +197,13 @@ mod tests {
                 );
                 assert!(world.crash().is_some() && world.is_driving());
                 assert_eq!(world.player().position, wreck);
+                assert!(world.vehicle_in_render_range(0, world.player()));
+                assert_eq!(world.sound_serial, event.serial);
                 world.step(&hermes, Controls::default(), WalkControls::default(), 0.11);
                 assert!(world.crash().is_none() && !world.is_driving());
+                assert!(!world.vehicle_in_render_range(0, world.player()));
+                assert_ne!(world.nearest_enterable_vehicle(wreck), Some(0));
+                assert!(!player::blocked_by_vehicle(wreck, world.player()));
                 assert!(
                     world
                         .player_position()
@@ -194,8 +221,43 @@ mod tests {
                     0.05,
                 );
                 assert!(world.player_position().x < 50.);
+                let foot = world.player_position();
+                assert!(world.switch_vehicle(world.player().definition.unwrap()));
+                assert!(world.is_driving() && world.vehicle_in_render_range(0, world.player()));
+                assert_eq!(world.player_position().truncate(), foot.truncate());
             }
         }
+    }
+
+    #[test]
+    fn boarding_after_recovery_releases_only_the_wreck_slot() {
+        let (hermes, mut world) = setup("vehicle-v2-01");
+        let wreck = world.player().position;
+        world.vehicles[0].record_severe_contact(wreck, 20., ROAD_IMPACT_MPS);
+        world.begin_player_crash();
+        world.step(
+            &hermes,
+            Controls::default(),
+            WalkControls::default(),
+            HOLD_SECONDS,
+        );
+        world.reset_player(&hermes);
+        assert!(!world.is_driving() && world.traffic.inactive(0));
+        let mut parked = Vehicle::spawn_at(
+            hermes.city(),
+            SpawnPoint {
+                point: [0.50, 0.52],
+                heading: Some(0.),
+            },
+        )
+        .unwrap();
+        parked.set_catalog_model(world.player().definition);
+        let next = world.vehicles.len();
+        world.vehicles.push(parked);
+        assert!(world.toggle_vehicle(&hermes));
+        assert_eq!(world.player_vehicle.0, next);
+        assert!(world.traffic.inactive(0) && !world.traffic.inactive(next));
+        assert!(!world.vehicle_in_render_range(0, &world.vehicles[0]));
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -267,6 +329,14 @@ mod tests {
                 assert!(world.crash().is_none());
             }
             assert!(world.player().grounded);
+            assert_eq!(
+                world
+                    .sound_impacts
+                    .iter()
+                    .filter(|hit| hit.material == crate::audio::Material::Crash)
+                    .count(),
+                usize::from(severe)
+            );
             assert_eq!(world.crash().is_some(), severe);
         }
     }

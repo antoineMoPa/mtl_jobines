@@ -30,12 +30,15 @@ fn contact_parts<'a>(
             chassis as &dyn Shape,
         )
     });
-    let trailer = v.has_baggage_trailer().then(|| {
+    let trailer = v.carts().map(move |cart| {
         static CART: std::sync::OnceLock<Cuboid> = std::sync::OnceLock::new();
         let shape = CART.get_or_init(|| Cuboid::new(vector![1.46, 0.81, 0.79]));
-        let rotation = glam::Quat::from_rotation_z(v.trailer_angle);
-        let center = super::baggage::hitch(v) + rotation * Vec3::new(-2.32, 0., 0.43);
-        (pose(center, rotation), shape as &dyn Shape)
+        let center = cart.axle() + cart.rotation * Vec3::Z * 0.43;
+        let rotation = orientation.conjugate() * cart.rotation;
+        (
+            pose(orientation.conjugate() * (center - v.position), rotation),
+            shape as &dyn Shape,
+        )
     });
     road.into_iter()
         .chain(trailer)
@@ -43,6 +46,38 @@ fn contact_parts<'a>(
             d.aircraft_hulls(v)
                 .map(move |(pivot, rotation, shape)| (pose(pivot, rotation), shape))
         }))
+}
+
+/// Unhitched carts stay braked where the driver dropped them.
+pub(super) fn parked_cart_contacts(vehicles: &mut [Vehicle], carts: &[super::baggage::Cart]) {
+    if carts.is_empty() {
+        return;
+    }
+    let cart_shape = Cuboid::new(vector![1.46, 0.81, 0.79]);
+    for v in vehicles {
+        for cart in carts {
+            let center = cart.axle() + cart.rotation * Vec3::Z * 0.43;
+            if center.distance_squared(v.position) > (v.contact_reach() + 2.).powi(2) {
+                continue;
+            }
+            let q = cart.rotation;
+            let pose = Isometry::from_parts(
+                Translation::new(center.x, center.y, center.z),
+                Rotation::new_unchecked(rapier3d::na::Quaternion::new(q.w, q.x, q.y, q.z)),
+            );
+            let chassis = Cuboid::new(vector![v.length() * 0.5, v.width() * 0.5, v.height() * 0.5]);
+            let hit = contact_parts(v, &chassis)
+                .filter_map(|(at, shape)| {
+                    contact(&at, shape, &pose, &cart_shape, 0.).ok().flatten()
+                })
+                .min_by(|a, b| a.dist.total_cmp(&b.dist));
+            if let Some(hit) = hit.filter(|h| h.dist < 0.) {
+                let n = Vec3::new(hit.normal1.x, hit.normal1.y, hit.normal1.z);
+                v.position += n * (hit.dist - 0.001);
+                v.velocity -= n * v.velocity.dot(n).max(0.);
+            }
+        }
+    }
 }
 
 fn contact_patch(

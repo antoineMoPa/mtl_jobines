@@ -9,11 +9,18 @@ enum Contact {
     Mineral,
 }
 
+// Airport slab and shoulder tags are decoded in fs_opaque_game.
+const AIRPORT_SLAB: f32 = -3.25;
+const AIRPORT_TURF_EDGE: f32 = -3.5;
+const AIRPORT_MINERAL_EDGE: f32 = -3.75;
+
 impl Contact {
-    fn marker(self) -> f32 {
-        match self {
-            Self::Turf => -1.5,
-            Self::Mineral => -1.75,
+    fn marker(self, airport: bool) -> f32 {
+        match (self, airport) {
+            (Self::Turf, true) => AIRPORT_TURF_EDGE,
+            (Self::Mineral, true) => AIRPORT_MINERAL_EDGE,
+            (Self::Turf, false) => -1.5,
+            (Self::Mineral, false) => -1.75,
         }
     }
 }
@@ -183,6 +190,10 @@ pub(super) fn add_edges(city: &City, mesh: &mut Mesh) {
         if left == right {
             continue;
         }
+        let airport = f
+            .name
+            .as_deref()
+            .is_some_and(|name| name.starts_with("airport_"));
         let strips = exposed_strips(city, &corners, z);
         for &(center, index) in &slabs[left..right] {
             if center.y < lo.y || center.y > hi.y {
@@ -209,6 +220,11 @@ pub(super) fn add_edges(city: &City, mesh: &mut Mesh) {
             {
                 continue;
             }
+            if airport {
+                for v in tri.iter_mut() {
+                    v.surface[3] = AIRPORT_SLAB;
+                }
+            }
             let mut pieces = vec![tri
                 .iter()
                 .map(|v| Vec2::new(v.position[0], v.position[1]))
@@ -227,7 +243,7 @@ pub(super) fn add_edges(city: &City, mesh: &mut Mesh) {
                         if let Some(s) = edge {
                             v.surface[1] = (s.origin - p).dot(s.outward);
                             v.surface[2] = s.width_scale;
-                            v.surface[3] = s.contact.marker();
+                            v.surface[3] = s.contact.marker(airport);
                         }
                         additions.vertices.push(v);
                     }
@@ -302,7 +318,7 @@ mod tests {
                     .iter()
                     .filter(|v| (v.position[0] + 3.97).abs() < 0.00001)
                     .collect();
-                t[0].surface[3] == -1.5
+                t[0].surface[3] == AIRPORT_TURF_EDGE
                     && lip.len() == 2
                     && (lip[0].position[1] - sample_y) * (lip[1].position[1] - sample_y) <= 0.
             }),
@@ -367,13 +383,17 @@ mod tests {
             .chunks_exact(3)
             .filter(|t| t[0].surface[0] == SurfaceKind::Sidewalk as u32 as f32)
         {
+            assert!(tri.iter().all(|v| matches!(
+                v.surface[3],
+                AIRPORT_SLAB | AIRPORT_TURF_EDGE | AIRPORT_MINERAL_EDGE
+            )));
             let on_edge: Vec<_> = tri.iter().filter(|v| v.position[0] == 1.).collect();
             if on_edge.len() != 2 {
                 continue;
             }
             let a = on_edge[0].position[1];
             let b = on_edge[1].position[1];
-            if tri[0].surface[3] == -1.5 {
+            if tri[0].surface[3] == AIRPORT_TURF_EDGE {
                 assert!((a + b) * 0.5 <= 0.25 || (a + b) * 0.5 >= 0.75);
                 exposed += (a - b).abs();
             } else {

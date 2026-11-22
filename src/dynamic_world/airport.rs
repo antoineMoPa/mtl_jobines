@@ -16,6 +16,7 @@ enum Strip {
 }
 
 struct Runway {
+    corners: [Vec2; 4],
     origin: Vec2,
     across: Vec2,
     size: Vec2,
@@ -33,7 +34,7 @@ impl Runway {
                 .iter()
                 .find(|f| f.name.as_deref() == Some(*name))
         })?;
-        let [a, b, c, _] = feature.points.as_slice() else {
+        let [a, b, c, d] = feature.points.as_slice() else {
             return None;
         };
         let origin = Vec2::from_array(*a);
@@ -47,6 +48,7 @@ impl Runway {
             .surface_at((origin + diagonal * 0.5).to_array(), f32::INFINITY)?
             .height;
         Some(Self {
+            corners: [*a, *b, *c, *d].map(Vec2::from_array),
             origin,
             across: width / size.x,
             size,

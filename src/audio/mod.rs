@@ -30,6 +30,7 @@ pub enum Material {
     Asphalt,
     Rubber,
     Gunshot,
+    Crash,
     Glass,
 }
 #[derive(Clone, Copy, Debug, Default)]
@@ -41,6 +42,14 @@ pub struct Impact {
     pub broken: bool,
     pub age: f32,
 }
+impl Impact {
+    pub(crate) fn publish(mut self, slots: &mut [Self; IMPACT_VOICES], serial: &mut u64) {
+        *serial = serial.wrapping_add(1).max(1);
+        self.serial = *serial;
+        slots[((self.serial - 1) % IMPACT_VOICES as u64) as usize] = self;
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Car {
     pub id: usize,

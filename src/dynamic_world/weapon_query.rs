@@ -147,15 +147,13 @@ impl DynamicWorld {
     }
 
     pub(super) fn officer_gunshot(&mut self, position: Vec3) {
-        self.sound_serial = self.sound_serial.wrapping_add(1).max(1);
-        let slot = (self.sound_serial as usize - 1) % self.sound_impacts.len();
-        self.sound_impacts[slot] = crate::audio::Impact {
-            serial: self.sound_serial,
+        crate::audio::Impact {
             position,
             speed: 10.,
             material: crate::audio::Material::Gunshot,
             ..Default::default()
-        };
+        }
+        .publish(&mut self.sound_impacts, &mut self.sound_serial);
     }
 
     pub(super) fn clear_officer_shot(&self, city: &City, hand: Vec3, target: Vec3) -> bool {
@@ -358,16 +356,14 @@ impl DynamicWorld {
             Target::Wildlife(id) => self.hit_wildlife(id),
             _ => {}
         }
-        self.sound_serial = self.sound_serial.wrapping_add(1).max(1);
-        let slot = (self.sound_serial as usize - 1) % self.sound_impacts.len();
-        self.sound_impacts[slot] = crate::audio::Impact {
-            serial: self.sound_serial,
+        crate::audio::Impact {
             position: contact.hit.point,
             speed: 7. * force,
             material: contact.hit.surface.sound(),
             broken,
-            age: 0.,
-        };
+            ..Default::default()
+        }
+        .publish(&mut self.sound_impacts, &mut self.sound_serial);
         Some(contact.hit)
     }
 }

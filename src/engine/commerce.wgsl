@@ -151,11 +151,23 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
         return vec4<f32>(filmic_display(mix(radiance,sky,fog)),1.0);
 }
 // No reachable discard, preserving early depth rejection for opaque scenery.
-@fragment fn fs_opaque_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
+@fragment fn fs_opaque_game(input:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
+    var v=input;
+    // Restore the concrete slab or shoulder material after reading the airport tag.
+    let tag=v.surface.w;
+    let apron=v.surface.x==2.0 && (tag== -3.25 || tag== -3.5 || tag== -3.75);
+    if apron {
+        v.surface.w=2.0;
+        if tag== -3.5 {v.surface.w= -1.5;}
+        if tag== -3.75 {v.surface.w= -1.75;}
+    }
+    let bits=u32(max(0.0,round(tag)));
+    let runway=v.surface.x==0.0 && (bits&3u)==1u && bits>3u;
     var surface=prepare_surface(v);
     // Elevation mesh tags from Vertex::DRY_TERRAIN and Vertex::SHORE_PROFILE.
     let terrain=v.surface.x==1.0 && (v.surface.w== -1.0 || v.surface.w==3.0);
-    if terrain {surface.fog=0.0;}
+    let clear_ground=terrain || apron || runway;
+    if clear_ground {surface.fog=0.0;}
     if v.surface.x>8.5 && v.surface.x<9.5 && v.surface.w>=2.0 && v.surface.w<=109.0 {
         let encoded=u32(v.surface.w);
         let base=encoded&15u;
@@ -192,8 +204,8 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
         return lamp_color(v);
     }
     let shaded=shade_local_surface(v,front,1.0,surface);
-    // Opaque terrain reserves zero scene alpha to bypass atmospheric haze in the composite.
-    return vec4<f32>(shaded.rgb,select(shaded.a,0.0,terrain));
+    // Clear ground reserves zero scene alpha to bypass atmospheric haze in the composite.
+    return vec4<f32>(shaded.rgb,select(shaded.a,0.0,clear_ground));
 }
 @fragment fn fs_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
     let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);let dx=dpdx(v.world);let dy=dpdy(v.world);

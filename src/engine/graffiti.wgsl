@@ -4,11 +4,12 @@
 struct PaintSettings {color_override:vec4<f32>,ranges:vec4<f32>};
 @group(3) @binding(5) var<uniform> paint_settings:PaintSettings;
 @fragment fn fs_paint(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
-    let surface=prepare_surface(v);
+    var surface=prepare_surface(v);
     let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);
     if v.surface.x==6.0 {
         // The supporting pavement already shades its own snow. Reveal paint only
         // through the uncovered fraction, including the soft edge of a plow pass.
+        if v.surface.w==1.0 {surface.fog=0.0;}
         let visible=1.0-winter_coverage(v,surface);
         if visible<=0.0 {discard;}
         return shade_surface_lit(v,front,visible,surface,local_irradiance(v.world,surface.normal));

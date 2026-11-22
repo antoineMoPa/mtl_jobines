@@ -692,6 +692,12 @@ impl Game {
             | PaletteAction::PlaceProps(_)
             | PaletteAction::ExpandNetwork
             | PaletteAction::GrowNetwork => self.open_construction(action),
+            PaletteAction::AttachCart => {
+                self.world.attach_baggage_cart();
+            }
+            PaletteAction::DetachCart => {
+                self.world.detach_baggage_cart();
+            }
             PaletteAction::UseBikeshare => {
                 if self.world.bikeshare_hint().is_some() && self.world.toggle_vehicle(&self.hermes)
                 {
@@ -1828,6 +1834,12 @@ impl ApplicationHandler<GameEvent> for Game {
                                         self.world.cancel_punch();
                                     }
                                     self.sync_aim_mouse();
+                                }
+                                KeyCode::KeyJ if !self.simulation_paused() => {
+                                    self.world.attach_baggage_cart();
+                                }
+                                KeyCode::KeyK if !self.simulation_paused() => {
+                                    self.world.detach_baggage_cart();
                                 }
                                 KeyCode::KeyO if !self.simulation_paused() => {
                                     self.world.toggle_door();

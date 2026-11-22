@@ -181,8 +181,8 @@ fn native_paint_keeps_soft_alpha_and_supports_wash_and_color_override() {
     let stats = r.visibility_stats(&[&paint], eye, look, 0.);
     assert_eq!(
         stats.shadow_vertices,
-        world.vertices.len() as u64,
-        "paint reached shadow draw ranges"
+        r.visibility_stats(&[&bare], eye, look, 0.).shadow_vertices,
+        "adding graffiti changed the base scene’s shadow draw range"
     );
 }
 

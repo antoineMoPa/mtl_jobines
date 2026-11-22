@@ -69,7 +69,7 @@ pub struct Vehicle {
     pub roll: f32,
     pub steering: f32,
     pub wheel_angle: f32,
-    pub(super) trailer_angle: f32,
+    pub(super) baggage_links: Vec<super::baggage::Link>,
     pub(super) flat_tires: [bool; 4],
     pub metro_doors: f32,
     pub(super) doors: super::doors::Doors,
@@ -158,7 +158,7 @@ impl Vehicle {
             roll: 0.,
             steering: 0.,
             wheel_angle: 0.,
-            trailer_angle: 0.,
+            baggage_links: Vec::new(),
             flat_tires: [false; 4],
             metro_doors: 0.,
             doors: Default::default(),
@@ -184,7 +184,7 @@ impl Vehicle {
         let previous_height = self.ride_height();
         self.definition = definition;
         self.damage = None;
-        self.trailer_angle = 0.;
+        self.baggage_links.clear();
         self.flat_tires = [false; 4];
         self.doors = Default::default();
         self.metro_doors = 0.;
@@ -373,11 +373,11 @@ impl Vehicle {
             for _ in 0..steps {
                 physics.step(self, city, input, sub_dt);
             }
-        } else if self.has_baggage_trailer() {
+        } else if !self.baggage_links.is_empty() {
             for _ in 0..steps {
-                let before = self.trailer_axle();
+                let before = self.previous_axles();
                 self.step_substep(city, input, sub_dt, buildings);
-                self.follow_baggage_hitch(before);
+                self.follow_hitches(before);
             }
         } else {
             for _ in 0..steps {
@@ -754,9 +754,9 @@ impl Vehicle {
         }
         let body_probes = [-self.length() * 0.28, 0., self.length() * 0.28]
             .map(|x| (self.position.truncate() + forward * x, axis * x, radius));
-        let trailer_probes = self.has_baggage_trailer().then(|| {
-            let axle = self.trailer_axle();
-            let heading = Vec2::from_angle(self.yaw + self.trailer_angle);
+        let trailer_probes = self.carts().flat_map(|cart| {
+            let axle = cart.axle().truncate();
+            let heading = (cart.rotation * Vec3::X).truncate();
             [-0.8, 0., 0.8].map(|x| {
                 let center = axle + heading * x;
                 (center, (center - self.position.truncate()).extend(0.), 0.81)
@@ -773,8 +773,7 @@ impl Vehicle {
             {
                 continue;
             }
-            for &(center, arm, radius) in body_probes.iter().chain(trailer_probes.iter().flatten())
-            {
+            for (center, arm, radius) in body_probes.into_iter().chain(trailer_probes.clone()) {
                 let mut inside = false;
                 let mut nearest = Vec2::ZERO;
                 let mut edge_normal = Vec2::X;

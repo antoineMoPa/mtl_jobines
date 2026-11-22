@@ -96,6 +96,9 @@ impl VehicleScenery {
             }
             for (i, (part, transform)) in self.models[model].iter_mut().zip(transforms).enumerate()
             {
+                if catalog::definitions()[model].cart_part(i) {
+                    continue;
+                }
                 let transform = if player {
                     player_pose_delta * transform
                 } else {
@@ -119,6 +122,16 @@ impl VehicleScenery {
                 columns[2][3] = ((dents << 2) | u32::from(paint)) as f32;
                 part.transforms.push(columns);
             }
+        }
+        for (model, part, transform, player) in world.baggage_cart_instances() {
+            let pose = if player {
+                player_pose_delta * transform
+            } else {
+                transform
+            };
+            let mut columns = pose.to_cols_array_2d();
+            columns[1][3] = if player { 1. } else { 0. };
+            self.models[model][part].transforms.push(columns);
         }
         renderer.local_lights.hulls.set(hulls);
         for part in self.models.iter_mut().flatten() {

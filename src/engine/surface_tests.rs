@@ -64,6 +64,12 @@ fn native_street_surface_capture() {
             Vec3::new(-1.46, -1.34, 0.042),
         ),
         (
+            "runway-edge",
+            None,
+            Vec3::new(-1.658, -1.43, 0.0408),
+            Vec3::new(-1.65, -1.418, 0.040075),
+        ),
+        (
             "runway-flyover",
             None,
             Vec3::new(-0.82, -2.6, 1.25),

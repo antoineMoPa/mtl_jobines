@@ -69,6 +69,8 @@ pub(super) struct Traffic {
     graph: Arc<TrafficPaths>,
     drivers: Vec<Driver>,
     inactive: Vec<usize>,
+    // While on foot, the player still owns a stable slot for explicit vehicle switches.
+    despawned_player: Option<usize>,
     abandoned: Vec<usize>,
     spawns: Vec<(usize, SpawnPoint)>,
     pub(super) time: f32,
@@ -98,6 +100,7 @@ impl Traffic {
             graph: graph.clone(),
             drivers: Vec::new(),
             inactive: Vec::new(),
+            despawned_player: None,
             abandoned: Vec::new(),
             spawns: Vec::new(),
             time: 0.,
@@ -352,7 +355,24 @@ impl Traffic {
             .map_or(1., |d| self.fade(d))
     }
     pub fn inactive(&self, index: usize) -> bool {
-        self.inactive.contains(&index)
+        self.despawned_player == Some(index) || self.inactive.contains(&index)
+    }
+    pub(super) fn despawn_player_vehicle(&mut self, index: usize, vehicle: &mut Vehicle) {
+        self.release(index);
+        self.interacted.remove(&index);
+        self.despawned_player = Some(index);
+        vehicle.position.z = -1000.;
+        vehicle.velocity = Vec3::ZERO;
+        vehicle.sound_running = false;
+        vehicle.set_catalog_model(vehicle.definition);
+    }
+    pub(super) fn claim_player_slot(&mut self, next: usize) {
+        if let Some(previous) = self.despawned_player.take() {
+            if previous != next {
+                self.interacted.remove(&previous);
+                self.inactive.push(previous);
+            }
+        }
     }
     pub fn take_spawns(&mut self) -> Vec<(usize, SpawnPoint)> {
         std::mem::take(&mut self.spawns)

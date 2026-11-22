@@ -346,9 +346,6 @@ impl Part {
             stem + Quat::from_rotation_z(vehicle.steering) * (self.pivot - stem)
         } else if matches!(self.role, PartRole::AircraftGear(_)) {
             folded_gear_pivot(self.pivot, vehicle.aircraft_gear)
-        } else if self.role == PartRole::BaggageWheel {
-            let hitch = super::baggage::hitch(vehicle);
-            hitch + Quat::from_rotation_z(vehicle.trailer_angle) * (self.pivot - hitch)
         } else if self.role == PartRole::Pedal {
             let crank = super::cycling_pose::CRANK - Vec3::Z * vehicle.ride_height();
             crank + Quat::from_rotation_y(vehicle.pedal_angle) * (self.pivot - crank)
@@ -965,13 +962,7 @@ impl Definition {
             PartRole::Pedal => Quat::IDENTITY,
             PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
             PartRole::Outboard => Quat::from_rotation_z(-vehicle.steering),
-            PartRole::BaggageTrailer => Quat::from_rotation_z(vehicle.trailer_angle),
-            PartRole::BaggageWheel => {
-                Quat::from_rotation_z(vehicle.trailer_angle)
-                    * Quat::from_rotation_y(
-                        vehicle.wheel_angle * self.config.physics.wheel_radius / 0.28,
-                    )
-            }
+            PartRole::BaggageTrailer | PartRole::BaggageWheel => Quat::IDENTITY,
             PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
             PartRole::FrontWheel => {
                 Quat::from_rotation_z(vehicle.steering) * Quat::from_rotation_y(vehicle.wheel_angle)
@@ -989,6 +980,25 @@ impl Definition {
                 * Mat4::from_quat(rotation);
         }
         Mat4::from_rotation_translation(rotation, pivot)
+    }
+
+    pub fn cart_part(&self, index: usize) -> bool {
+        matches!(
+            self.parts[index].role,
+            PartRole::BaggageTrailer | PartRole::BaggageWheel
+        )
+    }
+
+    pub(super) fn cart_parts(&self, spin: f32) -> impl Iterator<Item = (usize, Mat4)> + '_ {
+        let eye = super::baggage::hitch(self.config.physics.height_offset);
+        self.parts.iter().enumerate().filter_map(move |(i, p)| {
+            let rotation = match p.role {
+                PartRole::BaggageTrailer => Quat::IDENTITY,
+                PartRole::BaggageWheel => Quat::from_rotation_y(spin),
+                _ => return None,
+            };
+            Some((i, Mat4::from_rotation_translation(rotation, p.pivot - eye)))
+        })
     }
 
     pub fn part_transforms(&self, vehicle: &super::Vehicle) -> Vec<Mat4> {
@@ -1025,13 +1035,7 @@ impl Definition {
                 PartRole::Pedal => Quat::IDENTITY,
                 PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
                 PartRole::Outboard => Quat::from_rotation_z(-vehicle.steering),
-                PartRole::BaggageTrailer => Quat::from_rotation_z(vehicle.trailer_angle),
-                PartRole::BaggageWheel => {
-                    Quat::from_rotation_z(vehicle.trailer_angle)
-                        * Quat::from_rotation_y(
-                            vehicle.wheel_angle * self.config.physics.wheel_radius / 0.28,
-                        )
-                }
+                PartRole::BaggageTrailer | PartRole::BaggageWheel => Quat::IDENTITY,
                 PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
                 PartRole::FrontWheel => {
                     Quat::from_rotation_z(vehicle.steering)

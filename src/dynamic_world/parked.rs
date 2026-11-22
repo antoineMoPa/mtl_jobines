@@ -51,6 +51,9 @@ impl DynamicWorld {
         for parked in hermes.parked_vehicles() {
             let mut vehicle = Vehicle::spawn_at(hermes.city(), parked.start)?;
             vehicle.set_catalog_model(Some(parked.model));
+            if vehicle.is_baggage_tug() {
+                vehicle.load_airport_train();
+            }
             // An explicit launch/reload position has priority over a parked visitor.
             if vehicles_overlap(&vehicle, self.player()) {
                 continue;

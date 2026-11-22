@@ -54,6 +54,8 @@ pub(super) enum PaletteAction {
     ResumeDriving,
     InteractWithCat,
     UseBikeshare,
+    AttachCart,
+    DetachCart,
     #[cfg(not(target_arch = "wasm32"))]
     ExpandNetwork,
     #[cfg(not(target_arch = "wasm32"))]
@@ -601,6 +603,37 @@ impl Palette {
                     if clicked {
                         selected = Some(action);
                     }
+                }
+                if let Some((count, attach, detach)) = world.baggage_hitch_status() {
+                    egui::Area::new("baggage_hitch".into())
+                        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -30.))
+                        .show(&ctx, |ui| {
+                            ui.horizontal_wrapped(|ui| {
+                                super::tooltip::message(ui, &format!("Remorques {count}/4"));
+                                let keyboard = !super::app::mobile_enabled();
+                                if attach
+                                    && super::tooltip::action(
+                                        ui,
+                                        keyboard.then_some("J"),
+                                        "Atteler",
+                                    )
+                                {
+                                    selected = Some(PaletteAction::AttachCart);
+                                }
+                                if detach
+                                    && super::tooltip::action(
+                                        ui,
+                                        keyboard.then_some("K"),
+                                        "Dételer",
+                                    )
+                                {
+                                    selected = Some(PaletteAction::DetachCart);
+                                }
+                                if !attach && count < 4 {
+                                    super::tooltip::message(ui, "Reculez vers le timon");
+                                }
+                            });
+                        });
                 }
                 super::job_feed::player_status(
                     &ctx,

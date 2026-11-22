@@ -18,14 +18,17 @@ fn xy(v: &Vertex) -> Vec2 {
 }
 
 pub(super) fn cut_runway(mesh: &mut Mesh, runway: &Runway) {
-    let end = runway.point(runway.size);
-    let along = runway.across.perp();
-    let edges = [
-        (runway.origin, runway.across),
-        (end, -runway.across),
-        (runway.origin, along),
-        (end, -along),
-    ];
+    let [a, b, c, d] = runway.corners;
+    let corners = if (b - a).perp_dot(d - a) >= 0. {
+        [a, b, c, d]
+    } else {
+        [a, d, c, b]
+    };
+    let edges: [(Vec2, Vec2); 4] = std::array::from_fn(|i| {
+        let a = corners[i];
+        (a, (corners[(i + 1) % 4] - a).perp())
+    });
+    let mut bottom = runway.height;
     let mut write = 0;
     let mut fragments = Vec::new();
     for read in (0..mesh.vertices.len()).step_by(3) {
@@ -40,6 +43,10 @@ pub(super) fn cut_runway(mesh: &mut Mesh, runway: &Runway) {
             }
             write += 3;
             continue;
+        }
+
+        for v in tri {
+            bottom = bottom.min(v.position[2]);
         }
 
         // Emit the part outside each successive half-plane. The polygon left
@@ -79,6 +86,26 @@ pub(super) fn cut_runway(mesh: &mut Mesh, runway: &Runway) {
     }
     mesh.vertices.truncate(write);
     mesh.vertices.append(&mut fragments);
+
+    // The cut reaches the terrain surface, which may sit below the pavement.
+    // Close that vertical opening using the exact top edges of the authored slab.
+    if bottom < runway.height {
+        for i in 0..4 {
+            let a = corners[i];
+            let b = corners[(i + 1) % 4];
+            mesh.quad(
+                [
+                    b.extend(runway.height),
+                    a.extend(runway.height),
+                    a.extend(bottom),
+                    b.extend(bottom),
+                ]
+                .map(|v| v.to_array()),
+                [0.22, 0.25, 0.27],
+                SurfaceKind::Prop,
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -106,6 +133,35 @@ mod tests {
             let region = Region::radius(r.center().to_array(), r.size.y * 0.55).unwrap();
             let mut mesh = city.mesh(region, 0.04).unwrap();
             append_scenery(city, &mut mesh);
+            for i in 0..4 {
+                let a = r.corners[i];
+                let b = r.corners[(i + 1) % 4];
+                let top = [a, b].map(|p| {
+                    mesh.vertices
+                        .iter()
+                        .find(|v| v.surface[0] == SurfaceKind::Asphalt as u32 as f32 && xy(v) == p)
+                        .unwrap()
+                        .position
+                });
+                let outside = (a + b) * 0.5 + ((a + b) * 0.5 - r.center()) * 0.001;
+                let ground = city
+                    .surface_at(outside.to_array(), f32::INFINITY)
+                    .unwrap()
+                    .height;
+                let side: Vec<_> = mesh
+                    .vertices
+                    .chunks_exact(3)
+                    .filter(|t| t.iter().all(|v| xy(v) == a || xy(v) == b) && t[0].normal[2] == 0.)
+                    .collect();
+                assert!(side
+                    .iter()
+                    .any(|t| top.iter().all(|p| t.iter().any(|v| v.position == *p))));
+                for corner in [a, b] {
+                    assert!(side
+                        .iter()
+                        .any(|t| t.iter().any(|v| xy(v) == corner && v.position[2] <= ground)));
+                }
+            }
             for fraction in [-0.001, 0.001, 0.23, 0.57, 0.999, 1.001] {
                 for across in [
                     -0.002,
