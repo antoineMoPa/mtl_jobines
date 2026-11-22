@@ -1,5 +1,5 @@
 //! Immutable map geometry is built per map revision, then drawn in spatial batches.
-//! Driving only selects GPU buffers; it never rebuilds or rasterizes the map.
+//! Gameplay uploads visible batches first and fills nearby buffers over subsequent frames.
 use super::render::{GpuMesh, Renderer};
 use crate::hermes::Hermes;
 use opencity::runtime::Mesh;
@@ -16,8 +16,12 @@ struct Batch {
 pub struct Scenery {
     pub(super) grass: super::render::SupportCache,
     pub(super) metro: crate::hermes::metro::MetroMap,
+    banks: super::snow::banks::Banks,
+    winter: bool,
     world: Vec<Batch>,
     details: Vec<Batch>,
+    pending_world: Option<PendingLayer>,
+    pending_details: Option<PendingLayer>,
     paint: super::graffiti::Nearby,
     models: Vec<GpuMesh>,
 }
@@ -86,24 +90,83 @@ fn partition(mesh: &mut Mesh) -> Vec<([f32; 4], Vec<Range<usize>>, bool)> {
     }
     groups
 }
-fn batches(renderer: &Renderer, mut mesh: Mesh) -> Vec<Batch> {
-    partition(&mut mesh)
-        .into_iter()
-        .map(|(bounds, ranges, infrastructure)| Batch {
-            infrastructure,
-            bounds,
-            meshes: ranges
-                .into_iter()
-                .map(|range| {
-                    if infrastructure {
-                        renderer.upload_vertices(&mesh.vertices[range])
-                    } else {
-                        renderer.upload_scenery_vertices(&mesh.vertices[range])
-                    }
-                })
-                .collect(),
-        })
-        .collect()
+// Keep one CPU vertex allocation per layer until all its draw ranges reach the GPU.
+struct PendingLayer {
+    mesh: Mesh,
+    groups: Vec<(usize, std::collections::VecDeque<Range<usize>>)>,
+}
+
+impl PendingLayer {
+    fn partition(mut mesh: Mesh) -> (Vec<Batch>, Self) {
+        let mut batches = Vec::new();
+        let mut groups = Vec::new();
+        for (bounds, ranges, infrastructure) in partition(&mut mesh) {
+            groups.push((batches.len(), ranges.into()));
+            batches.push(Batch {
+                bounds,
+                infrastructure,
+                meshes: Vec::new(),
+            });
+        }
+        (batches, Self { mesh, groups })
+    }
+
+    fn upload(
+        &mut self,
+        renderer: &Renderer,
+        batches: &mut [Batch],
+        center: [f32; 2],
+        radius: f32,
+    ) {
+        // Finish every intersecting group before drawing, including on teleport or zoom.
+        // Spend at most four spare draw uploads per layer on the next nearest group.
+        let mut nearest = None;
+        let mut best = f32::INFINITY;
+        for (index, _) in &self.groups {
+            let distance = batches[*index].distance(center);
+            if distance > radius && distance < best {
+                nearest = Some(*index);
+                best = distance;
+            }
+        }
+        self.groups.retain_mut(|(index, ranges)| {
+            let batch = &mut batches[*index];
+            let count = if batch.distance(center) <= radius {
+                ranges.len()
+            } else if Some(*index) == nearest {
+                ranges.len().min(4)
+            } else {
+                0
+            };
+            for range in ranges.drain(..count) {
+                let vertices = &self.mesh.vertices[range];
+                batch.meshes.push(if batch.infrastructure {
+                    renderer.upload_vertices(vertices)
+                } else {
+                    renderer.upload_scenery_vertices(vertices)
+                });
+            }
+            !ranges.is_empty()
+        });
+    }
+}
+
+impl Batch {
+    // Chebyshev distance preserves the square selection used for drawing.
+    fn distance(&self, [x, y]: [f32; 2]) -> f32 {
+        (self.bounds[0] - x)
+            .max(x - self.bounds[2])
+            .max(self.bounds[1] - y)
+            .max(y - self.bounds[3])
+            .max(0.)
+    }
+}
+
+fn world_radius(span: Option<f32>, aspect: f32, flight_visibility: f32) -> f32 {
+    span.map_or_else(
+        || crate::performance::draw_radius(8.) + 8. * (flight_visibility - 1.),
+        |span| (span * aspect.max(1.) * 1.5).max(8.),
+    )
 }
 // Identity placements already contain world coordinates. Give each spatial draw its
 // own bounds instead of a single box covering the entire metro loop.
@@ -139,6 +202,12 @@ pub(super) fn model_batches(
 }
 impl Scenery {
     pub fn new(renderer: &Renderer, hermes: &mut Hermes) -> Self {
+        let mut scenery = Self::streamed(renderer, hermes);
+        scenery.upload_neighborhood(renderer, [0.; 2], f32::INFINITY, f32::INFINITY);
+        scenery
+    }
+
+    pub fn streamed(renderer: &Renderer, hermes: &mut Hermes) -> Self {
         let _span = mtl_world::telemetry::span("map.scenery.prepare_upload");
         let (world, details) = hermes.take_geometry();
         renderer.snow.set_geometry(&[&world, &details]);
@@ -148,47 +217,87 @@ impl Scenery {
             .iter()
             .flat_map(|group| model_batches(renderer, &group.mesh, &group.transforms))
             .collect();
+        let banks = super::snow::banks::Banks::new(&world);
+        let (world, pending_world) = PendingLayer::partition(world);
+        let (details, pending_details) = PendingLayer::partition(details);
         Self {
             grass: Default::default(),
             metro: crate::hermes::metro::MetroMap::from_city(hermes.city()),
             models,
-            world: batches(renderer, world),
-            details: batches(renderer, details),
+            banks,
+            winter: false,
+            world,
+            details,
+            pending_world: Some(pending_world),
+            pending_details: Some(pending_details),
             paint,
+        }
+    }
+    fn upload_neighborhood(
+        &mut self,
+        renderer: &Renderer,
+        center: [f32; 2],
+        world_radius: f32,
+        detail_radius: f32,
+    ) {
+        for (pending, batches, radius) in [
+            (&mut self.pending_world, &mut self.world, world_radius),
+            (&mut self.pending_details, &mut self.details, detail_radius),
+        ] {
+            if let Some(layer) = pending {
+                layer.upload(renderer, batches, center, radius);
+                if layer.groups.is_empty() {
+                    *pending = None;
+                }
+            }
+        }
+    }
+
+    pub fn for_frame(
+        &mut self,
+        renderer: &Renderer,
+        center: [f32; 2],
+        preview: bool,
+    ) -> (Vec<&GpuMesh>, &crate::hermes::metro::MetroMap) {
+        let aspect = renderer.config.width as f32 / renderer.scene_height() as f32;
+        let radius = world_radius(
+            renderer.construction_span,
+            aspect,
+            renderer.flight_visibility,
+        );
+        self.upload_neighborhood(
+            renderer,
+            center,
+            radius,
+            crate::performance::draw_radius(1.5),
+        );
+        (self.visible_batches(center, radius, preview), &self.metro)
+    }
+
+    pub fn update_winter(
+        &mut self,
+        renderer: &mut Renderer,
+        world: &crate::dynamic_world::DynamicWorld,
+        city: &opencity::runtime::City,
+        eye: glam::Vec3,
+        time: f32,
+    ) {
+        let previous = self.winter;
+        self.winter = renderer.season == crate::season::Season::Winter;
+        renderer.update_wheel_snow(world, city, eye, time, previous != self.winter);
+        if self.winter {
+            self.banks.update(renderer, eye);
         }
     }
     pub fn update_graffiti(&mut self, renderer: &Renderer, center: [f32; 2]) {
         self.paint.update(renderer, center);
     }
     pub fn visible(&self, center: [f32; 2]) -> Vec<&GpuMesh> {
-        self.visible_in_view(center, None, 1.)
+        self.visible_batches(center, world_radius(None, 1., 1.), false)
     }
-    pub fn visible_in_view(
-        &self,
-        center: [f32; 2],
-        span: Option<f32>,
-        aspect: f32,
-    ) -> Vec<&GpuMesh> {
-        self.visible_with_road_preview(center, span, aspect, false, 1.)
-    }
-    pub fn visible_with_road_preview(
-        &self,
-        center: [f32; 2],
-        span: Option<f32>,
-        aspect: f32,
-        preview: bool,
-        flight_visibility: f32,
-    ) -> Vec<&GpuMesh> {
-        let intersects = |b: &Batch, radius: f32| {
-            b.bounds[0] <= center[0] + radius
-                && b.bounds[2] >= center[0] - radius
-                && b.bounds[1] <= center[1] + radius
-                && b.bounds[3] >= center[1] - radius
-        };
-        let world_radius = span.map_or_else(
-            || crate::performance::draw_radius(8.) + 8. * (flight_visibility - 1.),
-            |span| (span * aspect.max(1.) * 1.5).max(8.),
-        );
+
+    fn visible_batches(&self, center: [f32; 2], world_radius: f32, preview: bool) -> Vec<&GpuMesh> {
+        let intersects = |b: &Batch, radius: f32| b.distance(center) <= radius;
         self.world
             .iter()
             .filter(|b| (!preview || !b.infrastructure) && intersects(b, world_radius))
@@ -198,6 +307,7 @@ impl Scenery {
                     .filter(|b| intersects(b, crate::performance::draw_radius(1.5))),
             )
             .flat_map(|b| &b.meshes)
+            .chain(self.banks.visible().filter(|_| self.winter && !preview))
             .chain(self.models.iter())
             .chain(self.paint.visible())
             .collect()
@@ -206,6 +316,43 @@ impl Scenery {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    #[ignore = "requires a native GPU adapter"]
+    fn staged_upload_finishes_visible_groups_and_follows_teleports() {
+        use super::{PendingLayer, Renderer};
+        use opencity::runtime::{Mesh, SurfaceKind};
+
+        let renderer = pollster::block_on(Renderer::new(None, 64, 64)).unwrap();
+        let mut mesh = Mesh::default();
+        // Each group contains six separate draws, more than one frame of prefetch.
+        for x in [0., 10., 20.] {
+            for dx in [0., 0.5, 1.] {
+                for y in [0., 0.5] {
+                    let x = x + dx;
+                    mesh.triangle(
+                        [[x, y, 0.], [x + 0.1, y, 0.], [x, y + 0.1, 0.]],
+                        [1.; 3],
+                        SurfaceKind::Asphalt,
+                        [0.; 3],
+                    );
+                }
+            }
+        }
+        let (mut batches, mut pending) = PendingLayer::partition(mesh);
+        pending.upload(&renderer, &mut batches, [0., 0.], 2.);
+        assert_eq!(
+            batches.iter().map(|b| b.meshes.len()).collect::<Vec<_>>(),
+            [6, 4, 0]
+        );
+        pending.upload(&renderer, &mut batches, [20., 0.], 2.);
+        assert_eq!(
+            batches.iter().map(|b| b.meshes.len()).collect::<Vec<_>>(),
+            [6, 6, 6]
+        );
+        assert!(pending.groups.is_empty());
+    }
+
     #[test]
     fn small_draw_batches_preserve_original_radius_groups_and_triangles() {
         use opencity::runtime::{Mesh, Vertex};

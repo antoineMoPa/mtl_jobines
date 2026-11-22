@@ -1148,7 +1148,7 @@ fn throttle_brake_and_fixed_step_remain_finite() {
     assert!(v.position.is_finite());
 }
 #[test]
-fn grass_reduces_acceleration_and_increases_coasting_loss() {
+fn grass_has_lower_acceleration_and_firmer_slide_recovery() {
     let city = City::from_program(
         &opencity::parse(
             "road street: carlane; end street(-25,3,-20,3); ground=land(-26,2,\
@@ -1178,6 +1178,19 @@ fn grass_reduces_acceleration_and_increases_coasting_loss() {
         grass.step(&city, Controls::default(), 1. / 120.);
     }
     assert!(asphalt.velocity.x > grass.velocity.x);
+
+    // A car that starts sliding sideways at 8 m/s should shed at least
+    // 3 m/s of that slip in a quarter second on dry grass.
+    grass.velocity = Vec3::new(12., 8., 0.);
+    for _ in 0..30 {
+        grass.step(&city, Controls::default(), 1. / 120.);
+        assert_eq!(grass.surface, SurfaceKind::Grass);
+    }
+    assert!(
+        grass.velocity.y.abs() < 5.,
+        "sideways speed {}",
+        grass.velocity.y
+    );
 }
 #[test]
 fn uphill_gravity_rolls_unpowered_vehicle_downhill() {

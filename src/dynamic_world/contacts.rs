@@ -224,6 +224,59 @@ mod tests {
         }
     }
 
+    #[test]
+    fn repeated_vehicle_impacts_loosen_then_release_only_the_struck_panels() {
+        use super::super::{
+            catalog,
+            vehicle::damage::{Piece, Zone},
+        };
+        let hermes = crate::hermes::Hermes::test_map();
+        let model = catalog::definitions()
+            .iter()
+            .position(|d| d.config.research_id == "vehicle-12")
+            .unwrap();
+        let mut a = Vehicle::spawn(hermes.city());
+        a.set_catalog_model(Some(model));
+        a.yaw = 0.;
+        let mut cars = [a.clone(), a];
+        for hit in 1..=3 {
+            for v in &mut cars {
+                v.angular_momentum = Vec3::ZERO;
+                if let Some(d) = &mut v.damage {
+                    d.tick(1.);
+                }
+            }
+            cars[0].position = Vec3::Z * 2.;
+            // Nose of the moving car meets the parked SUV's left front quarter.
+            cars[1].yaw = std::f32::consts::FRAC_PI_2;
+            cars[1].position = cars[0].position
+                + Vec3::new((cars[0].length() + cars[1].width()) * 0.5 - 0.05, -1.4, 0.);
+            cars[0].velocity = Vec3::X * 22.;
+            cars[1].velocity = Vec3::ZERO;
+            resolve(&mut cars);
+            for (v, zone) in cars.iter().zip([Zone::Nose, Zone::LeftFront]) {
+                let d = v.damage.as_ref().unwrap();
+                assert!(d.strain(zone) > 0.);
+            }
+            let panel = catalog::definitions()[model]
+                .crash_pieces()
+                .find(|(_, p, _)| *p == Piece::Panel(Zone::Nose))
+                .unwrap()
+                .0;
+            assert_eq!(
+                cars[0]
+                    .damage
+                    .as_ref()
+                    .unwrap()
+                    .loose
+                    .iter()
+                    .any(|p| p.part == panel),
+                hit == 3
+            );
+            assert!(cars[1].damage.as_ref().unwrap().loose.is_empty());
+        }
+    }
+
     fn kinetic_energy(cars: &[Vehicle]) -> f32 {
         cars.iter()
             .map(|car| {

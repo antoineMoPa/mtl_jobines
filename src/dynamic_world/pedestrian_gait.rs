@@ -257,9 +257,6 @@ pub struct Gait {
     landing: Option<([Mat4; JOINT_LIMIT], f32)>,
 }
 impl Gait {
-    pub(super) fn both_feet_settled(&self) -> bool {
-        !self.planned && self.feet_aligned()
-    }
     fn feet_aligned(&self) -> bool {
         !self.feet.iter().enumerate().any(|(i, f)| {
             let ankle = self.rig.ankles[i];

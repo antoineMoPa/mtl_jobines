@@ -48,6 +48,7 @@ pub struct TrafficPath {
     pub speed: SpeedClass,
     pub turn: Turn,
     pub next: Vec<usize>,
+    pub adjacent: Vec<usize>,
     pub signal: Option<usize>,
     pub junction: Option<usize>,
     start_ref: Option<String>,
@@ -67,6 +68,7 @@ impl TrafficPath {
             speed,
             turn: Turn::Straight,
             next: Vec::new(),
+            adjacent: Vec::new(),
             signal: None,
             junction: None,
             start_ref: None,
@@ -323,6 +325,7 @@ impl TrafficPaths {
                 RoadRole::Ordinary if lanes.len() > 2 => SpeedClass::Arterial,
                 RoadRole::Ordinary => SpeedClass::Local,
             };
+            let mut road_paths = Vec::<(usize, bool, usize)>::new();
             for (order, &lane) in lanes.iter().enumerate() {
                 let direction = match road.definition.lane_direction(lane).unwrap() {
                     RoadDirection::Both if lanes.len() > 1 => {
@@ -390,6 +393,13 @@ impl TrafficPaths {
                             points.reverse();
                         }
                         let id = graph.push(points, speed);
+                        for &(band, travel, other) in &road_paths {
+                            if band.abs_diff(lane) == 1 && travel == forward {
+                                graph.paths[id].adjacent.push(other);
+                                graph.paths[other].adjacent.push(id);
+                            }
+                        }
+                        road_paths.push((lane, forward, id));
                         let reference = |t: f32| {
                             attachments
                                 .iter()

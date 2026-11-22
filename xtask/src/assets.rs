@@ -1,3 +1,5 @@
+mod grass;
+
 use super::Result;
 use resvg::{tiny_skia, usvg};
 use std::{fs, path::Path};
@@ -36,7 +38,7 @@ pub(super) fn generate(root: &Path) -> Result<()> {
         "Generated {} commerce PNGs ({written} updated).",
         sources.len()
     );
-    Ok(())
+    grass::bake(root)
 }
 
 fn rasterize(svg: &[u8], options: &usvg::Options) -> Result<Vec<u8>> {

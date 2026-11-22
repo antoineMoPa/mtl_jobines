@@ -475,8 +475,7 @@ impl DynamicWorld {
         if let Some(player) = &self.pedestrian {
             if let Some(index) = self.nearest_enterable_vehicle(player.position) {
                 let car = &mut self.vehicles[index];
-                self.entry =
-                    vehicle_entry::Entry::boarding(car, player, self.season, hermes.city());
+                self.entry = vehicle_entry::Entry::new(car, player, self.season);
                 self.exit_on_right = self.entry.as_ref().is_some_and(|entry| entry.on_right());
                 car.doors.claim();
                 let occupied = self.traffic.driven_slots().any(|(id, _)| id == index);
@@ -526,8 +525,7 @@ impl DynamicWorld {
                 }
                 let car = &mut self.vehicles[self.player_vehicle.0];
                 if car.velocity.length_squared() <= 9. {
-                    self.entry =
-                        vehicle_entry::Entry::boarding(car, player, self.season, hermes.city());
+                    self.entry = vehicle_entry::Entry::new(car, player, self.season);
                 }
                 if let Some(exit) = &mut self.entry {
                     car.doors.claim();

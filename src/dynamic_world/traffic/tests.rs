@@ -806,3 +806,40 @@ fn snowplow_driver_moves_with_truck_geometry_and_a_twenty_kmh_patrol_limit() {
     assert!(traffic.drivers[0].target_speed <= 20. / 3.6 + 0.001);
     assert!(cars[0].position.is_finite());
 }
+
+#[test]
+fn report_93_service_road_merge() {
+    let program = opencity::parse(include_str!("../../../data/maps/mtl/map.road")).unwrap();
+    let city = City::from_program(
+        &program,
+        Some(&std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl")),
+    )
+    .unwrap();
+    let graph = TrafficPaths::new(&city, &program);
+    for x in (-70..-42).step_by(1) {
+        let xy = [x as f32 / 100., -3.654];
+        let h = city.surface_at(xy, 0.14).unwrap();
+        eprintln!(
+            "x {x} h {:?} {} contact {:?}",
+            h.kind,
+            h.height,
+            city.road_barrier_contact(xy, 0.008, 0.099, 0.12)
+        );
+    }
+    let at = Vec3::new(-56.93, -256.08, 10.2);
+    for (id, p) in graph
+        .paths
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.near(at, 12.))
+    {
+        eprintln!(
+            "{id}: {:?} {:?} {:?} {:?} {:?}",
+            p.project(at),
+            p.points.first(),
+            p.points.last(),
+            p.next,
+            p.speed
+        );
+    }
+}

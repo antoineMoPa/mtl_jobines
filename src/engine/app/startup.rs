@@ -8,7 +8,7 @@ impl Game {
         renderer.configure_graffiti(super::super::graffiti::Settings::default());
         let started = Instant::now();
         eprintln!("Preparing static scenery...");
-        self.scenery = Some(Scenery::new(&renderer, &mut self.hermes));
+        self.scenery = Some(Scenery::streamed(&renderer, &mut self.hermes));
         self.world.write_moving_mesh(&mut self.dynamic_vertices);
         self.dynamic_mesh = Some(renderer.upload_dynamic(&self.dynamic_vertices));
         self.prop_scenery.update(&renderer, &self.world);

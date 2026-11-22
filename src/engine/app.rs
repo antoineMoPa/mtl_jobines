@@ -1109,6 +1109,13 @@ impl Game {
         ) = (None, true);
         #[cfg(target_arch = "wasm32")]
         let surface_preview: Option<std::sync::Arc<super::render::GpuMesh>> = None;
+        self.scenery.as_mut().unwrap().update_winter(
+            renderer,
+            &self.world,
+            self.hermes.city(),
+            eye,
+            self.game_time,
+        );
         renderer.prepare_grass(
             &mut self.scenery.as_mut().unwrap().grass,
             self.hermes.city(),
@@ -1119,13 +1126,11 @@ impl Game {
             .as_mut()
             .unwrap()
             .update_graffiti(renderer, center);
-        let mut meshes = self.scenery.as_ref().unwrap().visible_with_road_preview(
-            center,
-            renderer.construction_span,
-            renderer.config.width as f32 / renderer.scene_height() as f32,
-            surface_preview.is_some(),
-            renderer.flight_visibility,
-        );
+        let (mut meshes, metro) =
+            self.scenery
+                .as_mut()
+                .unwrap()
+                .for_frame(renderer, center, surface_preview.is_some());
         meshes.extend(surface_preview.iter().map(|mesh| mesh.as_ref()));
         meshes.extend(prop_preview.iter().flatten().map(|mesh| mesh.as_ref()));
         meshes.push(moving_mesh);
@@ -1166,7 +1171,6 @@ impl Game {
         renderer.update_impacts(&shot_sprites);
         meshes.extend(self.prop_scenery.visible_with_authored(authored_visible));
         meshes.extend(self.vehicle_scenery.as_ref().unwrap().visible());
-        let metro = &self.scenery.as_ref().unwrap().metro;
         renderer.underground_exits =
             (renderer.construction_span.is_none() && metro.enclosed_view(eye)).then(|| {
                 metro

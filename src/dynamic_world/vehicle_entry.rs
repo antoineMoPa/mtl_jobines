@@ -11,7 +11,6 @@ use super::{
 use glam::{Mat4, Quat, Vec3, Vec4};
 
 mod bike_steps;
-use bike_steps::BikeSteps;
 
 type Pose = [Mat4; JOINT_LIMIT];
 enum Mount {
@@ -22,7 +21,9 @@ enum Mount {
         initial: f32,
         seated: &'static Pose,
     },
-    Bicycle,
+    Bicycle {
+        standing_frame: Mat4,
+    },
 }
 #[derive(Clone, Copy)]
 enum Action {
@@ -37,7 +38,6 @@ pub(super) struct Entry {
     elapsed: f32,
     action: Action,
     standing_position: Vec3,
-    steps: Option<BikeSteps>,
     start: Pose,
     pose: Pose,
 }
@@ -65,10 +65,11 @@ impl Entry {
         season: crate::season::Season,
     ) -> Option<Box<Self>> {
         let source = person.instance(season);
-        let relative = frame(v).inverse() * source.transform;
+        let standing_frame = frame(v);
+        let relative = standing_frame.inverse() * source.transform;
         let (mount, side) = if v.is_bicycle() {
             (
-                Mount::Bicycle,
+                Mount::Bicycle { standing_frame },
                 if relative.w_axis.x >= 0. { 1. } else { -1. },
             )
         } else {
@@ -92,7 +93,6 @@ impl Entry {
             side,
             model: source.model,
             standing_position: person.position,
-            steps: None,
             elapsed: 0.,
             action: Action::Enter,
             start,
@@ -100,27 +100,11 @@ impl Entry {
         }))
     }
 
-    pub fn boarding(
-        v: &Vehicle,
-        person: &Pedestrian,
-        season: crate::season::Season,
-        city: &opencity::runtime::City,
-    ) -> Option<Box<Self>> {
-        let mut entry = Self::new(v, person, season)?;
-        if v.is_bicycle() {
-            entry.steps = Some(BikeSteps::plan(
-                v,
-                person,
-                entry.side,
-                entry.model,
-                entry.start,
-                city,
-            ));
-        }
-        Some(entry)
-    }
     pub fn duration(&self) -> f32 {
-        2. + self.steps.as_ref().map_or(0., BikeSteps::duration)
+        match self.mount {
+            Mount::Bicycle { .. } => 0.36,
+            Mount::Cabin { .. } => 2.,
+        }
     }
 
     pub fn instance(&self, v: &Vehicle) -> Instance<'_> {
@@ -139,29 +123,26 @@ impl Entry {
     pub fn step(&mut self, v: &mut Vehicle, dt: f32) -> bool {
         self.elapsed += dt;
         let duration = self.duration();
-        let walk = duration - 2.;
-        if let Some(steps) = &self.steps {
-            let at = if matches!(self.action, Action::Exit) {
-                duration - self.elapsed
-            } else {
-                self.elapsed
-            };
-            if at <= walk {
-                self.pose = steps.pose(v, self.model, at);
-                return self.elapsed >= duration;
-            }
-            self.start = steps.planted_pose(v);
-        }
-        let mount_elapsed = if matches!(self.action, Action::Enter) {
-            self.elapsed - walk
-        } else {
-            self.elapsed
-        };
-        let progress = (mount_elapsed / 2.).clamp(0., 1.);
+        let progress = (self.elapsed / duration).clamp(0., 1.);
         let t = match self.action {
             Action::Enter => progress,
             Action::Exit => 1. - progress,
             Action::Handle { .. } => progress.min(0.45),
+        };
+        let (door, opening, seat, initial, seated) = match self.mount {
+            Mount::Cabin {
+                door,
+                opening,
+                seat,
+                initial,
+                seated,
+            } => (door, opening, seat, initial, seated),
+            Mount::Bicycle { standing_frame } => {
+                let relative = frame(v).inverse() * standing_frame;
+                let standing = self.start.map(|joint| relative * joint);
+                self.pose = bike_steps::pose(v, self.model, &standing, self.side, t);
+                return self.elapsed >= duration;
+            }
         };
         let s = self.side;
         let transfer = if matches!(self.action, Action::Handle { .. }) {
@@ -173,186 +154,81 @@ impl Entry {
         let def = &pedestrian_catalog::definitions()[self.model];
         let rest = def.rest_worlds();
         let hip = rest[def.node("Hips")].w_axis.truncate();
-        let (stance, pelvis, handle, end) = match self.mount {
-            Mount::Cabin {
-                door,
-                opening,
-                seat,
-                initial,
-                seated,
-            } => {
-                let open = phase(t, 0.23, 0.45);
-                let close = phase(t, 0.79, 0.99);
-                let fraction = match self.action {
-                    Action::Exit => open * (1. - close + close * initial),
-                    Action::Enter => (initial + (1. - initial) * open) * (1. - close),
-                    Action::Handle { open: opening, .. } => {
-                        initial + (f32::from(u8::from(opening)) - initial) * open
-                    }
-                };
-                v.doors.set_fraction(door, fraction);
-                let x = opening.rear + (opening.front - opening.rear) * 0.16;
-                let handle = opening
-                    .transform(door, fraction, -1.)
-                    .transform_point3(Vec3::new(
-                        x,
-                        opening.hinge_y * s,
-                        opening.sill + (opening.top - opening.sill) * 0.55,
-                    ));
-                // Stay behind the sweeping leaf until it clears the sill.
-                let stance = Vec3::new(x - 0.20, (opening.hinge_y + 0.45) * s, hip.y);
-                let sill = Vec3::new(x, seat.y.abs() * s, seat.z);
-                let mut pelvis = stance.lerp(sill, transfer).lerp(seat, phase(t, 0.71, 0.96));
-                if !matches!(self.action, Action::Handle { .. }) {
-                    // Sit back as the door clears, before lifting the inside foot.
-                    pelvis.z = stance.z + (seat.z - stance.z) * phase(t, 0.36, 0.67);
-                }
-                let offset = Mat4::from_translation(game_to_motion(seat));
-                (stance, pelvis, handle, seated.map(|m| offset * m))
-            }
-            Mount::Bicycle => {
-                // Stand in the opening ahead of the saddle until the far foot is across.
-                let stance = Vec3::new(-0.31, 0.33 * s, hip.y);
-                let across = phase(t, 0.36, 0.76);
-                let straddle = Vec3::new(-0.17, 0., 1.045);
-                let settle = phase(t, 0.72, 0.96);
-                let mut pelvis = stance
-                    .lerp(straddle, across)
-                    .lerp(Vec3::new(-0.355, 0., 1.), settle);
-                pelvis.z = hip.y
-                    + 0.045 * phase(t, 0.20, 0.40)
-                    + (straddle.z - hip.y - 0.045) * phase(t, 0.58, 0.76)
-                    - (straddle.z - 1.) * settle;
-                (stance, pelvis, Vec3::ZERO, cycling_pose::pose(def, v))
+        let open = phase(t, 0.23, 0.45);
+        let close = phase(t, 0.79, 0.99);
+        let fraction = match self.action {
+            Action::Exit => open * (1. - close + close * initial),
+            Action::Enter => (initial + (1. - initial) * open) * (1. - close),
+            Action::Handle { open: opening, .. } => {
+                initial + (f32::from(u8::from(opening)) - initial) * open
             }
         };
+        v.doors.set_fraction(door, fraction);
+        let x = opening.rear + (opening.front - opening.rear) * 0.16;
+        let handle = opening
+            .transform(door, fraction, -1.)
+            .transform_point3(Vec3::new(
+                x,
+                opening.hinge_y * s,
+                opening.sill + (opening.top - opening.sill) * 0.55,
+            ));
+        // Stay behind the sweeping leaf until it clears the sill.
+        let stance = Vec3::new(x - 0.20, (opening.hinge_y + 0.45) * s, hip.y);
+        let sill = Vec3::new(x, seat.y.abs() * s, seat.z);
+        let mut pelvis = stance.lerp(sill, transfer).lerp(seat, phase(t, 0.71, 0.96));
+        if !matches!(self.action, Action::Handle { .. }) {
+            // Sit back as the door clears, before lifting the inside foot.
+            pelvis.z = stance.z + (seat.z - stance.z) * phase(t, 0.36, 0.67);
+        }
+        let offset = Mat4::from_translation(game_to_motion(seat));
+        let end = seated.map(|m| offset * m);
         let end_joints = def.joint_worlds(&end);
-        let bike = matches!(self.mount, Mount::Bicycle);
         let mut locals = def.rest.clone();
-        locals[def.node("Spine")].rotation *= Quat::from_rotation_x(if bike {
-            0.28 + 0.40 * phase(t, 0.65, 0.94)
-        } else {
-            0.45 * arc
-        });
-        // Aim the hips and shoulders at the latch before pulling. Keep the IK targets
-        // in vehicle space so the hand follows the leaf as the body turns into the seat.
-        let toward_handle = match self.mount {
-            Mount::Cabin { .. } => (-0.45 * s).atan2(0.20),
-            Mount::Bicycle => 0.,
-        };
-        let facing = if bike {
-            -0.62 * s * (1. - phase(t, 0.30, 0.76))
-        } else {
-            toward_handle * (1. - phase(t, 0.38, 0.74))
-        };
+        locals[def.node("Spine")].rotation *= Quat::from_rotation_x(0.45 * arc);
+        let facing = (-0.45 * s).atan2(0.20) * (1. - phase(t, 0.38, 0.74));
         let root = Mat4::from_translation(game_to_motion(pelvis))
             * Mat4::from_rotation_y(facing)
             * Mat4::from_translation(-hip);
         let mut overrides = vec![None; locals.len()];
-        let mut contacts = [(Vec3::ZERO, Quat::IDENTITY); 2];
-        for (i, sign, leg, arm) in [
+        for (sign, leg, arm) in [
             (
-                0,
                 1.,
                 ["Thigh_L", "Shin_L", "Foot_L"],
                 ["UpperArm_L", "Forearm_L", "Hand_L"],
             ),
             (
-                1,
                 -1.,
                 ["Thigh_R", "Shin_R", "Foot_R"],
                 ["UpperArm_R", "Forearm_R", "Hand_R"],
             ),
         ] {
             let first = sign == -s;
-            let ankle = def.joint(leg[2]);
-            let planted = self.start[ankle];
-            let foot_start = if bike {
-                super::pedestrian_gait::motion_to_game(planted.w_axis.truncate())
-            } else {
-                Vec3::new(stance.x, stance.y + 0.13 * sign, 0.09)
-            };
+            let foot_start = Vec3::new(stance.x, stance.y + 0.13 * sign, 0.09);
             let step = if first {
                 phase(t, 0.44, 0.77)
             } else {
                 phase(t, 0.60, 0.91)
             };
-            let foot = match self.mount {
-                Mount::Bicycle => {
-                    let pedal = super::pedestrian_gait::motion_to_game(
-                        end_joints[def.joint(leg[2])].w_axis.truncate(),
-                    );
-                    if first {
-                        // Clear the low tube near the crank with a level foot. Cross
-                        // at this height before lowering onto the far pedal.
-                        let lifted = Vec3::new(0.008, foot_start.y, 0.50);
-                        let crossed = Vec3::new(lifted.x, -0.19 * s, lifted.z);
-                        foot_start
-                            .lerp(lifted, phase(t, 0.19, 0.43))
-                            .lerp(crossed, phase(t, 0.40, 0.66))
-                            .lerp(pedal, phase(t, 0.64, 0.83))
-                    } else {
-                        foot_start.lerp(pedal, phase(t, 0.62, 0.89))
-                    }
-                }
-                Mount::Cabin { opening, .. } => {
-                    let seated = super::pedestrian_gait::motion_to_game(
-                        end_joints[def.joint(leg[2])].w_axis.truncate(),
-                    );
-                    let mut ankle = foot_start.lerp(seated, step);
-                    // The ankle is above the sole. Lift only to sill clearance,
-                    // hold while the foot crosses, then place it on the floor.
-                    let peak = opening.sill + 0.09;
-                    let lift_off = phase(step, 0., 0.25);
-                    let plant = phase(step, 0.67, 1.);
-                    ankle.z = foot_start.z
-                        + (peak - foot_start.z) * lift_off
-                        + (seated.z.min(peak) - peak) * plant;
-                    ankle
-                }
-            };
-            let hand = if bike {
-                cycling_pose::grip_position(i, v.steering)
-            } else if sign == -s {
+            let seated = super::pedestrian_gait::motion_to_game(
+                end_joints[def.joint(leg[2])].w_axis.truncate(),
+            );
+            let mut foot = foot_start.lerp(seated, step);
+            // The ankle is above the sole. Lift only to sill clearance,
+            // hold while the foot crosses, then place it on the floor.
+            let peak = opening.sill + 0.09;
+            let lift_off = phase(step, 0., 0.25);
+            let plant = phase(step, 0.67, 1.);
+            foot.z = foot_start.z
+                + (peak - foot_start.z) * lift_off
+                + (seated.z.min(peak) - peak) * plant;
+            let hand = if sign == -s {
                 handle
             } else {
                 pelvis + Vec3::new(0.21, 0.24 * sign, 0.12)
             };
-            let foot_yaw = if bike && first {
-                -s * 0.85 * phase(t, 0.18, 0.39) * (1. - phase(t, 0.64, 0.83))
-            } else {
-                0.
-            };
-            if bike {
-                let lift = if first {
-                    phase(t, 0.19, 0.40)
-                } else {
-                    phase(t, 0.62, 0.83)
-                };
-                let pedal = if first {
-                    phase(t, 0.64, 0.83)
-                } else {
-                    phase(t, 0.62, 0.89)
-                };
-                let q = planted
-                    .to_scale_rotation_translation()
-                    .1
-                    .slerp(Quat::from_rotation_y(foot_yaw), lift)
-                    .slerp(end_joints[ankle].to_scale_rotation_translation().1, pedal);
-                contacts[i] = (game_to_motion(foot), q);
-            }
-            for (names, target, pole, rotation) in [
-                (
-                    leg,
-                    foot,
-                    if bike {
-                        Quat::from_rotation_y(facing) * Vec3::Z
-                    } else {
-                        Vec3::Z
-                    },
-                    Quat::from_rotation_y(foot_yaw),
-                ),
-                (arm, hand, Vec3::new(sign, -0.5, -0.3), Quat::IDENTITY),
+            for (names, target, pole) in [
+                (leg, foot, Vec3::Z),
+                (arm, hand, Vec3::new(sign, -0.5, -0.3)),
             ] {
                 cycling_pose::limb(
                     def,
@@ -362,7 +238,7 @@ impl Entry {
                     names,
                     game_to_motion(target),
                     pole,
-                    rotation,
+                    Quat::IDENTITY,
                 );
             }
         }
@@ -383,15 +259,8 @@ impl Entry {
             let turned = self.start.map(|joint| turn * joint);
             def.blend_worlds(&turned, &staged, phase(t, 0.06, 0.23))
         } else {
-            def.blend_worlds(
-                &staged,
-                &end_joints,
-                phase(t, if bike { 0.76 } else { 0.65 }, 0.97),
-            )
+            def.blend_worlds(&staged, &end_joints, phase(t, 0.65, 0.97))
         };
-        if bike && t > 0. && t < 0.97 {
-            bike_steps::plant(def, &mut self.pose, contacts);
-        }
         if matches!(self.action, Action::Handle { .. }) {
             // Release the handle and return weight to the original planted stance.
             let release = phase(progress, 0.45, 0.66);
@@ -401,7 +270,7 @@ impl Entry {
         self.elapsed >= duration
     }
     pub fn yields_to_input(&self, ride: Controls, walk: WalkControls) -> bool {
-        if !matches!(self.mount, Mount::Bicycle) {
+        if !matches!(self.mount, Mount::Bicycle { .. }) {
             return false;
         }
         match self.action {
@@ -446,7 +315,7 @@ impl Entry {
         person: &Pedestrian,
         season: crate::season::Season,
     ) {
-        if self.steps.is_some() {
+        if matches!(self.mount, Mount::Bicycle { .. }) {
             return;
         }
         let actor = person.instance(season);
@@ -545,9 +414,9 @@ mod tests {
                 let mut planted_sole = None;
                 let mut cleared = false;
                 let mut previous = None;
-                let walk_frames = ((entry.duration() - 2.) * 60.).round() as i32;
-                for frame in 1..=walk_frames + 123 {
-                    let i = frame - walk_frames;
+                let frames = (entry.duration() * 60.).ceil() as i32;
+                assert!(!bike || frames < 24);
+                for i in 1..=frames + 3 {
                     world.step(
                         &map,
                         Controls {
@@ -561,6 +430,9 @@ mod tests {
                         Default::default(),
                         1. / 60.,
                     );
+                    if bike && i == frames {
+                        assert!(world.entry.is_none());
+                    }
                     let actors: Vec<_> = world
                         .pedestrian_instances()
                         .filter(|a| a.model == pedestrian_catalog::player_model(world.season))
@@ -569,7 +441,7 @@ mod tests {
                     let actor = &actors[0];
                     let joints = def.joint_worlds(actor.pose.unwrap());
                     assert!(joints.iter().all(|m| m.is_finite()));
-                    if bike && (1..=73).contains(&i) {
+                    if bike && i * 2 < frames {
                         let sole = actor.transform.transform_point3(
                             joints[support].transform_point3(Vec3::new(0., -0.09, 0.03)),
                         ) * METERS_PER_UNIT;
@@ -583,6 +455,11 @@ mod tests {
                     if let Some(entry) = &world.entry {
                         assert_eq!(world.player().sound_controls.throttle, 0.);
                         let ankle = def.joint_worlds(&entry.pose)[foot].w_axis;
+                        if bike && i * 2 >= frames {
+                            let riding = cycling_pose::pose(def, world.player());
+                            let pedal = def.joint_worlds(&riding)[foot].w_axis;
+                            assert!(ankle.distance(pedal) < 0.006, "far foot left pedal at {i}");
+                        }
                         if bike && last_foot.x * side > 0. && ankle.x * side <= 0. {
                             assert!(
                                 (0.48..0.58).contains(&ankle.y)
@@ -591,7 +468,7 @@ mod tests {
                             );
                             cleared = true;
                         }
-                        if bike && (28..90).contains(&i) {
+                        if bike && i * 4 > frames && i * 4 < frames * 3 {
                             for leg in [
                                 ["Thigh_L", "Shin_L", "Foot_L"],
                                 ["Thigh_R", "Shin_R", "Foot_R"],
@@ -599,7 +476,7 @@ mod tests {
                                 let [hip, knee, ankle] =
                                     leg.map(|name| joints[def.joint(name)].w_axis.truncate());
                                 let bend = (hip - knee).angle_between(ankle - knee).to_degrees();
-                                assert!(bend > 60., "knee {leg:?} folded to {bend} degrees at frame {i} hip {hip:?} knee {knee:?} ankle {ankle:?} side {side} step {walk_frames}");
+                                assert!(bend > 60., "knee {leg:?} folded to {bend} degrees at frame {i} hip {hip:?} knee {knee:?} ankle {ankle:?} side {side}");
                             }
                         }
                         if !bike && (55..90).contains(&i) {
@@ -649,7 +526,7 @@ mod tests {
                     world.step(&map, Default::default(), Default::default(), 1. / 60.);
                     assert!(world.entry.is_some());
                     assert_eq!(world.pedestrian.as_ref().unwrap().position, landing);
-                    if bike && (47..120).contains(&frame) {
+                    if bike && frame * 2 > exit_frames {
                         let entry = world.entry.as_ref().unwrap();
                         let actor = entry.instance(world.player());
                         let joints = def.joint_worlds(actor.pose.unwrap());
@@ -670,7 +547,12 @@ mod tests {
                         1
                     );
                 }
-                world.step(&map, Default::default(), Default::default(), 0.04);
+                world.step(
+                    &map,
+                    Default::default(),
+                    Default::default(),
+                    if bike { 1. / 60. } else { 0.04 },
+                );
                 assert!(world.entry.is_none());
                 assert!(!world.is_driving());
                 assert_eq!(world.player().doors.fraction(door), 0.);

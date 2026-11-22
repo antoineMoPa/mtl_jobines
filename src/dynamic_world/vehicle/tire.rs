@@ -27,7 +27,7 @@ impl Wheel {
         }
     }
 
-    pub(super) fn contact(self, vehicle: &Vehicle) -> Vec3 {
+    pub(in crate::dynamic_world) fn contact(self, vehicle: &Vehicle) -> Vec3 {
         let front = matches!(self, Self::FrontRight | Self::FrontLeft);
         let left = matches!(self, Self::RearLeft | Self::FrontLeft);
         let radius_loss = if vehicle.is_flat(self) {

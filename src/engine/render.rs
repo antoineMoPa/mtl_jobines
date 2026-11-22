@@ -16,6 +16,7 @@ mod mission_markers;
 pub(super) use impacts::ImpactVertex;
 mod snowfall;
 mod ssao;
+mod wheel_snow;
 use culling::{Bounds, Frustum};
 pub(super) use lod::RenderLod;
 const SHADOW_RESOLUTION: u32 = 2048;
@@ -106,6 +107,7 @@ pub struct Renderer {
     ribbons: projected_grass::Ribbons,
     ribbon_pipeline: wgpu::RenderPipeline,
     impacts: Option<impacts::ImpactPass>,
+    wheel_snow: Option<wheel_snow::WheelSnow>,
     opaque_pipeline: wgpu::RenderPipeline,
     graffiti_pipeline: wgpu::RenderPipeline,
     shadow_pipeline: wgpu::RenderPipeline,
@@ -748,6 +750,7 @@ impl Renderer {
             pedestrians,
             uniform,
             impacts: None,
+            wheel_snow: None,
             camera_group,
             shadow_group,
             depth,
@@ -813,6 +816,7 @@ impl Renderer {
         ] = pipelines;
         self.sky.set_samples(&self.device, samples);
         self.impacts = None;
+        self.wheel_snow = None;
         self.samples = samples;
         self.depth = depth(
             &self.device,
@@ -1480,6 +1484,11 @@ impl Renderer {
                 pass.set_bind_group(2, &self.sky.environment.group, &[]);
                 pass.set_bind_group(3, &self.commerce.group, &[]);
                 self.ribbons.draw(&mut pass);
+            }
+            if self.season == crate::season::Season::Winter {
+                if let Some(snow) = &self.wheel_snow {
+                    snow.draw(&mut pass, self);
+                }
             }
             if let Some(impacts) = &self.impacts {
                 impacts.draw(&mut pass, &self.camera_group);

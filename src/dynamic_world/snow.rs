@@ -24,6 +24,62 @@ pub struct Tracks {
     tick: u64,
     recoveries: BinaryHeap<Reverse<(u64, i32, i32, u32)>>,
 }
+pub struct SnowWheel {
+    pub key: (usize, usize),
+    pub point: Vec3,
+    pub outward: Vec3,
+    pub width: f32,
+    pub sprays: bool,
+}
+impl super::DynamicWorld {
+    /// Sample each tire on its own path so yaw and lateral slip separate the two axles.
+    pub fn snow_wheels(&self, eye: Vec3) -> impl Iterator<Item = SnowWheel> + '_ {
+        use super::vehicle::tire::Wheel;
+        self.vehicles
+            .iter()
+            .enumerate()
+            .filter(move |(id, v)| {
+                v.grounded
+                    && v.position.distance_squared(eye) <= 100_f32.powi(2)
+                    && v.velocity.truncate().length_squared() >= 0.16
+                    && !v.is_aircraft()
+                    && !v.is_boat()
+                    && !self.cyclists.inactive(*id)
+                    && self.traffic.opacity(*id) >= 0.5
+            })
+            .flat_map(|(id, v)| {
+                let bike = v.is_bicycle();
+                let pose = v.orientation();
+                let reversing = v.velocity.dot(pose * Vec3::X) < 0.;
+                Wheel::ALL.into_iter().filter_map(move |wheel| {
+                    let left = matches!(wheel, Wheel::RearLeft | Wheel::FrontLeft);
+                    if bike && left {
+                        return None;
+                    }
+                    let front = matches!(wheel, Wheel::FrontLeft | Wheel::FrontRight);
+                    let mut local = wheel.contact(v);
+                    if bike {
+                        local.y = 0.;
+                    }
+                    Some(SnowWheel {
+                        key: (id, wheel as usize),
+                        point: v.position + pose * local,
+                        outward: if bike {
+                            Vec3::ZERO
+                        } else {
+                            pose * Vec3::Y * local.y.signum()
+                        },
+                        width: if bike {
+                            0.06
+                        } else {
+                            (v.width() * 0.13).clamp(0.17, 0.34)
+                        },
+                        sprays: front == reversing,
+                    })
+                })
+            })
+    }
+}
 impl Tracks {
     pub fn reset(&mut self) {
         self.cells.clear();

@@ -1,99 +1,50 @@
-//! Run the same grounded steps forward to the bicycle or backward to the checked exit position.
-use super::{frame, pedestrian_catalog, Pedestrian, Pose, Vehicle};
-use crate::dynamic_world::{
-    pedestrian_gait::{footing, solve_two_bone},
-    player::HALF_HEIGHT,
-};
-use glam::{Mat4, Quat, Vec2, Vec3};
-use opencity::runtime::City;
+//! Two foot placements from the standing pose to the pedals, played backward on exit.
+use super::{cycling_pose, pedestrian_catalog, phase, Pose, Vehicle};
+use crate::dynamic_world::pedestrian_gait::solve_two_bone;
+use glam::{Mat4, Quat, Vec3};
 
-pub(super) struct BikeSteps {
-    basis: Mat4,
-    joints: Vec<Pose>,
-}
-impl BikeSteps {
-    const DT: f32 = 1. / 30.;
-
-    pub fn plan(
-        v: &Vehicle,
-        person: &Pedestrian,
-        side: f32,
-        model: usize,
-        start: Pose,
-        city: &City,
-    ) -> Self {
-        let basis = frame(v);
-        let def = &pedestrian_catalog::definitions()[model];
-        let mut gait = person.gait.clone();
-        let mut root = person.position - Vec3::Z * HALF_HEIGHT;
-        let mut yaw = person.yaw;
-        let forward = Vec2::from_angle(v.yaw);
-        let target = v.position.truncate() - forward * 0.31 + forward.perp() * (0.33 * side);
-        let heading = v.yaw - 0.62 * side;
-        // A scripted relocation may have moved the pedestrian since its last gait tick.
-        let source = gait.foot_motion();
-        gait.carry(source.root, root, yaw - source.yaw);
-        let mut joints = vec![start];
-        for _ in 0..120 {
-            let delta = target - root.truncate();
-            let travel = (delta * 5.).clamp_length_max(1.65) * Self::DT;
-            let turn = (heading - yaw).sin().atan2((heading - yaw).cos());
-            yaw += turn.clamp(-3.2 * Self::DT, 3.2 * Self::DT);
-            let next = root + travel.extend(0.);
-            if gait.permits(next) {
-                root = footing(city, next, false).map_or(next, |ground| ground.point);
-            }
-            let velocity = travel / Self::DT;
-            // Bound the next footfall to the remaining approach distance.
-            gait.set_strafe_velocity(Some(
-                velocity.clamp_length_max(delta.length() / (0.75 * 1.45)),
-            ));
-            gait.set_running(false, Self::DT);
-            gait.advance_coarse(
-                def,
-                root,
-                yaw,
-                velocity.length(),
-                target.extend(root.z),
-                Self::DT,
-                |p| footing(city, p, false),
-            );
-            let relative = basis.inverse() * pedestrian_catalog::instance_transform(root, yaw);
-            joints.push(
-                def.joint_worlds(&gait.palette)
-                    .map(|joint| relative * joint),
-            );
-            if delta.length_squared() < 0.0001 && turn.abs() < 0.01 && gait.both_feet_settled() {
-                break;
-            }
-        }
-        Self { basis, joints }
+pub(super) fn pose(v: &Vehicle, model: usize, standing: &Pose, side: f32, t: f32) -> Pose {
+    let def = &pedestrian_catalog::definitions()[model];
+    let riding = cycling_pose::pose(def, v);
+    if t >= 1. {
+        return riding;
     }
-    pub fn duration(&self) -> f32 {
-        (self.joints.len() - 1) as f32 * Self::DT
+    if t <= 0. {
+        return def.skin_from_worlds(standing);
     }
-    pub fn planted_pose(&self, v: &Vehicle) -> Pose {
-        let relative = frame(v).inverse() * self.basis;
-        self.joints.last().unwrap().map(|joint| relative * joint)
-    }
-    pub fn pose(&self, v: &Vehicle, model: usize, time: f32) -> Pose {
-        let sample = (time / Self::DT).clamp(0., (self.joints.len() - 1) as f32);
-        let i = sample as usize;
-        let a = &self.joints[i];
-        let b = &self.joints[(i + 1).min(self.joints.len() - 1)];
-        let def = &pedestrian_catalog::definitions()[model];
-        let relative = frame(v).inverse() * self.basis;
-        def.blend_worlds(a, b, sample.fract())
-            .map(|joint| relative * joint)
-    }
+    let pedals = def.joint_worlds(&riding);
+    let mut pose = def.blend_worlds(standing, &pedals, phase(t, 0.14, 1.));
+    let contacts = [("Foot_L", 1.), ("Foot_R", -1.)].map(|(name, sign)| {
+        let ankle = def.joint(name);
+        let (_, from_rotation, from) = standing[ankle].to_scale_rotation_translation();
+        let (_, to_rotation, to) = pedals[ankle].to_scale_rotation_translation();
+        let far = sign == -side;
+        let step = if far {
+            (2. * t).min(1.)
+        } else {
+            (2. * t - 1.).max(0.)
+        };
+        let position = if far {
+            // Lift, cross the low frame by the crank, then land on the far pedal.
+            let raised = Vec3::new(from.x, 0.50, 0.008);
+            let across = Vec3::new(-0.19 * side, raised.y, raised.z);
+            from.lerp(raised, phase(step, 0., 0.35))
+                .lerp(across, phase(step, 0.35, 0.70))
+                .lerp(to, phase(step, 0.70, 1.))
+        } else {
+            from.lerp(to, phase(step, 0., 1.))
+        };
+        (
+            position,
+            from_rotation.slerp(to_rotation, phase(step, 0., 1.)),
+        )
+    });
+    plant(def, &mut pose, contacts);
+    pose
 }
 
 // Apply contacts after the torso blend. Otherwise rotating the hips also moves the soles.
-pub(super) fn plant(
-    def: &pedestrian_catalog::Definition,
-    pose: &mut Pose,
-    contacts: [(Vec3, Quat); 2],
-) {
+fn plant(def: &pedestrian_catalog::Definition, pose: &mut Pose, contacts: [(Vec3, Quat); 2]) {
     let mut joints = def.joint_worlds(pose);
     let legs = [
         ["Thigh_L", "Shin_L", "Foot_L", "Toe_L"],

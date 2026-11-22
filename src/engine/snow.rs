@@ -1,4 +1,5 @@
 //! Bounded nearby exposure and four-deck clearing textures; world history stays in Rust.
+pub(super) mod banks;
 use crate::dynamic_world::snow::{Tracks, CELL_METERS, EMPTY};
 use opencity::runtime::Mesh;
 use std::{
@@ -143,6 +144,31 @@ impl Snow {
             }
         }
         *self.cache.borrow_mut() = cache;
+    }
+    // Test the same occluders as the exposure texture when baking seasonal curb geometry.
+    fn exposed(&self, p: glam::Vec3) -> bool {
+        let cache = self.cache.borrow();
+        let bucket = ((p.x / BUCKET).floor() as i32, (p.y / BUCKET).floor() as i32);
+        for &id in cache.buckets.get(&bucket).into_iter().flatten() {
+            let tri = cache.triangles[id];
+            if tri.iter().all(|v| v[2] <= p.z + 0.002) {
+                continue;
+            }
+            let [a, b, c] = tri.map(glam::Vec3::from);
+            let ab = b - a;
+            let ac = c - a;
+            let ap = p - a;
+            let det = ab.truncate().perp_dot(ac.truncate());
+            if det.abs() < 1e-12 {
+                continue;
+            }
+            let u = ap.truncate().perp_dot(ac.truncate()) / det;
+            let v = ab.truncate().perp_dot(ap.truncate()) / det;
+            if u >= 0. && v >= 0. && u + v <= 1. && a.z + u * ab.z + v * ac.z > p.z + 0.002 {
+                return false;
+            }
+        }
+        true
     }
     pub fn update(&self, queue: &wgpu::Queue, center: [f32; 2], tracks: &Tracks) {
         // Align the cache to world cells and move only after travelling 64 metres.

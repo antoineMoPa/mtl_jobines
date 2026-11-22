@@ -20,82 +20,49 @@ pub(super) fn layout() -> [wgpu::BindGroupLayoutEntry; 2] {
     ]
 }
 
-fn srgb_to_linear(value: u8) -> f32 {
-    let v = value as f32 / 255.0;
-    if v <= 0.04045 {
-        v / 12.92
-    } else {
-        ((v + 0.055) / 1.055).powf(2.4)
-    }
-}
-
-fn linear_to_srgb(value: f32) -> u8 {
-    let v = if value <= 0.0031308 {
-        value * 12.92
-    } else {
-        1.055 * value.powf(1.0 / 2.4) - 0.055
-    };
-    (v.clamp(0.0, 1.0) * 255.0).round() as u8
-}
-
-fn mip_chain() -> Vec<(u32, u32, Vec<u8>)> {
-    let mut reader = png::Decoder::new(std::io::Cursor::new(crate::web_asset!(
-        "../../assets/terrain/grass.png",
-        "assets/terrain/grass.png"
-    )))
+// The build packs square levels consecutively, largest first, into one lossless PNG.
+fn mip_chain() -> (u32, Vec<u8>) {
+    let mut reader = png::Decoder::new(crate::web_asset!(
+        "../../assets/terrain/grass-mips.png",
+        "assets/terrain/grass-mips.png"
+    ))
     .read_info()
-    .expect("ground grass PNG");
+    .expect("baked grass mip chain");
     let mut pixels = vec![0; reader.output_buffer_size()];
-    let info = reader.next_frame(&mut pixels).expect("ground grass pixels");
-    assert_eq!(info.color_type, png::ColorType::Rgba);
-    pixels.truncate(info.buffer_size());
-    let mut levels = vec![(info.width, info.height, pixels)];
-    while levels.last().is_some_and(|(w, h, _)| *w > 1 || *h > 1) {
-        let (w, h, source) = levels.last().unwrap();
-        let (nw, nh) = ((w / 2).max(1), (h / 2).max(1));
-        let mut target = vec![255; (nw * nh * 4) as usize];
-        for y in 0..nh {
-            for x in 0..nw {
-                // Integer source ranges also retain the last row/column of odd mips.
-                let (x0, x1) = (x * w / nw, (x + 1) * w / nw);
-                let (y0, y1) = (y * h / nh, (y + 1) * h / nh);
-                for c in 0..3 {
-                    let mut sum = 0.0;
-                    for sy in y0..y1 {
-                        for sx in x0..x1 {
-                            sum += srgb_to_linear(source[((sy * w + sx) * 4 + c) as usize]);
-                        }
-                    }
-                    target[((y * nw + x) * 4 + c) as usize] =
-                        linear_to_srgb(sum / ((x1 - x0) * (y1 - y0)) as f32);
-                }
-            }
-        }
-        levels.push((nw, nh, target));
-    }
-    levels
+    let info = reader.next_frame(&mut pixels).expect("grass mip pixels");
+    (info.width, pixels)
+}
+
+fn levels(width: u32, pixels: &[u8]) -> impl Iterator<Item = (u32, &[u8])> {
+    let mut remaining = pixels;
+    (0..width.ilog2() + 1).map(move |level| {
+        let size = width >> level;
+        let (data, rest) = remaining.split_at(size as usize * size as usize * 4);
+        remaining = rest;
+        (size, data)
+    })
 }
 
 pub(super) fn upload(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
 ) -> (wgpu::TextureView, wgpu::Sampler) {
-    let levels = mip_chain();
+    let (width, pixels) = mip_chain();
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("stochastic grass ground"),
         size: wgpu::Extent3d {
-            width: levels[0].0,
-            height: levels[0].1,
+            width,
+            height: width,
             depth_or_array_layers: 1,
         },
-        mip_level_count: levels.len() as u32,
+        mip_level_count: width.ilog2() + 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8UnormSrgb,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    for (level, (width, height, pixels)) in levels.iter().enumerate() {
+    for (level, (size, pixels)) in levels(width, &pixels).enumerate() {
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &texture,
@@ -106,12 +73,12 @@ pub(super) fn upload(
             pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(width * 4),
-                rows_per_image: Some(*height),
+                bytes_per_row: Some(size * 4),
+                rows_per_image: Some(size),
             },
             wgpu::Extent3d {
-                width: *width,
-                height: *height,
+                width: size,
+                height: size,
                 depth_or_array_layers: 1,
             },
         );
@@ -251,23 +218,33 @@ mod tests {
         assert_ne!(captures[1], captures[3], "grass must retain seasonal snow");
     }
 
+    fn srgb_to_linear(value: u8) -> f32 {
+        let v = value as f32 / 255.0;
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
     #[test]
     fn grass_mips_reach_one_texel_and_preserve_mean_light() {
-        let levels = super::mip_chain();
-        assert_eq!((levels[0].0, levels[0].1), (1600, 1600));
+        let (width, pixels) = super::mip_chain();
+        let levels: Vec<_> = super::levels(width, &pixels).collect();
+        assert_eq!(levels[0].0, 1600);
         let last = levels.last().unwrap();
-        assert_eq!((last.0, last.1, last.2.len()), (1, 1, 4));
-        for (w, h, pixels) in &levels {
-            assert_eq!(pixels.len(), (w * h * 4) as usize);
+        assert_eq!((last.0, last.1.len()), (1, 4));
+        for (w, pixels) in &levels {
+            assert_eq!(pixels.len(), (w * w * 4) as usize);
         }
         for c in 0..3 {
             let mean = levels[0]
-                .2
+                .1
                 .chunks_exact(4)
-                .map(|p| super::srgb_to_linear(p[c]))
+                .map(|p| srgb_to_linear(p[c]))
                 .sum::<f32>()
                 / (1600.0 * 1600.0);
-            assert!((super::srgb_to_linear(last.2[c]) - mean).abs() < 0.01);
+            assert!((srgb_to_linear(last.1[c]) - mean).abs() < 0.01);
         }
     }
 }
