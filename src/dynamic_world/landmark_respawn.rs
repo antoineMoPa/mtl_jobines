@@ -177,6 +177,7 @@ impl DynamicWorld {
     }
 
     fn finish_respawn(&mut self, hermes: &Hermes, vehicle: Vehicle, spawn: SpawnPoint) {
+        self.crash = None;
         self.clear_chase();
         self.health = super::melee::PLAYER_HEALTH;
         self.crowd.cancel_bites();

@@ -30,7 +30,15 @@ fn contact_parts<'a>(
             chassis as &dyn Shape,
         )
     });
+    let trailer = v.has_baggage_trailer().then(|| {
+        static CART: std::sync::OnceLock<Cuboid> = std::sync::OnceLock::new();
+        let shape = CART.get_or_init(|| Cuboid::new(vector![1.46, 0.81, 0.79]));
+        let rotation = glam::Quat::from_rotation_z(v.trailer_angle);
+        let center = super::baggage::hitch(v) + rotation * Vec3::new(-2.32, 0., 0.43);
+        (pose(center, rotation), shape as &dyn Shape)
+    });
     road.into_iter()
+        .chain(trailer)
         .chain(aircraft.into_iter().flat_map(move |d| {
             d.aircraft_hulls(v)
                 .map(move |(pivot, rotation, shape)| (pose(pivot, rotation), shape))
@@ -108,11 +116,15 @@ pub(super) fn resolve(vehicles: &mut [Vehicle]) {
 }
 pub(super) fn resolve_with_contacts(vehicles: &mut [Vehicle]) -> Vec<VehicleContact> {
     let mut contacts = Vec::new();
+    let reaches: Vec<_> = vehicles
+        .iter()
+        .map(|v| v.contact_reach().max(v.length()))
+        .collect();
     for i in 0..vehicles.len() {
         let (before, after) = vehicles.split_at_mut(i);
         let a = &mut after[0];
         for (j, b) in before.iter_mut().enumerate() {
-            if a.position.distance_squared(b.position) > (a.length() + b.length()).powi(2) {
+            if a.position.distance_squared(b.position) > (reaches[i] + reaches[j]).powi(2) {
                 continue;
             }
             let Some((pose_a, pose_b, hit, manifold)) = contact_patch(a, b) else {

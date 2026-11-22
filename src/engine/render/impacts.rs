@@ -1,6 +1,7 @@
 //! Depth-tested surface marks and translucent dust, composited after the sky.
 use super::Renderer;
 use glam::Vec3;
+use wgpu::util::DeviceExt;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -27,6 +28,7 @@ impl ImpactVertex {
 }
 pub(super) struct ImpactPass {
     pipeline: wgpu::RenderPipeline,
+    atlas: wgpu::BindGroup,
     buffer: wgpu::Buffer,
     count: u32,
 }
@@ -41,11 +43,76 @@ impl Renderer {
         let bytes = bytemuck::cast_slice(vertices);
         if self.impacts.is_none() {
             let camera = self.pipeline.get_bind_group_layout(0);
+            let atlas_layout =
+                self.device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: Some("crash smoke atlas"),
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                                count: None,
+                            },
+                        ],
+                    });
+            // Four prelit smoke lobes. R stores lighting and G stores opacity.
+            let texture = self.device.create_texture_with_data(
+                &self.queue,
+                &wgpu::TextureDescriptor {
+                    label: Some("prelit crash clouds"),
+                    size: wgpu::Extent3d {
+                        width: 224,
+                        height: 224,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rg8Unorm,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                    view_formats: &[],
+                },
+                wgpu::util::TextureDataOrder::LayerMajor,
+                include_bytes!("../../../assets/effects/crash-cloud.rg8"),
+            );
+            let view = texture.create_view(&Default::default());
+            let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            });
+            let atlas = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("crash clouds"),
+                layout: &atlas_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&sampler),
+                    },
+                ],
+            });
             let layout = self
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("impact camera"),
-                    bind_group_layouts: &[Some(&camera)],
+                    bind_group_layouts: &[Some(&camera), Some(&atlas_layout)],
                     immediate_size: 0,
                 });
             let shader = self
@@ -97,6 +164,7 @@ impl Renderer {
                 });
             self.impacts = Some(ImpactPass {
                 pipeline,
+                atlas,
                 buffer: self.dynamic_buffer(bytes.len() as u64),
                 count: 0,
             });
@@ -114,6 +182,7 @@ impl ImpactPass {
         if self.count > 0 {
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, camera, &[]);
+            pass.set_bind_group(1, &self.atlas, &[]);
             pass.set_vertex_buffer(0, self.buffer.slice(..));
             pass.draw(0..self.count, 0..1);
         }

@@ -189,7 +189,19 @@ impl Vehicle {
         )
     }
     pub(super) fn nearest_door(&self, point: Vec3) -> Option<Door> {
-        Door::ALL
+        self.nearest_door_among(point, Door::ALL)
+    }
+
+    pub(super) fn nearest_front_door(&self, point: Vec3) -> Option<Door> {
+        self.nearest_door_among(point, [Door::FrontLeft, Door::FrontRight])
+    }
+
+    fn nearest_door_among(
+        &self,
+        point: Vec3,
+        doors: impl IntoIterator<Item = Door>,
+    ) -> Option<Door> {
+        doors
             .into_iter()
             .filter_map(|door| {
                 Some((
@@ -238,7 +250,12 @@ impl super::DynamicWorld {
         if let Some((id, door)) = target {
             let open = self.vehicles[id].doors.toggle(door);
             if let Some(p) = &self.pedestrian {
-                self.entry = super::vehicle_entry::Entry::new(&self.vehicles[id], p, self.season);
+                self.entry = super::vehicle_entry::Entry::new(
+                    &self.vehicles[id],
+                    p,
+                    self.season,
+                    Some(door),
+                );
                 if let Some(gesture) = &mut self.entry {
                     gesture.operate_handle(id, open);
                 }
@@ -263,7 +280,9 @@ mod tests {
         let mut world = DynamicWorld::new(&map);
         for (model, def) in catalog::definitions().iter().enumerate() {
             assert!(world.switch_vehicle(model));
-            let enclosed = !world.player().is_boat() && !world.player().is_bicycle();
+            let enclosed = !world.player().is_boat()
+                && !world.player().is_bicycle()
+                && def.config.research_id != super::super::baggage::MODEL_ID;
             assert_eq!(world.toggle_door(), enclosed);
             if !enclosed {
                 continue;

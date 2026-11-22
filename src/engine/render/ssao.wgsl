@@ -66,6 +66,8 @@ fn winter_atmosphere(color:vec4<f32>,distance:f32,has_surface:bool)->vec4<f32> {
 fn scene_color(screen:vec4<f32>)->vec4<f32> {
     let p=vec2<i32>(screen.xy);
     var color=textureLoad(scene,p,0);
+    let receives_haze=color.a>0.0;
+    color=vec4<f32>(color.rgb,1.0);
     let strength=settings.weather.w;
     if strength>0.0 {
         let radial=screen.xy/settings.viewport.xy*2.0-1.0;
@@ -101,12 +103,12 @@ fn scene_color(screen:vec4<f32>)->vec4<f32> {
         result=vec4<f32>(color.rgb*factor,color.a);
     }
     let haze_distance = distance * settings.viewport.w;
-    if has_surface && settings.weather.y == 0.0 && daylight_grade > 0.0 {
+    if receives_haze && has_surface && settings.weather.y == 0.0 && daylight_grade > 0.0 {
         // Keep the first 80 metres clear and soften only the more distant blocks.
         let air = 0.10 * daylight_grade * smoothstep(0.80, 4.75, haze_distance);
         result = vec4<f32>(mix(result.rgb, vec3<f32>(0.43, 0.47, 0.53), air), result.a);
     }
-    result = winter_atmosphere(result, haze_distance, has_surface);
+    if receives_haze {result = winter_atmosphere(result, haze_distance, has_surface);}
     if daylight_grade > 0.0 {
         let luma = dot(result.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
         let midtones = smoothstep(0.012, 0.08, luma) * (1.0 - smoothstep(0.60, 1.0, luma));

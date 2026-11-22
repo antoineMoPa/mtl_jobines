@@ -94,3 +94,6 @@ data/wildlife/fox.glb
 data/wildlife/skunk.glb
 data/wildlife/cat.glb
 data/wildlife/cat-black.glb
+data/maps/mtl/models/airport-control-tower.glb
+data/maps/mtl/models/airport-aircraft-hangar.glb
+data/vehicle/airport/baggage-tractor/model.glb

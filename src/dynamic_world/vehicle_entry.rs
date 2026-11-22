@@ -54,7 +54,7 @@ impl DisplacedOccupant {
         person: Pedestrian,
         season: crate::season::Season,
     ) -> Option<Self> {
-        let mut exit = Entry::new(car, &person, season)?;
+        let mut exit = Entry::new(car, &person, season, car.nearest_door(person.position))?;
         exit.begin_exit(car);
         Some(Self {
             vehicle,
@@ -115,6 +115,7 @@ impl Entry {
         v: &Vehicle,
         person: &Pedestrian,
         season: crate::season::Season,
+        door: Option<Door>,
     ) -> Option<Box<Self>> {
         let source = person.instance(season);
         let standing_frame = frame(v);
@@ -125,7 +126,7 @@ impl Entry {
                 if relative.w_axis.x >= 0. { 1. } else { -1. },
             )
         } else {
-            let door = v.nearest_door(person.position)?;
+            let door = door?;
             let id = &v.definition()?.config.research_id;
             (
                 Mount::Cabin {
@@ -492,6 +493,28 @@ mod tests {
         );
         assert!(world.entry.is_none());
         assert_ne!(world.player_yaw(), yaw);
+    }
+
+    #[test]
+    fn boarding_from_either_rear_door_uses_the_front_door_on_that_side() {
+        let map = Hermes::test_map_from_source(
+            "pad=concrete(-2,-2,2,-2,2,2,-2,2); elevation(pad,0.1); player_start(0,0,0);",
+        );
+        for (rear, front) in [
+            (Door::RearLeft, Door::FrontLeft),
+            (Door::RearRight, Door::FrontRight),
+        ] {
+            let mut world = DynamicWorld::new(&map);
+            assert!(world.switch_vehicle(0));
+            assert!(world.toggle_vehicle(&map));
+            let point = world.player().access_point(rear).unwrap();
+            let person = world.pedestrian.as_mut().unwrap();
+            person.position = point.extend(person.position.z);
+            assert!(world.toggle_vehicle(&map));
+            assert!(
+                matches!(world.entry.as_ref().unwrap().mount, Mount::Cabin { door, .. } if door == front)
+            );
+        }
     }
 
     #[test]

@@ -87,6 +87,8 @@ enum PartRole {
     Crash(Piece),
     Door(Door, f32),
     Outboard,
+    BaggageTrailer,
+    BaggageWheel,
     RearWheel,
     FrontWheel,
     Steering,
@@ -133,12 +135,20 @@ enum Gear {
 }
 
 impl Gear {
+    fn rotation(self, vehicle: &super::Vehicle) -> Quat {
+        let fold = Quat::from_rotation_y(vehicle.aircraft_gear * std::f32::consts::FRAC_PI_2);
+        match self {
+            Self::Nose => fold * Quat::from_rotation_z(vehicle.steering),
+            Self::Left | Self::Right => fold,
+        }
+    }
+
     fn hinge(self, length: f32, track: f32) -> Vec3 {
         let radius = track / 1.78;
         let (x, y) = match self {
-            Self::Nose => (0.32 * length, 0.),
-            Self::Left => (-0.055 * length, track * 0.5),
-            Self::Right => (-0.055 * length, -track * 0.5),
+            Self::Nose => (super::aircraft::NOSE_GEAR_X * length, 0.),
+            Self::Left => (super::aircraft::MAIN_GEAR_X * length, track * 0.5),
+            Self::Right => (super::aircraft::MAIN_GEAR_X * length, -track * 0.5),
         };
         Vec3::new(x, y, -0.76 * radius)
     }
@@ -155,6 +165,11 @@ fn part_role(name: &str) -> Result<PartRole, String> {
         "Gear strut main right" | "Tire main right" | "Hub main right -1" | "Hub main right 1" => {
             Ok(PartRole::AircraftGear(Gear::Right))
         }
+        "baggage_trailer" => Ok(PartRole::BaggageTrailer),
+        "baggage_wheel_front_left"
+        | "baggage_wheel_front_right"
+        | "baggage_wheel_rear_left"
+        | "baggage_wheel_rear_right" => Ok(PartRole::BaggageWheel),
         "wheel_front" | "wheel_front_left" | "wheel_front_right" => Ok(PartRole::FrontWheel),
         "wheel_rear" | "wheel_rear_left" | "wheel_rear_right" | "wheel_middle_left"
         | "wheel_middle_right" => Ok(PartRole::RearWheel),
@@ -238,10 +253,6 @@ struct AircraftHull {
 
 fn folded_gear_pivot(pivot: Vec3, fraction: f32) -> Vec3 {
     pivot - Vec3::Z * (pivot.z * fraction.powi(2))
-}
-
-fn gear_rotation(fraction: f32) -> Quat {
-    Quat::from_rotation_y(fraction * std::f32::consts::FRAC_PI_2)
 }
 
 pub struct Definition {
@@ -335,6 +346,9 @@ impl Part {
             stem + Quat::from_rotation_z(vehicle.steering) * (self.pivot - stem)
         } else if matches!(self.role, PartRole::AircraftGear(_)) {
             folded_gear_pivot(self.pivot, vehicle.aircraft_gear)
+        } else if self.role == PartRole::BaggageWheel {
+            let hitch = super::baggage::hitch(vehicle);
+            hitch + Quat::from_rotation_z(vehicle.trailer_angle) * (self.pivot - hitch)
         } else if self.role == PartRole::Pedal {
             let crank = super::cycling_pose::CRANK - Vec3::Z * vehicle.ride_height();
             crank + Quat::from_rotation_y(vehicle.pedal_angle) * (self.pivot - crank)
@@ -350,9 +364,9 @@ impl Definition {
     ) -> impl Iterator<Item = (Vec3, Quat, &'a dyn rapier3d::prelude::Shape)> {
         self.aircraft_hulls.iter().map(move |hull| {
             let (pivot, rotation) = match hull.role {
-                PartRole::AircraftGear(_) => (
+                PartRole::AircraftGear(gear) => (
                     folded_gear_pivot(hull.pivot, vehicle.aircraft_gear),
-                    gear_rotation(vehicle.aircraft_gear),
+                    gear.rotation(vehicle),
                 ),
                 PartRole::FlightControl(control, axis) => {
                     (hull.pivot, control.rotation(axis, vehicle))
@@ -943,7 +957,7 @@ impl Definition {
             }
             PartRole::Body => return Mat4::from_quat(lean),
             PartRole::FlightControl(control, axis) => control.rotation(axis, vehicle),
-            PartRole::AircraftGear(_) => gear_rotation(vehicle.aircraft_gear),
+            PartRole::AircraftGear(gear) => gear.rotation(vehicle),
             PartRole::Door(door, leaf) => {
                 return Mat4::from_quat(lean) * self.door_transform(vehicle, door, leaf)
             }
@@ -951,6 +965,13 @@ impl Definition {
             PartRole::Pedal => Quat::IDENTITY,
             PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
             PartRole::Outboard => Quat::from_rotation_z(-vehicle.steering),
+            PartRole::BaggageTrailer => Quat::from_rotation_z(vehicle.trailer_angle),
+            PartRole::BaggageWheel => {
+                Quat::from_rotation_z(vehicle.trailer_angle)
+                    * Quat::from_rotation_y(
+                        vehicle.wheel_angle * self.config.physics.wheel_radius / 0.28,
+                    )
+            }
             PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
             PartRole::FrontWheel => {
                 Quat::from_rotation_z(vehicle.steering) * Quat::from_rotation_y(vehicle.wheel_angle)
@@ -998,12 +1019,19 @@ impl Definition {
             let q = match part.role {
                 PartRole::Body | PartRole::Crash(_) => lean,
                 PartRole::FlightControl(control, axis) => control.rotation(axis, vehicle),
-                PartRole::AircraftGear(_) => gear_rotation(vehicle.aircraft_gear),
+                PartRole::AircraftGear(gear) => gear.rotation(vehicle),
                 PartRole::Door(..) => lean,
                 PartRole::Crank => Quat::from_rotation_y(vehicle.pedal_angle),
                 PartRole::Pedal => Quat::IDENTITY,
                 PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
                 PartRole::Outboard => Quat::from_rotation_z(-vehicle.steering),
+                PartRole::BaggageTrailer => Quat::from_rotation_z(vehicle.trailer_angle),
+                PartRole::BaggageWheel => {
+                    Quat::from_rotation_z(vehicle.trailer_angle)
+                        * Quat::from_rotation_y(
+                            vehicle.wheel_angle * self.config.physics.wheel_radius / 0.28,
+                        )
+                }
                 PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
                 PartRole::FrontWheel => {
                     Quat::from_rotation_z(vehicle.steering)
@@ -1078,11 +1106,7 @@ pub fn definitions() -> &'static [Definition] {
                 definition
             })
             .collect();
-        for definition in &mut definitions {
-            if !definition.is_bicycle() {
-                definition.add_rear_plate(texture_layer);
-            }
-        }
+        let plated = definitions.len();
         definitions
             .extend(super::aircraft::Model::ALL.map(|model| model.definition(texture_layer)));
         for (cfg, glb) in [
@@ -1092,6 +1116,16 @@ pub fn definitions() -> &'static [Definition] {
         ] {
             definitions
                 .push(Definition::load(cfg, glb, texture_layer).expect("bundled Claydash boat"));
+        }
+        let (cfg, glb) = asset!("airport/baggage-tractor");
+        let tug =
+            Definition::load(cfg, glb, texture_layer).expect("bundled airport baggage tractor");
+        texture_layer += u32::from(tug.texture_png.is_some());
+        definitions.push(tug);
+        for definition in &mut definitions[..plated] {
+            if !definition.is_bicycle() {
+                definition.add_rear_plate(texture_layer);
+            }
         }
         definitions
     })
@@ -1790,6 +1824,60 @@ mod tests {
     }
 
     #[test]
+    fn aircraft_nose_gear_steers_the_taxi_path() {
+        use super::super::{aircraft::Model, Controls, SpawnPoint, Vehicle};
+
+        let hermes = crate::hermes::Hermes::test_map_from_source(
+            "field=concrete(-4,-4,4,-4,4,4,-4,4); elevation(field,0.122001); player_start(0,0,0);",
+        );
+        let city = hermes.city();
+        for model in Model::ALL {
+            for direction in [-1., 1.] {
+                let mut plane = Vehicle::spawn_at(
+                    city,
+                    SpawnPoint {
+                        point: [0., 0.],
+                        heading: Some(0.),
+                    },
+                )
+                .unwrap();
+                plane.set_catalog_model(Some(model.catalog_index()));
+                let def = plane.definition().unwrap();
+                let neutral = def.part_transforms(&plane);
+                let steer = Controls {
+                    steering: direction,
+                    ..Controls::default()
+                };
+                plane.step(city, steer, 0.5);
+                assert_eq!(plane.yaw, 0.);
+                assert!(plane.steering * direction > 0.5);
+                let parked_angle = plane.steering;
+                let turned = def.part_transforms(&plane);
+                for (i, part) in def.parts.iter().enumerate() {
+                    if let PartRole::AircraftGear(gear) = part.role {
+                        let angle = if gear == Gear::Nose { parked_angle } else { 0. };
+                        let rotation = neutral[i].inverse() * turned[i];
+                        let expected = Quat::from_rotation_z(angle) * Vec3::X;
+                        assert!(rotation.transform_vector3(Vec3::X).distance(expected) < 1e-4);
+                    }
+                }
+                let start = plane.position;
+                plane.velocity = Vec3::X * 4.;
+                plane.step(city, steer, 0.25);
+                assert!(plane.yaw * direction > 0.);
+                assert!((plane.position.y - start.y) * direction > 0.);
+                let speed = plane
+                    .velocity
+                    .dot(Vec3::new(plane.yaw.cos(), plane.yaw.sin(), 0.));
+                let expected_rate = speed * plane.steering.tan() / plane.wheelbase();
+                assert!((plane.aircraft_rates.z / expected_rate - 1.).abs() < 0.02);
+                plane.step(city, Controls::default(), 1.);
+                assert!(plane.steering.abs() < 0.03);
+            }
+        }
+    }
+
+    #[test]
     fn aircraft_render_parts_hinge_with_the_commanded_surfaces() {
         let hermes = crate::hermes::Hermes::test_map();
         for model in super::super::aircraft::Model::ALL {
@@ -1840,7 +1928,7 @@ mod tests {
 
     #[test]
     fn every_export_loads_with_authored_running_gear_and_si_data() {
-        assert_eq!(definitions().len(), 17);
+        assert_eq!(definitions().len(), 18);
         assert_eq!(
             definitions()
                 .iter()

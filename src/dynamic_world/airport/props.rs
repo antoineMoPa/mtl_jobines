@@ -238,7 +238,11 @@ mod tests {
                 .unwrap();
             let (lo, hi) = crate::hermes::external_models::bounds(&groups[index][0].mesh);
             let center = (lo + hi) * (METERS_PER_UNIT / 2.);
-            let mut props = Props::from_parts_near(groups.clone(), center);
+            let mut props = Props::from_map(&hermes, center);
+            let lights = props.airport_lights().count();
+            assert!(lights > 2);
+            let lost_lenses = usize::from(count != 3); // Lamps and the station mast emit light.
+
             assert!(props.blocked(center));
             let mut vehicle = Vehicle::spawn_at(
                 city,
@@ -253,6 +257,7 @@ mod tests {
             props.vehicle_move(&mut vehicle, center - Vec3::X * 8., city);
             assert_eq!(props.damaged_groups().collect::<Vec<_>>(), [index]);
             assert!(!props.group_intact(index));
+            assert_eq!(props.airport_lights().count(), lights - lost_lenses);
             assert!(!props.blocked(center));
             let mut debris = Mesh::default();
             props.append_moving(&mut debris, center);
@@ -266,6 +271,7 @@ mod tests {
             props.update_focus(center + Vec3::Y * 1000.);
             props.update_focus(center);
             assert!(props.group_intact(index) && props.blocked(center));
+            assert_eq!(props.airport_lights().count(), lights);
         }
     }
 }

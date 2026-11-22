@@ -4,6 +4,9 @@ use crate::audio::{EngineKind, VehicleSound};
 use glam::Vec3;
 use opencity::runtime::{City, SurfaceKind};
 
+pub(super) const MAIN_GEAR_X: f32 = -0.055; // Fraction of fuselage length, aft of the origin.
+pub(super) const NOSE_GEAR_X: f32 = 0.32;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Model {
     Estuaire,
@@ -106,10 +109,10 @@ impl Model {
                     max_speed: physics.max_speed,
                     acceleration: physics.thrust,
                     friction: 0.8,
-                    max_steer_angle: 0.47,
+                    max_steer_angle: 0.92,
                     height_offset: ride,
                     wheel_radius: 0.24,
-                    wheelbase: length * 0.375,
+                    wheelbase: length * (NOSE_GEAR_X - MAIN_GEAR_X),
                     track: radius * 1.78,
                 },
                 sound: VehicleSound {
@@ -187,6 +190,20 @@ impl AircraftPhysics {
             (speed + (self.thrust * throttle - drag - climb_cost - brake * 0.24) * dt)
                 .clamp(0., self.max_speed)
         };
+        let on_wheels = plane.grounded && plane.surface != SurfaceKind::Water;
+        let steering_target = if on_wheels {
+            let lock = plane
+                .definition()
+                .expect("aircraft definition")
+                .config
+                .physics
+                .max_steer_angle;
+            let command = (input.steering + input.aircraft_yaw).clamp(-1., 1.);
+            command * lock / (1. + (speed / 12.).powi(2))
+        } else {
+            0.
+        };
+        plane.steering += (steering_target - plane.steering) * (1. - (-4. * dt).exp());
         let pressure = (speed.max(0.) / self.reference_speed).powi(2);
         let authority = pressure.clamp(0.12, 1.45);
         let omega = 2. / self.response_time;
@@ -221,23 +238,36 @@ impl AircraftPhysics {
         let lift_g = ((pressure * 0.80).min(1.) + pressure.min(2.5) * lift_slope * incidence)
             .clamp(-0.8, 3.2);
         if plane.grounded {
-            plane.roll *= 1. - attitude_blend;
-            plane.aircraft_rates.x = 0.;
             let wheel_load = (1. - lift_g).clamp(0., 1.);
-            let wheel_turn = (speed / 9.).clamp(-1., 1.) / (1. + speed.abs() * 0.024);
-            let turn =
-                surfaces.z * (wheel_load * wheel_turn + (1. - wheel_load) * 0.15 * authority);
+            let wheel_turn = if on_wheels {
+                speed * plane.steering.tan() / plane.wheelbase()
+            } else {
+                0.
+            };
+            let turn = wheel_load * wheel_turn + (1. - wheel_load) * surfaces.z * 0.15 * authority;
+            // Lateral acceleration loads the outside main gear. Positive roll
+            // lowers the starboard wing when the tires accelerate the plane to port.
+            let lateral_g = speed * wheel_load * wheel_turn / 9.81;
+            let roll_target = lateral_g.clamp(-1., 1.) * 5_f32.to_radians();
+            let roll_response = 2. * omega;
+            plane.aircraft_rates.x += (roll_response.powi(2) * (roll_target - plane.roll)
+                - 2. * roll_response * plane.aircraft_rates.x)
+                * dt;
+            plane.roll += plane.aircraft_rates.x * dt;
             let side = Vec3::new(-plane.yaw.sin(), plane.yaw.cos(), 0.);
-            let lateral = plane.velocity.dot(side);
+            // The main gear tracks the fuselage heading. The origin ahead of it
+            // moves sideways as the nose comes around.
+            let axle_offset = -MAIN_GEAR_X * plane.length();
+            let lateral = plane.velocity.dot(side) - axle_offset * plane.aircraft_rates.z;
             let tire_grip = wheel_load * (0.8 + 5. * lateral.abs()) * dt;
-            let skid = side * (lateral - lateral.clamp(-tire_grip, tire_grip));
+            let sideways = axle_offset * turn + lateral - lateral.clamp(-tire_grip, tire_grip);
             plane.aircraft_rates.z = turn;
             plane.yaw += turn * dt;
             plane.velocity = Vec3::new(
                 plane.yaw.cos() * speed,
                 plane.yaw.sin() * speed,
                 plane.velocity.z,
-            ) + skid;
+            ) + Vec3::new(-plane.yaw.sin(), plane.yaw.cos(), 0.) * sideways;
         } else {
             // Horizontal lift turns the flight path, including through knife-edge bank.
             let turn =
@@ -273,9 +303,21 @@ impl AircraftPhysics {
         };
         let resting = terrain_height + plane.ride_height();
         let follow_ground = plane.grounded && plane.velocity.z <= 0. && kind != SurfaceKind::Water;
+        let airborne = !plane.grounded;
         plane.position = next;
         plane.grounded = next.z <= resting || follow_ground;
         if plane.grounded {
+            if airborne
+                && kind != SurfaceKind::Water
+                && -plane.velocity.z >= super::crash::HARD_LANDING_MPS
+            {
+                plane.sound_impact(-plane.velocity.z, crate::audio::Material::Hard, false);
+                plane.record_severe_contact(
+                    next.truncate().extend(terrain_height + 0.35),
+                    -plane.velocity.z,
+                    super::crash::HARD_LANDING_MPS,
+                );
+            }
             plane.position.z = resting;
             plane.velocity.z = 0.;
             plane.surface = kind;
@@ -316,6 +358,7 @@ fn move_against_buildings(plane: &mut Vehicle, city: &City, dt: f32) -> Vec3 {
     let body_radius = plane.half_track() / 0.89;
     let mut first = 1.;
     let mut outward = Vec3::ZERO;
+    let mut contact = end;
     // Rounded nose and tail, cabin, then outer wings at their mounted height.
     for (x, y, z, radius, half_height) in [
         (0.46, 0., 0., length * 0.039, body_radius * 0.5),
@@ -372,10 +415,12 @@ fn move_against_buildings(plane: &mut Vehicle, city: &City, dt: f32) -> Vec3 {
         } else {
             continue;
         }
+        contact = point;
         first = clear;
     }
     if first < 1. {
         let impact = -plane.velocity.dot(outward);
+        plane.record_severe_contact(contact, impact, super::crash::ROAD_IMPACT_MPS);
         let rebound = if impact > 2. { 0.25 } else { 0. };
         plane.velocity += outward * (impact * (1. + rebound));
         plane.sound_impact(impact, crate::audio::Material::Hard, false);

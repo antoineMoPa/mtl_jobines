@@ -129,7 +129,7 @@ mod browser {
                 && !self.first_frame
                 && self.auto_drive.is_none()
                 && !self.simulation_paused()
-                && self.world.arrest_progress().is_none();
+                && !self.recovery_in_progress();
             let driving = self.world.is_driving();
             if self.mobile.view != Some((active, driving)) {
                 self.mobile.clear();
@@ -157,7 +157,7 @@ mod browser {
                     let active = enabled()
                         && !self.first_frame
                         && !self.simulation_paused()
-                        && self.world.arrest_progress().is_none();
+                        && !self.recovery_in_progress();
                     self.mobile.hold(action, pressed, active);
                     if pressed && active {
                         self.auto_drive = None;

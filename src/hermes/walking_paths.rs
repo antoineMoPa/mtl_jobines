@@ -335,4 +335,42 @@ mod tests {
         let high = low + Vec3::Z * 10.;
         assert!(corner(&c, low, high).is_none());
     }
+
+    #[test]
+    fn airport_roundabout_sidewalk_links_both_sides_of_the_access_road() {
+        let map = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road");
+        let hermes = crate::hermes::Hermes::load_with_game_data(&map, None).unwrap();
+        let paths = &hermes.walking_paths().paths;
+        let at = |p: Vec3, xy: [f32; 2]| {
+            (p.truncate() / METERS_PER_UNIT).distance(glam::Vec2::from_array(xy)) < 0.002
+        };
+        // Follow the pedestrian graph from the north approach curb to its southern counterpart.
+        let entering = paths
+            .iter()
+            .position(|path| {
+                at(*path.points.last().unwrap(), [-3.70, -0.3865])
+                    && path.points[0].x > -3.70 * METERS_PER_UNIT
+            })
+            .unwrap();
+        let mut pending = paths[entering].next.clone();
+        let mut visited = std::collections::HashSet::new();
+        let mut returned = false;
+        let mut reached_apron_side = false;
+        while let Some(id) = pending.pop() {
+            if !visited.insert(id) {
+                continue;
+            }
+            let path = &paths[id];
+            if at(path.points[0], [-3.70, -0.5335])
+                && path.points.last().unwrap().x > -3.70 * METERS_PER_UNIT
+            {
+                returned = true;
+            }
+            if path.points.iter().all(|p| p.x <= -3.699 * METERS_PER_UNIT) {
+                reached_apron_side |= path.points.iter().any(|&p| at(p, [-3.9505, -0.46]));
+                pending.extend(&path.next);
+            }
+        }
+        assert!(reached_apron_side && returned);
+    }
 }

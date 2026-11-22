@@ -3,6 +3,8 @@ struct Camera {
     sun_exposure: vec4<f32>, daylight_sky: vec4<f32>
 };
 @group(0) @binding(0) var<uniform> cam: Camera;
+@group(1) @binding(0) var crash_atlas: texture_2d<f32>;
+@group(1) @binding(1) var crash_sampler: sampler;
 struct Varyings {
     @builtin(position) clip: vec4<f32>,
     @location(0) uv: vec2<f32>,
@@ -27,7 +29,30 @@ fn cloud(p:vec2<f32>) -> f32 {
 }
 @fragment fn fs(v:Varyings) -> @location(0) vec4<f32> {
     let uv=v.uv; let seed=v.params.y;
+    if v.params.x < 0. {
+        let r = length(uv);
+        let core = 1. - smoothstep(0.12, 0.49, r);
+        let halo = 1. - smoothstep(0., 1., r);
+        return vec4(v.color, (core + (1. - core) * 0.31 * halo * halo) * v.params.z);
+    }
     let light=mix(0.18,0.95,clamp(cam.daylight_sky.x,0.,1.));
+    if v.params.x>10.5 {
+        return vec4(vec3(1.,0.49,0.055), (1.-smoothstep(0.2,1.,length(uv)))*v.params.z);
+    }
+    if v.params.x>8.5 {
+        let tile=vec2(seed%2.,floor(seed*0.5));
+        let puff=textureSampleLevel(crash_atlas,crash_sampler,(tile+vec2(uv.x,-uv.y)*0.5+0.5)*0.5,0.).rg;
+        let alpha=puff.g*v.params.z;
+        if alpha<0.007 {discard;}
+        if v.params.x>9.5 {
+            let heat=puff.r*0.73+0.42*(1.-v.params.w);
+            let fire=mix(vec3(1.,0.075,0.002),vec3(1.,0.55,0.035),smoothstep(0.10,0.66,heat));
+            return vec4(mix(fire,vec3(1.,0.94,0.57),smoothstep(0.63,0.96,heat)),alpha);
+        }
+        let smoke=mix(vec3(0.018,0.017,0.017),vec3(0.36,0.33,0.29),puff.r)*light;
+        let ember=vec3(0.24,0.045,0.003)*exp(-10.*v.params.w)*(1.-puff.r);
+        return vec4(smoke+ember,alpha);
+    }
     if v.params.x<0.5 {
         let flow=vec2(0.14,-0.52)*v.params.w;
         let p=uv*2.4+vec2(seed,seed*0.61)+flow;

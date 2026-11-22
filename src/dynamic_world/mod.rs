@@ -4,6 +4,7 @@ mod auto_drive;
 pub use auto_drive::{AutoDrive, DriveAvailability, DriveStep};
 mod aircraft;
 pub(crate) mod airport;
+mod baggage;
 pub(crate) mod bikeshare;
 mod boats;
 pub use boats::Wake;
@@ -12,6 +13,8 @@ pub use water_hull::Waterline;
 mod buildings;
 pub mod catalog;
 mod contacts;
+mod crash;
+pub use crash::Crash;
 mod crowd;
 mod cycling_pose;
 mod cyclists;
@@ -81,6 +84,7 @@ pub struct DynamicWorld {
     pub snow: snow::Tracks,
     snow_timer: f32,
     player_tire_pops: Vec<ShotHit>,
+    crash: Option<Crash>,
     sound_impacts: [crate::audio::Impact; crate::audio::IMPACT_VOICES],
     sound_serial: u64,
     sound_foliage: f32,
@@ -170,6 +174,7 @@ impl DynamicWorld {
             snow: snow::Tracks::default(),
             snow_timer: 0.,
             player_tire_pops: Vec::new(),
+            crash: None,
             sound_impacts: [crate::audio::Impact::default(); crate::audio::IMPACT_VOICES],
             sound_serial: 0,
             sound_foliage: 0.15,
@@ -201,7 +206,7 @@ impl DynamicWorld {
             walking_spawn: None,
             vehicle_spawns: Vec::new(),
             snow_events: Vec::new(),
-            props: props::Props::from_parts_near(hermes.prop_parts(), prop_center),
+            props: props::Props::from_map(hermes, prop_center),
         };
         world.traffic.update_prop_focus(prop_center);
         world.add_parked_vehicles(hermes)?;
@@ -471,13 +476,18 @@ impl DynamicWorld {
             .map(|(index, _)| index)
     }
     pub fn toggle_vehicle(&mut self, hermes: &Hermes) -> bool {
-        if self.metro.aboard || self.health == 0 {
+        if self.crash.is_some() || self.metro.aboard || self.health == 0 {
             return false;
         }
         if let Some(player) = &self.pedestrian {
             if let Some(index) = self.nearest_enterable_vehicle(player.position) {
                 let car = &self.vehicles[index];
-                let entry = vehicle_entry::Entry::new(car, player, self.season);
+                let entry = vehicle_entry::Entry::new(
+                    car,
+                    player,
+                    self.season,
+                    car.nearest_front_door(player.position),
+                );
                 let occupied = self.traffic.driven_slots().any(|(id, _)| id == index);
                 let model = self.cyclists.rider_model(index).or_else(|| {
                     (occupied && !self.officer_out_of(index))
@@ -557,7 +567,12 @@ impl DynamicWorld {
                 }
                 let car = &mut self.vehicles[self.player_vehicle.0];
                 if car.velocity.length_squared() <= 9. {
-                    self.entry = vehicle_entry::Entry::new(car, player, self.season);
+                    self.entry = vehicle_entry::Entry::new(
+                        car,
+                        player,
+                        self.season,
+                        car.nearest_door(player.position),
+                    );
                 }
                 if let Some(exit) = &mut self.entry {
                     car.doors.claim();
@@ -572,6 +587,7 @@ impl DynamicWorld {
         false
     }
     pub fn reset_player(&mut self, hermes: &Hermes) {
+        self.crash = None;
         self.displaced.clear();
         self.entry = None;
         self.exit_on_right = false;
@@ -615,6 +631,10 @@ impl DynamicWorld {
         mut profile: Option<&mut StepProfile>,
     ) {
         if !dt.is_finite() || dt <= 0. {
+            return;
+        }
+        if self.crash.is_some() {
+            self.advance_crash(hermes, dt);
             return;
         }
         if self.chase_status() == ChaseStatus::Arrested {
@@ -739,6 +759,7 @@ impl DynamicWorld {
             }
             vehicle.doors.step(dt);
             vehicle.update_route_signal(signal, dt);
+            vehicle.severe_contact = None;
             vehicle.sound_running = false;
             vehicle.sound_cooldown = (vehicle.sound_cooldown - dt).max(0.);
             if self.traffic.inactive(i) || self.cyclists.inactive(i) || self.cyclists.is_docked(i) {
@@ -782,8 +803,7 @@ impl DynamicWorld {
                 continue;
             }
             let before = vehicle.position;
-            let reach =
-                vehicle.length().hypot(vehicle.width()) * 0.5 + vehicle.velocity.length() * dt + 1.;
+            let reach = vehicle.contact_reach() + vehicle.velocity.length() * dt + 1.;
             self.buildings.nearby(
                 vehicle.position.truncate(),
                 reach,
@@ -848,6 +868,10 @@ impl DynamicWorld {
                 };
             }
             vehicle.sound_impact_count = 0;
+        }
+        self.begin_player_crash();
+        if self.crash.is_some() {
+            return;
         }
         let mut walking = None;
         if let Some(player) = self
@@ -1031,6 +1055,10 @@ impl DynamicWorld {
     pub fn write_mesh(&self, mesh: &mut Mesh) {
         self.write_actors(mesh);
         self.props.append_visible(mesh, self.player_position());
+    }
+    /// Intact airfield lens positions in map units and their emissive colors.
+    pub fn airport_lights(&self) -> impl Iterator<Item = (Vec3, Vec3)> + '_ {
+        self.props.airport_lights()
     }
     /// Exact visible intact-prop selections, without copying their vertices.
     pub fn visible_prop_batches(&self) -> Vec<PropBatch> {

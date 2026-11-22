@@ -59,6 +59,7 @@ pub struct Vehicle {
     pub(crate) sound_running: bool,
     pub(super) sound_impacts: [crate::audio::Impact; 3],
     pub(super) sound_impact_count: usize,
+    pub(super) severe_contact: Option<(Vec3, f32)>,
     pub(super) sound_cooldown: f32,
     pub(super) definition: Option<usize>,
     pub position: Vec3,
@@ -68,6 +69,7 @@ pub struct Vehicle {
     pub roll: f32,
     pub steering: f32,
     pub wheel_angle: f32,
+    pub(super) trailer_angle: f32,
     pub(super) flat_tires: [bool; 4],
     pub metro_doors: f32,
     pub(super) doors: super::doors::Doors,
@@ -142,6 +144,7 @@ impl Vehicle {
             sound_running: false,
             sound_impacts: [crate::audio::Impact::default(); 3],
             sound_impact_count: 0,
+            severe_contact: None,
             sound_cooldown: 0.,
             definition: None,
             position: Vec3::new(
@@ -155,6 +158,7 @@ impl Vehicle {
             roll: 0.,
             steering: 0.,
             wheel_angle: 0.,
+            trailer_angle: 0.,
             flat_tires: [false; 4],
             metro_doors: 0.,
             doors: Default::default(),
@@ -180,6 +184,7 @@ impl Vehicle {
         let previous_height = self.ride_height();
         self.definition = definition;
         self.damage = None;
+        self.trailer_angle = 0.;
         self.flat_tires = [false; 4];
         self.doors = Default::default();
         self.metro_doors = 0.;
@@ -367,6 +372,12 @@ impl Vehicle {
             let physics = model.physics();
             for _ in 0..steps {
                 physics.step(self, city, input, sub_dt);
+            }
+        } else if self.has_baggage_trailer() {
+            for _ in 0..steps {
+                let before = self.trailer_axle();
+                self.step_substep(city, input, sub_dt, buildings);
+                self.follow_baggage_hitch(before);
             }
         } else {
             for _ in 0..steps {
@@ -741,6 +752,16 @@ impl Vehicle {
                 }
             }
         }
+        let body_probes = [-self.length() * 0.28, 0., self.length() * 0.28]
+            .map(|x| (self.position.truncate() + forward * x, axis * x, radius));
+        let trailer_probes = self.has_baggage_trailer().then(|| {
+            let axle = self.trailer_axle();
+            let heading = Vec2::from_angle(self.yaw + self.trailer_angle);
+            [-0.8, 0., 0.8].map(|x| {
+                let center = axle + heading * x;
+                (center, (center - self.position.truncate()).extend(0.), 0.81)
+            })
+        });
         for index in 0..buildings.map_or(city.landscape.len(), |ids| ids.len()) {
             let id = buildings.map_or(index, |ids| ids[index]);
             let building = &city.landscape[id];
@@ -752,8 +773,8 @@ impl Vehicle {
             {
                 continue;
             }
-            for offset in [-self.length() * 0.28, 0., self.length() * 0.28] {
-                let center = self.position.truncate() + forward * offset;
+            for &(center, arm, radius) in body_probes.iter().chain(trailer_probes.iter().flatten())
+            {
                 let mut inside = false;
                 let mut nearest = Vec2::ZERO;
                 let mut edge_normal = Vec2::X;
@@ -809,7 +830,7 @@ impl Vehicle {
                     }
                 };
                 if deepest.is_none_or(|(_, previous, _)| depth > previous) {
-                    deepest = Some((normal, depth, axis * offset));
+                    deepest = Some((normal, depth, arm));
                 }
             }
         }

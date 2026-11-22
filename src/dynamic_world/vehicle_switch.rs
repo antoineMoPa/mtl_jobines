@@ -3,7 +3,7 @@ use super::{catalog, Controls, DynamicWorld};
 
 impl DynamicWorld {
     pub fn switch_vehicle(&mut self, model: usize) -> bool {
-        if self.health == 0 || catalog::definitions().get(model).is_none() {
+        if self.crash.is_some() || self.health == 0 || catalog::definitions().get(model).is_none() {
             return false;
         }
         let index = self.player_vehicle.0;

@@ -30,7 +30,12 @@ fn tree_image_color(v:Output,uv_dx:vec2<f32>,uv_dy:vec2<f32>)->vec4<f32> {
     let distance=length(eye);
     let fog=world_fog(distance);
     let sky=textureSampleLevel(sky_environment,sky_sampler,-eye/max(distance,0.00001),0.0).rgb;
-    return vec4<f32>(filmic_display(mix(summer_vegetation_color(tex.rgb),sky,fog)*camera.sun_exposure.w),tex.a);
+    // The seasonal images already contain daytime shading. Use the mesh's
+    // night ambient tint and hemisphere intensity when daylight fades.
+    let daylight=clamp(camera.daylight_sky.x,0.0,1.0);
+    let light=mix(vec3<f32>(0.42,0.56,0.85)*0.15,vec3<f32>(1.0),daylight);
+    let lit=summer_vegetation_color(tex.rgb)*light;
+    return vec4<f32>(filmic_display(mix(lit,sky,fog)*camera.sun_exposure.w),tex.a);
 }
 // Explicit layer mapping: foliage, grass, spare, bark, spare, bark normal.
 fn tree_layer(kind:i32)->i32 {
@@ -147,7 +152,10 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
 }
 // No reachable discard, preserving early depth rejection for opaque scenery.
 @fragment fn fs_opaque_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
-    let surface=prepare_surface(v);
+    var surface=prepare_surface(v);
+    // Elevation mesh tags from Vertex::DRY_TERRAIN and Vertex::SHORE_PROFILE.
+    let terrain=v.surface.x==1.0 && (v.surface.w== -1.0 || v.surface.w==3.0);
+    if terrain {surface.fog=0.0;}
     if v.surface.x>8.5 && v.surface.x<9.5 && v.surface.w>=2.0 && v.surface.w<=109.0 {
         let encoded=u32(v.surface.w);
         let base=encoded&15u;
@@ -183,7 +191,9 @@ fn lamp_color_strength(v:Output,strength:f32)->vec4<f32> {
     if v.surface.x>8.5 && v.surface.x<9.5 && v.surface.w==1.0 {
         return lamp_color(v);
     }
-    return shade_local_surface(v,front,1.0,surface);
+    let shaded=shade_local_surface(v,front,1.0,surface);
+    // Opaque terrain reserves zero scene alpha to bypass atmospheric haze in the composite.
+    return vec4<f32>(shaded.rgb,select(shaded.a,0.0,terrain));
 }
 @fragment fn fs_game(v:Output,@builtin(front_facing) front:bool)->@location(0) vec4<f32> {
     let du=dpdx(v.fence_uv);let dv=dpdy(v.fence_uv);let dx=dpdx(v.world);let dy=dpdy(v.world);

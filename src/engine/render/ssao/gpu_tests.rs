@@ -279,3 +279,64 @@ fn native_flight_visibility_reveals_landmarks_beyond_the_street_far_plane() {
         }
     }
 }
+
+#[test]
+#[ignore = "requires a native GPU adapter"]
+fn native_elevation_ground_stays_clear_in_flight() {
+    use crate::season::Season;
+    use opencity::runtime::Vertex;
+
+    let mut renderer = pollster::block_on(Renderer::new(None, 320, 240)).unwrap();
+    renderer.daylight = Some(1.);
+    renderer.montreal_grade = true;
+    let eye = Vec3::new(0., -4., 5.);
+    let look = Vec3::ZERO;
+    let texture = target(&renderer);
+    let view = texture.create_view(&Default::default());
+
+    for season in [Season::Summer, Season::Winter] {
+        renderer.season = season;
+        for tag in [Vertex::DRY_TERRAIN, Vertex::SHORE_PROFILE, 0.] {
+            let mut mesh = Mesh::default();
+            mesh.quad(
+                [[-4., -4., 0.], [4., -4., 0.], [4., 4., 0.], [-4., 4., 0.]],
+                [0.12, 0.23, 0.075],
+                SurfaceKind::Grass,
+            );
+            for v in &mut mesh.vertices {
+                v.surface[1..].copy_from_slice(&[0.1, 0., tag]);
+            }
+            let ground = renderer.upload(&mesh);
+            let mut capture = |scale| {
+                renderer.flight_visibility = scale;
+                renderer.render_scene(&view, &[&ground], eye, look, 0., None);
+                renderer.rgba_pixels(&texture).unwrap()
+            };
+            let street = capture(1.);
+            let flight = capture(4.);
+            let mut differences = Vec::new();
+            for y in 104..136 {
+                for x in 144..176 {
+                    let i = (320 * y + x) * 4;
+                    assert_eq!(flight[i + 3], 255);
+                    differences.push(
+                        (0..3)
+                            .map(|c| flight[i + c].abs_diff(street[i + c]))
+                            .max()
+                            .unwrap(),
+                    );
+                }
+            }
+            differences.sort_unstable();
+            let median = differences[differences.len() / 2];
+            if tag == 0. {
+                assert!(median > 3, "authored grass lost atmospheric fog: {median}");
+            } else {
+                assert!(
+                    median <= 1,
+                    "terrain color shifted with fog distance: {median}"
+                );
+            }
+        }
+    }
+}

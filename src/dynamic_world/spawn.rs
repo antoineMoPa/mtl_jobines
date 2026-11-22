@@ -144,6 +144,7 @@ impl Vehicle {
             signal_time: 0.,
             sound_impacts: [crate::audio::Impact::default(); 3],
             sound_impact_count: 0,
+            severe_contact: None,
             sound_cooldown: 0.,
             position: Vec3::new(
                 start.point[0] * METERS_PER_UNIT,
@@ -156,6 +157,7 @@ impl Vehicle {
             roll: gradient.dot(left).atan(),
             steering: 0.,
             wheel_angle: 0.,
+            trailer_angle: 0.,
             flat_tires: [false; 4],
             metro_doors: 0.,
             doors: Default::default(),

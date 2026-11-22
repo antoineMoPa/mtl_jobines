@@ -471,6 +471,11 @@ impl Hermes {
         groups
     }
     pub fn prop_parts(&self) -> Vec<Vec<crate::props::Part>> {
+        self.prop_parts_with_airport().0
+    }
+    pub(crate) fn prop_parts_with_airport(
+        &self,
+    ) -> (Vec<Vec<crate::props::Part>>, std::ops::Range<usize>) {
         let mut groups = street_props::parts(&self.city);
         groups.extend(self.details.take_props(&self.city, self.prepared.is_none()));
         groups.extend(orange_sign::parts(&self.city));
@@ -479,17 +484,19 @@ impl Hermes {
                 .into_iter()
                 .map(|(_, _, p)| p.parts()),
         );
+        let airport_start = groups.len();
         groups.extend(
             crate::dynamic_world::airport::prop_groups(&self.city)
                 .into_iter()
                 .map(|parts| parts.into_iter().map(crate::props::Part::baked).collect()),
         );
+        let airport_groups = airport_start..groups.len();
         groups.extend(
             airport_fence::panels(&self.city)
                 .into_iter()
                 .map(|panel| vec![crate::props::Part::baked(panel)]),
         );
-        groups
+        (groups, airport_groups)
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write_game_data(&mut self, path: &Path) -> Result<(), String> {

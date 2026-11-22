@@ -46,6 +46,7 @@ fn infrastructure(triangle: &[opencity::runtime::Vertex; 3]) -> bool {
         || s[0] == SurfaceKind::Sidewalk as u32 as f32 && s[3] != 0.
         || s[0] == SurfaceKind::Grass as u32 as f32
             && s[3] != 0.
+            && s[3] != opencity::runtime::Vertex::DRY_TERRAIN
             && s[3] != opencity::runtime::Vertex::SHORE_PROFILE
         || s[3] == -2.
 }

@@ -114,6 +114,11 @@ impl Vehicle {
                 if closing >= 0. {
                     continue;
                 }
+                self.record_severe_contact(
+                    self.position + arm,
+                    -closing,
+                    super::super::crash::ROAD_IMPACT_MPS,
+                );
                 impact = impact.max(-closing);
                 let impulse = -closing / self.impulse_response(arm, normal);
                 self.apply_impulse(arm, normal * impulse);

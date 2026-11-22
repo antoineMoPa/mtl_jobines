@@ -55,6 +55,7 @@ pub struct Props {
     sound_materials: Vec<crate::audio::Material>,
     groups: Vec<Vec<usize>>,
     items: Vec<Prop>,
+    airport_lenses: Vec<(usize, Vec3, Vec3)>,
     active: Vec<usize>,
     tiles: HashMap<(i32, i32), Vec<usize>>,
     resident: Option<(i32, i32)>,
@@ -121,6 +122,35 @@ impl Props {
     pub fn from_parts_near(groups: Vec<Vec<Part>>, center: Vec3) -> Self {
         Self::build(groups, Some(Self::tile(center)))
     }
+    pub(super) fn from_map(hermes: &crate::hermes::Hermes, center: Vec3) -> Self {
+        let (parts, airport_groups) = hermes.prop_parts_with_airport();
+        let mut props = Self::from_parts_near(parts, center);
+        for group in airport_groups {
+            for &id in &props.groups[group] {
+                let prop = &props.items[id];
+                if let Some(position) = prop.lamp {
+                    let lens = prop
+                        .mesh
+                        .mesh
+                        .vertices
+                        .iter()
+                        .find(|v| {
+                            v.surface[0] == SurfaceKind::Light as u32 as f32 && v.surface[3] == 0.
+                        })
+                        .expect("lamp bounds include an emissive vertex");
+                    props.airport_lenses.push((id, position, lens.color.into()));
+                }
+            }
+        }
+        props
+    }
+    pub(super) fn airport_lights(&self) -> impl Iterator<Item = (Vec3, Vec3)> + '_ {
+        self.airport_lenses
+            .iter()
+            .filter_map(|&(id, position, color)| {
+                (!self.items[id].broken).then_some((position, color))
+            })
+    }
     fn tile(center: Vec3) -> (i32, i32) {
         (
             (center.x / TILE).floor() as i32,
@@ -168,6 +198,7 @@ impl Props {
             sound_materials,
             groups: vec![Vec::new(); groups.len()],
             items: Vec::new(),
+            airport_lenses: Vec::new(),
             active: Vec::new(),
             tiles: HashMap::new(),
             resident,

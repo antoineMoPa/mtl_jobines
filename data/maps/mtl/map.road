@@ -7722,30 +7722,43 @@ airport_apron = concrete(-5.55, 1.6, -5.55, -1.45, -3.97, -1.45, -3.97, 1.6);
 elevation(airport_apron, 0.122001);
 airport_concourse = building(0.077, { material: concrete, family: curtain_wall, palette: chalk, front_edge: 2 }, -4.48, 1.41, -4.48, 0.23, -4.08, 0.23, -4.08, 1.41);
 elevation(airport_concourse, 0.102001);
-airport_tower = building(0.23, { material: concrete, family: civic, palette: chalk }, -4.50, 1.78, -4.50, 1.51, -4.22, 1.51, -4.22, 1.78);
-elevation(airport_tower, 0.102001);
+airport_tower = building(0.1618, "models/airport-control-tower.glb", -4.580000, -0.327000, -4.509000, -0.327000, -4.509000, -0.241000, -4.580000, -0.241000);
+elevation(airport_tower, 0.122001);
+airport_hangar = building(0.1, "models/airport-aircraft-hangar.glb", { collision: none }, -4.455000, -0.375000, -4.215000, -0.375000, -4.215000, -0.215000, -4.455000, -0.215000);
+elevation(airport_hangar, 0.122001);
+hangar_west = building(0.069, "plinth", -4.449000, -0.366000, -4.448000, -0.366000, -4.448000, -0.223000, -4.449000, -0.223000);
+elevation(hangar_west, 0.122001);
+hangar_east = building(0.069, "plinth", -4.222000, -0.366000, -4.221000, -0.366000, -4.221000, -0.223000, -4.222000, -0.223000);
+elevation(hangar_east, 0.122001);
+hangar_rear = building(0.069, "plinth", -4.448000, -0.222000, -4.222000, -0.222000, -4.222000, -0.221000, -4.448000, -0.221000);
+elevation(hangar_rear, 0.122001);
+hangar_left_leaf = building(0.069, "plinth", -4.447000, -0.369000, -4.393000, -0.369000, -4.393000, -0.368000, -4.447000, -0.368000);
+elevation(hangar_left_leaf, 0.122001);
+hangar_right_leaf = building(0.069, "plinth", -4.277000, -0.369000, -4.223000, -0.369000, -4.223000, -0.368000, -4.277000, -0.368000);
+elevation(hangar_right_leaf, 0.122001);
 airport_access_end = map_point(-3.70, -0.46);
 airport_access = cross_street(junction_3, -3.574, -0.5435, -3.642, -0.46, airport_access_end);
 grade(airport_access, 0.1020, 0.102001);
 
 # Terminal turnaround. Lane 3 arrives westbound and lane 1 returns to the city.
-# The grass island and the full width of the circulating lane fit east of the apron.
+# The outer sidewalk joins both approach sidewalks and stays east of the apron.
 road turnaround_lane:
-    carlane;
+    carlane sidewalk;
     direction forward;
 end
 airport_loop_entry = lane_point(airport_access, 3, 1);
 airport_loop_exit = lane_point(airport_access, 1, 1);
-airport_loop_north = map_point(-3.84, -0.36);
-airport_loop_west = map_point(-3.94, -0.46);
-airport_loop_south = map_point(-3.84, -0.56);
-airport_loop_enter = turnaround_lane(airport_loop_entry, -3.76, -0.425, -3.785, -0.36, airport_loop_north);
-airport_loop_nw = turnaround_lane(airport_loop_north, -3.89523, -0.36, -3.94, -0.40477, airport_loop_west);
-airport_loop_sw = turnaround_lane(airport_loop_west, -3.94, -0.51523, -3.89523, -0.56, airport_loop_south);
-airport_loop_leave = turnaround_lane(airport_loop_south, -3.785, -0.56, -3.76, -0.495, airport_loop_exit);
+airport_loop_north = map_point(-3.828, -0.36);
+airport_loop_west = map_point(-3.928, -0.46);
+airport_loop_south = map_point(-3.828, -0.56);
+airport_loop_enter = turnaround_lane(airport_loop_entry, -3.76, -0.425, -3.773, -0.36, airport_loop_north);
+airport_loop_nw = turnaround_lane(airport_loop_north, -3.88323, -0.36, -3.928, -0.40477, airport_loop_west);
+airport_loop_sw = turnaround_lane(airport_loop_west, -3.928, -0.51523, -3.88323, -0.56, airport_loop_south);
+airport_loop_leave = turnaround_lane(airport_loop_south, -3.773, -0.56, -3.76, -0.495, airport_loop_exit);
 grade(airport_loop_enter, 0.102001, 0.102001);
 grade(airport_loop_nw, 0.102001, 0.102001);
 grade(airport_loop_sw, 0.102001, 0.102001);
 grade(airport_loop_leave, 0.102001, 0.102001);
 parked_vehicle("vehicle-air-estuaire", -4.79, -0.87, -90);
 parked_vehicle("vehicle-air-fleche", -4.86, 0.81, -90);
+parked_vehicle("vehicle-airport-baggage-tractor", -4.36, -0.48, 180);

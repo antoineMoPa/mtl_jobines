@@ -483,6 +483,9 @@ impl Game {
             || self.fabula.active()
             || self.palette.as_ref().is_some_and(|p| p.is_open())
     }
+    fn recovery_in_progress(&self) -> bool {
+        self.world.arrest_progress().is_some() || self.world.crash().is_some()
+    }
     fn horn_requested(&self) -> bool {
         !self.simulation_paused()
             && self.world.is_driving()
@@ -503,7 +506,7 @@ impl Game {
             self.world
                 .set_wildlife_night(sky.sun_direction(solar_hour).z < 0.);
         }
-        if self.world.arrest_progress().is_some() {
+        if self.recovery_in_progress() {
             self.game_time += elapsed;
             self.loadout.effects.step(elapsed);
             self.world.step(
@@ -512,7 +515,7 @@ impl Game {
                 WalkControls::default(),
                 elapsed,
             );
-            if self.world.arrest_progress().is_none() {
+            if !self.recovery_in_progress() {
                 self.arrest_camera_start = None;
                 self.previous_car_position = self.world.player().position;
                 self.previous_car_orientation = self.world.player().orientation();
@@ -608,7 +611,7 @@ impl Game {
             for hit in self.world.drain_player_tire_pops() {
                 self.loadout.effects.tire_pop(hit.point, hit.normal);
             }
-            if self.world.arrest_progress().is_some() {
+            if self.recovery_in_progress() {
                 self.auto_drive = None;
                 self.keys.clear();
                 self.stop_orbit_drag();
@@ -654,6 +657,7 @@ impl Game {
     fn player_render_pose(&self) -> (Vec3, Quat, f32) {
         let car = self.world.player();
         if !self.world.is_driving()
+            || self.world.crash().is_some()
             || self.simulation_paused()
             || car.position.distance_squared(self.previous_car_position) > 4.
         {
@@ -879,7 +883,11 @@ impl Game {
             1.
         };
         let previous_taxi_yaw = self.taxi_aim_yaw.take();
-        let (target_eye, look) = if let Some(drive) = &self.auto_drive {
+        let (target_eye, look) = if let Some(crash) = self.world.crash() {
+            let focus = (plane.position.lerp(crash.origin, 0.45) + Vec3::Z * 1.5 * crash.scale)
+                / METERS_PER_UNIT;
+            location::drive_view(focus, render_yaw, plane.length().max(5.2), crash.age)
+        } else if let Some(drive) = &self.auto_drive {
             location::drive_view(p, render_yaw, plane.length(), drive.elapsed)
         } else if let Some(plane) = aircraft {
             if self.hood {
@@ -965,6 +973,25 @@ impl Game {
             self.loadout
                 .effects
                 .sprites(|_| None, view_rotation, eye * METERS_PER_UNIT);
+        if build_camera.is_none() {
+            let lighting = super::lighting::Lighting::with_settings(
+                self.game_time,
+                renderer.daylight,
+                renderer.sky_settings,
+            );
+            super::airport_lights::append(
+                &mut shot_sprites,
+                self.world.airport_lights(),
+                eye,
+                view_rotation,
+                renderer.scene_height(),
+                renderer.flight_visibility * 10.,
+                lighting.daylight,
+            );
+        }
+        if let Some(crash) = self.world.crash() {
+            super::crash::sprites(crash, view_rotation, &mut shot_sprites);
+        }
         let view_projection = renderer.view_projection(eye, look);
         self.world.set_dispatch_view(view_projection);
         self.loadout.projection = armed.then(|| view_projection.inverse());
@@ -1432,7 +1459,7 @@ impl ApplicationHandler<GameEvent> for Game {
             self.frame(event_loop);
             return;
         }
-        if (!self.window_active() || self.world.arrest_progress().is_some())
+        if (!self.window_active() || self.recovery_in_progress())
             && matches!(
                 event,
                 WindowEvent::KeyboardInput { .. }

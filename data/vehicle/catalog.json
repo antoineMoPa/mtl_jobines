@@ -100,5 +100,11 @@
     "path": "boat/runabout",
     "researchId": "vehicle-boat-runabout",
     "roadVehicle": false
+  },
+  {
+    "name": "Tracteur à bagages",
+    "path": "airport/baggage-tractor",
+    "researchId": "vehicle-airport-baggage-tractor",
+    "roadVehicle": false
   }
 ]

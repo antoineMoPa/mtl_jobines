@@ -101,6 +101,11 @@ impl Vehicle {
     }
 
     pub(in crate::dynamic_world) fn crash_damage(&mut self, arm: Vec3, outward: Vec3, speed: f32) {
+        self.record_severe_contact(
+            self.position + arm,
+            speed,
+            super::super::crash::ROAD_IMPACT_MPS,
+        );
         if speed < 2.5 {
             return;
         }

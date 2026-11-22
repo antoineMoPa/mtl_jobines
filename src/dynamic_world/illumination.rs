@@ -69,6 +69,16 @@ impl DynamicWorld {
     pub fn local_lights(&self) -> Vec<LocalLight> {
         let center = self.player_position();
         let mut lights = Vec::new();
+        if let Some(crash) = self.crash.filter(|c| c.age < 2.6) {
+            let source = (crash.origin + Vec3::Z * 0.6) / METERS_PER_UNIT;
+            let intensity = 18. * (-crash.age * 3.).exp() + 1.6 * (2.6 - crash.age);
+            lights.push(LocalLight {
+                position_range: source.extend(0.12 * crash.scale).into(),
+                direction_outer: [0., 0., 0., -1.],
+                color_intensity: [1., 0.31, 0.055, intensity],
+                beam: [0., 0.75, 0., 1.],
+            });
+        }
         self.metro.append_lights(&mut lights, center);
         self.props.append_local_lights(&mut lights, center);
         for (id, vehicle) in self.vehicles.iter().enumerate() {

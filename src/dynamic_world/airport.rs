@@ -1,5 +1,6 @@
 //! YULPET's three aircraft share a timed circuit on the northern
 //! runway, with the southern runway available for player departures and arrivals.
+mod ground;
 mod props;
 pub(crate) use props::groups as prop_groups;
 
@@ -216,6 +217,7 @@ pub(crate) fn append_scenery(city: &City, mesh: &mut Mesh) {
         };
         let center = r.size.x * 0.5;
         let base = r.height;
+        ground::cut_runway(mesh, &r);
         let pavement = Vertex::runway_layout(r.size.x, r.size.y);
         let quad = |mesh: &mut Mesh, min: Vec2, max: Vec2, height, color, kind| {
             let a = r.point(min).extend(height).to_array();
@@ -477,6 +479,49 @@ mod tests {
             plane.velocity = Vec3::X * 0.01;
             plane.step(city, back, 0.1);
             assert_eq!(plane.velocity.truncate().length(), 0.);
+        }
+    }
+
+    #[test]
+    fn aircraft_lean_onto_the_outside_gear_in_fast_taxi_turns() {
+        let hermes = Hermes::test_map_from_source(
+            "field=concrete(-4,-4,4,-4,4,4,-4,4); elevation(field,0.122001); player_start(0,0,0);",
+        );
+        let city = hermes.city();
+        for model in aircraft::Model::ALL {
+            for direction in [-1., 1.] {
+                let turn = |speed, steering| {
+                    let mut plane = Vehicle::spawn_at(
+                        city,
+                        SpawnPoint {
+                            point: [0., 0.],
+                            heading: Some(0.),
+                        },
+                    )
+                    .unwrap();
+                    plane.set_catalog_model(Some(model.catalog_index()));
+                    plane.velocity = Vec3::X * speed;
+                    plane.step(
+                        city,
+                        Controls {
+                            steering,
+                            ..Controls::default()
+                        },
+                        1.,
+                    );
+                    plane
+                };
+                let mut fast = turn(14., direction);
+                let bank = fast.roll * direction;
+                assert!(fast.grounded && bank > 1_f32.to_radians());
+                assert!(bank <= 5_f32.to_radians());
+                assert!(bank > turn(14., direction * 0.25).roll * direction);
+                assert!(bank > turn(3., direction).roll * direction);
+                assert!(turn(-3., direction).roll * direction > 0.);
+                assert_eq!(turn(0., direction).roll, 0.);
+                fast.step(city, Controls::default(), 2.);
+                assert!(fast.roll.abs() < 0.1_f32.to_radians());
+            }
         }
     }
 
