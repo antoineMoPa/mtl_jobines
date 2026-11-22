@@ -11,6 +11,7 @@ const BUS_PASSENGERS: &[(u32, SiteId)] = &[
 impl Game {
     pub(super) fn abandon_mission(&mut self) {
         let winter = self.kairos.active_id() == Some(MissionId::Snowplow);
+        self.world.end_baggage_shift();
         self.kairos.abandon();
         self.world.rescue_cat = None;
         self.mission_vehicle = None;
@@ -87,7 +88,7 @@ impl Game {
         let required: &[(u32, SiteId)] = match id {
             MissionId::Taxi => &[(1, SiteId::TaxiPickup)],
             MissionId::Bus => BUS_PASSENGERS,
-            MissionId::Cat | MissionId::Snowplow | MissionId::Zombie => &[],
+            MissionId::Baggage | MissionId::Cat | MissionId::Snowplow | MissionId::Zombie => &[],
         };
         let Some(passengers) = required
             .iter()
@@ -104,7 +105,7 @@ impl Game {
         let destinations: &[SiteId] = match id {
             MissionId::Taxi => &[SiteId::TaxiPickup, SiteId::TaxiDropoff],
             MissionId::Bus => &[SiteId::BusStop1, SiteId::BusStop2, SiteId::BusStop3],
-            MissionId::Cat | MissionId::Snowplow | MissionId::Zombie => &[],
+            MissionId::Baggage | MissionId::Cat | MissionId::Snowplow | MissionId::Zombie => &[],
         };
         if destinations
             .iter()
@@ -113,12 +114,19 @@ impl Game {
             eprintln!("Mission destination unavailable: {}", id.title());
             return;
         }
-        if let Some(vehicle_id) = id.vehicle_id() {
+        if id == MissionId::Baggage {
+            let Some(tug) = self.world.begin_baggage_shift() else {
+                return;
+            };
+            self.mission_vehicle = Some(tug);
+        } else if let Some(vehicle_id) = id.vehicle_id() {
+            self.world.end_baggage_shift();
             if !self.assign_mission_vehicle(id, vehicle_id) {
                 return;
             }
             self.mission_vehicle = Some(self.world.player_vehicle_id());
         } else {
+            self.world.end_baggage_shift();
             self.mission_vehicle = None;
         }
         self.world.rescue_cat = cat;
@@ -154,6 +162,25 @@ impl Game {
         self.scene_dirty = true;
         if let Some(window) = &self.window {
             window.request_redraw();
+        }
+    }
+
+    pub(super) fn service_baggage(&mut self) {
+        if self.simulation_paused() || self.kairos.active_id() != Some(MissionId::Baggage) {
+            return;
+        }
+        self.world
+            .update_baggage_shift(&self.hermes, self.kairos.target(), 0.);
+        let loading = self.kairos.target() == Some(SiteId::BaggageDispatch);
+        if self.kairos.target().is_some() && self.world.confirm_baggage_service(loading) {
+            self.kairos.event(if loading {
+                MissionEvent::BaggageLoaded
+            } else {
+                MissionEvent::BaggageDelivered
+            });
+            self.kairos.save_now();
+            self.refresh_mission_route();
+            self.scene_dirty = true;
         }
     }
 

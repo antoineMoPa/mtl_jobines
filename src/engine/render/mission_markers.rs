@@ -3,7 +3,7 @@ use crate::dynamic_world::METERS_PER_UNIT;
 use glam::{Mat4, Vec3};
 
 const SIDES: usize = 16;
-const CAPACITY: usize = 5;
+const CAPACITY: usize = 12;
 const VERTICES_PER_MARKER: usize = SIDES * 3;
 const ATTRIBUTES: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0=>Float32x4];
 
@@ -109,9 +109,14 @@ impl MissionMarkers {
         }
     }
 
-    pub fn update(&mut self, queue: &wgpu::Queue, positions: impl Iterator<Item = Vec3>) {
+    pub fn update(
+        &mut self,
+        queue: &wgpu::Queue,
+        positions: impl Iterator<Item = Vec3>,
+        bay: Option<(Vec3, bool)>,
+    ) {
         let mut vertices = Vec::<[f32; 4]>::with_capacity(CAPACITY * VERTICES_PER_MARKER);
-        for position in positions.take(CAPACITY) {
+        for position in positions.take(CAPACITY - 1) {
             let center = position / METERS_PER_UNIT;
             // The narrow tip points toward the head; the broad rim floats above it.
             let tip = center + Vec3::Z * (2.02 / METERS_PER_UNIT);
@@ -135,6 +140,19 @@ impl MissionMarkers {
                     [a.x, a.y, a.z, 0.22],
                     [b.x, b.y, b.z, 0.22],
                 ]);
+            }
+        }
+        if let Some((position, ready)) = bay {
+            let center = position / METERS_PER_UNIT + Vec3::Z * (0.04 / METERS_PER_UNIT);
+            let corners = [(-1.2, -2.), (1.2, -2.), (1.2, 2.), (-1.2, 2.)]
+                .map(|(x, y)| center + Vec3::new(x, y, 0.) / METERS_PER_UNIT);
+            for i in 0..4 {
+                let a = corners[i];
+                let b = corners[(i + 1) % 4];
+                let inward = (center - (a + b) * 0.5) * 0.12;
+                for p in [a, b, b + inward, a, b + inward, a + inward] {
+                    vertices.push([p.x, p.y, p.z, if ready { 0.9 } else { 0.4 }]);
+                }
             }
         }
         self.count = vertices.len() as u32;

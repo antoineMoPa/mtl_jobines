@@ -199,14 +199,22 @@ pub(super) fn resolve_with_contacts(vehicles: &mut [Vehicle]) -> Vec<VehicleCont
                 })
                 .collect::<Vec<_>>();
             for _ in 0..12 {
+                let mut changed = false;
                 for &mut (arm_a, arm_b, response, rebound, ref mut accumulated) in &mut constraints
                 {
                     let closing = (b.velocity_at(arm_b) - a.velocity_at(arm_a)).dot(n);
                     let next = (*accumulated + (rebound - closing) / response).max(0.);
+                    if next == *accumulated {
+                        continue;
+                    }
+                    changed = true;
                     let impulse = n * (next - *accumulated);
                     *accumulated = next;
                     a.apply_impulse(arm_a, -impulse * inv_a);
                     b.apply_impulse(arm_b, impulse * inv_b);
+                }
+                if !changed {
+                    break;
                 }
             }
             if impact > 0. {

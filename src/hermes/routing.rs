@@ -36,6 +36,7 @@ pub struct Navigation {
     pub points: Vec<Vec3>,
     pub status: RouteStatus,
     pub revision: u64,
+    marker_only: bool,
     target: Option<Snap>,
     last_position: Option<Vec3>,
 }
@@ -46,6 +47,7 @@ impl Default for Navigation {
             points: Vec::new(),
             status: RouteStatus::Inactive,
             revision: 0,
+            marker_only: false,
             target: None,
             last_position: None,
         }
@@ -417,13 +419,22 @@ impl PartialOrd for State {
     }
 }
 impl Navigation {
+    pub fn select_marker(&mut self, destination: [f32; 2]) {
+        self.clear();
+        self.marker_only = true;
+        self.destination = Some(destination);
+        self.status = RouteStatus::Active;
+    }
+
     pub fn select_road_point(&mut self, router: &Router, destination: Vec3, position: Vec3) {
+        self.marker_only = false;
         self.target = router.snaps(destination, true).first().copied();
         self.destination = self.target.map(|target| target.point.truncate().to_array());
         self.last_position = None;
         self.update(router, position);
     }
     pub fn select(&mut self, router: &Router, destination: [f32; 2], position: Vec3) {
+        self.marker_only = false;
         self.target = router
             .snaps(Vec3::new(destination[0], destination[1], 0.), false)
             .first()
@@ -442,7 +453,8 @@ impl Navigation {
         };
     }
     pub fn update(&mut self, router: &Router, position: Vec3) {
-        if self.destination.is_none()
+        if self.marker_only
+            || self.destination.is_none()
             || self
                 .last_position
                 .is_some_and(|p| p.distance(position) < 0.02)

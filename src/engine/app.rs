@@ -527,6 +527,13 @@ impl Game {
         if !self.world.zombie_mode() && !self.world.can_equip_weapon() {
             self.loadout.equip(None);
         }
+        if self.kairos.active_id() == Some(crate::kairos::MissionId::Baggage) {
+            self.world
+                .update_baggage_shift(&self.hermes, self.kairos.target(), elapsed);
+            if self.world.baggage_shift_invalid() && !self.kairos.is_complete() {
+                self.kairos.event(MissionEvent::BaggageRestarted);
+            }
+        }
         let driving_mission_vehicle = self.driving_mission_vehicle();
         if self
             .kairos
@@ -534,7 +541,7 @@ impl Game {
         {
             self.abandon_mission();
         }
-        self.accumulator += elapsed;
+        let steps = super::frame_rate::physics_steps(&mut self.accumulator, elapsed, DT);
         self.game_time += elapsed;
         self.loadout.advance(self.game_time);
         self.loadout.effects.step(elapsed.min(0.1));
@@ -573,7 +580,7 @@ impl Game {
         {
             self.auto_drive = None;
         }
-        while self.accumulator >= DT {
+        for _ in 0..steps {
             self.previous_car_position = self.world.player().position;
             self.previous_car_orientation = self.world.player().orientation();
             self.previous_car_yaw = self.world.player().yaw;
@@ -632,7 +639,6 @@ impl Game {
             if driving_mission_vehicle {
                 self.try_service();
             }
-            self.accumulator -= DT;
         }
         if self.world.take_service_finished() {
             self.service_completed();
@@ -692,6 +698,15 @@ impl Game {
             | PaletteAction::PlaceProps(_)
             | PaletteAction::ExpandNetwork
             | PaletteAction::GrowNetwork => self.open_construction(action),
+            PaletteAction::RestartBaggage => {
+                if self.kairos.active_id() == Some(crate::kairos::MissionId::Baggage)
+                    && self.world.restart_baggage_shift(&self.hermes)
+                {
+                    self.kairos.accept(crate::kairos::MissionId::Baggage);
+                    self.refresh_mission_route();
+                }
+            }
+            PaletteAction::ServiceBaggage => self.service_baggage(),
             PaletteAction::AttachCart => {
                 self.world.attach_baggage_cart();
             }
@@ -1219,7 +1234,12 @@ impl Game {
             &renderer.queue,
             self.world
                 .waiting_service_passengers()
-                .chain(self.world.cat_marker()),
+                .chain(self.world.cat_marker())
+                .chain(
+                    self.world
+                        .baggage_markers(&self.hermes, self.kairos.target()),
+                ),
+            self.world.baggage_bay(&self.hermes, self.kairos.target()),
         );
         let mut palette_action = None;
         let mut menu_clicked = None;

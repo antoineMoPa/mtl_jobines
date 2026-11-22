@@ -384,6 +384,13 @@ impl Hermes {
         player_position: [f32; 3],
     ) -> bool {
         use crate::kairos::SiteId;
+        if matches!(site, SiteId::BaggageDispatch | SiteId::BaggageAircraft) {
+            let Some(point) = self.mission_site(site) else {
+                return false;
+            };
+            self.navigation.select_marker(point);
+            return true;
+        }
         if matches!(site, SiteId::TaxiPickup | SiteId::TaxiDropoff) {
             let Some(run) = self.taxi_run else {
                 return false;

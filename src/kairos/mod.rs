@@ -1,4 +1,5 @@
 //! Session missions and durable player progress.
+mod baggage;
 mod bus;
 mod cat;
 mod save;
@@ -12,6 +13,7 @@ use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MissionId {
+    Baggage,
     Taxi,
     Bus,
     Snowplow,
@@ -22,6 +24,7 @@ pub enum MissionId {
 impl MissionId {
     pub fn title(self) -> &'static str {
         match self {
+            Self::Baggage => "Bagagiste",
             Self::Taxi => "Taxi",
             Self::Bus => "Autobus",
             Self::Snowplow => "Déneigeuse",
@@ -32,6 +35,7 @@ impl MissionId {
 
     pub fn vehicle_id(self) -> Option<&'static str> {
         match self {
+            Self::Baggage => Some("vehicle-airport-baggage-tractor"),
             Self::Taxi => Some("vehicle-j01"),
             Self::Bus => Some("vehicle-j02"),
             Self::Snowplow => Some("vehicle-j03"),
@@ -41,7 +45,7 @@ impl MissionId {
 
     pub fn required_season(self) -> Option<crate::season::Season> {
         match self {
-            Self::Taxi | Self::Bus => Some(crate::season::Season::Summer),
+            Self::Baggage | Self::Taxi | Self::Bus => Some(crate::season::Season::Summer),
             Self::Snowplow => Some(crate::season::Season::Winter),
             Self::Zombie | Self::Cat => None,
         }
@@ -50,6 +54,8 @@ impl MissionId {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SiteId {
+    BaggageDispatch,
+    BaggageAircraft,
     TaxiPickup,
     TaxiDropoff,
     BusStop1,
@@ -60,7 +66,9 @@ pub enum SiteId {
 }
 
 impl SiteId {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 9] = [
+        Self::BaggageDispatch,
+        Self::BaggageAircraft,
         Self::TaxiPickup,
         Self::TaxiDropoff,
         Self::BusStop1,
@@ -72,6 +80,8 @@ impl SiteId {
 
     pub fn map_name(self) -> &'static str {
         match self {
+            Self::BaggageDispatch => "mission_baggage_dispatch",
+            Self::BaggageAircraft => "mission_baggage_aircraft",
             Self::TaxiPickup => "mission_taxi_pickup",
             Self::TaxiDropoff => "mission_taxi_dropoff",
             Self::BusStop1 => "mission_bus_stop_1",
@@ -91,6 +101,9 @@ pub struct SnowCell {
 }
 
 pub enum MissionEvent {
+    BaggageLoaded,
+    BaggageDelivered,
+    BaggageRestarted,
     CatCaught,
     CatReturned,
     PassengerBoarded,
@@ -107,10 +120,14 @@ pub struct ServicePlan {
 
 pub enum MissionProgress {
     ClearedDistanceKm(f64),
+    Bags { loaded: u8, delivered: u8 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MissionObjective {
+    LoadBaggage,
+    DeliverBaggage,
+    BaggageComplete,
     TaxiPickup,
     TaxiDropoff,
     TaxiComplete,
@@ -127,6 +144,9 @@ pub enum MissionObjective {
 impl MissionObjective {
     pub fn label(self) -> &'static str {
         match self {
+            Self::LoadBaggage => "Charge 4 bagages au terminal · remorque parallèle au quai",
+            Self::DeliverBaggage => "Livre les 4 bagages à l’Estuaire · reste sur le tablier",
+            Self::BaggageComplete => "Vol Estuaire terminé · 4 bagages livrés",
             Self::TaxiPickup => "Approche-toi du passager et arrête-toi",
             Self::TaxiDropoff => "Approche-toi de la destination et arrête-toi",
             Self::TaxiComplete => "Course terminée",
@@ -157,6 +177,7 @@ pub trait Mission {
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default)]
 struct Completed {
+    baggage: u32,
     taxi: u32,
     bus: u32,
     snowplow: u32,
@@ -167,6 +188,7 @@ struct Completed {
 impl Completed {
     fn count(&self, id: MissionId) -> u32 {
         match id {
+            MissionId::Baggage => self.baggage,
             MissionId::Taxi => self.taxi,
             MissionId::Bus => self.bus,
             MissionId::Snowplow => self.snowplow,
@@ -177,6 +199,7 @@ impl Completed {
 
     fn increment(&mut self, id: MissionId) {
         let count = match id {
+            MissionId::Baggage => &mut self.baggage,
             MissionId::Taxi => &mut self.taxi,
             MissionId::Bus => &mut self.bus,
             MissionId::Snowplow => &mut self.snowplow,
@@ -283,6 +306,7 @@ impl Kairos {
     pub fn accept(&mut self, id: MissionId) {
         self.return_seconds = None;
         self.active = Some(match id {
+            MissionId::Baggage => Box::new(baggage::BaggageMission::default()),
             MissionId::Taxi => Box::new(taxi::TaxiMission::default()),
             MissionId::Bus => Box::new(bus::BusMission::default()),
             MissionId::Snowplow => Box::new(snowplow::SnowplowMission::default()),
@@ -302,7 +326,8 @@ impl Kairos {
     }
 
     pub fn vehicle_return_expired(&mut self, driving_assigned: bool, elapsed: f32) -> bool {
-        let away = self.active_id().and_then(MissionId::vehicle_id).is_some()
+        let away = self.active_id() != Some(MissionId::Baggage)
+            && self.active_id().and_then(MissionId::vehicle_id).is_some()
             && !driving_assigned
             && !self.is_complete();
         let seconds = (self.vehicle_return_rule)(away, self.return_seconds.unwrap_or(-1.), elapsed);

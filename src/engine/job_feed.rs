@@ -36,7 +36,7 @@ pub(super) struct Portraits {
 impl Portraits {
     fn for_mission(&self, id: MissionId) -> &egui::TextureHandle {
         match id {
-            MissionId::Cat | MissionId::Taxi | MissionId::Zombie => &self.taxi,
+            MissionId::Baggage | MissionId::Cat | MissionId::Taxi | MissionId::Zombie => &self.taxi,
             MissionId::Bus => &self.bus,
             MissionId::Snowplow => &self.snowplow,
         }
@@ -260,6 +260,9 @@ pub(super) fn show(
                 if let Some(MissionProgress::ClearedDistanceKm(km)) = kairos.progress() {
                     label.push_str(&format!(" · {km:.2} km"));
                 }
+                if let Some(MissionProgress::Bags { loaded, delivered }) = kairos.progress() {
+                    label.push_str(&format!(" · {loaded} à bord · {delivered}/4 livrés"));
+                }
                 super::tooltip::message(ui, &label);
             });
     }
@@ -352,6 +355,7 @@ pub(super) fn show(
                 });
             ui.add_space(12.);
             for (id, author, handle, message, icon) in [
+                (MissionId::Baggage, "Répartition YUL", "@yul  service au sol", "Première rotation : 4 bagages du terminal à l’Estuaire. Tracteur blanc au hangar · 20 $ par vol.", "✈"),
                 (
                     MissionId::Taxi,
                     "Cynthia Tremblay",

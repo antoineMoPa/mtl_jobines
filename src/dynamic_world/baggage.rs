@@ -106,7 +106,8 @@ impl Vehicle {
 
 impl DynamicWorld {
     fn can_operate_hitch(&self) -> bool {
-        self.is_driving()
+        self.baggage_shift.is_none()
+            && self.is_driving()
             && self.health > 0
             && self.crash.is_none()
             && self.entry.is_none()
@@ -186,25 +187,35 @@ impl DynamicWorld {
             .enumerate()
             .filter(|(_, v)| !v.baggage_links.is_empty())
             .flat_map(move |(i, v)| {
-                v.carts()
-                    .map(move |cart| (cart, i == self.player_vehicle.0))
+                v.carts().enumerate().map(move |(index, cart)| {
+                    (
+                        cart,
+                        i == self.player_vehicle.0,
+                        self.baggage_cargo_visible(i, index),
+                    )
+                })
             });
-        let carts = moving.chain(self.parked_carts.iter().copied().map(|cart| (cart, false)));
+        let carts = moving.chain(
+            self.parked_carts
+                .iter()
+                .copied()
+                .map(|cart| (cart, false, true)),
+        );
         let (id, definition) = super::catalog::definitions()
             .iter()
             .enumerate()
             .find(|(_, d)| d.config.research_id == MODEL_ID)
             .expect("bundled baggage tractor");
         carts
-            .filter(move |(c, _)| c.axle().distance_squared(center) < radius * radius)
-            .flat_map(move |(c, player)| {
+            .filter(move |(c, _, _)| c.axle().distance_squared(center) < radius * radius)
+            .flat_map(move |(c, player, cargo)| {
                 let world = Mat4::from_scale_rotation_translation(
                     Vec3::splat(1. / METERS_PER_UNIT),
                     c.rotation,
                     c.eye / METERS_PER_UNIT,
                 );
                 definition
-                    .cart_parts(c.spin)
+                    .cart_parts(c.spin, cargo)
                     .map(move |(i, local)| (id, i, world * local, player))
             })
     }

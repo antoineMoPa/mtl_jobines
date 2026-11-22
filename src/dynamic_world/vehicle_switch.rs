@@ -6,6 +6,7 @@ impl DynamicWorld {
         if self.crash.is_some() || self.health == 0 || catalog::definitions().get(model).is_none() {
             return false;
         }
+        self.invalidate_baggage_shift();
         let index = self.player_vehicle.0;
         let on_foot = self
             .pedestrian

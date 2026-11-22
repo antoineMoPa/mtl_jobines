@@ -98,10 +98,9 @@ impl Host {
     }
     fn tick(&mut self, closed: bool) -> Result<bool, String> {
         let now = Instant::now();
-        self.accumulator += (now - self.last).as_secs_f32().min(0.12);
+        let elapsed = (now - self.last).as_secs_f32().min(0.12);
         self.last = now;
-        let steps = (self.accumulator / DT) as u32;
-        self.accumulator -= steps as f32 * DT;
+        let steps = crate::engine::frame_rate::physics_steps(&mut self.accumulator, elapsed, DT);
         {
             let mut w = self.world.borrow_mut();
             w.steps_left = steps;

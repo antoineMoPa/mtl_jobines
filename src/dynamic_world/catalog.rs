@@ -87,6 +87,7 @@ enum PartRole {
     Crash(Piece),
     Door(Door, f32),
     Outboard,
+    BaggageCargo,
     BaggageTrailer,
     BaggageWheel,
     RearWheel,
@@ -165,6 +166,7 @@ fn part_role(name: &str) -> Result<PartRole, String> {
         "Gear strut main right" | "Tire main right" | "Hub main right -1" | "Hub main right 1" => {
             Ok(PartRole::AircraftGear(Gear::Right))
         }
+        "baggage_cargo" => Ok(PartRole::BaggageCargo),
         "baggage_trailer" => Ok(PartRole::BaggageTrailer),
         "baggage_wheel_front_left"
         | "baggage_wheel_front_right"
@@ -962,7 +964,9 @@ impl Definition {
             PartRole::Pedal => Quat::IDENTITY,
             PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
             PartRole::Outboard => Quat::from_rotation_z(-vehicle.steering),
-            PartRole::BaggageTrailer | PartRole::BaggageWheel => Quat::IDENTITY,
+            PartRole::BaggageCargo | PartRole::BaggageTrailer | PartRole::BaggageWheel => {
+                Quat::IDENTITY
+            }
             PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
             PartRole::FrontWheel => {
                 Quat::from_rotation_z(vehicle.steering) * Quat::from_rotation_y(vehicle.wheel_angle)
@@ -985,14 +989,19 @@ impl Definition {
     pub fn cart_part(&self, index: usize) -> bool {
         matches!(
             self.parts[index].role,
-            PartRole::BaggageTrailer | PartRole::BaggageWheel
+            PartRole::BaggageCargo | PartRole::BaggageTrailer | PartRole::BaggageWheel
         )
     }
 
-    pub(super) fn cart_parts(&self, spin: f32) -> impl Iterator<Item = (usize, Mat4)> + '_ {
+    pub(super) fn cart_parts(
+        &self,
+        spin: f32,
+        cargo: bool,
+    ) -> impl Iterator<Item = (usize, Mat4)> + '_ {
         let eye = super::baggage::hitch(self.config.physics.height_offset);
         self.parts.iter().enumerate().filter_map(move |(i, p)| {
             let rotation = match p.role {
+                PartRole::BaggageCargo if cargo => Quat::IDENTITY,
                 PartRole::BaggageTrailer => Quat::IDENTITY,
                 PartRole::BaggageWheel => Quat::from_rotation_y(spin),
                 _ => return None,
@@ -1035,7 +1044,9 @@ impl Definition {
                 PartRole::Pedal => Quat::IDENTITY,
                 PartRole::Steering => Quat::from_rotation_z(vehicle.steering),
                 PartRole::Outboard => Quat::from_rotation_z(-vehicle.steering),
-                PartRole::BaggageTrailer | PartRole::BaggageWheel => Quat::IDENTITY,
+                PartRole::BaggageCargo | PartRole::BaggageTrailer | PartRole::BaggageWheel => {
+                    Quat::IDENTITY
+                }
                 PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
                 PartRole::FrontWheel => {
                     Quat::from_rotation_z(vehicle.steering)

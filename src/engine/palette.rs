@@ -54,6 +54,8 @@ pub(super) enum PaletteAction {
     ResumeDriving,
     InteractWithCat,
     UseBikeshare,
+    RestartBaggage,
+    ServiceBaggage,
     AttachCart,
     DetachCart,
     #[cfg(not(target_arch = "wasm32"))]
@@ -630,6 +632,22 @@ impl Palette {
                     if clicked {
                         selected = Some(action);
                     }
+                }
+                if kairos.active_id() == Some(MissionId::Baggage) {
+                    egui::Area::new("baggage_service".into()).anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -130.)).show(&ctx, |ui| {
+                        egui::Frame::popup(ui.style()).show(ui, |ui| {
+                            if kairos.is_complete() {
+                                if ui.button("Nouvelle rotation · Bagagiste").clicked() { selected = Some(PaletteAction::SelectMission(MissionId::Baggage)); }
+                            } else if world.baggage_shift_invalid() {
+                                ui.label("Rotation interrompue · recommence au terminal");
+                                if ui.button("Recommencer à la répartition").clicked() { selected = Some(PaletteAction::RestartBaggage); }
+                            } else {
+                                ui.label("Aligne la première remorque dans le rectangle · arrêt 1 s · ±25°");
+                                let label = if kairos.target() == Some(crate::kairos::SiteId::BaggageDispatch) { "Charger 4 bagages" } else { "Décharger 4 bagages" };
+                                if ui.add_enabled(world.baggage_service_ready(), egui::Button::new(label)).clicked() { selected = Some(PaletteAction::ServiceBaggage); }
+                            }
+                        });
+                    });
                 }
                 if let Some((count, attach, detach)) = world.baggage_hitch_status() {
                     if let Some(action) = baggage_hitch_prompt(&ctx, count, attach, detach) {

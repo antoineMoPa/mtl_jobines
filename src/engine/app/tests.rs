@@ -555,7 +555,9 @@ fn walking_left_right_keys_turn_without_strafing() {
         game.keys.insert(key);
         let position = game.world.player_position();
         let heading = game.world.player_yaw();
-        game.simulate(DT * 6.);
+        for _ in 0..3 {
+            game.simulate(DT * 2.);
+        }
         assert_eq!(game.world.player_position(), position);
         assert!((game.world.player_yaw() - heading) * direction > 0.1);
         assert_eq!(game.orbit, 0.7);

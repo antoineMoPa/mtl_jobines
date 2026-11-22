@@ -5,6 +5,7 @@ pub use auto_drive::{AutoDrive, DriveAvailability, DriveStep};
 mod aircraft;
 pub(crate) mod airport;
 mod baggage;
+mod baggage_shift;
 pub(crate) mod bikeshare;
 mod boats;
 pub use boats::Wake;
@@ -106,6 +107,7 @@ fn sound_slots(
 }
 
 pub struct DynamicWorld {
+    baggage_shift: Option<baggage_shift::Shift>,
     pub rescue_cat: Option<rescue_cat::RescueCat>,
     wildlife_homes: Vec<wildlife::Home>,
     wildlife_population: wildlife::Population,
@@ -150,6 +152,7 @@ pub struct DynamicWorld {
     service_passengers: service_passengers::ServicePassengers,
     buildings: buildings::Buildings,
     building_candidates: Vec<usize>,
+    driver_controls: Vec<Option<Controls>>,
 }
 impl DynamicWorld {
     #[cfg(any(not(target_arch = "wasm32"), test))]
@@ -225,9 +228,11 @@ impl DynamicWorld {
             service_passengers: Default::default(),
             buildings: buildings::Buildings::new(hermes.city()),
             building_candidates: Vec::new(),
+            driver_controls: Vec::new(),
             metro: metro::Metro::new(hermes),
             airport: airport::Airport::new(hermes.city())?,
             vehicles: vec![vehicle],
+            baggage_shift: None,
             parked_carts: Vec::new(),
             parked_vehicle_count: 0,
             boat_routes: Vec::new(),
@@ -638,6 +643,7 @@ impl DynamicWorld {
         false
     }
     pub fn reset_player(&mut self, hermes: &Hermes) {
+        self.invalidate_baggage_shift();
         self.crash = None;
         self.displaced.clear();
         self.entry = None;
@@ -808,6 +814,11 @@ impl DynamicWorld {
                 .iter_mut()
                 .map(|route| (route.vehicle, route.controls(&self.vehicles[route.vehicle]))),
         );
+        self.driver_controls.clear();
+        self.driver_controls.resize(self.vehicles.len(), None);
+        for (id, controls) in ai {
+            self.driver_controls[id].get_or_insert(controls);
+        }
         stage!(1);
         drop(phase);
         let phase = crate::telemetry::span("physics.vehicles");
@@ -853,8 +864,8 @@ impl DynamicWorld {
                 } else {
                     input
                 }
-            } else if let Some((_, controls)) = ai.iter().find(|(id, _)| *id == i) {
-                *controls
+            } else if let Some(controls) = self.driver_controls[i] {
+                controls
             } else {
                 Controls {
                     handbrake: true,
@@ -863,7 +874,7 @@ impl DynamicWorld {
             };
             vehicle.sound_controls = controls;
             vehicle.sound_running =
-                (driving && i == self.player_vehicle.0) || ai.iter().any(|(id, _)| *id == i);
+                (driving && i == self.player_vehicle.0) || self.driver_controls[i].is_some();
             if vehicle.is_boat() {
                 vehicle.step(hermes.city(), controls, dt);
                 continue;
