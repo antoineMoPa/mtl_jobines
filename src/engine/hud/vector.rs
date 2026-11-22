@@ -22,7 +22,7 @@ pub(super) fn build(city: &City) -> Result<(Vec<[f32; 5]>, Vec<u8>), String> {
     // ViewBox transforms may wrap the ocean rectangle in a group. Walk the
     // entire tree and exclude that background by identity, never by nesting.
     collect(tree.root(), transform, &mut vertices)?;
-    let background = usvg::Tree::from_str(&city.minimap_background_svg()?, &Default::default())
+    let background = usvg::Tree::from_str(&city.minimap_relief_svg()?, &Default::default())
         .map_err(|e| e.to_string())?;
     let size = crate::hermes::TEXTURE_SIZE;
     let mut pixels = sk::Pixmap::new(size, size).ok_or("map background allocation")?;

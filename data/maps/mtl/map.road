@@ -7724,8 +7724,28 @@ airport_concourse = building(0.077, { material: concrete, family: curtain_wall, 
 elevation(airport_concourse, 0.102001);
 airport_tower = building(0.23, { material: concrete, family: civic, palette: chalk }, -4.50, 1.78, -4.50, 1.51, -4.22, 1.51, -4.22, 1.78);
 elevation(airport_tower, 0.102001);
-airport_access_end = map_point(-3.97, -0.38);
-airport_access = cross_street(junction_3, -3.6379, -0.4834, -3.827, -0.38, airport_access_end);
+airport_access_end = map_point(-3.70, -0.46);
+airport_access = cross_street(junction_3, -3.574, -0.5435, -3.642, -0.46, airport_access_end);
 grade(airport_access, 0.1020, 0.102001);
+
+# Terminal turnaround. Lane 3 arrives westbound and lane 1 returns to the city.
+# The grass island and the full width of the circulating lane fit east of the apron.
+road turnaround_lane:
+    carlane;
+    direction forward;
+end
+airport_loop_entry = lane_point(airport_access, 3, 1);
+airport_loop_exit = lane_point(airport_access, 1, 1);
+airport_loop_north = map_point(-3.84, -0.36);
+airport_loop_west = map_point(-3.94, -0.46);
+airport_loop_south = map_point(-3.84, -0.56);
+airport_loop_enter = turnaround_lane(airport_loop_entry, -3.76, -0.425, -3.785, -0.36, airport_loop_north);
+airport_loop_nw = turnaround_lane(airport_loop_north, -3.89523, -0.36, -3.94, -0.40477, airport_loop_west);
+airport_loop_sw = turnaround_lane(airport_loop_west, -3.94, -0.51523, -3.89523, -0.56, airport_loop_south);
+airport_loop_leave = turnaround_lane(airport_loop_south, -3.785, -0.56, -3.76, -0.495, airport_loop_exit);
+grade(airport_loop_enter, 0.102001, 0.102001);
+grade(airport_loop_nw, 0.102001, 0.102001);
+grade(airport_loop_sw, 0.102001, 0.102001);
+grade(airport_loop_leave, 0.102001, 0.102001);
 parked_vehicle("vehicle-air-estuaire", -4.79, -0.87, -90);
 parked_vehicle("vehicle-air-fleche", -4.86, 0.81, -90);

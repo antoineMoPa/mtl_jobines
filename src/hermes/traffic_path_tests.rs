@@ -54,3 +54,50 @@ fn coincident_endpoints_with_distinct_names_stay_disconnected() {
     let traffic = TrafficPaths::new(&city, &program);
     assert!(traffic.paths.iter().all(|p| p.next.is_empty()));
 }
+
+#[test]
+fn airport_roundabout_returns_arriving_traffic_to_the_city() {
+    let path = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road");
+    let hermes = crate::hermes::Hermes::load_with_game_data(&path, None).unwrap();
+    let paths = &hermes.traffic_paths().paths;
+    let mut lane = paths
+        .iter()
+        .find(|lane| {
+            lane.start_ref.as_deref() == Some("junction_3")
+                && lane.end_ref.as_deref() == Some("airport_access_end")
+        })
+        .unwrap();
+    for end in [
+        "airport_loop_north",
+        "airport_loop_west",
+        "airport_loop_south",
+        "airport_access_end",
+        "junction_3",
+    ] {
+        let [next] = lane.next.as_slice() else {
+            panic!("expected a single onward lane at {:?}", lane.end_ref);
+        };
+        lane = &paths[*next];
+        assert_eq!(lane.end_ref.as_deref(), Some(end));
+        for sample in &lane.points {
+            let p = *sample / METERS_PER_UNIT;
+            assert_eq!(
+                hermes
+                    .city()
+                    .surface_at([p.x, p.y], p.z + 0.01)
+                    .unwrap()
+                    .kind,
+                opencity::runtime::SurfaceKind::Asphalt,
+                "lane at {p}"
+            );
+        }
+    }
+    assert_eq!(
+        hermes
+            .city()
+            .surface_at([-3.84, -0.46], f32::INFINITY)
+            .unwrap()
+            .kind,
+        opencity::runtime::SurfaceKind::Grass
+    );
+}
