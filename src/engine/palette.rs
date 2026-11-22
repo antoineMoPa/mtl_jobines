@@ -113,6 +113,33 @@ impl PaletteAction {
         })
     }
 }
+fn baggage_hitch_prompt(
+    ctx: &egui::Context,
+    count: usize,
+    attach: bool,
+    detach: bool,
+) -> Option<PaletteAction> {
+    let mut selected = None;
+    egui::Area::new("baggage_hitch".into())
+        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -30.))
+        .show(ctx, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                super::tooltip::message(ui, &format!("Remorques {count}/4"));
+                let keyboard = !super::app::mobile_enabled();
+                if attach && super::tooltip::action(ui, keyboard.then_some("J"), "Atteler") {
+                    selected = Some(PaletteAction::AttachCart);
+                }
+                if detach && super::tooltip::action(ui, keyboard.then_some("K"), "Dételer") {
+                    selected = Some(PaletteAction::DetachCart);
+                }
+            });
+            if !attach && count < 4 {
+                super::tooltip::message(ui, "Reculez vers le timon");
+            }
+        });
+    selected
+}
+
 fn commands(landmarks: &[Landmark]) -> Vec<Command> {
     let mut commands: Vec<_> = [
         (
@@ -605,35 +632,9 @@ impl Palette {
                     }
                 }
                 if let Some((count, attach, detach)) = world.baggage_hitch_status() {
-                    egui::Area::new("baggage_hitch".into())
-                        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -30.))
-                        .show(&ctx, |ui| {
-                            ui.horizontal_wrapped(|ui| {
-                                super::tooltip::message(ui, &format!("Remorques {count}/4"));
-                                let keyboard = !super::app::mobile_enabled();
-                                if attach
-                                    && super::tooltip::action(
-                                        ui,
-                                        keyboard.then_some("J"),
-                                        "Atteler",
-                                    )
-                                {
-                                    selected = Some(PaletteAction::AttachCart);
-                                }
-                                if detach
-                                    && super::tooltip::action(
-                                        ui,
-                                        keyboard.then_some("K"),
-                                        "Dételer",
-                                    )
-                                {
-                                    selected = Some(PaletteAction::DetachCart);
-                                }
-                                if !attach && count < 4 {
-                                    super::tooltip::message(ui, "Reculez vers le timon");
-                                }
-                            });
-                        });
+                    if let Some(action) = baggage_hitch_prompt(&ctx, count, attach, detach) {
+                        selected = Some(action);
+                    }
                 }
                 super::job_feed::player_status(
                     &ctx,
@@ -993,6 +994,44 @@ mod tests {
         output.textures_delta.clear();
         chosen
     }
+    #[test]
+    fn hitch_instruction_fits_on_one_line_with_and_without_detach() {
+        for width in [320., 1280.] {
+            let ctx = egui::Context::default();
+            super::super::job_feed::install_font(&ctx);
+            for count in [0, 1] {
+                let input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(width, 480.),
+                    )),
+                    ..Default::default()
+                };
+                let draw = |ui: &mut egui::Ui| {
+                    baggage_hitch_prompt(ui.ctx(), count, false, count > 0);
+                };
+                ctx.run_ui(input.clone(), draw).textures_delta.clear();
+                let mut output = ctx.run_ui(input, draw);
+                output.textures_delta.clear();
+                let instruction = output
+                    .shapes
+                    .iter()
+                    .find_map(|shape| match &shape.shape {
+                        egui::Shape::Text(text)
+                            if text.galley.text() == "Reculez vers le timon" =>
+                        {
+                            Some(text)
+                        }
+                        _ => None,
+                    })
+                    .expect("visible hitch instruction");
+                assert_eq!(instruction.galley.rows.len(), 1);
+                assert!(instruction.pos.x >= 0.);
+                assert!(instruction.pos.x + instruction.galley.size().x <= width);
+            }
+        }
+    }
+
     #[test]
     fn palette_selects_each_lighting_mode_and_dismisses() {
         for (down, expected) in [(0, Some(1.)), (1, Some(0.)), (2, None)] {

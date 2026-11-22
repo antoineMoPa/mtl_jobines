@@ -576,9 +576,7 @@ impl Hud {
         if right <= left || bottom <= top {
             return;
         }
-        if !cfg!(test) || std::env::var_os("BUG95_FULL_SCISSOR").is_none() {
-            pass.set_scissor_rect(left, top, right - left, bottom - top);
-        }
+        pass.set_scissor_rect(left, top, right - left, bottom - top);
         if self.vector_count > 0 {
             pass.set_pipeline(&self.vector_pipeline);
             pass.set_vertex_buffer(0, self.vector_buffer.slice(..));
@@ -698,7 +696,3 @@ mod tests {
         .unwrap();
     }
 }
-
-#[cfg(test)]
-#[path = "/tmp/bug95-hud-probe.rs"]
-mod bug95_probe;
