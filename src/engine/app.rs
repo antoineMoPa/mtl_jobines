@@ -277,7 +277,7 @@ impl Game {
         }
     }
     fn wait_for_event(&mut self, now: Instant) -> ControlFlow {
-        if !self.window_active() {
+        if !self.can_present_frame() {
             return ControlFlow::Wait;
         }
         let cursor = self.cursor_wait(now);
@@ -796,7 +796,7 @@ impl Game {
     }
 
     fn frame(&mut self, event_loop: &ActiveEventLoop) {
-        if !self.window_active()
+        if !self.can_present_frame()
             || self
                 .surface_retry
                 .is_some_and(|deadline| Instant::now() < deadline)
@@ -1389,7 +1389,7 @@ impl ApplicationHandler<GameEvent> for Game {
         #[cfg(target_arch = "wasm32")]
         self.sync_mobile_controls();
         self.sync_aim_mouse();
-        if !self.window_active() {
+        if !self.can_present_frame() {
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
@@ -1453,7 +1453,11 @@ impl ApplicationHandler<GameEvent> for Game {
             self.window = Some(window.clone());
             let proxy = self.proxy.clone();
             wasm_bindgen_futures::spawn_local(async move {
+                web_loading_stage("Preparing graphics and textures…").await;
                 let result = Renderer::new(Some(window), size.width, size.height).await;
+                if result.is_ok() {
+                    web_loading_stage("Building city scenery…").await;
+                }
                 let _ = proxy.send_event(GameEvent::RendererReady(Box::new(result)));
             });
         }
@@ -2089,12 +2093,39 @@ pub(crate) fn run_with_client(rule: Option<crate::VehicleReturnFn>) -> Result<()
 }
 
 #[cfg(target_arch = "wasm32")]
+async fn web_loading_stage(message: &str) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    if let Some(label) = window
+        .document()
+        .and_then(|d| d.get_element_by_id("loading-message"))
+    {
+        label.set_text_content(Some(message));
+        // Leave time for the browser to paint before the next synchronous Wasm phase.
+        // A timer also resolves in tabs where animation frames are suspended.
+        let delay = js_sys::Promise::new(&mut |resolve, reject| {
+            if let Err(error) =
+                window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, 32)
+            {
+                let _ = reject.call1(&wasm_bindgen::JsValue::UNDEFINED, &error);
+            }
+        });
+        let _ = wasm_bindgen_futures::JsFuture::from(delay).await;
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
 fn web_status(error: Option<&str>) {
     if let Some(element) = web_sys::window()
         .and_then(|w| w.document())
         .and_then(|d| d.get_element_by_id("loading"))
     {
-        element.set_text_content(error);
+        if let Some(message) = error {
+            if let Some(label) = element.query_selector("#loading-message").ok().flatten() {
+                label.set_text_content(Some(message));
+            }
+        }
         element
             .set_attribute(
                 "data-state",

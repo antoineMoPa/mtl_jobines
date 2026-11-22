@@ -1,4 +1,5 @@
 //! Compact researched models; geographic placement is authored in the map.
+mod julep;
 use opencity::runtime::{City, Mesh, SurfaceKind, Vertex};
 
 fn asset(id: &str) -> Result<&'static [u8], String> {
@@ -56,9 +57,9 @@ pub fn source_mesh(id: &str) -> Result<Mesh, String> {
     Ok(mesh)
 }
 
-pub fn build(city: &City) -> Result<Mesh, String> {
+pub fn build(city: &mut City) -> Result<Mesh, String> {
     let mut mesh = Mesh::default();
-    for feature in &city.landscape {
+    for (index, feature) in city.landscape.iter().enumerate() {
         let Some(id) = feature.model.as_deref() else {
             continue;
         };
@@ -126,6 +127,17 @@ pub fn build(city: &City) -> Result<Mesh, String> {
                 a[1] + p[1] / feature.points.len() as f32,
             ]
         });
+        if id == "study_01" && scale > 0. && height_scale > 0. {
+            let collider = julep::Collider::new(
+                center,
+                angle,
+                scale,
+                height_scale,
+                bounds,
+                feature.elevation,
+            );
+            city.model_colliders.insert(index, Box::new(collider));
+        }
         for i in 0..count {
             let v: [f32; 10] = std::array::from_fn(|j| read(32 + i * 40 + j * 4));
             let x = (v[0] - (bounds[0] + bounds[3]) / 2.) * scale;
@@ -244,7 +256,7 @@ mod tests {
              elevation(tower, 0.4);"
         );
         let program = opencity::parse(&source).unwrap();
-        build(&City::from_program(&program, None).unwrap()).unwrap()
+        build(&mut City::from_program(&program, None).unwrap()).unwrap()
     }
 
     #[test]

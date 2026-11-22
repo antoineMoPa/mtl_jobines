@@ -59,17 +59,27 @@ pub(super) fn upload_pngs<'a>(
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    for (layer, (source, source_width, source_height)) in images.iter().enumerate() {
-        let mut pixels = vec![0; (width * height * 4) as usize];
-        for y in 0..height {
-            for x in 0..width {
-                let from = ((y * source_height / height) * source_width + x * source_width / width)
-                    as usize
-                    * 4;
-                let to = (y * width + x) as usize * 4;
-                pixels[to..to + 4].copy_from_slice(&source[from..from + 4]);
+    // Compare the linear sum against sRGB half-byte boundaries. This keeps the
+    // four-texel filter gamma correct without evaluating powf for every texel.
+    let linear: [f32; 256] = std::array::from_fn(|i| srgb_to_linear(i as f32 / 255.));
+    let thresholds: [f32; 255] =
+        std::array::from_fn(|i| 4. * srgb_to_linear((i as f32 + 0.5) / 255.));
+    for (layer, (source, source_width, source_height)) in images.into_iter().enumerate() {
+        let mut pixels = if (source_width, source_height) == (width, height) {
+            source
+        } else {
+            let mut pixels = vec![0; (width * height * 4) as usize];
+            for y in 0..height {
+                for x in 0..width {
+                    let from = ((y * source_height / height) * source_width
+                        + x * source_width / width) as usize
+                        * 4;
+                    let to = (y * width + x) as usize * 4;
+                    pixels[to..to + 4].copy_from_slice(&source[from..from + 4]);
+                }
             }
-        }
+            pixels
+        };
         let (mut w, mut h) = (width, height);
         for level in 0..mip_levels {
             queue.write_texture(
@@ -95,29 +105,28 @@ pub(super) fn upload_pngs<'a>(
                     depth_or_array_layers: 1,
                 },
             );
+            if level + 1 == mip_levels {
+                break;
+            }
             let (next_w, next_h) = ((w / 2).max(1), (h / 2).max(1));
             let mut next = vec![0; (next_w * next_h * 4) as usize];
             for y in 0..next_h {
                 for x in 0..next_w {
-                    for channel in 0..4 {
-                        let mut sum = 0f32;
-                        for dy in 0..2 {
-                            for dx in 0..2 {
-                                let index =
-                                    (((y * 2 + dy).min(h - 1) * w + (x * 2 + dx).min(w - 1)) * 4
-                                        + channel) as usize;
-                                let v = pixels[index] as f32 / 255.;
-                                sum += if channel == 3 { v } else { srgb_to_linear(v) };
-                            }
-                        }
-                        let average = sum * 0.25;
-                        let v = if channel == 3 {
-                            average
-                        } else {
-                            linear_to_srgb(average)
-                        };
-                        next[((y * next_w + x) * 4 + channel) as usize] = (v * 255.).round() as u8;
+                    let offset = |dx: u32, dy: u32| {
+                        (((2 * y + dy).min(h - 1) * w + (2 * x + dx).min(w - 1)) * 4) as usize
+                    };
+                    let samples = [offset(0, 0), offset(1, 0), offset(0, 1), offset(1, 1)];
+                    let to = ((y * next_w + x) * 4) as usize;
+                    for channel in 0..3 {
+                        let sum: f32 = samples
+                            .iter()
+                            .map(|i| linear[pixels[i + channel] as usize])
+                            .sum();
+                        next[to + channel] =
+                            thresholds.partition_point(|&boundary| boundary <= sum) as u8;
                     }
+                    let alpha: u16 = samples.iter().map(|i| u16::from(pixels[i + 3])).sum();
+                    next[to + 3] = ((alpha + 2) / 4) as u8;
                 }
             }
             pixels = next;
@@ -143,12 +152,5 @@ fn srgb_to_linear(v: f32) -> f32 {
         v / 12.92
     } else {
         ((v + 0.055) / 1.055).powf(2.4)
-    }
-}
-fn linear_to_srgb(v: f32) -> f32 {
-    if v <= 0.0031308 {
-        v * 12.92
-    } else {
-        1.055 * v.powf(1. / 2.4) - 0.055
     }
 }

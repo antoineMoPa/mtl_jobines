@@ -774,6 +774,22 @@ impl Vehicle {
                 continue;
             }
             for (center, arm, radius) in body_probes.into_iter().chain(trailer_probes.clone()) {
+                if let Some(shape) = city.model_colliders.get(&id) {
+                    if let Some((normal, depth)) = shape.contact(
+                        (center / METERS_PER_UNIT).to_array(),
+                        radius / METERS_PER_UNIT,
+                        bottom,
+                        top,
+                    ) {
+                        let depth = depth * METERS_PER_UNIT;
+                        if deepest.is_none_or(|(_, previous, _)| depth > previous) {
+                            deepest = Some((Vec2::from(normal), depth, arm));
+                        }
+                    }
+                    if !city.foundation_overlaps_height(id, bottom, top) {
+                        continue;
+                    }
+                }
                 let mut inside = false;
                 let mut nearest = Vec2::ZERO;
                 let mut edge_normal = Vec2::X;

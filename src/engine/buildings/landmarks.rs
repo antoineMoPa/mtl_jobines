@@ -234,8 +234,8 @@ mod tests {
         )
         .unwrap();
         assert!(reopened.items[0].mesh.vertices.len() < actual.vertices.len());
-        let city = City::from_program(&f.document.program, None).unwrap();
-        let expected = landmarks::build(&city).unwrap();
+        let mut city = City::from_program(&f.document.program, None).unwrap();
+        let expected = landmarks::build(&mut city).unwrap();
         assert_eq!(actual.vertices.len(), expected.vertices.len());
         for (a, b) in actual.vertices.iter().zip(&expected.vertices) {
             assert!((Vec3::from_array(a.position) - Vec3::from_array(b.position)).length() < 1e-5);

@@ -562,12 +562,29 @@ impl Hud {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.group, &[]);
         pass.draw(0..if overlay == Overlay::Driving { 12 } else { 6 }, 0..1);
-        if matches!(overlay, Overlay::Driving | Overlay::Map) && self.vector_count > 0 {
+        // The zoomed city extends far beyond the minimap. Clip at rasterization
+        // before running the circular mask and marker shader on map fragments.
+        let [x, y, w, h] = match overlay {
+            Overlay::Driving => minimap_rect(width as f32, height as f32),
+            Overlay::Map => full_map_rect(width as f32, height as f32),
+            _ => return,
+        };
+        let left = x.floor().max(0.) as u32;
+        let top = y.floor().max(0.) as u32;
+        let right = ((x + w).ceil() as u32).min(width);
+        let bottom = ((y + h).ceil() as u32).min(height);
+        if right <= left || bottom <= top {
+            return;
+        }
+        if !cfg!(test) || std::env::var_os("BUG95_FULL_SCISSOR").is_none() {
+            pass.set_scissor_rect(left, top, right - left, bottom - top);
+        }
+        if self.vector_count > 0 {
             pass.set_pipeline(&self.vector_pipeline);
             pass.set_vertex_buffer(0, self.vector_buffer.slice(..));
             pass.draw(0..self.vector_count, 0..1);
         }
-        if matches!(overlay, Overlay::Driving | Overlay::Map) && self.route_count > 0 {
+        if self.route_count > 0 {
             pass.set_pipeline(&self.route_pipeline);
             pass.set_vertex_buffer(0, self.route_buffer.slice(..));
             pass.draw(0..self.route_count, 0..1);
@@ -681,3 +698,7 @@ mod tests {
         .unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "/tmp/bug95-hud-probe.rs"]
+mod bug95_probe;

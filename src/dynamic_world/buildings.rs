@@ -35,6 +35,26 @@ impl Buildings {
         }
         let blocked = |p: Vec3| {
             candidates.iter().any(|&id| {
+                if let Some(shape) = city.model_colliders.get(&id) {
+                    if shape
+                        .contact(
+                            (p.truncate() / METERS_PER_UNIT).to_array(),
+                            radius / METERS_PER_UNIT,
+                            (p.z - radius) / METERS_PER_UNIT,
+                            (p.z + radius) / METERS_PER_UNIT,
+                        )
+                        .is_some()
+                    {
+                        return true;
+                    }
+                    if !city.foundation_overlaps_height(
+                        id,
+                        (p.z - radius) / METERS_PER_UNIT,
+                        (p.z + radius) / METERS_PER_UNIT,
+                    ) {
+                        return false;
+                    }
+                }
                 let building = &city.landscape[id];
                 if city.building_bottom(id) * METERS_PER_UNIT >= p.z + radius
                     || (building.elevation + building.height.unwrap_or(0.)) * METERS_PER_UNIT
@@ -105,7 +125,26 @@ impl Buildings {
             let b = &city.landscape[id];
             let low = city.building_bottom(id) * METERS_PER_UNIT;
             let base = b.elevation * METERS_PER_UNIT;
-            let high = base + b.height.unwrap_or(0.) * METERS_PER_UNIT;
+            let high = if let Some(shape) = city.model_colliders.get(&id) {
+                if let Some((t, normal)) = shape.ray(
+                    (from / METERS_PER_UNIT).to_array(),
+                    (dir / METERS_PER_UNIT).to_array(),
+                    nearest,
+                ) {
+                    nearest = t;
+                    hit = Some((
+                        t,
+                        Vec3::from(normal),
+                        super::ShotSurface::facade(b.building_style.unwrap_or_default().material),
+                    ));
+                }
+                if low >= base {
+                    continue;
+                }
+                base
+            } else {
+                base + b.height.unwrap_or(0.) * METERS_PER_UNIT
+            };
             for (a, end) in b.points.iter().zip(b.points.iter().cycle().skip(1)) {
                 let edge = (Vec2::from(*end) - Vec2::from(*a)) * METERS_PER_UNIT;
                 let offset = Vec2::from(*a) * METERS_PER_UNIT - from.truncate();
@@ -201,6 +240,44 @@ impl Buildings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn julep_globe_and_stand_have_separate_contact_and_ray_bounds() {
+        let map = crate::hermes::Hermes::test_map_from_source(concat!(
+            "site=building(0.246,\"study_01\",-1.157,-1.323,-1.157,-1.077,-1.403,-1.077,-1.403,-1.323);",
+            "elevation(site,0.102);"
+        ));
+        let city = map.city();
+        let buildings = Buildings::new(city);
+        // Map X increases toward the counter, map Y along its front.
+        let stand = [-1.166, -1.15];
+        let corner = [-1.166, -1.30];
+        let globe = [-1.288, -1.20];
+        assert!(city.building_collision(stand, 0.001, 0.115, 0.13));
+        assert!(!city.building_collision(stand, 0.001, 0.17, 0.18));
+        assert!(!city.building_collision(corner, 0.001, 0.115, 0.13));
+        assert!(city.building_collision(globe, 0.001, 0.32, 0.33));
+        let roof = |xy: [f32; 2]| {
+            buildings
+                .ray_face(
+                    city,
+                    Vec2::from(xy).extend(0.4) * METERS_PER_UNIT,
+                    -Vec3::Z,
+                    0.4 * METERS_PER_UNIT,
+                )
+                .map(|(t, _, _)| 0.4 - t / METERS_PER_UNIT)
+        };
+        assert!((roof(stand).unwrap() - 0.1475).abs() < 0.001);
+        assert!((roof(globe).unwrap() - 0.348).abs() < 0.001);
+        assert!(roof(corner).is_none());
+        let eye = Vec2::from(corner).extend(0.12);
+        assert!(
+            buildings
+                .camera_eye(city, eye + Vec3::X * 0.03, eye)
+                .distance(eye)
+                < 1e-5
+        );
+    }
+
     #[test]
     fn report_91_foundation_closes_downhill_wall_and_stops_camera() {
         let source = include_str!("../../data/maps/mtl/map.road")

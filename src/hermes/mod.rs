@@ -294,7 +294,7 @@ impl Hermes {
         Self::from_city_data(city, None, &program)
     }
     fn from_city_data(
-        city: City,
+        mut city: City,
         data: Option<GameData>,
         program: &opencity::Program,
     ) -> Result<Self, String> {
@@ -306,7 +306,7 @@ impl Hermes {
             None => (minimap::Minimap::new(&city)?, None),
         };
         let router = routing::Router::new(&city, program);
-        let landmark_mesh = landmarks::build(&city)?;
+        let landmark_mesh = landmarks::build(&mut city)?;
         let authored_props = crate::props::read(program)?;
         for entry in &authored_props {
             entry.placements(&city)?;

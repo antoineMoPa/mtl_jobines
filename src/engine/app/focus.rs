@@ -4,6 +4,13 @@ impl Game {
         self.focused && !self.hidden && !self.minimized && !self.suspended
     }
 
+    pub(super) fn can_present_frame(&self) -> bool {
+        // The web loader covers the canvas until presentation. A visible tab
+        // can finish that first frame before the canvas receives keyboard focus.
+        let first_web_frame = cfg!(target_arch = "wasm32") && self.first_frame;
+        (self.focused || first_web_frame) && !self.hidden && !self.minimized && !self.suspended
+    }
+
     pub(super) fn reset_frame_timing(&mut self) {
         self.last = None;
         self.accumulator = 0.;
@@ -14,11 +21,7 @@ impl Game {
     pub(super) fn window_activity_changed(&mut self) {
         self.reset_frame_timing();
         self.surface_retry = None;
-        if self.window_active() {
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
-        } else {
+        if !self.window_active() {
             self.audio.silence();
             self.keys.clear();
             self.loadout.projection = None;
@@ -27,6 +30,11 @@ impl Game {
             self.show_cursor();
             #[cfg(target_arch = "wasm32")]
             self.mobile.clear();
+        }
+        if self.can_present_frame() {
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
         }
     }
 
@@ -38,7 +46,7 @@ impl Game {
                 if self.minimized != minimized {
                     self.minimized = minimized;
                     self.window_activity_changed();
-                } else if self.window_active() {
+                } else if self.can_present_frame() {
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
