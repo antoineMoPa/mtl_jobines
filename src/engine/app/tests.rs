@@ -1046,6 +1046,29 @@ fn cinematic_drive_from_map_follows_a_bend_and_stops_at_destination() {
 }
 
 #[test]
+fn cinematic_drive_skips_a_kilometre_every_eight_seconds() {
+    let mut game = Game::new(Hermes::test_map_from_source(
+        "road street: carlane carlane; end street(0,0,30,0);
+         land(-1,-1,31,-1,31,1,-1,1); player_start(0.2,0,0);",
+    ));
+    game.set_overlay(Overlay::Map);
+    choose_drive_point(&mut game, [29., 0.]);
+    press_drive_button(&mut game);
+    for _ in 0..2 {
+        let start = game.world.player_position().x;
+        for _ in 0..959 {
+            game.simulate(DT);
+        }
+        let before = game.world.player_position().x;
+        assert!((0. ..250.).contains(&(before - start)));
+        game.simulate(DT);
+        let after = game.world.player_position().x;
+        assert!((after - before - 1000.).abs() < 3., "{before} -> {after}");
+        assert!(game.auto_drive.is_some());
+    }
+}
+
+#[test]
 fn cinematic_drive_requires_a_reachable_route_and_driver_and_yields_to_input() {
     let mut game = cinematic_drive_game();
     press_drive_button(&mut game);

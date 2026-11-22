@@ -23,6 +23,16 @@ pub(super) fn seat(id: &str) -> Option<Vec3> {
     };
     Some(position.into())
 }
+pub(super) fn traffic_model(id: usize, vehicle: &Vehicle) -> usize {
+    if vehicle
+        .definition()
+        .is_some_and(|d| d.config.research_id == super::traffic::CRUISER)
+    {
+        pedestrian_catalog::POLICE_OFFICER_MODEL
+    } else {
+        id % pedestrian_catalog::CROWD_MODEL_COUNT
+    }
+}
 impl DynamicWorld {
     pub(super) fn seated_drivers(&self) -> impl Iterator<Item = Instance<'_>> {
         let player = (self.is_driving() && self.entry.is_none()).then(|| {
@@ -39,15 +49,7 @@ impl DynamicWorld {
             .filter(|(id, _)| !self.officer_out_of(*id))
             .map(move |(id, opacity)| {
                 let vehicle = &self.vehicles[id];
-                let model = if vehicle
-                    .definition()
-                    .is_some_and(|d| d.config.research_id == super::traffic::CRUISER)
-                {
-                    pedestrian_catalog::POLICE_OFFICER_MODEL
-                } else {
-                    npc(id)
-                };
-                (vehicle, model, opacity)
+                (vehicle, traffic_model(id, vehicle), opacity)
             });
         let boats = self
             .skippers()

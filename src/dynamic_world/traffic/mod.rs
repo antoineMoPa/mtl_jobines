@@ -1,6 +1,8 @@
 //! Nearby physical traffic: lane pursuit, signals, following, and collision recovery.
 mod abandoned;
+mod lane_change;
 mod lod;
+use lane_change::Maneuver;
 mod models;
 mod police;
 pub use police::{ChaseStatus, Crime};
@@ -31,6 +33,7 @@ struct Driver {
     next: Option<usize>,
     stopped: bool,
     stranded: f32,
+    maneuver: Maneuver,
     stop_wait: f32,
     stop_arrival: Option<f32>,
     motion: lod::Motion,
@@ -49,6 +52,7 @@ impl Driver {
             next: None,
             stopped: false,
             stranded: 0.,
+            maneuver: Maneuver::Following,
             stop_wait: 0.,
             stop_arrival: None,
             motion: lod::Motion::Physical,
@@ -422,12 +426,64 @@ impl Traffic {
             }
             let ground = car.position - Vec3::Z * car.ride_height();
             let forward = Vec3::new(car.yaw.cos(), car.yaw.sin(), 0.);
+            if let Maneuver::Backing { until } = driver.maneuver {
+                let rear_clear = vehicles.iter().enumerate().all(|(id, other)| {
+                    id == driver.vehicle
+                        || car.following_clearance(car.position, -forward.truncate(), other) > 1.
+                }) && pedestrian.is_none_or(|p| {
+                    let delta = p - car.position;
+                    delta.z.abs() > 2.
+                        || delta.dot(forward) >= 0.
+                        || delta.truncate().length() > car.length() * 0.5 + 4.
+                });
+                if self.time < until && rear_clear && !patrol {
+                    result.push((
+                        driver.vehicle,
+                        Controls {
+                            throttle: if car.velocity.dot(forward) > -2.5 {
+                                -0.6
+                            } else {
+                                0.
+                            },
+                            ..Default::default()
+                        },
+                    ));
+                    continue;
+                }
+                driver.maneuver = Maneuver::Following;
+                if !patrol {
+                    if let Some((id, along)) = driver.alternate_lane(&self.graph, ground, vehicles)
+                    {
+                        driver.start_merge(id, along);
+                    } else if let Some(&next) = self.graph.paths[driver.path]
+                        .next
+                        .iter()
+                        .find(|&&id| Some(id) != driver.next)
+                    {
+                        driver.next = Some(next);
+                        driver.stopped = false;
+                    }
+                }
+            }
             let (distance, error) = match driver.motion {
                 lod::Motion::Lane(_) => (driver.distance, 0.),
                 lod::Motion::Physical => self.graph.paths[driver.path].project(ground),
             };
             let heading = self.graph.paths[driver.path].sample(distance).1;
-            if error > 3. || heading.dot(forward) < 0.1 {
+            let lane = &self.graph.paths[driver.path];
+            if matches!(driver.maneuver, Maneuver::Merging) && error < 1. {
+                driver.maneuver = Maneuver::Following;
+            }
+            let merge = (!patrol
+                && lane.next.is_empty()
+                && (10. ..35.).contains(&(lane.length - distance)))
+            .then(|| driver.alternate_lane(&self.graph, ground, vehicles))
+            .flatten();
+            if let Some((id, along)) = merge {
+                driver.start_merge(id, along);
+            } else if (error > 3. && !(matches!(driver.maneuver, Maneuver::Merging) && error < 6.))
+                || heading.dot(forward) < 0.1
+            {
                 // Collision recovery only considers reachable, forward-facing nearby lanes.
                 let recovery = self
                     .graph
@@ -592,6 +648,7 @@ impl Traffic {
             let steering = car.pursuit_steering(curvature, speed);
             limit =
                 limit.min(((if patrol { 5. } else { 2.5 }) / curvature.abs().max(0.0001)).sqrt());
+            let waiting_for_route = clearance.is_finite() && !path.next.is_empty();
             for (index, other) in vehicles.iter().enumerate() {
                 if index == driver.vehicle {
                     continue;
@@ -617,13 +674,29 @@ impl Traffic {
             if clearance < 0.5 || driver.stopped {
                 limit = 0.;
             }
-            if speed < 0.5 && limit > 2. {
+            let can_retry = !patrol
+                && !waiting_for_route
+                && (path.next.len() > 1
+                    || path
+                        .adjacent
+                        .iter()
+                        .any(|&id| !self.graph.paths[id].next.is_empty()))
+                && pedestrian.is_none_or(|p| p.distance(car.position) > car.length() + 3.);
+            if speed < 0.5 && (limit > 2. || can_retry) {
                 driver.stranded += dt;
             } else {
                 driver.stranded = 0.;
             }
             if driver.stranded > 8. {
-                driver.stopped = true;
+                if can_retry {
+                    driver.maneuver = Maneuver::Backing {
+                        until: self.time + 4.5,
+                    };
+                    driver.motion = lod::Motion::Physical;
+                    driver.stranded = 0.;
+                } else if limit > 2. {
+                    driver.stopped = true;
+                }
             }
             driver.target_speed = limit;
             driver.clearance = clearance;

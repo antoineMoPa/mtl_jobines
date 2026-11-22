@@ -63,6 +63,7 @@ impl Traffic {
                     && approaching(car, vehicles[id].position, vehicles[id].velocity, 20.)
             });
             if self.chase.patrol(driver.vehicle).is_some()
+                || !matches!(driver.maneuver, Maneuver::Following)
                 || !self.physics_lod
                 || driver.vehicle == player
                 || self.interacted.contains_key(&driver.vehicle)

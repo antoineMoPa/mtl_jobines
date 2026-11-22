@@ -15,6 +15,7 @@ pub const METERS_PER_UNIT: f32 = 100.;
 const RIDE_HEIGHT: f32 = 0.65;
 const WHEELBASE: f32 = 2.6;
 const HALF_TRACK: f32 = 0.94;
+const CHASSIS_CLEARANCE: f32 = 0.3;
 const WHEEL_STEP_HEIGHT: f32 = 0.4;
 // Arcade tires recover from slides quickly while preserving each surface's grip
 // ratio and the shared acceleration/braking budget (an elliptical tire envelope).
@@ -720,12 +721,19 @@ impl Vehicle {
         };
         let mut deepest = None;
         for offset in [-self.length() * 0.28, 0., self.length() * 0.28] {
+            // Match the chassis underside used for ground contact. A wheel leaving
+            // the upper lip of an excavation must not hit its vertical face.
+            let section_z = center_z + axis.z * offset;
+            let section_radius = side.z.abs() * self.width() * 0.5
+                + up.z.abs() * self.height() * 0.5
+                + axis.z.abs() * (self.length() * 0.22);
+            let barrier_bottom = section_z - section_radius + up.z.max(0.) * CHASSIS_CLEARANCE;
             let center = self.position.truncate() + forward * offset;
             if let Some((normal, depth)) = city.road_barrier_contact(
                 (center / METERS_PER_UNIT).to_array(),
                 radius / METERS_PER_UNIT,
-                bottom,
-                top,
+                barrier_bottom / METERS_PER_UNIT,
+                (section_z + section_radius) / METERS_PER_UNIT,
             ) {
                 let depth = depth * METERS_PER_UNIT;
                 if deepest.is_none_or(|(_, previous, _)| depth > previous) {

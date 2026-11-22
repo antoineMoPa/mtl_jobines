@@ -97,6 +97,7 @@ pub struct DynamicWorld {
     health: u8,
     pedestrian: Option<Pedestrian>,
     entry: Option<Box<vehicle_entry::Entry>>,
+    displaced: Vec<vehicle_entry::DisplacedOccupant>,
     exit_on_right: bool,
     walking_spawn: Option<SpawnPoint>,
     vehicle_spawns: Vec<SpawnPoint>,
@@ -195,6 +196,7 @@ impl DynamicWorld {
             health: melee::PLAYER_HEALTH,
             pedestrian: None,
             entry: None,
+            displaced: Vec::new(),
             exit_on_right: false,
             walking_spawn: None,
             vehicle_spawns: Vec::new(),
@@ -474,11 +476,41 @@ impl DynamicWorld {
         }
         if let Some(player) = &self.pedestrian {
             if let Some(index) = self.nearest_enterable_vehicle(player.position) {
-                let car = &mut self.vehicles[index];
-                self.entry = vehicle_entry::Entry::new(car, player, self.season);
-                self.exit_on_right = self.entry.as_ref().is_some_and(|entry| entry.on_right());
-                car.doors.claim();
+                let car = &self.vehicles[index];
+                let entry = vehicle_entry::Entry::new(car, player, self.season);
                 let occupied = self.traffic.driven_slots().any(|(id, _)| id == index);
+                let model = self.cyclists.rider_model(index).or_else(|| {
+                    (occupied && !self.officer_out_of(index))
+                        .then(|| drivers::traffic_model(index, car))
+                });
+                if let (Some(model), Some(motion)) = (model, &entry) {
+                    let right = !motion.on_right();
+                    let outward =
+                        glam::Vec2::from_angle(car.yaw).perp() * if right { -1. } else { 1. };
+                    let landing =
+                        Pedestrian::beside_on_side(hermes.city(), car, model, right, |p| {
+                            (p - car.position).truncate().dot(outward) <= 0.
+                                || self.props.blocked(p)
+                                || self
+                                    .vehicles
+                                    .iter()
+                                    .any(|v| player::blocked_by_vehicle(p, v))
+                        });
+                    let Some(occupant) = landing.and_then(|person| {
+                        vehicle_entry::DisplacedOccupant::new(
+                            index,
+                            &mut self.vehicles[index],
+                            person,
+                            self.season,
+                        )
+                    }) else {
+                        return false;
+                    };
+                    self.displaced.push(occupant);
+                }
+                self.exit_on_right = entry.as_ref().is_some_and(|entry| entry.on_right());
+                self.entry = entry;
+                self.vehicles[index].doors.claim();
                 self.traffic.release(index);
                 self.cyclists.undock(index);
                 self.cyclists.release(index);
@@ -540,6 +572,7 @@ impl DynamicWorld {
         false
     }
     pub fn reset_player(&mut self, hermes: &Hermes) {
+        self.displaced.clear();
         self.entry = None;
         self.exit_on_right = false;
         self.clear_chase();
@@ -779,6 +812,17 @@ impl DynamicWorld {
                 self.entry = None;
             }
         }
+        self.displaced.retain_mut(|occupant| {
+            if let Some(model) = occupant.step(&mut self.vehicles, self.season, dt) {
+                if self
+                    .crowd
+                    .accept_occupant(hermes.city(), model, &occupant.person)
+                {
+                    return false;
+                }
+            }
+            occupant.person.position.distance_squared(center) < 140_f32.powi(2)
+        });
         stage!(2);
         drop(phase);
         let phase = crate::telemetry::span("physics.contacts");
@@ -935,6 +979,11 @@ impl DynamicWorld {
                     .iter()
                     .filter(|_| self.is_driving() && self.player().is_bicycle())
                     .map(|entry| entry.instance(self.player())),
+            )
+            .chain(
+                self.displaced
+                    .iter()
+                    .map(|npc| npc.instance(&self.vehicles, self.season)),
             )
             .chain(self.seated_drivers())
             .chain(self.officer_instances())

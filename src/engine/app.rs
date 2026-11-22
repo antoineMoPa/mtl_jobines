@@ -594,7 +594,7 @@ impl Game {
             if let Some(drive) = &mut self.auto_drive {
                 let position = self.world.player_position() / METERS_PER_UNIT;
                 self.hermes.update_navigation(position.to_array());
-                match drive.step(&self.world, &self.hermes, DT) {
+                match drive.step(&mut self.world, &self.hermes, DT) {
                     DriveStep::Apply(controls) => driving = controls,
                     DriveStep::Finished => self.auto_drive = None,
                     DriveStep::Blocked => {

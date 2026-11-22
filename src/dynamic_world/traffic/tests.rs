@@ -816,30 +816,35 @@ fn report_93_service_road_merge() {
     )
     .unwrap();
     let graph = TrafficPaths::new(&city, &program);
-    for x in (-70..-42).step_by(1) {
-        let xy = [x as f32 / 100., -3.654];
-        let h = city.surface_at(xy, 0.14).unwrap();
-        eprintln!(
-            "x {x} h {:?} {} contact {:?}",
-            h.kind,
-            h.height,
-            city.road_barrier_contact(xy, 0.008, 0.099, 0.12)
-        );
-    }
     let at = Vec3::new(-56.93, -256.08, 10.2);
-    for (id, p) in graph
+    let (right, lane) = graph
         .paths
         .iter()
         .enumerate()
-        .filter(|(_, p)| p.near(at, 12.))
-    {
-        eprintln!(
-            "{id}: {:?} {:?} {:?} {:?} {:?}",
-            p.project(at),
-            p.points.first(),
-            p.points.last(),
-            p.next,
-            p.speed
+        .find(|(_, p)| p.next.is_empty() && p.project(at).1 < 6.)
+        .unwrap();
+    let end = lane.length;
+    let graph = Arc::new(graph);
+    for remaining in [40., 3.] {
+        let (mut traffic, mut cars) = one_driver(&city, &graph, right, end - remaining);
+        let mut reversed = false;
+        for _ in 0..1800 {
+            tick(&mut traffic, &city, &mut cars, 1. / 60.);
+            assert_eq!(
+                cars[0].collisions, 0,
+                "collision starting {remaining} m from end at {:?}, t {}",
+                cars[0].position, traffic.time
+            );
+            reversed |= cars[0].velocity.y > 0.5;
+            if cars[0].position.y < -275. {
+                break;
+            }
+        }
+        assert_eq!(reversed, remaining < 10.);
+        assert!(
+            cars[0].position.y < -275.,
+            "missed ramp: {:?}",
+            cars[0].position
         );
     }
 }

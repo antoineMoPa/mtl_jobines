@@ -45,6 +45,12 @@ impl Cyclists {
             refill: 0.,
         }
     }
+    pub fn rider_model(&self, id: usize) -> Option<usize> {
+        self.riders
+            .iter()
+            .find(|r| r.vehicle == id)
+            .map(|r| r.model)
+    }
     pub fn release(&mut self, id: usize) {
         self.riders.retain(|r| r.vehicle != id);
     }

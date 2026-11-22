@@ -3,6 +3,10 @@ use super::{Controls, DynamicWorld, METERS_PER_UNIT};
 use crate::hermes::{Hermes, RouteStatus};
 use glam::{Vec2, Vec3};
 
+const SKIP_INTERVAL: f64 = 8.;
+const SKIP_METRES: f32 = 1000.;
+const FINAL_APPROACH_METRES: f32 = 12.;
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum DriveAvailability {
     #[default]
@@ -48,7 +52,7 @@ fn preview(route: &[Vec3], lookahead: f32) -> Option<(Vec3, Vec3, f32)> {
             ));
         }
         distance += length;
-        if distance > 40. {
+        if distance >= lookahead.max(120.) {
             break;
         }
     }
@@ -56,6 +60,37 @@ fn preview(route: &[Vec3], lookahead: f32) -> Option<(Vec3, Vec3, f32)> {
 }
 
 impl DynamicWorld {
+    fn skip_ahead(&mut self, map: &Hermes) -> bool {
+        let route = map.road_route();
+        let remaining =
+            route.windows(2).map(|s| s[0].distance(s[1])).sum::<f32>() * METERS_PER_UNIT;
+        let advance = (remaining - FINAL_APPROACH_METRES).min(SKIP_METRES);
+        // Keep driving when a cut would cover less than a few car lengths.
+        if advance < 40. {
+            return false;
+        }
+        let Some((point, heading, _)) = preview(route, advance) else {
+            return false;
+        };
+        let mut car = self.player().clone();
+        car.position = self.lane_target(map, point, heading, point) + Vec3::Z * car.ride_height();
+        car.yaw = heading.y.atan2(heading.x);
+        car.pitch = heading.z.atan2(heading.truncate().length());
+        car.roll = 0.;
+        if !self.clear_vehicle_position(map.city(), &car, Some(self.player_vehicle.0)) {
+            return false;
+        }
+        let clearance =
+            (remaining - advance - 2.).min(self.traffic_gap(car.position, heading.truncate()));
+        car.velocity = heading * car.velocity.length().min((4. * clearance.max(0.)).sqrt());
+        car.angular_momentum = Vec3::ZERO;
+        car.body_lean = Vec2::ZERO;
+        car.body_lean_rate = Vec2::ZERO;
+        car.steering = 0.;
+        self.vehicles[self.player_vehicle.0] = car;
+        true
+    }
+
     // Distance to the rear bumper ahead, measured along a candidate lane.
     fn traffic_gap(&self, origin: Vec3, heading: Vec2) -> f32 {
         let car = self.player();
@@ -73,7 +108,7 @@ impl DynamicWorld {
 
     // GPS geometry follows the centerline. Choose a lane on the same deck and
     // give a queued vehicle space when an adjacent forward lane is clearer.
-    fn lane_target(&self, map: &Hermes, point: Vec3, direction: Vec3) -> Vec3 {
+    fn lane_target(&self, map: &Hermes, point: Vec3, direction: Vec3, approach: Vec3) -> Vec3 {
         let car = self.player();
         let mut best = (f32::INFINITY, point);
         let mut lanes = Vec::new();
@@ -96,7 +131,7 @@ impl DynamicWorld {
                 continue;
             }
             let mut consider = |target: Vec3, penalty: f32| {
-                let delta = car.position - target;
+                let delta = approach - target;
                 let across = heading.truncate().perp_dot(delta.truncate()).abs();
                 let origin = target + heading * delta.dot(heading);
                 let gap = self.traffic_gap(origin, heading.truncate());
@@ -133,6 +168,7 @@ pub enum DriveStep {
 
 pub struct AutoDrive {
     pub elapsed: f32,
+    until_skip: f64,
     stalled: f32,
     next_decision: f32,
     controls: Controls,
@@ -143,6 +179,7 @@ impl AutoDrive {
     pub fn start(world: &DynamicWorld, map: &Hermes) -> Option<Self> {
         (world.drive_availability(map) == DriveAvailability::Ready).then_some(Self {
             elapsed: 0.,
+            until_skip: SKIP_INTERVAL,
             stalled: 0.,
             next_decision: 0.,
             controls: Controls::default(),
@@ -150,7 +187,7 @@ impl AutoDrive {
         })
     }
 
-    pub fn step(&mut self, world: &DynamicWorld, map: &Hermes, dt: f32) -> DriveStep {
+    pub fn step(&mut self, world: &mut DynamicWorld, map: &Hermes, dt: f32) -> DriveStep {
         self.elapsed += dt;
         let car = world.player();
         let speed = car.velocity.truncate().length();
@@ -169,6 +206,17 @@ impl AutoDrive {
                 })
             };
         }
+        self.until_skip -= f64::from(dt);
+        if self.until_skip <= 0. {
+            self.until_skip += SKIP_INTERVAL;
+            if world.skip_ahead(map) {
+                self.stalled = 0.;
+                self.next_decision = 0.;
+                self.controls = Controls::default();
+                return DriveStep::Apply(self.controls);
+            }
+        }
+        let car = world.player();
         // Allow queues more than a full 28-second signal cycle to clear.
         self.stalled = if speed < 0.5 { self.stalled + dt } else { 0. };
         let timeout = if self.controls.throttle > 0.2 {
@@ -191,9 +239,10 @@ impl AutoDrive {
         };
         let destination = end * METERS_PER_UNIT;
         let (target, distance) = match preview(route, lookahead) {
-            Some((point, direction, distance)) => {
-                (world.lane_target(map, point, direction), distance)
-            }
+            Some((point, direction, distance)) => (
+                world.lane_target(map, point, direction, car.position),
+                distance,
+            ),
             // The destination can be directly alongside the car, with little
             // or no longitudinal travel left on the snapped GPS edge.
             _ => (destination, destination.distance(car.position)),
@@ -213,12 +262,12 @@ impl AutoDrive {
         let clearance = (distance - 2.)
             .max(0.)
             .min(world.traffic_gap(car.position, travel));
-        let cruise: f32 = if angle.abs() > 1.2 { 2.8 } else { 11. };
+        let cruise: f32 = if angle.abs() > 1.2 { 2.8 } else { 20. };
         let limit = cruise
             .min((2.6 / curvature.abs().max(0.001)).sqrt())
             .min((4. * clearance).sqrt());
         self.controls = Controls {
-            throttle: ((limit - speed) * 0.45).clamp(0., 0.75),
+            throttle: ((limit - speed) * 0.45).clamp(0., 1.),
             brake: speed > limit + 0.25 || limit < 0.1,
             steering: steering.clamp(-1., 1.),
             ..Default::default()

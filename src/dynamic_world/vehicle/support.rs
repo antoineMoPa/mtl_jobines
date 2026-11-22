@@ -55,7 +55,7 @@ impl Vehicle {
                 .fold(f32::INFINITY, f32::min);
             let body_bottom = -axis.z.abs() * self.length() * 0.5
                 - side.z.abs() * self.width() * 0.5
-                + up.z * (-self.ride_height() + 0.3);
+                + up.z * (-self.ride_height() + CHASSIS_CLEARANCE);
             if body_bottom >= wheel_bottom {
                 return (points, count);
             }
@@ -63,7 +63,7 @@ impl Vehicle {
         for x in [-self.length() * 0.5, self.length() * 0.5] {
             for y in [-self.width() * 0.5, self.width() * 0.5] {
                 for z in [
-                    -self.ride_height() + 0.3,
+                    -self.ride_height() + CHASSIS_CLEARANCE,
                     self.height() - self.ride_height(),
                 ] {
                     points[count] = self.position + q * Vec3::new(x, y, z);

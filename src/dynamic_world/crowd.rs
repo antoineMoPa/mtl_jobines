@@ -24,7 +24,7 @@ struct KioskSite {
     toward_front: Vec2,
     elevation: f32,
 }
-struct KioskActor {
+struct StandingActor {
     model: usize,
     position: Vec3,
     yaw: f32,
@@ -54,7 +54,7 @@ impl KioskSite {
             elevation: feature.elevation,
         })
     }
-    fn actors(&self, city: &City) -> Vec<KioskActor> {
+    fn actors(&self, city: &City) -> Vec<StandingActor> {
         // Guests wait in front of the original kiosk frontage.
         let positions = [(-2.6, 1), (-5.0, 3), (-7.4, 5)];
         positions
@@ -67,7 +67,7 @@ impl KioskSite {
                     .map_or(self.elevation, |surface| surface.height)
                     * METERS_PER_UNIT;
                 let direction = -self.toward_front;
-                KioskActor {
+                StandingActor {
                     model,
                     position: xy.extend(z),
                     yaw: direction.y.atan2(direction.x),
@@ -150,7 +150,7 @@ pub(crate) struct Crowd {
     kiosk_checked: bool,
     kiosk_spawned: bool,
     kiosk_site: Option<KioskSite>,
-    kiosk_actors: Vec<KioskActor>,
+    kiosk_actors: Vec<StandingActor>,
 }
 fn random(seed: &mut u32) -> f32 {
     *seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
@@ -174,7 +174,7 @@ fn path_distance(graph: &WalkingPaths, path: usize, position: Vec3) -> f32 {
     }
     best.0
 }
-fn queue_sidewalk(graph: &WalkingPaths, position: Vec3) -> Option<(usize, f32)> {
+fn nearest_sidewalk(graph: &WalkingPaths, position: Vec3) -> Option<(usize, f32)> {
     graph
         .paths
         .iter()
@@ -188,8 +188,49 @@ fn queue_sidewalk(graph: &WalkingPaths, position: Vec3) -> Option<(usize, f32)> 
         .min_by(|a, b| a.2.total_cmp(&b.2))
         .map(|(index, distance, _)| (index, distance))
 }
+impl StandingActor {
+    fn into_walker(
+        self,
+        city: &City,
+        serial: u32,
+        path: usize,
+        distance: f32,
+        spawned_at_kiosk: bool,
+    ) -> Walker {
+        let definition = &pedestrian_catalog::definitions()[self.model];
+        Walker {
+            spawned_at_kiosk,
+            serial,
+            model: self.model,
+            path,
+            distance,
+            position: self.position,
+            yaw: self.yaw,
+            lane: 0.42,
+            preferred_speed: definition.walk_speed,
+            speed: 0.,
+            movement: 0.,
+            walk_time: 0.,
+            idle_time: self.idle_time,
+            pause: 0.,
+            until_pause: 12.,
+            blocked_time: 0.,
+            age: 1.,
+            immunity: 0.,
+            health: super::melee::ZOMBIE_HEALTH,
+            stagger: 0.,
+            deferred_dt: 0.,
+            preview_cache: None,
+            reaction: None,
+            returning: None,
+            gait: Gait::new(definition, self.position, self.yaw, serial, |p| {
+                footing(city, p, false)
+            }),
+        }
+    }
+}
 fn collide_queue(
-    actors: &mut Vec<KioskActor>,
+    actors: &mut Vec<StandingActor>,
     walkers: &mut Vec<Walker>,
     graph: &WalkingPaths,
     serial: &mut u32,
@@ -204,41 +245,12 @@ fn collide_queue(
             index += 1;
             continue;
         };
-        let Some((path, distance)) = queue_sidewalk(graph, actors[index].position) else {
+        let Some((path, distance)) = nearest_sidewalk(graph, actors[index].position) else {
             index += 1;
             continue;
         };
         let actor = actors.remove(index);
-        let definition = &pedestrian_catalog::definitions()[actor.model];
-        let mut walker = Walker {
-            spawned_at_kiosk: true,
-            serial: *serial,
-            model: actor.model,
-            path,
-            distance,
-            position: actor.position,
-            yaw: actor.yaw,
-            lane: 0.42,
-            preferred_speed: definition.walk_speed,
-            speed: 0.,
-            movement: 0.,
-            walk_time: 0.,
-            idle_time: actor.idle_time,
-            pause: 0.,
-            until_pause: 12.,
-            blocked_time: 0.,
-            age: 1.,
-            immunity: 0.,
-            health: super::melee::ZOMBIE_HEALTH,
-            stagger: 0.,
-            deferred_dt: 0.,
-            preview_cache: None,
-            reaction: None,
-            returning: None,
-            gait: Gait::new(definition, actor.position, actor.yaw, *serial, |p| {
-                footing(city, p, false)
-            }),
-        };
+        let mut walker = actor.into_walker(city, *serial, path, distance, true);
         if velocity != Vec3::ZERO {
             walker.fall(city, vehicles, velocity);
             if let Some(id) = vehicle {
@@ -285,6 +297,35 @@ fn blocked_by_vehicle(position: Vec3, vehicles: &[Vehicle]) -> bool {
     })
 }
 impl Crowd {
+    pub(super) fn accept_occupant(
+        &mut self,
+        city: &City,
+        model: usize,
+        person: &super::Pedestrian,
+    ) -> bool {
+        let position = person.position - Vec3::Z * super::player::HALF_HEIGHT;
+        let Some((path, distance)) = nearest_sidewalk(&self.graph, position) else {
+            return false;
+        };
+        let Some((destination, _)) = placement(city, &self.graph, path, distance) else {
+            return false;
+        };
+        let actor = StandingActor {
+            model,
+            position,
+            yaw: person.yaw,
+            idle_time: 0.,
+        };
+        let mut walker = actor.into_walker(city, self.serial, path, distance, false);
+        walker.returning = Some(ReturnPoint {
+            position: destination,
+            path,
+            distance,
+        });
+        self.walkers.push(walker);
+        self.serial = self.serial.wrapping_add(1);
+        true
+    }
     pub fn new(graph: &Arc<WalkingPaths>) -> Self {
         Self {
             graph: Arc::clone(graph),

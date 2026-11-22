@@ -1292,3 +1292,51 @@ fn report_45_heritage_facade_stops_vehicles_and_follow_camera() {
         eye.z + 0.0059
     ));
 }
+
+#[test]
+fn report_94_drive_from_grass_over_excavation_edge() {
+    use crate::dynamic_world::{catalog, SpawnPoint};
+    let program = opencity::parse(include_str!("../../../data/maps/mtl/map.road")).unwrap();
+    let city = City::from_program(
+        &program,
+        Some(&std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl")),
+    )
+    .unwrap();
+    for model in [
+        Some(0),
+        catalog::definitions().iter().position(|d| d.is_bicycle()),
+    ] {
+        let mut car = Vehicle::spawn_at(
+            &city,
+            SpawnPoint {
+                point: [-0.65, -3.654],
+                heading: Some(0.),
+            },
+        )
+        .unwrap();
+        car.set_catalog_model(model);
+        let upper = city
+            .surface_at([-0.65, -3.654], f32::INFINITY)
+            .unwrap()
+            .height
+            * METERS_PER_UNIT;
+        car.position.z = upper + car.ride_height();
+        car.velocity = Vec3::X * 11.;
+        for _ in 0..110 {
+            car.step(
+                &city,
+                Controls {
+                    throttle: 1.,
+                    ..Default::default()
+                },
+                1. / 60.,
+            );
+        }
+        assert!(
+            car.position.x > -51.,
+            "blocked at {:?} model {model:?}",
+            car.position
+        );
+        assert!(car.position.z - car.ride_height() < upper - 0.2);
+    }
+}

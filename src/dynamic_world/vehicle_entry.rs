@@ -41,6 +41,58 @@ pub(super) struct Entry {
     start: Pose,
     pose: Pose,
 }
+pub(super) struct DisplacedOccupant {
+    vehicle: usize,
+    pub person: Pedestrian,
+    exit: Option<Box<Entry>>,
+}
+
+impl DisplacedOccupant {
+    pub fn new(
+        vehicle: usize,
+        car: &mut Vehicle,
+        person: Pedestrian,
+        season: crate::season::Season,
+    ) -> Option<Self> {
+        let mut exit = Entry::new(car, &person, season)?;
+        exit.begin_exit(car);
+        Some(Self {
+            vehicle,
+            person,
+            exit: Some(exit),
+        })
+    }
+
+    pub fn step(
+        &mut self,
+        vehicles: &mut [Vehicle],
+        season: crate::season::Season,
+        dt: f32,
+    ) -> Option<usize> {
+        if let Some(exit) = &mut self.exit {
+            let car = &mut vehicles[self.vehicle];
+            exit.update_landing(car, &self.person, season);
+            if exit.step(car, dt) {
+                let model = exit.model;
+                self.exit = None;
+                return Some(model);
+            }
+        }
+        None
+    }
+
+    pub fn instance<'a>(
+        &'a self,
+        vehicles: &[Vehicle],
+        season: crate::season::Season,
+    ) -> Instance<'a> {
+        match &self.exit {
+            Some(exit) => exit.instance(&vehicles[self.vehicle]),
+            None => self.person.instance(season),
+        }
+    }
+}
+
 fn phase(t: f32, from: f32, to: f32) -> f32 {
     let u = ((t - from) / (to - from)).clamp(0., 1.);
     u * u * (3. - 2. * u)
@@ -332,6 +384,71 @@ mod tests {
         dynamic_world::{catalog, DynamicWorld},
         hermes::Hermes,
     };
+
+    #[test]
+    fn theft_animates_the_original_occupant_to_the_far_side() {
+        let map = Hermes::test_map_from_source(
+            "road cycle: sidewalk bikelane carlane middle carlane bikelane sidewalk; end
+             cycle(-2,0,2,0); land(-3,-2,3,-2,3,2,-3,2); player_start(0,0);",
+        );
+        for bike in [false, true] {
+            for right in [false, true] {
+                let mut world = DynamicWorld::new(&map);
+                let (id, model) = if bike {
+                    (0..world.vehicles.len())
+                        .find_map(|id| Some((id, world.cyclists.rider_model(id)?)))
+                        .unwrap()
+                } else {
+                    let id = world.traffic.driven_slots().next().unwrap().0;
+                    (id, drivers::traffic_model(id, &world.vehicles[id]))
+                };
+                let car = &world.vehicles[id];
+                world.pedestrian = Pedestrian::beside_on_side(
+                    map.city(),
+                    car,
+                    pedestrian_catalog::PLAYER_SUMMER_MODEL,
+                    right,
+                    |_| false,
+                );
+                assert!(world.toggle_vehicle(&map));
+                assert_eq!(world.player_vehicle.0, id);
+                let exit = world.displaced[0].exit.as_ref().unwrap();
+                assert_eq!(exit.model, model);
+                assert_eq!(exit.on_right(), !right);
+                let landing = world.displaced[0]
+                    .person
+                    .instance(world.season)
+                    .transform
+                    .w_axis
+                    .truncate();
+                let seated = exit.pose;
+                let duration = exit.duration();
+                let input = Controls {
+                    throttle: if bike { 1. } else { 0. },
+                    ..Default::default()
+                };
+                for _ in 0..(duration * 30.) as usize {
+                    world.step(&map, input, Default::default(), 1. / 60.);
+                }
+                let exit = world.displaced[0].exit.as_ref().unwrap();
+                assert_ne!(exit.pose, seated);
+                if let Mount::Cabin { door, .. } = exit.mount {
+                    assert!(world.player().doors.fraction(door) > 0.9);
+                } else {
+                    assert!(world.entry.is_none());
+                }
+                for _ in 0..(duration * 30.) as usize + 3 {
+                    world.step(&map, input, Default::default(), 1. / 60.);
+                }
+                assert!(world.displaced.is_empty());
+                assert!(world.crowd.instances(world.player_position()).any(|actor| {
+                    actor.model == model
+                        && actor.transform.w_axis.truncate().distance(landing)
+                            < 0.5 / METERS_PER_UNIT
+                }));
+            }
+        }
+    }
 
     #[test]
     fn directional_input_takes_over_a_bike_transition_in_one_tick() {
