@@ -96,7 +96,12 @@
     "row_direction": "positive world Y",
     "water_level": 0,
     "width": 1024,
-    "sha256": "372cfe6ec5d4cc69da6a69c886ae512896f452c8f54602cec6eab3a787f7470a"
+    "sha256": "a1d4f722ed69acd01ea92f4b275ad199fb30f47fe5e86164c1cd509e3a117ac7",
+    "authored_south_shore": {
+      "plateau_height": 0.1,
+      "bank_width_map_units": 0.65,
+      "note": "Authored gameplay land and sloped coastal bank south of the existing island; not sourced from OSM or a DEM. All original samples outside this addition are retained."
+    }
   },
   "world_bounds": [
     -76.8,

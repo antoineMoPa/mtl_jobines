@@ -2,6 +2,7 @@
 //! Hermes owns navigation, routing and the game’s map presentation.
 mod airport_fence;
 mod building_style;
+mod champlain;
 pub mod commerce_mesh;
 mod commerce_props;
 mod commercial;
@@ -20,6 +21,8 @@ pub mod metro;
 mod minimap;
 mod mission_sites;
 mod orange_sign;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod south_shore_tests;
 mod street_bins;
 pub mod street_props;
 mod taxi_runs;
@@ -431,6 +434,7 @@ impl Hermes {
             .city
             .mesh_with_external_models(Region::WholeMap, 0.04)
             .expect("static map mesh");
+        champlain::remove_generated_structure(&self.city, &mut world);
         metro::MetroMap::from_city(&self.city).open_portals(&mut world);
         world.vertices.append(&mut self.landmark_mesh.vertices);
         crate::dynamic_world::airport::append_scenery(&self.city, &mut world);

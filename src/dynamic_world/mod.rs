@@ -188,12 +188,26 @@ impl DynamicWorld {
             Some(point) => Vehicle::spawn_at(hermes.city(), point)?,
             None => Vehicle::spawn(hermes.city()),
         };
-        //TEMPORARY: start on the shared bicycle while testing its handling.
+        // Keep bicycle handling starts on local streets; autoroutes start in a car.
+        let road_role = hermes
+            .city()
+            .surface_at(
+                (vehicle.position.truncate() / METERS_PER_UNIT).to_array(),
+                vehicle.position.z / METERS_PER_UNIT,
+            )
+            .and_then(|surface| surface.road)
+            .map(|id| hermes.city().roads[id].definition.role);
+        let initial_model = match road_role {
+            Some(
+                opencity::RoadRole::Highway | opencity::RoadRole::Ramp | opencity::RoadRole::Merge,
+            ) => "vehicle-v2-09",
+            _ => catalog::BICYCLE_ID,
+        };
         vehicle.set_catalog_model(Some(
             catalog::definitions()
                 .iter()
-                .position(|definition| definition.config.research_id == catalog::BICYCLE_ID)
-                .expect("bundled shared bicycle test vehicle"),
+                .position(|definition| definition.config.research_id == initial_model)
+                .expect("bundled initial player vehicle"),
         ));
         let prop_center = walking_start.map_or(vehicle.position, |point| {
             Vec3::new(
@@ -1324,6 +1338,38 @@ mod tests {
             "Vélo partagé"
         );
     }
+    #[test]
+    fn autoroute_starts_use_cars_and_have_no_cycling_paths() {
+        for role in ["highway", "ramp", "merge"] {
+            let source = format!(
+                "road autoroute: verge carlane middle carlane verge; role {role}; end
+                a=map_point(-1,0); b=map_point(1,0);
+                autoroute(a,-0.333333,0,0.333333,0,b);
+                ground=land(-2,-1,2,-1,2,1,-2,1); player_start(0,-0.035,0);"
+            );
+            let hermes = Hermes::test_map_from_source(&source);
+            let world = DynamicWorld::new(&hermes);
+            assert!(
+                !world.player().is_bicycle(),
+                "bicycle player start on {role}"
+            );
+            assert_eq!(
+                world.player().definition().unwrap().config.research_id,
+                "vehicle-v2-09"
+            );
+            let (cycling, _) =
+                crate::hermes::traffic_paths::TrafficPaths::for_bicycles(hermes.city());
+            assert!(cycling.paths.is_empty(), "bicycle routes on {role}");
+
+            assert!(
+                world
+                    .vehicle_render_instances()
+                    .all(|(_, _, vehicle)| !vehicle.is_bicycle()),
+                "bicycle spawned on {role}"
+            );
+        }
+    }
+
     #[test]
     fn on_foot_world_steps_knock_down_contacted_pedestrians() {
         let hermes = Hermes::test_map();

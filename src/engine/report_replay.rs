@@ -81,13 +81,25 @@ pub(super) fn run(
                 (dx.hypot(dy) < 0.5).then(|| dy.atan2(dx))
             }),
         };
-        let world = DynamicWorld::with_start(
+        let mut world = DynamicWorld::with_start(
             hermes,
             Some(SpawnPoint {
                 point: [report.map_coordinates[0], report.map_coordinates[1]],
                 heading: recorded_heading,
             }),
         )?;
+        // Let newly spawned traffic finish fading in before capturing its occupants.
+        for _ in 0..60 {
+            world.step(
+                hermes,
+                crate::dynamic_world::Controls {
+                    brake: true,
+                    ..Default::default()
+                },
+                Default::default(),
+                1. / 60.,
+            );
+        }
         let p = world.player_position() / METERS_PER_UNIT;
         let heading = world.player_yaw();
         let f = Vec3::new(heading.cos(), heading.sin(), 0.);
