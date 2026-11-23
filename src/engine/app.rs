@@ -1080,8 +1080,12 @@ impl Game {
         if refresh_scene {
             if stage.is_none() || self.scene_dirty {
                 let _span = mtl_world::telemetry::span("scene.props_and_wildlife");
-                self.prop_scenery
-                    .update_with_stage(renderer, &self.world, stage);
+                self.prop_scenery.update_budgeted(
+                    renderer,
+                    &self.world,
+                    stage,
+                    crate::performance::prop_uploads(),
+                );
             }
             let car = self.world.player();
             let player_pose_delta = Mat4::from_rotation_translation(

@@ -932,6 +932,9 @@ impl Props {
             }
         }
     }
+    pub fn center(&self, id: usize) -> Vec3 {
+        self.items[id].center
+    }
     pub fn visible_batches(&self, center: Vec3) -> Vec<PropBatch> {
         let range = (VIEW / TILE).ceil() as i32 + 1;
         let tile = (

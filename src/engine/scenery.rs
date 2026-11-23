@@ -112,34 +112,45 @@ impl PendingLayer {
         (batches, Self { mesh, groups })
     }
 
+    // Draws inside `radius` are uploaded nearest first, but only while the frame's vertex
+    // budget lasts (the draw that crosses it still completes, so progress is guaranteed).
+    // Whatever the budget leaves prefetches four draws of the next nearest outside group.
     fn upload(
         &mut self,
         renderer: &Renderer,
         batches: &mut [Batch],
         center: [f32; 2],
         radius: f32,
+        budget: &mut usize,
     ) {
-        // Finish every intersecting group before drawing, including on teleport or zoom.
-        // Spend at most four spare draw uploads per layer on the next nearest group.
         let mut nearest = None;
         let mut best = f32::INFINITY;
-        for (index, _) in &self.groups {
+        let mut inside = Vec::new();
+        for (slot, (index, _)) in self.groups.iter().enumerate() {
             let distance = batches[*index].distance(center);
-            if distance > radius && distance < best {
-                nearest = Some(*index);
+            if distance <= radius {
+                inside.push((distance, slot));
+            } else if distance < best {
+                nearest = Some(slot);
                 best = distance;
             }
         }
-        self.groups.retain_mut(|(index, ranges)| {
+        inside.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let order = inside
+            .into_iter()
+            .map(|(_, slot)| (slot, usize::MAX))
+            .chain(nearest.map(|slot| (slot, 4)));
+        for (slot, limit) in order {
+            let (index, ranges) = &mut self.groups[slot];
             let batch = &mut batches[*index];
-            let count = if batch.distance(center) <= radius {
-                ranges.len()
-            } else if Some(*index) == nearest {
-                ranges.len().min(4)
-            } else {
-                0
-            };
-            for range in ranges.drain(..count) {
+            for _ in 0..limit {
+                if *budget == 0 {
+                    break;
+                }
+                let Some(range) = ranges.pop_front() else {
+                    break;
+                };
+                *budget = budget.saturating_sub(range.len());
                 let vertices = &self.mesh.vertices[range];
                 batch.meshes.push(if batch.infrastructure {
                     renderer.upload_vertices(vertices)
@@ -147,8 +158,8 @@ impl PendingLayer {
                     renderer.upload_scenery_vertices(vertices)
                 });
             }
-            !ranges.is_empty()
-        });
+        }
+        self.groups.retain(|(_, ranges)| !ranges.is_empty());
     }
 }
 
@@ -204,7 +215,14 @@ pub(super) fn model_batches(
 impl Scenery {
     pub fn new(renderer: &Renderer, hermes: &mut Hermes) -> Self {
         let mut scenery = Self::streamed(renderer, hermes);
-        scenery.upload_neighborhood(renderer, [0.; 2], f32::INFINITY, f32::INFINITY);
+        let mut unlimited = usize::MAX;
+        scenery.upload_neighborhood(
+            renderer,
+            [0.; 2],
+            f32::INFINITY,
+            f32::INFINITY,
+            &mut unlimited,
+        );
         scenery
     }
 
@@ -240,13 +258,14 @@ impl Scenery {
         center: [f32; 2],
         world_radius: f32,
         detail_radius: f32,
+        budget: &mut usize,
     ) {
         for (pending, batches, radius) in [
             (&mut self.pending_world, &mut self.world, world_radius),
             (&mut self.pending_details, &mut self.details, detail_radius),
         ] {
             if let Some(layer) = pending {
-                layer.upload(renderer, batches, center, radius);
+                layer.upload(renderer, batches, center, radius, budget);
                 if layer.groups.is_empty() {
                     *pending = None;
                 }
@@ -271,6 +290,7 @@ impl Scenery {
             center,
             radius,
             crate::performance::draw_radius(1.5),
+            &mut crate::performance::scenery_upload_vertices(),
         );
         (self.visible_batches(center, radius, preview), &self.metro)
     }
@@ -340,13 +360,14 @@ mod tests {
                 }
             }
         }
+        let mut unlimited = usize::MAX;
         let (mut batches, mut pending) = PendingLayer::partition(mesh);
-        pending.upload(&renderer, &mut batches, [0., 0.], 2.);
+        pending.upload(&renderer, &mut batches, [0., 0.], 2., &mut unlimited);
         assert_eq!(
             batches.iter().map(|b| b.meshes.len()).collect::<Vec<_>>(),
             [6, 4, 0]
         );
-        pending.upload(&renderer, &mut batches, [20., 0.], 2.);
+        pending.upload(&renderer, &mut batches, [20., 0.], 2., &mut unlimited);
         assert_eq!(
             batches.iter().map(|b| b.meshes.len()).collect::<Vec<_>>(),
             [6, 6, 6]

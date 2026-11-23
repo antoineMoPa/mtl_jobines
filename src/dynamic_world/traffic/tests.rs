@@ -106,6 +106,25 @@ fn population_is_nearby_separated_and_reuses_slots_after_travel() {
     assert_eq!(traffic.drivers.len(), TARGET);
 }
 #[test]
+fn budgeted_population_spreads_spawns_over_passes() {
+    let (city, graph) = map(STRAIGHT);
+    let mut traffic = Traffic::new(&graph);
+    let mut cars = Vec::new();
+    let mut passes = 0;
+    loop {
+        let before = traffic.drivers.len();
+        let more = traffic.populate_limited(&city, &mut cars, Vec3::ZERO, 2);
+        assert!(traffic.drivers.len() - before <= 2);
+        passes += 1;
+        if !more {
+            break;
+        }
+        assert!(passes < 100);
+    }
+    assert!(passes > 1);
+    assert_eq!(traffic.drivers.len(), TARGET);
+}
+#[test]
 fn bus_pursuit_uses_its_wheelbase_and_holds_clear_of_a_leader() {
     let (city, graph) = map(STRAIGHT);
     let bus = catalog::definitions()

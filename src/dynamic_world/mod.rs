@@ -316,9 +316,14 @@ impl DynamicWorld {
         Ok(world)
     }
     fn populate_traffic(&mut self, hermes: &Hermes) {
+        self.populate_traffic_limited(hermes, usize::MAX);
+    }
+    /// Returns whether the spawn limit left vehicles still to place.
+    fn populate_traffic_limited(&mut self, hermes: &Hermes, limit: usize) -> bool {
         let center = self.player_position();
-        self.traffic
-            .populate(hermes.city(), &mut self.vehicles, center);
+        let more = self
+            .traffic
+            .populate_limited(hermes.city(), &mut self.vehicles, center, limit);
         // NPCs can be entered when stopped; reset must retain a valid lane spawn.
         while self.vehicle_spawns.len() < self.vehicles.len() {
             let v = &self.vehicles[self.vehicle_spawns.len()];
@@ -330,6 +335,7 @@ impl DynamicWorld {
         for d in self.traffic.take_spawns() {
             self.vehicle_spawns[d.0] = d.1;
         }
+        more
     }
     pub fn season(&self) -> crate::season::Season {
         self.season
@@ -745,7 +751,10 @@ impl DynamicWorld {
         let phase = crate::telemetry::span("traffic.population_and_lod");
         if self.traffic.needs_refill(dt) {
             self.refresh_abandoned_cars(hermes.city(), self.zombie_mode());
-            self.populate_traffic(hermes);
+            // Spend only a per-frame share of spawns; finish the fleet over the next frames.
+            if self.populate_traffic_limited(hermes, crate::performance::traffic_spawns()) {
+                self.traffic.refill_in(crate::performance::SPAWN_CONTINUE);
+            }
         }
         self.sound_geography_timer -= dt;
         if self.sound_geography_timer <= 0. {
@@ -1166,6 +1175,9 @@ impl DynamicWorld {
     /// Exact visible intact-prop selections, without copying their vertices.
     pub fn visible_prop_batches(&self) -> Vec<PropBatch> {
         self.props.visible_batches(self.player_position())
+    }
+    pub fn prop_center(&self, id: usize) -> Vec3 {
+        self.props.center(id)
     }
     pub fn authored_prop_instances(&self) -> Vec<crate::props::Instance> {
         self.props.authored_instances(self.player_position())

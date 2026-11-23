@@ -208,7 +208,20 @@ impl Traffic {
         }
         self.refill = 0.;
     }
+    #[cfg(test)]
     pub fn populate(&mut self, city: &City, vehicles: &mut Vec<Vehicle>, center: Vec3) {
+        self.populate_limited(city, vehicles, center, usize::MAX);
+    }
+    /// Place at most `limit` vehicles. Returns whether the limit stopped the pass early, so the
+    /// caller can continue on a later frame instead of spawning the whole fleet in one.
+    pub fn populate_limited(
+        &mut self,
+        city: &City,
+        vehicles: &mut Vec<Vehicle>,
+        center: Vec3,
+        limit: usize,
+    ) -> bool {
+        let mut placed = 0;
         let vacant = &mut self.inactive;
         self.drivers.retain(|d| {
             if self.chase.patrol(d.vehicle).is_none()
@@ -227,7 +240,7 @@ impl Traffic {
             }
         });
         if self.drivers.len() >= crate::performance::npc_budget(TARGET) {
-            return;
+            return false;
         }
         let candidates: Vec<_> = self
             .graph
@@ -248,7 +261,7 @@ impl Traffic {
             })
             .collect();
         if candidates.is_empty() {
-            return;
+            return false;
         }
         let models: Vec<_> = catalog::definitions()
             .iter()
@@ -268,6 +281,9 @@ impl Traffic {
         for _ in 0..TARGET * 30 {
             if self.drivers.len() >= crate::performance::npc_budget(TARGET) {
                 break;
+            }
+            if placed >= limit {
+                return true;
             }
             let (path, distance) = candidates[self.random(candidates.len())];
             let (point, heading) = self.graph.paths[path].sample(distance);
@@ -360,7 +376,9 @@ impl Traffic {
             ));
             self.drivers
                 .push(Driver::new(index, path, distance, self.time));
+            placed += 1;
         }
+        false
     }
     pub(super) fn is_patrol(&self, index: usize) -> bool {
         self.chase.patrol(index).is_some()
@@ -759,6 +777,9 @@ impl Traffic {
             ));
         }
         result
+    }
+    pub fn refill_in(&mut self, seconds: f32) {
+        self.refill = seconds;
     }
     pub fn needs_refill(&mut self, dt: f32) -> bool {
         self.refill -= dt;

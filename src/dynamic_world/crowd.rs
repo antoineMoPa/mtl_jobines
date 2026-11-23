@@ -389,6 +389,18 @@ impl Crowd {
         }
     }
     pub fn populate(&mut self, city: &City, center: Vec3, vehicles: &[Vehicle], props: &Props) {
+        self.populate_limited(city, center, vehicles, props, usize::MAX);
+    }
+    /// Place at most `limit` walkers; returns whether the limit stopped the pass early.
+    pub fn populate_limited(
+        &mut self,
+        city: &City,
+        center: Vec3,
+        vehicles: &[Vehicle],
+        props: &Props,
+        limit: usize,
+    ) -> bool {
+        let mut placed = 0;
         if !self.kiosk_checked {
             self.kiosk_site = KioskSite::from_city(city);
             self.kiosk_checked = true;
@@ -422,7 +434,7 @@ impl Crowd {
             })
             .collect();
         if nearby.is_empty() {
-            return;
+            return false;
         }
         for _ in 0..CAPACITY * 24 {
             if self.walkers.len() >= crate::performance::npc_budget(CAPACITY) {
@@ -430,6 +442,9 @@ impl Crowd {
             }
             if nearby.is_empty() {
                 break;
+            }
+            if placed >= limit {
+                return true;
             }
             let direction = (random(&mut self.seed) * (nearby.len() * 2) as f32) as usize;
             let slot = direction / 2;
@@ -498,11 +513,13 @@ impl Crowd {
                 ),
             });
             self.serial = self.serial.wrapping_add(1);
+            placed += 1;
             nearby[slot].1 -= 1;
             if nearby[slot].1 == 0 {
                 nearby.swap_remove(slot);
             }
         }
+        false
     }
     pub(super) fn overlaps_vehicle(&self, car: &Vehicle) -> bool {
         self.walkers
@@ -626,7 +643,16 @@ impl Crowd {
         self.refill -= dt;
         if self.refill <= 0. {
             self.refill = 1.;
-            self.populate(city, center, vehicles, props);
+            // Spawn a per-frame share; resume shortly instead of waiting a full second.
+            if self.populate_limited(
+                city,
+                center,
+                vehicles,
+                props,
+                crate::performance::crowd_spawns(),
+            ) {
+                self.refill = crate::performance::SPAWN_CONTINUE;
+            }
         }
         let neighbors: Vec<_> = self
             .walkers
@@ -1062,6 +1088,29 @@ mod tests {
         let expected = sloped[0].distance(sloped[1]) * 0.5;
         assert!((spawnable_length(&sloped, center) - expected).abs() < 0.001);
         assert!((spawnable_length(&[sloped[1], sloped[0]], center) - expected).abs() < 0.001);
+    }
+    #[test]
+    fn budgeted_population_spawns_a_few_per_pass_and_reaches_the_same_total() {
+        let hermes = Hermes::test_map_from_source(
+            "road street: sidewalk carlane carlane sidewalk; end street(0,0,5,0);",
+        );
+        let city = hermes.city();
+        let props = Props::new(Vec::new());
+        let mut crowd = Crowd::new(hermes.walking_paths());
+        let center = Vec3::X * 200.;
+        let mut passes = 0;
+        loop {
+            let before = crowd.walkers.len();
+            let more = crowd.populate_limited(city, center, &[], &props, 2);
+            assert!(crowd.walkers.len() - before <= 2);
+            passes += 1;
+            if !more {
+                break;
+            }
+            assert!(passes < 100);
+        }
+        assert!(passes > 1, "the limit must spread spawning over passes");
+        assert_eq!(crowd.walkers.len(), CAPACITY);
     }
     #[test]
     fn city_entry_limits_population_to_nearby_sidewalk_space_on_every_refill() {

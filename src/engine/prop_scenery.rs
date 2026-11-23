@@ -55,6 +55,17 @@ impl PropScenery {
         world: &DynamicWorld,
         stage: Option<super::fabula::Stage<'_>>,
     ) {
+        self.update_budgeted(renderer, world, stage, usize::MAX);
+    }
+    /// Build at most `budget` new prop meshes this frame, nearest first. Props that miss the
+    /// budget stay hidden until a later frame picks them up.
+    pub fn update_budgeted(
+        &mut self,
+        renderer: &Renderer,
+        world: &DynamicWorld,
+        stage: Option<super::fabula::Stage<'_>>,
+        mut budget: usize,
+    ) {
         self.wildlife.update(renderer, world);
         for model in self.models.values_mut() {
             model.transforms.clear();
@@ -125,39 +136,54 @@ impl PropScenery {
         self.frame += 1;
         self.visible.clear();
         self.visible_signals.clear();
+        let mut missing = Vec::new();
         for batch in world.visible_prop_batches() {
             for id in batch.ids {
-                self.visible.push(id);
                 if let Some(cached) = self.batches.get_mut(&id) {
                     cached.last_seen = self.frame;
-                    continue;
+                    self.visible.push(id);
+                } else {
+                    missing.push((batch.key, id));
                 }
-                // Keep exact physics visibility, but cache each immutable prop once.
-                // A neighbour entering a render tile must not rebuild its LOD meshes.
-                world.write_prop_batch(
-                    &PropBatch {
-                        key: batch.key,
-                        ids: vec![id],
-                    },
-                    &mut self.scratch,
-                );
-                self.batches.insert(
-                    id,
-                    CachedBatch {
-                        mesh: renderer.upload_scenery(&self.scratch),
-                        last_seen: self.frame,
-                    },
-                );
             }
         }
+        if !missing.is_empty() {
+            let player = world.player_position();
+            missing.sort_by(|a, b| {
+                let distance = |id| world.prop_center(id).distance_squared(player);
+                distance(a.1).total_cmp(&distance(b.1))
+            });
+        }
+        for (key, id) in missing {
+            if budget == 0 {
+                break;
+            }
+            budget -= 1;
+            // Keep exact physics visibility, but cache each immutable prop once.
+            // A neighbour entering a render tile must not rebuild its LOD meshes.
+            world.write_prop_batch(&PropBatch { key, ids: vec![id] }, &mut self.scratch);
+            self.visible.push(id);
+            self.batches.insert(
+                id,
+                CachedBatch {
+                    mesh: renderer.upload_scenery(&self.scratch),
+                    last_seen: self.frame,
+                },
+            );
+        }
         for selection in world.standing_signal_batches() {
-            self.visible_signals.push(selection.id);
             if let Some(cached) = self.signals.get_mut(&selection.id) {
                 cached.last_seen = self.frame;
+                self.visible_signals.push(selection.id);
                 if cached.selection == selection {
                     continue;
                 }
+            } else if budget == 0 {
+                continue;
+            } else {
+                self.visible_signals.push(selection.id);
             }
+            budget = budget.saturating_sub(1);
             world.write_signal_batch(&selection, &mut self.scratch);
             self.signals.insert(
                 selection.id,
