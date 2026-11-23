@@ -73,6 +73,24 @@ fn ground_chase(p: Vec3, forward: Vec3, zoom: f32, pitch: f32) -> (Vec3, Vec3) {
     (eye, aim)
 }
 
+/// Frame the entire vehicle and train while retaining the player's zoom multiplier.
+fn vehicle_chase(
+    vehicle: &crate::dynamic_world::Vehicle,
+    p: Vec3,
+    forward: Vec3,
+    body_forward: Vec3,
+    zoom: f32,
+    pitch: f32,
+) -> (Vec3, Vec3) {
+    let towing = vehicle.towing_length();
+    let center = p - body_forward * (towing * 0.5 / METERS_PER_UNIT);
+    let size = ((vehicle.length() + towing) / 5.2)
+        .max(vehicle.width() / 2.2)
+        .max(vehicle.height() / 2.5)
+        .max(1.);
+    ground_chase(center, forward, zoom * size, pitch)
+}
+
 /// Eye and aim offsets in map units. Size the view by airframe length so the
 /// jet and airliner occupy a similar portion of the frame.
 fn aircraft_chase(length: f32, forward: Vec3, zoom: f32, orbit_pitch: f32) -> (Vec3, Vec3) {
@@ -391,6 +409,11 @@ impl Game {
         let p = world.player_position() / METERS_PER_UNIT;
         let yaw = world.player_yaw();
         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
+        let initial_eye = if world.is_driving() {
+            vehicle_chase(world.player(), p, forward, forward, DEFAULT_CHASE_ZOOM, 0.).0
+        } else {
+            ground_chase(p, forward, DEFAULT_CHASE_ZOOM, 0.).0
+        };
         let previous_car_position = world.player().position;
         let previous_car_orientation = world.player().orientation();
         let previous_car_yaw = world.player().yaw;
@@ -445,7 +468,7 @@ impl Game {
             previous_car_orientation,
             previous_car_yaw,
             mesh_center: [p.x, p.y],
-            eye: ground_chase(p, forward, DEFAULT_CHASE_ZOOM, 0.).0,
+            eye: initial_eye,
             camera_anchor: p,
             taxi_aim_yaw: None,
             zoom: DEFAULT_CHASE_ZOOM,
@@ -530,6 +553,7 @@ impl Game {
         if self.kairos.active_id() == Some(crate::kairos::MissionId::Baggage) {
             self.world
                 .update_baggage_shift(&self.hermes, self.kairos.target(), elapsed);
+            self.service_baggage();
             if self.world.baggage_shift_invalid() && !self.kairos.is_complete() {
                 self.kairos.event(MissionEvent::BaggageRestarted);
             }
@@ -706,7 +730,6 @@ impl Game {
                     self.refresh_mission_route();
                 }
             }
-            PaletteAction::ServiceBaggage => self.service_baggage(),
             PaletteAction::AttachCart => {
                 self.world.attach_baggage_cart();
             }
@@ -940,7 +963,15 @@ impl Game {
                 p + Vec3::Z * 0.014 + forward * 0.045,
             )
         } else {
-            ground_chase(p, forward, self.zoom, self.camera_pitch)
+            let body_forward = Vec3::new(render_yaw.cos(), render_yaw.sin(), 0.);
+            vehicle_chase(
+                plane,
+                p,
+                forward,
+                body_forward,
+                self.zoom,
+                self.camera_pitch,
+            )
         };
         if !self.world.is_driving() {
             self.eye = target_eye;
@@ -1235,7 +1266,10 @@ impl Game {
             self.world
                 .waiting_service_passengers()
                 .chain(self.world.cat_marker())
-                .chain(self.world.baggage_markers(self.kairos.target())),
+                .chain(
+                    self.world
+                        .baggage_markers(&self.hermes, self.kairos.target()),
+                ),
             self.world.baggage_bay(&self.hermes, self.kairos.target()),
         );
         let mut palette_action = None;

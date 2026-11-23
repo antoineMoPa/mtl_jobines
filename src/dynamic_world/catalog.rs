@@ -259,6 +259,7 @@ fn folded_gear_pivot(pivot: Vec3, fraction: f32) -> Vec3 {
 
 pub struct Definition {
     pub(super) road_wheels: Option<[usize; 4]>,
+    cargo_ground_origin: OnceLock<Vec3>,
     shot_meshes: OnceLock<Vec<rapier3d::prelude::TriMesh>>,
     aircraft_hulls: Vec<AircraftHull>,
     pub water_hull: Option<super::water_hull::WaterHull>,
@@ -890,6 +891,7 @@ impl Definition {
         }
         Ok(Self {
             road_wheels: Self::road_wheel_parts(&config, &articulated),
+            cargo_ground_origin: OnceLock::new(),
             shot_meshes: OnceLock::new(),
             water_hull: if config.vehicle_kind == VehicleKind::Boat {
                 Some(super::water_hull::WaterHull::new(shell_points)?)
@@ -1007,6 +1009,33 @@ impl Definition {
                 _ => return None,
             };
             Some((i, Mat4::from_rotation_translation(rotation, p.pivot - eye)))
+        })
+    }
+
+    pub(super) fn ground_cargo_parts(&self) -> impl Iterator<Item = (usize, Mat4)> + '_ {
+        let origin = *self.cargo_ground_origin.get_or_init(|| {
+            let mut min = Vec3::splat(f32::INFINITY);
+            let mut max = Vec3::splat(f32::NEG_INFINITY);
+            for part in self
+                .parts
+                .iter()
+                .filter(|p| p.role == PartRole::BaggageCargo)
+            {
+                for vertex in &part.vertices {
+                    let point = Vec3::from_array(vertex.position) + part.pivot;
+                    min = min.min(point);
+                    max = max.max(point);
+                }
+            }
+            if min.is_finite() {
+                Vec3::new((min.x + max.x) * 0.5, (min.y + max.y) * 0.5, min.z)
+            } else {
+                Vec3::ZERO
+            }
+        });
+        self.parts.iter().enumerate().filter_map(move |(i, p)| {
+            (p.role == PartRole::BaggageCargo)
+                .then(|| (i, Mat4::from_translation(p.pivot - origin)))
         })
     }
 
@@ -2091,5 +2120,31 @@ mod cycling_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod baggage_cargo_tests {
+    use super::*;
+    #[test]
+    fn baggage_ground_props_contain_only_cargo_and_rest_on_the_floor() {
+        let definition = definitions()
+            .iter()
+            .find(|d| d.config.research_id == super::super::baggage::MODEL_ID)
+            .unwrap();
+        let mut lowest = f32::INFINITY;
+        let mut count = 0;
+        for (i, transform) in definition.ground_cargo_parts() {
+            assert_eq!(definition.parts[i].role, PartRole::BaggageCargo);
+            for vertex in &definition.parts[i].vertices {
+                let p = transform.transform_point3(Vec3::from_array(vertex.position));
+                lowest = lowest.min(p.z);
+                assert!(p.z >= -0.0001);
+                assert!(p.x.abs() < 1.4 && p.y.abs() < 1.1);
+            }
+            count += 1;
+        }
+        assert!(count > 0);
+        assert!(lowest.abs() < 0.0001);
     }
 }

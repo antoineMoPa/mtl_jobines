@@ -69,7 +69,7 @@ impl Model {
         }
         let (name, bytes, length, width, height, ride, radius, mass) = match self {
             Self::Estuaire => (
-                "Estuaire Airliner",
+                "YULPET Airliner",
                 mesh!("estuaire-airliner"),
                 34.,
                 33.,

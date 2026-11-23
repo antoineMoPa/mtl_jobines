@@ -123,7 +123,10 @@ impl VehicleScenery {
                 part.transforms.push(columns);
             }
         }
-        for (model, part, transform, player) in world.baggage_cart_instances() {
+        for (model, part, transform, player) in world
+            .baggage_cart_instances()
+            .chain(world.baggage_luggage_instances())
+        {
             let pose = if player {
                 player_pose_delta * transform
             } else {

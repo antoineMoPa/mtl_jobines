@@ -257,7 +257,19 @@ impl Game {
         self.mesh_center = mesh_center;
         let yaw = self.world.player_yaw();
         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
-        self.eye = ground_chase(p, forward, self.zoom, self.camera_pitch).0;
+        self.eye = if self.world.is_driving() {
+            vehicle_chase(
+                self.world.player(),
+                p,
+                forward,
+                forward,
+                self.zoom,
+                self.camera_pitch,
+            )
+            .0
+        } else {
+            ground_chase(p, forward, self.zoom, self.camera_pitch).0
+        };
         self.camera_anchor = p;
         self.taxi_aim_yaw = None;
         self.previous_car_position = self.world.player().position;

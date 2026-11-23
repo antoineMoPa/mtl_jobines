@@ -57,6 +57,52 @@ fn aircraft_default_chase_frames_the_airframe_and_the_horizon() {
 }
 
 #[test]
+fn large_vehicle_chase_is_farther_in_free_driving_and_preserves_zoom() {
+    let mut game = Game::new(Hermes::test_map());
+    for research_id in ["vehicle-j02", "vehicle-j03"] {
+        let model = crate::dynamic_world::catalog::definitions()
+            .iter()
+            .position(|d| d.config.research_id == research_id)
+            .unwrap();
+        assert!(game.world.switch_vehicle(model));
+        game.finish_location_change();
+        assert!(game.kairos.active_id().is_none());
+        let p = game.world.player_position() / METERS_PER_UNIT;
+        assert!(game.eye.truncate().distance(p.truncate()) * METERS_PER_UNIT > 10.);
+        assert_eq!(game.zoom, DEFAULT_CHASE_ZOOM);
+        let old_distance = game.eye.distance(p);
+        game.scroll_chase_camera(-2.);
+        let car = game.world.player();
+        let forward = Vec3::new(car.yaw.cos(), car.yaw.sin(), 0.);
+        let (eye, _) = vehicle_chase(car, p, forward, forward, game.zoom, 0.);
+        assert!(eye.distance(p) > old_distance);
+    }
+}
+
+#[test]
+fn baggage_chase_frames_the_train_without_a_mission_and_shrinks_when_detached() {
+    let h = Hermes::test_map_from_source("pad=concrete(-3,-3,3,-3,3,3,-3,3); elevation(pad,0.122001); player_start(-1,0,0); parked_vehicle(\"vehicle-airport-baggage-tractor\",0,0,90); parked_vehicle(\"vehicle-air-estuaire\",2,0,-90); mission_baggage_dispatch=map_point(0,1); mission_baggage_aircraft=map_point(0,-1);");
+    let mut game = Game::new(h);
+    game.set_overlay(Overlay::Driving);
+    game.world.begin_baggage_shift(&game.hermes).unwrap();
+    assert!(game.world.approach_baggage_tug(&game.hermes));
+    game.world.end_baggage_shift();
+    assert!(game.world.toggle_vehicle(&game.hermes));
+    for _ in 0..180 {
+        game.simulate(1. / 60.);
+    }
+    assert!(game.kairos.active_id().is_none());
+    game.finish_location_change();
+    let p = game.world.player_position() / METERS_PER_UNIT;
+    let full_distance = game.eye.truncate().distance(p.truncate()) * METERS_PER_UNIT;
+    assert!(full_distance > 20.);
+    while game.world.detach_baggage_cart() {}
+    assert_eq!(game.world.player().towing_length(), 0.);
+    game.finish_location_change();
+    assert!(game.eye.truncate().distance(p.truncate()) * METERS_PER_UNIT < 10.);
+}
+
+#[test]
 fn fast_car_render_pose_advances_between_physics_steps() {
     let mut game = Game::new(Hermes::test_map());
     game.set_overlay(Overlay::Driving);

@@ -103,6 +103,7 @@ pub struct SnowCell {
 pub enum MissionEvent {
     BaggageLoaded,
     BaggageDelivered,
+    BaggageReturned,
     BaggageRestarted,
     CatCaught,
     CatReturned,
@@ -120,13 +121,14 @@ pub struct ServicePlan {
 
 pub enum MissionProgress {
     ClearedDistanceKm(f64),
-    Bags { loaded: u8, delivered: u8 },
+    Baggage { loaded_trailers: u8, deliveries: u8 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MissionObjective {
     LoadBaggage,
     DeliverBaggage,
+    ReturnBaggage,
     BaggageComplete,
     TaxiPickup,
     TaxiDropoff,
@@ -144,9 +146,12 @@ pub enum MissionObjective {
 impl MissionObjective {
     pub fn label(self) -> &'static str {
         match self {
-            Self::LoadBaggage => "Charge 4 bagages au terminal · remorque parallèle au quai",
-            Self::DeliverBaggage => "Livre les 4 bagages à l’Estuaire · reste sur le tablier",
-            Self::BaggageComplete => "Vol Estuaire terminé · 4 bagages livrés",
+            Self::LoadBaggage => "Charge les 4 remorques au terminal, arrêt automatique",
+            Self::DeliverBaggage => {
+                "Livre les 4 remorques à l’avion de YULPET, reste sur le tablier"
+            }
+            Self::ReturnBaggage => "Retourne au rectangle du terminal pour terminer la rotation",
+            Self::BaggageComplete => "Rotation YULPET terminée, 3 allers-retours",
             Self::TaxiPickup => "Approche-toi du passager et arrête-toi",
             Self::TaxiDropoff => "Approche-toi de la destination et arrête-toi",
             Self::TaxiComplete => "Course terminée",

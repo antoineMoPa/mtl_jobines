@@ -1,7 +1,6 @@
 use super::*;
 use crate::kairos::{MissionId, SiteId};
 
-const LARGE_VEHICLE_CHASE_ZOOM: f32 = 0.9;
 const BUS_PASSENGERS: &[(u32, SiteId)] = &[
     (1, SiteId::BusStop1),
     (2, SiteId::BusStop1),
@@ -120,10 +119,15 @@ impl Game {
             {
                 return;
             }
-            let Some(tug) = self.world.begin_baggage_shift() else {
+            let Some(tug) = self.world.begin_baggage_shift(&self.hermes) else {
                 return;
             };
+            if !self.world.approach_baggage_tug(&self.hermes) {
+                self.world.end_baggage_shift();
+                return;
+            }
             self.mission_vehicle = Some(tug);
+            self.finish_location_change();
         } else if let Some(vehicle_id) = id.vehicle_id() {
             self.world.end_baggage_shift();
             if !self.assign_mission_vehicle(id, vehicle_id) {
@@ -147,7 +151,6 @@ impl Game {
         }
         if id == MissionId::Snowplow {
             self.finish_location_change();
-            self.zoom = LARGE_VEHICLE_CHASE_ZOOM;
         }
         if id != MissionId::Taxi {
             self.hermes.clear_taxi_run();
@@ -171,18 +174,33 @@ impl Game {
     }
 
     pub(super) fn service_baggage(&mut self) {
-        if self.simulation_paused() || self.kairos.active_id() != Some(MissionId::Baggage) {
+        if self.simulation_paused()
+            || self.kairos.active_id() != Some(MissionId::Baggage)
+            || self.kairos.is_complete()
+        {
             return;
         }
         self.world
             .update_baggage_shift(&self.hermes, self.kairos.target(), 0.);
+        let returning =
+            self.kairos.objective() == Some(crate::kairos::MissionObjective::ReturnBaggage);
         let loading = self.kairos.target() == Some(SiteId::BaggageDispatch);
-        if self.kairos.target().is_some() && self.world.confirm_baggage_service(loading) {
-            self.kairos.event(if loading {
+        let event = if returning && self.world.baggage_service_ready() {
+            Some(MissionEvent::BaggageReturned)
+        } else if !returning
+            && self.kairos.target().is_some()
+            && self.world.confirm_baggage_service(loading)
+        {
+            Some(if loading {
                 MissionEvent::BaggageLoaded
             } else {
                 MissionEvent::BaggageDelivered
-            });
+            })
+        } else {
+            None
+        };
+        if let Some(event) = event {
+            self.kairos.event(event);
             self.kairos.save_now();
             self.refresh_mission_route();
             self.scene_dirty = true;
@@ -234,7 +252,6 @@ impl Game {
                 return false;
             }
             self.finish_location_change();
-            self.zoom = LARGE_VEHICLE_CHASE_ZOOM;
         } else {
             self.world.switch_vehicle(model);
         }
@@ -343,14 +360,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn baggage_job_keeps_the_parked_tug_marks_the_apron_and_pauses_on_foot() {
+    fn baggage_call_moves_the_worker_beside_the_parked_tug_and_pauses_on_foot() {
         let h = Hermes::test_map_from_source("pad=concrete(-3,-3,3,-3,3,3,-3,3); elevation(pad,0.122001); player_start(-1,0,0); parked_vehicle(\"vehicle-airport-baggage-tractor\",0,0,90); parked_vehicle(\"vehicle-air-estuaire\",2,0,-90); mission_baggage_dispatch=map_point(0,1); mission_baggage_aircraft=map_point(0,-1);");
         let mut game = Game::new(h);
         game.set_overlay(Overlay::Driving);
         let before = game.world.player_position();
         game.activate_mission_now(MissionId::Baggage);
         assert_eq!(game.kairos.active_id(), Some(MissionId::Baggage));
-        assert_eq!(game.world.player_position(), before);
+        assert!(game.world.player_position().distance(before) > 10.);
+        let tug = game.world.baggage_markers(&game.hermes, None)[0];
+        assert!(game.world.player_position().distance(tug) < 5.);
+        assert!(!game.world.is_driving());
+        assert_eq!(
+            game.camera_anchor,
+            game.world.player_position() / METERS_PER_UNIT
+        );
         assert!(!game.driving_mission_vehicle());
         assert_eq!(
             game.hermes.route_status(),
@@ -362,8 +386,35 @@ mod tests {
         assert_eq!(game.kairos.vehicle_return_seconds(), None);
         game.service_baggage();
         assert_eq!(game.kairos.target(), Some(SiteId::BaggageDispatch));
+        assert!(game.world.toggle_vehicle(&game.hermes));
+        assert!(game.driving_mission_vehicle());
         game.abandon_mission();
-        assert!(game.world.baggage_markers(None).is_empty());
+        assert!(game.world.baggage_markers(&game.hermes, None).is_empty());
+    }
+
+    #[test]
+    fn baggage_stop_loads_automatically_during_simulation() {
+        let h = Hermes::test_map_from_source("pad=concrete(-3,-3,3,-3,3,3,-3,3); elevation(pad,0.122001); player_start(-1,0,0); parked_vehicle(\"vehicle-airport-baggage-tractor\",0,0,90); parked_vehicle(\"vehicle-air-estuaire\",2,0,-90); mission_baggage_dispatch=map_point(0,-0.0411); mission_baggage_aircraft=map_point(0,-1);");
+        let mut game = Game::new(h);
+        game.set_overlay(Overlay::Driving);
+        game.activate_mission_now(MissionId::Baggage);
+        assert!(game.world.toggle_vehicle(&game.hermes));
+        for _ in 0..180 {
+            game.simulate(1. / 60.);
+        }
+        assert_eq!(game.kairos.target(), Some(SiteId::BaggageAircraft));
+        assert!(matches!(
+            game.kairos.progress(),
+            Some(crate::kairos::MissionProgress::Baggage {
+                loaded_trailers: 4,
+                deliveries: 0
+            })
+        ));
+        for _ in 0..90 {
+            game.simulate(1. / 60.);
+        }
+        assert_eq!(game.kairos.target(), Some(SiteId::BaggageAircraft));
+        assert_eq!(game.kairos.money_cents(), 0);
     }
 
     #[test]

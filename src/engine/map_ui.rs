@@ -45,7 +45,7 @@ pub(super) fn show(ctx: &egui::Context, map: FullMapView) {
                 .anchor(Align2::CENTER_TOP, egui::vec2(0., rect.bottom() + 4.))
                 .interactable(false)
                 .show(ctx, |ui| {
-                    super::tooltip::message(ui, "Passage bloqué · Réessayer")
+                    super::tooltip::message(ui, "Passage bloqué. Réessayer")
                 });
         }
     }

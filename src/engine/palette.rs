@@ -55,7 +55,6 @@ pub(super) enum PaletteAction {
     InteractWithCat,
     UseBikeshare,
     RestartBaggage,
-    ServiceBaggage,
     AttachCart,
     DetachCart,
     #[cfg(not(target_arch = "wasm32"))]
@@ -115,6 +114,69 @@ impl PaletteAction {
         })
     }
 }
+fn baggage_service_prompt(
+    ctx: &egui::Context,
+    complete: bool,
+    invalid: bool,
+    loading: bool,
+    returning: bool,
+) -> Option<PaletteAction> {
+    let now = ctx.input(|input| input.time);
+    let frame = ctx.cumulative_frame_nr();
+    let state = (complete, invalid, loading, returning);
+    let elapsed = ctx.data_mut(|data| {
+        let timer = data.get_temp_mut_or_insert_with(egui::Id::new("baggage_help_timer"), || {
+            (state, now, frame)
+        });
+        if timer.0 != state || frame > timer.2 + 1 {
+            *timer = (state, now, frame);
+        }
+        timer.2 = frame;
+        now - timer.1
+    });
+    let opacity = if complete || invalid {
+        1.
+    } else {
+        ((8. - elapsed) / 0.4).clamp(0., 1.) as f32
+    };
+    if opacity <= 0. {
+        return None;
+    }
+    if !complete && !invalid {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64((7.6 - elapsed).max(0.)));
+    }
+    let mut selected = None;
+    egui::Area::new("baggage_service".into())
+        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -130.))
+        .show(ctx, |ui| {
+            ui.set_opacity(opacity);
+            ui.set_width((ctx.content_rect().width() - 36.).clamp(1., 430.));
+            ui.vertical(|ui| {
+                if complete {
+                    if super::tooltip::action(ui, None, "Nouvelle rotation : Bagagiste") {
+                        selected = Some(PaletteAction::SelectMission(MissionId::Baggage));
+                    }
+                } else if invalid {
+                    super::tooltip::message(ui, "Rotation interrompue : recommence au terminal");
+                    if super::tooltip::action(ui, None, "Recommencer à la répartition") {
+                        selected = Some(PaletteAction::RestartBaggage);
+                    }
+                } else {
+                    super::tooltip::message(ui, "Aligne la première remorque dans le rectangle");
+                    let label = if returning {
+                        "Retourne au terminal"
+                    } else if loading {
+                        "Arrête-toi pour charger"
+                    } else {
+                        "Arrête-toi pour décharger"
+                    };
+                    super::tooltip::message(ui, label);
+                }
+            });
+        });
+    selected
+}
+
 fn baggage_hitch_prompt(
     ctx: &egui::Context,
     count: usize,
@@ -634,20 +696,15 @@ impl Palette {
                     }
                 }
                 if kairos.active_id() == Some(MissionId::Baggage) {
-                    egui::Area::new("baggage_service".into()).anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -130.)).show(&ctx, |ui| {
-                        egui::Frame::popup(ui.style()).show(ui, |ui| {
-                            if kairos.is_complete() {
-                                if ui.button("Nouvelle rotation · Bagagiste").clicked() { selected = Some(PaletteAction::SelectMission(MissionId::Baggage)); }
-                            } else if world.baggage_shift_invalid() {
-                                ui.label("Rotation interrompue · recommence au terminal");
-                                if ui.button("Recommencer à la répartition").clicked() { selected = Some(PaletteAction::RestartBaggage); }
-                            } else {
-                                ui.label("Aligne la première remorque dans le rectangle · arrêt 1 s · ±25°");
-                                let label = if kairos.target() == Some(crate::kairos::SiteId::BaggageDispatch) { "Charger 4 bagages" } else { "Décharger 4 bagages" };
-                                if ui.add_enabled(world.baggage_service_ready(), egui::Button::new(label)).clicked() { selected = Some(PaletteAction::ServiceBaggage); }
-                            }
-                        });
-                    });
+                    if let Some(action) = baggage_service_prompt(
+                        &ctx,
+                        kairos.is_complete(),
+                        world.baggage_shift_invalid(),
+                        kairos.target() == Some(crate::kairos::SiteId::BaggageDispatch),
+                        kairos.objective() == Some(crate::kairos::MissionObjective::ReturnBaggage),
+                    ) {
+                        selected = Some(action);
+                    }
                 }
                 if let Some((count, attach, detach)) = world.baggage_hitch_status() {
                     if let Some(action) = baggage_hitch_prompt(&ctx, count, attach, detach) {
@@ -1012,6 +1069,132 @@ mod tests {
         output.textures_delta.clear();
         chosen
     }
+    #[test]
+    fn baggage_help_expires_after_eight_seconds_and_returns_for_the_next_step() {
+        let ctx = egui::Context::default();
+        super::super::job_feed::install_font(&ctx);
+        let draw = |time, loading, invalid| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    time: Some(time),
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280., 800.),
+                    )),
+                    ..Default::default()
+                },
+                |ui| {
+                    baggage_service_prompt(ui.ctx(), false, invalid, loading, false);
+                },
+            );
+            output.textures_delta.clear();
+            output
+                .shapes
+                .iter()
+                .filter_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        draw(0., true, false);
+        assert!(draw(0.1, true, false)
+            .iter()
+            .any(|t| t == "Arrête-toi pour charger"));
+        assert!(!draw(7.5, true, false).is_empty());
+        assert!(draw(8.1, true, false).is_empty());
+        assert!(draw(9., true, false).is_empty());
+        draw(10., false, false);
+        assert!(draw(10.1, false, false)
+            .iter()
+            .any(|t| t == "Arrête-toi pour décharger"));
+        assert!(draw(18.1, false, false).is_empty());
+        draw(19., false, true);
+        assert!(draw(30., false, true)
+            .iter()
+            .any(|t| t == "Recommencer à la répartition"));
+    }
+
+    #[test]
+    fn baggage_service_prompt_fits_and_only_recovery_actions_can_be_clicked() {
+        for width in [320., 1280.] {
+            for (complete, invalid, loading, returning, label, expected) in [
+                (false, false, true, false, "Arrête-toi pour charger", None),
+                (
+                    false,
+                    false,
+                    false,
+                    false,
+                    "Arrête-toi pour décharger",
+                    None,
+                ),
+                (false, false, true, true, "Retourne au terminal", None),
+                (
+                    false,
+                    true,
+                    true,
+                    false,
+                    "Recommencer à la répartition",
+                    Some(PaletteAction::RestartBaggage),
+                ),
+                (
+                    true,
+                    false,
+                    false,
+                    false,
+                    "Nouvelle rotation : Bagagiste",
+                    Some(PaletteAction::SelectMission(MissionId::Baggage)),
+                ),
+            ] {
+                let ctx = egui::Context::default();
+                super::super::job_feed::install_font(&ctx);
+                let bounds = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 480.));
+                let frame = |events| {
+                    let mut selected = None;
+                    let mut output = ctx.run_ui(
+                        egui::RawInput {
+                            screen_rect: Some(bounds),
+                            events,
+                            ..Default::default()
+                        },
+                        |ui| {
+                            selected = baggage_service_prompt(
+                                ui.ctx(),
+                                complete,
+                                invalid,
+                                loading,
+                                returning,
+                            );
+                        },
+                    );
+                    output.textures_delta.clear();
+                    (output, selected)
+                };
+                frame(vec![]);
+                let (output, _) = frame(vec![]);
+                let mut target = None;
+                for shape in &output.shapes {
+                    if let egui::Shape::Text(text) = &shape.shape {
+                        let rect = egui::Rect::from_min_size(text.pos, text.galley.size());
+                        assert!(bounds.contains_rect(rect), "{label}: {rect:?}");
+                        if text.galley.text() == label {
+                            target = Some(rect.center());
+                        }
+                    }
+                }
+                let pos = target.expect("visible service instruction");
+                let pointer = |pressed| egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                };
+                frame(vec![egui::Event::PointerMoved(pos), pointer(true)]);
+                assert_eq!(frame(vec![pointer(false)]).1, expected);
+            }
+        }
+    }
+
     #[test]
     fn hitch_instruction_fits_on_one_line_with_and_without_detach() {
         for width in [320., 1280.] {

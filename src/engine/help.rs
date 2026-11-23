@@ -167,13 +167,10 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
                     ui.add_space(8.);
                     ui.separator();
                     ui.add_space(8.);
-                    super::tooltip::message(ui, "À pied : 1 fusil · 2 pistolet · 0 ranger");
-                    super::tooltip::message(ui, "Souris pour viser · A/D pour se décaler");
+                    super::tooltip::message(ui, "À pied : 1 fusil, 2 pistolet, 0 ranger");
+                    super::tooltip::message(ui, "Souris pour viser, A/D pour se décaler");
                     super::tooltip::message(ui, "Clic gauche à mains nues pour frapper");
-                    super::tooltip::message(
-                        ui,
-                        "Arme équipée : clic pour tirer · R pour recharger",
-                    );
+                    super::tooltip::message(ui, "Arme équipée : clic pour tirer, R pour recharger");
                     ui.add_space(8.);
                     super::tooltip::hint(ui, Some("P"), "Ouvrir le téléphone");
                     ui.add_space(8.);

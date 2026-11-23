@@ -72,7 +72,7 @@
     "roadVehicle": true
   },
   {
-    "name": "Estuaire Airliner",
+    "name": "YULPET Airliner",
     "path": "aircraft/estuaire-airliner",
     "researchId": "vehicle-air-estuaire",
     "roadVehicle": false

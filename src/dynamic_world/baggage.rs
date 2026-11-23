@@ -60,6 +60,15 @@ impl Vehicle {
         }
     }
 
+    /// Extra length behind the tractor body, including every attached trailer.
+    pub fn towing_length(&self) -> f32 {
+        if self.baggage_links.is_empty() {
+            0.
+        } else {
+            (self.contact_reach() - self.length() * 0.5).max(0.)
+        }
+    }
+
     fn tow_pin(&self) -> Vec3 {
         self.position + self.orientation() * hitch(self.ride_height())
     }
@@ -187,11 +196,11 @@ impl DynamicWorld {
             .enumerate()
             .filter(|(_, v)| !v.baggage_links.is_empty())
             .flat_map(move |(i, v)| {
-                v.carts().enumerate().map(move |(index, cart)| {
+                v.carts().map(move |cart| {
                     (
                         cart,
                         i == self.player_vehicle.0,
-                        self.baggage_cargo_visible(i, index),
+                        self.baggage_cargo_visible(i),
                     )
                 })
             });

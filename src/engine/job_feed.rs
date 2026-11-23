@@ -258,10 +258,16 @@ pub(super) fn show(
                     None => objective.label().to_owned(),
                 };
                 if let Some(MissionProgress::ClearedDistanceKm(km)) = kairos.progress() {
-                    label.push_str(&format!(" · {km:.2} km"));
+                    label.push_str(&format!(", {km:.2} km"));
                 }
-                if let Some(MissionProgress::Bags { loaded, delivered }) = kairos.progress() {
-                    label.push_str(&format!(" · {loaded} à bord · {delivered}/4 livrés"));
+                if let Some(MissionProgress::Baggage {
+                    loaded_trailers,
+                    deliveries,
+                }) = kairos.progress()
+                {
+                    label.push_str(&format!(
+                        ", {loaded_trailers}/4 remorques chargées, {deliveries}/3 livraisons"
+                    ));
                 }
                 super::tooltip::message(ui, &label);
             });
@@ -355,7 +361,7 @@ pub(super) fn show(
                 });
             ui.add_space(12.);
             for (id, author, handle, message, icon) in [
-                (MissionId::Baggage, "Répartition YUL", "@yul  service au sol", "Première rotation : 4 bagages du terminal à l’Estuaire. Tracteur blanc au hangar · 20 $ par vol.", "✈"),
+                (MissionId::Baggage, "Répartition YULPET", "@yulpet  service au sol", "Il nous manque un bagagiste à l’aéroport. Es-tu dispo ?", "✈"),
                 (
                     MissionId::Taxi,
                     "Cynthia Tremblay",

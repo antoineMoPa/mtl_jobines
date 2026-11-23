@@ -27,7 +27,7 @@ You decide when to read input, step physics, draw, and exit. The engine owns the
 Define the title, maps, prefabs, placements and named assets in a C++ function taking
 `owe::Content&`. The native and WebAssembly hosts run this function once before gameplay. The SDK
 copies embedded map, model and shader bytes into the engine. [Switchback content
-definition](../examples/switchback-circuit/content.hpp) · [Breakwater content
+definition](../examples/switchback-circuit/content.hpp), [Breakwater content
 definition](../examples/breakwater/content.hpp)
 
 ```cpp
@@ -91,7 +91,7 @@ OWE_CLIENT(define_game, play)
 
   Resumes with a frame and fresh input. A closed window returns an empty result.
 
-- `frame.fixed_steps() · world.step(dt)`
+- `frame.fixed_steps()`, `world.step(dt)`
 
   Each step advances simulation once. Skip the steps to pause. Unused steps expire at the end of the
   frame; catch-up work is capped.
@@ -100,7 +100,7 @@ OWE_CLIENT(define_game, play)
 
   Draw the current world once, even while paused. Skip to keep the previous image.
 
-- `co_return owe::Error::Ok · co_return error`
+- `co_return owe::Error::Ok` or `co_return error`
 
   End the session. An error goes back to the launcher. Local variables survive an await; frame and
   input references expire at the next await.
@@ -168,7 +168,7 @@ Heights must be finite and greater than zero.
   Pass an `owe::Key` enum value identifying a physical keyboard key. This example is true while the
   right arrow is held. All steps share the frame’s input. Losing focus clears held keys.
 
-- `input.pressed(owe::Key::P) · input.released(owe::Key::P)`
+- `input.pressed(owe::Key::P)`, `input.released(owe::Key::P)`
 
   Check once per frame. A quick tap can set both. OS repeat is ignored.
 

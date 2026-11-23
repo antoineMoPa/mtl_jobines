@@ -72,7 +72,11 @@ impl Game {
         let p = self.world.player_position() / METERS_PER_UNIT;
         let yaw = self.world.player_yaw();
         let forward = Vec3::new(yaw.cos(), yaw.sin(), 0.);
-        self.eye = ground_chase(p, forward, self.zoom, 0.).0;
+        self.eye = if self.world.is_driving() {
+            vehicle_chase(self.world.player(), p, forward, forward, self.zoom, 0.).0
+        } else {
+            ground_chase(p, forward, self.zoom, 0.).0
+        };
         self.camera_anchor = p;
         self.reset_boarding_camera();
         self.hermes.update_navigation(p.to_array());

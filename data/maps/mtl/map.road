@@ -7763,6 +7763,6 @@ parked_vehicle("vehicle-air-estuaire", -4.79, -0.87, -90);
 parked_vehicle("vehicle-air-fleche", -4.86, 0.81, -90);
 parked_vehicle("vehicle-airport-baggage-tractor", -4.36, -0.48, 180);
 
-# Baggage trailer axle targets, parallel to the terminal and Estuaire fuselage.
+# Baggage trailer axle targets, parallel to the terminal and YULPET airliner fuselage.
 mission_baggage_dispatch = map_point(-4.53, 0.30);
 mission_baggage_aircraft = map_point(-4.85, -0.99);
