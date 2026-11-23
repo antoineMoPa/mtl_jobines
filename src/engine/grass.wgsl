@@ -79,7 +79,7 @@ struct Ribbon {
     @location(2) slope:vec2<f32>,
 };
 fn ribbon_key(cell:vec2<i32>)->u32 {
-    var n=bitcast<u32>(cell.x)*0x9e3779b9u ^ bitcast<u32>(cell.y)*0x85ebca6bu;
+    var n=(bitcast<u32>(cell.x)*0x9e3779b9u) ^ (bitcast<u32>(cell.y)*0x85ebca6bu);
     n=(n^(n>>16u))*0x7feb352du;
     n=(n^(n>>15u))*0x846ca68bu;
     return n^(n>>16u);
