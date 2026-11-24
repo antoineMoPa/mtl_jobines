@@ -7986,7 +7986,7 @@ mission_baggage_dispatch = map_point(-4.53, 0.30);
 mission_baggage_aircraft = map_point(-4.85, -0.99);
 
 
-# South Shore: separate land across the river, with a bridge landing and local streets.
+# South Shore: separate land across the river, with a bridge landing and the autoroute continuing south.
 
 
 road champlain_approach:
@@ -8024,7 +8024,7 @@ elevation(champlain_northbound, 0.2402);
 # South landing: full-length grade down to the local boulevard, no step at either end.
 south_shore_highway_end = map_point(12, -39);
 south_shore_highway_start = map_point(12, -38);
-south_shore_boulevard_end = map_point(12, -40);
+south_shore_boulevard_end = map_point(12, -47);
 south_shore_highway = east_clover_interstate_three_lane(south_shore_highway_end, 12, -38.666666667, 12, -38.333333333, south_shore_highway_start);
 elevation(south_shore_highway, 0.102001);
 south_shore_entry = lane_point(south_shore_highway, 3, 1);
@@ -8033,42 +8033,23 @@ champlain_shore_out = champlain_approach(champlain_south_southbound, 11.7984, -3
 grade(champlain_shore_out, 0.2402, 0.102001);
 champlain_shore_in = champlain_approach(south_shore_exit, 12.035, -37.366666667, 12.2016, -36.733333333, champlain_south_northbound);
 grade(champlain_shore_in, 0.102001, 0.2402);
-south_shore_boulevard = east_clover_interstate_three_lane(south_shore_highway_end, 12, -39.333333333, 12, -39.666666667, south_shore_boulevard_end);
+south_shore_boulevard = east_clover_interstate_three_lane(south_shore_highway_end, 12, -41.666666667, 12, -44.333333333, south_shore_boulevard_end);
 elevation(south_shore_boulevard, 0.102001);
 
-# Rounded 100m corners keep the local loop continuous for traffic and bicycles.
-south_shore_nw = map_point(5.5, -40);
-south_shore_ne = map_point(20.5, -40);
-south_shore_sw = map_point(5.5, -45);
-south_shore_south = map_point(12, -45);
-south_shore_se = map_point(20.5, -45);
-south_shore_west_n = map_point(4.5, -41);
-south_shore_west_s = map_point(4.5, -44);
-south_shore_east_n = map_point(21.5, -41);
-south_shore_east_s = map_point(21.5, -44);
-south_shore_north_w = cycling_street(south_shore_nw, 7.666666667, -40, 9.833333333, -40, south_shore_boulevard_end);
-south_shore_north_e = cycling_street(south_shore_boulevard_end, 14.833333333, -40, 17.666666667, -40, south_shore_ne);
-south_shore_west = cycling_street(south_shore_west_s, 4.5, -43, 4.5, -42, south_shore_west_n);
-south_shore_east = cycling_street(south_shore_east_n, 21.5, -42, 21.5, -43, south_shore_east_s);
-south_shore_south_w = cycling_street(south_shore_sw, 7.666666667, -45, 9.833333333, -45, south_shore_south);
-south_shore_south_e = cycling_street(south_shore_south, 14.833333333, -45, 17.666666667, -45, south_shore_se);
-south_shore_centre = cycling_street(south_shore_boulevard_end, 12, -41.666666667, 12, -43.333333333, south_shore_south);
-south_shore_corner_nw = cycling_street(south_shore_west_n, 4.5, -40.44771525, 4.94771525, -40, south_shore_nw);
-south_shore_corner_ne = cycling_street(south_shore_ne, 21.05228475, -40, 21.5, -40.44771525, south_shore_east_n);
-south_shore_corner_sw = cycling_street(south_shore_sw, 4.94771525, -45, 4.5, -44.55228475, south_shore_west_s);
-south_shore_corner_se = cycling_street(south_shore_east_s, 21.5, -44.55228475, 21.05228475, -45, south_shore_se);
-elevation(south_shore_north_w, 0.102001);
-elevation(south_shore_north_e, 0.102001);
-elevation(south_shore_west, 0.102001);
-elevation(south_shore_east, 0.102001);
-elevation(south_shore_south_w, 0.102001);
-elevation(south_shore_south_e, 0.102001);
-elevation(south_shore_centre, 0.102001);
-elevation(south_shore_corner_nw, 0.102001);
-elevation(south_shore_corner_ne, 0.102001);
-elevation(south_shore_corner_sw, 0.102001);
-elevation(south_shore_corner_se, 0.102001);
-intersection4(south_shore_boulevard_end, cycling_street, north, east_clover_interstate_three_lane);
-intersection3(south_shore_south, cycling_street, north, cycling_street);
-elevation(south_shore_boulevard_end, 0.102001);
-elevation(south_shore_south, 0.102001);
+# Autoroute end: one U-turn per lane pair (inner, middle, outer) so southbound traffic returns north.
+road south_shore_turnaround_lane:
+    carlane;
+    direction forward;
+end
+south_shore_turn_in_1 = lane_point(south_shore_boulevard, 5, 1);
+south_shore_turn_out_1 = lane_point(south_shore_boulevard, 3, 1);
+south_shore_turn_in_2 = lane_point(south_shore_boulevard, 6, 1);
+south_shore_turn_out_2 = lane_point(south_shore_boulevard, 2, 1);
+south_shore_turn_in_3 = lane_point(south_shore_boulevard, 7, 1);
+south_shore_turn_out_3 = lane_point(south_shore_boulevard, 1, 1);
+south_shore_turn_inner = south_shore_turnaround_lane(south_shore_turn_in_1, 11.965, -47.12, 12.035, -47.12, south_shore_turn_out_1);
+south_shore_turn_middle = south_shore_turnaround_lane(south_shore_turn_in_2, 11.8975, -47.16, 12.1025, -47.16, south_shore_turn_out_2);
+south_shore_turn_outer = south_shore_turnaround_lane(south_shore_turn_in_3, 11.83, -47.2, 12.17, -47.2, south_shore_turn_out_3);
+elevation(south_shore_turn_inner, 0.102001);
+elevation(south_shore_turn_middle, 0.102001);
+elevation(south_shore_turn_outer, 0.102001);
