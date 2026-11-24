@@ -58,7 +58,7 @@ fn seed_for(key:vec3<i32>,layer:u32)->f32 {
     let d=length(flake.local);let aa=fwidth(d);
     let alpha=(1.0-smoothstep(0.55,1.0+aa,d))*flake.opacity;
     if alpha<0.012 {discard;}
-    if flake.clip.z>textureLoad(depth,vec2<i32>(flake.clip.xy),0) {discard;}
+    if flake.clip.z<textureLoad(depth,vec2<i32>(flake.clip.xy),0) {discard;}
     let daylight=clamp(settings.weather.x,0.0,1.0);
     let color=mix(vec3<f32>(0.18,0.23,0.31),vec3<f32>(0.98,0.99,1.0),daylight);
     let fog=mix(vec3<f32>(0.018,0.026,0.045),vec3<f32>(0.52,0.60,0.66),daylight);

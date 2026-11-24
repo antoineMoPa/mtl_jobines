@@ -105,6 +105,7 @@ impl Model {
                     height,
                 },
                 physics: catalog::Physics {
+                    traction: None,
                     mass,
                     max_speed: physics.max_speed,
                     acceleration: physics.thrust,

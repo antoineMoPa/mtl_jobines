@@ -266,7 +266,7 @@ fn world_pipelines(
                 format!(
                     "{}\n{}",
                     include_str!("vehicle.wgsl"),
-                    include_str!("pedestrian.wgsl")
+                    super::pedestrian_scenery::shader(device)
                 )
             )
             .replace(
@@ -380,7 +380,11 @@ fn world_pipelines(
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: Some(!paint),
-                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                    depth_compare: Some(if shadow {
+                        wgpu::CompareFunction::LessEqual
+                    } else {
+                        wgpu::CompareFunction::GreaterEqual
+                    }),
                     stencil: Default::default(),
                     bias: if shadow {
                         wgpu::DepthBiasState {
@@ -391,7 +395,7 @@ fn world_pipelines(
                     } else if paint {
                         // Distant paint and pavement can round to adjacent depth values in either order.
                         wgpu::DepthBiasState {
-                            constant: -2,
+                            constant: 2,
                             ..Default::default()
                         }
                     } else {
@@ -450,7 +454,7 @@ fn world_pipelines(
         depth_stencil: Some(wgpu::DepthStencilState {
             format: wgpu::TextureFormat::Depth32Float,
             depth_write_enabled: Some(false),
-            depth_compare: Some(wgpu::CompareFunction::LessEqual),
+            depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
             stencil: Default::default(),
             bias: Default::default(),
         }),
@@ -527,7 +531,11 @@ impl Renderer {
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("mtl_jobines"),
                 required_features: timestamp_features,
-                required_limits: wgpu::Limits::default(),
+                required_limits: if adapter.get_info().backend == wgpu::Backend::Gl {
+                    wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits())
+                } else {
+                    wgpu::Limits::default()
+                },
                 memory_hints: wgpu::MemoryHints::MemoryUsage,
                 ..Default::default()
             })
@@ -579,7 +587,7 @@ impl Renderer {
                 count: None,
             },
         ];
-        camera_entries.extend(super::pedestrian_scenery::Resources::layout());
+        camera_entries.extend(super::pedestrian_scenery::Resources::layout(&device));
         let camera_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("camera layout"),
             entries: &camera_entries,
@@ -1095,6 +1103,8 @@ impl Renderer {
         }
     }
     pub(super) fn view_projection(&self, eye: Vec3, look: Vec3) -> Mat4 {
+        // Reverse scene depth (near=1, far=0) so distant pavement and terrain
+        // retain precision without moving the camera near plane or road geometry.
         let aspect = self.config.width as f32 / self.scene_height() as f32;
         let projection = if let Some(span) = self.construction_span {
             Mat4::orthographic_rh(
@@ -1102,15 +1112,15 @@ impl Renderer {
                 span * aspect / 2.,
                 -span / 2.,
                 span / 2.,
-                0.003,
                 (span * 4.).max(100.),
+                0.003,
             )
         } else {
             Mat4::perspective_rh(
                 58_f32.to_radians(),
                 self.config.width as f32 / self.scene_height() as f32,
-                0.003,
                 10.0 * self.flight_visibility,
+                0.003,
             )
         };
         projection * Mat4::look_at_rh(eye, look, Vec3::Z)
@@ -1178,7 +1188,7 @@ impl Renderer {
                 view: &self.depth,
                 depth_ops: Some(wgpu::Operations {
                     load: if first {
-                        wgpu::LoadOp::Clear(1.)
+                        wgpu::LoadOp::Clear(0.)
                     } else {
                         wgpu::LoadOp::Load
                     },

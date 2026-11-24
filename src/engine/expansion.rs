@@ -280,8 +280,8 @@ impl Document {
         let ground = |p: egui::Pos2| {
             let x = (p.x - viewport.left()) / viewport.width() * 2. - 1.;
             let y = 1. - (p.y - viewport.top()) / viewport.height() * 2.;
-            let a = inverse * glam::Vec4::new(x, y, 0., 1.);
-            let b = inverse * glam::Vec4::new(x, y, 1., 1.);
+            let a = inverse * glam::Vec4::new(x, y, 1., 1.);
+            let b = inverse * glam::Vec4::new(x, y, 0., 1.);
             let a = a.truncate() / a.w;
             let d = b.truncate() / b.w - a;
             (d.z.abs() > 1e-8).then(|| (a + d * ((height - a.z) / d.z)).truncate())

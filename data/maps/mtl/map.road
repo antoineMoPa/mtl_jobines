@@ -34,7 +34,10 @@ block terrain_source:
     # Join the mainland bank to the reclaimed airport platform beside the access road.
     airport_bank = land(1, 5.6, 1, -5.6, -7, -5.6, -7, 5.6);
     # South Shore plateau and sloped banks are baked into elevation.png.
-    south_shore_land = land(-0.5, -38, 2.5, -36.4, 7.5, -36.1, 10.5, -36.3, 12, -35.9, 14.5, -36.4, 20.5, -36.8, 26.5, -39, 27.5, -45, 28.5, -55, 28, -68, 26.5, -80, 24, -91, 18, -98, 9, -99.5, 2.5, -97, -1, -88, -2.5, -75, -2.5, -60, -1.5, -45);
+    south_shore_land = land(-0.5, -38, 2.5, -36.4, 7.5, -36.1, 10.5, -36.3, 12, -35.9, 14.5, -36.4, 20.5, -36.8, 26.5, -39, 27.5, -45, 28.5, -55, 28, -68, 26.5, -80, 24, -91, 18, -98, 9, -99.5, 2.5, -97, -5, -96, -11, -91, -12, -84, -9, -77, -2.5, -70, -2.5, -60, -1.5, -45);
+    # Southwest ski hill: broad lower slopes around a compact 110m summit.
+    ski_hill_lower = terrain(0.52, -8.5, -85.5, -7, -79, -2, -77.5, 2.5, -80, 4.5, -85.5, 2, -91, -3, -93, -7, -90);
+    ski_hill_upper = terrain(1.15, -6, -85.5, -4.5, -81.5, -1, -80.5, 1.5, -83, 2, -86.5, -0.5, -89.5, -4, -90, -6.5, -88);
 end
 
 sphere_parking = concrete(-1.425655580, -0.842618636, -1.402087622, -1.637557790, -0.706893084, -1.616947009, -0.730461042, -0.822007856);
@@ -8049,8 +8052,18 @@ south_shore_autoroute_2 = east_clover_interstate_three_lane(south_shore_node_2, 
 elevation(south_shore_autoroute_2, 0.102001);
 south_shore_autoroute_3 = east_clover_interstate_three_lane(south_shore_node_3, 12, -70.333333333, 12, -73.666666667, south_shore_node_4);
 elevation(south_shore_autoroute_3, 0.102001);
-south_shore_autoroute_4 = east_clover_interstate_three_lane(south_shore_node_4, 12, -80.333333333, 12, -83.666666667, south_shore_node_5);
+# Short through pieces locate interchange mouths without changing the autoroute alignment.
+ski_main_north = map_point(12, -80);
+ski_main_center = map_point(12, -82);
+ski_main_south = map_point(12, -84);
+south_shore_autoroute_4 = east_clover_interstate_three_lane(south_shore_node_4, 12, -78, 12, -79, ski_main_north);
 elevation(south_shore_autoroute_4, 0.102001);
+ski_main_a = east_clover_interstate_three_lane(ski_main_north, 12, -80.666666667, 12, -81.333333333, ski_main_center);
+elevation(ski_main_a, 0.102001);
+ski_main_b = east_clover_interstate_three_lane(ski_main_center, 12, -82.666666667, 12, -83.333333333, ski_main_south);
+elevation(ski_main_b, 0.102001);
+ski_main_c = east_clover_interstate_three_lane(ski_main_south, 12, -85, 12, -86, south_shore_node_5);
+elevation(ski_main_c, 0.102001);
 south_shore_autoroute_5 = east_clover_interstate_three_lane(south_shore_node_5, 12, -89.666666667, 12, -92.333333333, south_shore_node_end);
 elevation(south_shore_autoroute_5, 0.102001);
 
@@ -8071,3 +8084,172 @@ south_shore_turn_outer = south_shore_turnaround_lane(south_shore_turn_in_3, 11.8
 elevation(south_shore_turn_inner, 0.102001);
 elevation(south_shore_turn_middle, 0.102001);
 elevation(south_shore_turn_outer, 0.102001);
+
+
+# Local shoulders stay open; only the autoroute retains automatic barriers.
+road ski_local_road:
+    verge carlane middle carlane verge;
+    role highway;
+end
+road ski_local_mouth:
+    verge carlane verge;
+    direction forward;
+    role merge;
+end
+road_barriers(ski_local_road, none);
+road_barriers(ski_local_mouth, none);
+road_barriers(ski_circle_lane, none);
+
+# Single far-side roundabout serves the hill and both autoroute directions.
+# Counterclockwise circulation on the east side; the hill road crosses the highway directly.
+road ski_circle_lane:
+    verge carlane verge;
+    direction forward;
+    role ramp;
+end
+
+
+# Far-side roundabout: 76m centerline diameter, single circulating lane.
+ski_e_circle_p0 = map_point(14.672698407, -82.074134322);
+ski_e_circle_p1 = map_point(14.672698407, -81.925865678);
+ski_e_circle_p2 = map_point(14.615958453, -81.788883311);
+ski_e_circle_p3 = map_point(14.511116689, -81.684041547);
+ski_e_circle_p4 = map_point(14.374134322, -81.627301593);
+ski_e_circle_p5 = map_point(14.225865678, -81.627301593);
+ski_e_circle_p6 = map_point(14.088883311, -81.684041547);
+ski_e_circle_p7 = map_point(13.984041547, -81.788883311);
+ski_e_circle_p8 = map_point(13.927301593, -81.925865678);
+ski_e_circle_p9 = map_point(13.927301593, -82.074134322);
+ski_e_circle_p10 = map_point(13.984041547, -82.211116689);
+ski_e_circle_p11 = map_point(14.088883311, -82.315958453);
+ski_e_circle_p12 = map_point(14.225865678, -82.372698407);
+ski_e_circle_p13 = map_point(14.374134322, -82.372698407);
+ski_e_circle_p14 = map_point(14.511116689, -82.315958453);
+ski_e_circle_p15 = map_point(14.615958453, -82.211116689);
+ski_e_circle_0 = ski_circle_lane(ski_e_circle_p0, 14.682433864, -82.025190870, 14.682433864, -81.974809130, ski_e_circle_p1);
+elevation(ski_e_circle_0, 0.102001);
+ski_e_circle_1 = ski_circle_lane(ski_e_circle_p1, 14.662962949, -81.876922226, 14.643682691, -81.830375567, ski_e_circle_p2);
+elevation(ski_e_circle_1, 0.102001);
+ski_e_circle_2 = ski_circle_lane(ski_e_circle_p2, 14.588234214, -81.747391056, 14.552608944, -81.711765786, ski_e_circle_p3);
+elevation(ski_e_circle_2, 0.102001);
+ski_e_circle_3 = ski_circle_lane(ski_e_circle_p3, 14.469624433, -81.656317309, 14.423077774, -81.637037051, ski_e_circle_p4);
+elevation(ski_e_circle_3, 0.102001);
+ski_e_circle_4 = ski_circle_lane(ski_e_circle_p4, 14.325190870, -81.617566136, 14.274809130, -81.617566136, ski_e_circle_p5);
+elevation(ski_e_circle_4, 0.102001);
+ski_e_circle_5 = ski_circle_lane(ski_e_circle_p5, 14.176922226, -81.637037051, 14.130375567, -81.656317309, ski_e_circle_p6);
+elevation(ski_e_circle_5, 0.102001);
+ski_e_circle_6 = ski_circle_lane(ski_e_circle_p6, 14.047391056, -81.711765786, 14.011765786, -81.747391056, ski_e_circle_p7);
+elevation(ski_e_circle_6, 0.102001);
+ski_e_circle_7 = ski_circle_lane(ski_e_circle_p7, 13.956317309, -81.830375567, 13.937037051, -81.876922226, ski_e_circle_p8);
+elevation(ski_e_circle_7, 0.102001);
+ski_e_circle_8 = ski_circle_lane(ski_e_circle_p8, 13.917566136, -81.974809130, 13.917566136, -82.025190870, ski_e_circle_p9);
+elevation(ski_e_circle_8, 0.102001);
+ski_e_circle_9 = ski_circle_lane(ski_e_circle_p9, 13.937037051, -82.123077774, 13.956317309, -82.169624433, ski_e_circle_p10);
+elevation(ski_e_circle_9, 0.102001);
+ski_e_circle_10 = ski_circle_lane(ski_e_circle_p10, 14.011765786, -82.252608944, 14.047391056, -82.288234214, ski_e_circle_p11);
+elevation(ski_e_circle_10, 0.102001);
+ski_e_circle_11 = ski_circle_lane(ski_e_circle_p11, 14.130375567, -82.343682691, 14.176922226, -82.362962949, ski_e_circle_p12);
+elevation(ski_e_circle_11, 0.102001);
+ski_e_circle_12 = ski_circle_lane(ski_e_circle_p12, 14.274809130, -82.382433864, 14.325190870, -82.382433864, ski_e_circle_p13);
+elevation(ski_e_circle_12, 0.102001);
+ski_e_circle_13 = ski_circle_lane(ski_e_circle_p13, 14.423077774, -82.362962949, 14.469624433, -82.343682691, ski_e_circle_p14);
+elevation(ski_e_circle_13, 0.102001);
+ski_e_circle_14 = ski_circle_lane(ski_e_circle_p14, 14.552608944, -82.288234214, 14.588234214, -82.252608944, ski_e_circle_p15);
+elevation(ski_e_circle_14, 0.102001);
+ski_e_circle_15 = ski_circle_lane(ski_e_circle_p15, 14.643682691, -82.169624433, 14.662962949, -82.123077774, ski_e_circle_p0);
+elevation(ski_e_circle_15, 0.102001);
+ski_e_bridge_in = lane_point(ski_e_circle_10, 1, 0.5);
+ski_e_bridge_out = lane_point(ski_e_circle_6, 1, 0.5);
+ski_e_nb_in = lane_point(ski_e_circle_13, 1, 0.5);
+ski_e_nb_out = lane_point(ski_e_circle_3, 1, 0.5);
+
+# A single two-way bridge crosses above the uninterrupted autoroute.
+ski_cross_p0 = map_point(10.500000000, -82.000000000);
+ski_cross_p1 = map_point(11.450000000, -82.000000000);
+ski_cross_p2 = map_point(12.550000000, -82.000000000);
+ski_cross_p3 = map_point(13.500000000, -82.000000000);
+ski_cross_0 = ski_local_road(ski_cross_p0, 10.816666667, -82.000000000, 11.133333333, -82.000000000, ski_cross_p1);
+grade(ski_cross_0, 0.102001, 0.180001);
+ski_cross_1 = ski_local_road(ski_cross_p1, 11.816666667, -82.000000000, 12.183333333, -82.000000000, ski_cross_p2);
+elevation(ski_cross_1, 0.180001);
+ski_cross_2 = ski_local_road(ski_cross_p2, 12.866666667, -82.000000000, 13.183333333, -82.000000000, ski_cross_p3);
+grade(ski_cross_2, 0.180001, 0.102001);
+ski_cross_w_out = lane_point(ski_cross_0, 3, 0);
+ski_cross_w_in = lane_point(ski_cross_0, 1, 0);
+ski_cross_e_out = lane_point(ski_cross_2, 1, 1);
+ski_cross_e_in = lane_point(ski_cross_2, 3, 1);
+ski_e_bridge_enter = ski_local_mouth(ski_cross_e_in, 13.700000000, -82.035000000, 13.880000000, -82.118000000, ski_e_bridge_in);
+elevation(ski_e_bridge_enter, 0.102001);
+ski_e_bridge_leave = ski_local_mouth(ski_e_bridge_out, 13.880000000, -81.882000000, 13.700000000, -81.965000000, ski_cross_e_out);
+elevation(ski_e_bridge_leave, 0.102001);
+
+# The hill approach reaches the overpass directly; no hill-side roundabout.
+ski_hill_road_start = map_point(4.500000000, -82.000000000);
+ski_hill_approach = ski_local_road(ski_hill_road_start, 6.500000000, -82.000000000, 8.500000000, -82.000000000, ski_cross_p0);
+elevation(ski_hill_approach, 0.102001);
+ski_hill_sb_off = lane_point(ski_hill_approach, 1, 0.9);
+ski_hill_sb_on = lane_point(ski_hill_approach, 3, 0.9);
+ski_hill_turn_out = lane_point(ski_hill_approach, 1, 0);
+ski_hill_turn_in = lane_point(ski_hill_approach, 3, 0);
+ski_hill_turn_n = map_point(3.500000000, -81.700000000);
+ski_hill_turn_s = map_point(3.500000000, -82.300000000);
+ski_hill_turn_leave = ski_local_mouth(ski_hill_turn_out, 4.100000000, -81.965000000, 3.900000000, -81.700000000, ski_hill_turn_n);
+elevation(ski_hill_turn_leave, 0.102001);
+ski_hill_turn = ski_circle_lane(ski_hill_turn_n, 3.100000000, -81.700000000, 3.100000000, -82.300000000, ski_hill_turn_s);
+elevation(ski_hill_turn, 0.102001);
+ski_hill_turn_enter = ski_local_mouth(ski_hill_turn_s, 3.900000000, -82.300000000, 4.100000000, -82.035000000, ski_hill_turn_in);
+elevation(ski_hill_turn_enter, 0.102001);
+
+# Southbound off/on ramps join the hill approach directly, west of the overpass.
+ski_sb_exit = lane_point(south_shore_autoroute_4, 7, 0.5);
+ski_sb_merge = lane_point(ski_main_c, 7, 0.5);
+ski_sb_off_seam = map_point(11.350000000, -80.100000000);
+ski_sb_on_seam = map_point(11.350000000, -83.900000000);
+ski_sb_off_mouth = ski_local_mouth(ski_sb_exit, 11.830000000, -79.100000000, 11.650000000, -79.700000000, ski_sb_off_seam);
+elevation(ski_sb_off_mouth, 0.102001);
+ski_sb_off_curve = ski_local_mouth(ski_sb_off_seam, 10.800000000, -80.900000000, 10.400000000, -81.965000000, ski_hill_sb_off);
+elevation(ski_sb_off_curve, 0.102001);
+ski_sb_on_curve = ski_local_mouth(ski_hill_sb_on, 10.400000000, -82.035000000, 10.800000000, -83.000000000, ski_sb_on_seam);
+elevation(ski_sb_on_curve, 0.102001);
+ski_sb_on_merge = ski_local_mouth(ski_sb_on_seam, 11.650000000, -84.400000000, 11.830000000, -85.000000000, ski_sb_merge);
+elevation(ski_sb_on_merge, 0.102001);
+
+# Northbound off/on ramps remain east of the highway and meet the eastern circle.
+ski_nb_exit = lane_point(ski_main_c, 1, 0.5);
+ski_nb_merge = lane_point(south_shore_autoroute_4, 1, 0.5);
+ski_nb_off_seam = map_point(12.650000000, -83.900000000);
+ski_nb_on_seam = map_point(12.650000000, -80.100000000);
+ski_nb_off_mouth = ski_local_mouth(ski_nb_exit, 12.170000000, -85.000000000, 12.350000000, -84.400000000, ski_nb_off_seam);
+elevation(ski_nb_off_mouth, 0.102001);
+ski_nb_off_curve = ski_local_mouth(ski_nb_off_seam, 13.200000000, -83.000000000, 14.075000000, -82.504000000, ski_e_nb_in);
+elevation(ski_nb_off_curve, 0.102001);
+ski_nb_on_curve = ski_local_mouth(ski_e_nb_out, 14.075000000, -81.496000000, 13.200000000, -80.900000000, ski_nb_on_seam);
+elevation(ski_nb_on_curve, 0.102001);
+ski_nb_on_merge = ski_local_mouth(ski_nb_on_seam, 12.350000000, -79.700000000, 12.170000000, -79.100000000, ski_nb_merge);
+elevation(ski_nb_on_merge, 0.102001);
+
+# Paired fuel stations sit flush with the hill-road shoulders.
+# The road is 0.185 units wide; each concrete front edge meets its outer edge.
+# Direct forecourt access avoids a separate road through the station signs.
+# Reuse the existing GLB and its shop/pump collision volumes; forecourt remains open.
+block ski_fuel_station:
+    forecourt = concrete(-0.05, 0, 0.503, 0, 0.503, 0.357325, -0.05, 0.357325);
+    elevation(forecourt, 0.121001);
+    model = building(0.108, "models/fuel-station.glb", { collision: none }, 0, 0, 0.453, 0, 0.453, 0.317325, 0, 0.317325);
+    elevation(model, 0.10025);
+    shop = building(0.0612, "plinth", { material: concrete }, 0.084300001, 0.205875000, 0.368700001, 0.205875000, 0.368700000, 0.305775000, 0.084300000, 0.305775000);
+    elevation(shop, 0.104150);
+    pump_island_a = building(0.0036, "plinth", { material: concrete }, 0.187050000, 0.066375000, 0.217950001, 0.066375000, 0.217950000, 0.175275001, 0.187050000, 0.175275000);
+    elevation(pump_island_a, 0.101150);
+    pump_island_b = building(0.0036, "plinth", { material: concrete }, 0.337050000, 0.066375001, 0.367950000, 0.066375000, 0.367950000, 0.175275000, 0.337050000, 0.175275000);
+    elevation(pump_island_b, 0.101150);
+end
+ski_fuel_north = ski_fuel_station(6.7735, -81.9075, 0, 0);
+ski_fuel_south = ski_fuel_station(7.2265, -82.0925, 0, 180);
+
+# Ski base: the 11.8m x 10.5m chalet keeps its authored metre-scale proportions.
+# PNG terrain at the base is 0.100001; the summit is 1.142283 (104m higher).
+ski_chalet = building(0.07450055, "models/ski-chalet.glb", 4.041, -82.6525, 4.159, -82.6525, 4.159, -82.5475, 4.041, -82.5475);
+elevation(ski_chalet, 0.100001);
+# Grass support becomes snow in winter. Leave space to board and turn toward the hill.
+parked_vehicle("vehicle-winter-snowmobile", 4.1, -82.4, 180);

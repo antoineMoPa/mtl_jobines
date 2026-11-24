@@ -46,7 +46,7 @@ impl Drop for Fixture {
 pub(super) fn view(document: &Document) -> View {
     let (eye, look, _) = document.camera().unwrap();
     View {
-        matrix: glam::Mat4::orthographic_rh(-0.9, 0.9, -0.6, 0.6, 0.003, 100.)
+        matrix: glam::Mat4::orthographic_rh(-0.9, 0.9, -0.6, 0.6, 100., 0.003)
             * glam::Mat4::look_at_rh(eye, look, Vec3::Z),
         viewport: egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(900., 600.)),
     }
@@ -267,7 +267,7 @@ fn drawing_creates_once_on_release_and_dragging_saves_in_both_views() {
     f.document.mode = CameraMode::Street;
     f.document.selected = None;
     let street = View {
-        matrix: glam::Mat4::perspective_rh(58_f32.to_radians(), 1.5, 0.003, 10.)
+        matrix: glam::Mat4::perspective_rh(58_f32.to_radians(), 1.5, 10., 0.003)
             * glam::Mat4::look_at_rh(
                 Vec3::new(-0.15, 0., 0.075),
                 Vec3::new(0.1, 0., 0.014),

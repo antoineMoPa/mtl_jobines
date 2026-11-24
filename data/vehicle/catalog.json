@@ -106,5 +106,11 @@
     "path": "airport/baggage-tractor",
     "researchId": "vehicle-airport-baggage-tractor",
     "roadVehicle": false
+  },
+  {
+    "name": "Motoneige",
+    "path": "winter/snowmobile",
+    "researchId": "vehicle-winter-snowmobile",
+    "roadVehicle": false
   }
 ]

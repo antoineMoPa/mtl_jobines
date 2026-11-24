@@ -80,6 +80,7 @@ pub struct Vehicle {
     pub pedal_angle: f32,
     pub riding_stand: f32,
     pub surface: SurfaceKind,
+    pub(super) season: crate::season::Season,
     pub grounded: bool,
     pub collisions: u64,
     pub(crate) damage: Option<Box<damage::Damage>>,
@@ -169,6 +170,7 @@ impl Vehicle {
             pedal_angle: 0.,
             riding_stand: 0.,
             surface: SurfaceKind::Asphalt,
+            season: Default::default(),
             grounded: true,
             collisions: 0,
             damage: None,
@@ -421,19 +423,29 @@ impl Vehicle {
                     let angle = self.yaw + if rear { 0. } else { self.steering };
                     let gravity =
                         9.81 / (1. + Vec2::from_array(s.gradient).length_squared()).sqrt();
+                    let tracked = self
+                        .definition()
+                        .and_then(|d| d.config.physics.traction.as_ref())
+                        .is_some();
+                    let snowy = tracked
+                        && self.season == crate::season::Season::Winter
+                        && matches!(s.kind, SurfaceKind::Grass | SurfaceKind::Sand);
                     tires[index] = Some(TireContact {
                         arm: wheel.truncate() - self.position.truncate(),
                         forward: Vec2::new(angle.cos(), angle.sin()),
                         // Each supported tire carries one quarter of the static load.
-                        grip: s.kind.friction()
+                        grip: (if snowy { 0.95 } else { s.kind.friction() })
                             * self
                                 .definition()
                                 .map_or(1., |d| d.config.physics.friction / 0.9)
                             * gravity
                             * tire_share
                             * if self.flat_tires[index] { 0.22 } else { 1. },
-                        rolling: (s.kind.rolling_resistance()
-                            + if self.flat_tires[index] { 0.24 } else { 0. })
+                        rolling: ((if tracked {
+                            0.015
+                        } else {
+                            s.kind.rolling_resistance()
+                        }) + if self.flat_tires[index] { 0.24 } else { 0. })
                             * gravity
                             * tire_share,
                         rear,
@@ -515,13 +527,19 @@ impl Vehicle {
         let braking =
             input.brake || input.handbrake || (self.is_bicycle() && throttle * speed < -0.5);
         let sprint = self.is_bicycle() && input.boost;
+        let traction = self
+            .definition()
+            .and_then(|d| d.config.physics.traction.as_ref())
+            .map_or(1., |t| t.multiplier(self.surface, self.season));
         let acceleration = self.definition().map_or(FORWARD_MOTOR_ACCELERATION, |d| {
             d.config.physics.acceleration
-        }) * if sprint { 1.7 } else { 1. };
+        }) * if sprint { 1.7 } else { 1. }
+            * traction;
         let max_speed = self
             .definition()
             .map_or(FORWARD_MOTOR_CUTOFF, |d| d.config.physics.max_speed)
-            * if sprint { 1.45 } else { 1. };
+            * if sprint { 1.45 } else { 1. }
+            * traction;
         let motor = if braking {
             0.
         } else if throttle >= 0. {
@@ -532,7 +550,7 @@ impl Vehicle {
                 * throttle
                 * (1. - ((-speed).max(0.) / (max_speed * 0.4)).powi(2)).max(0.)
         } else {
-            7.5 * throttle * (1. - ((-speed).max(0.) / 10.).powi(2)).max(0.)
+            7.5 * traction * throttle * (1. - ((-speed).max(0.) / (10. * traction)).powi(2)).max(0.)
         };
         let mut longitudinal_usage = [0.; 4];
         let mut impulse = Vec2::ZERO;

@@ -282,7 +282,8 @@ mod tests {
             assert!(world.switch_vehicle(model));
             let enclosed = !world.player().is_boat()
                 && !world.player().is_bicycle()
-                && def.config.research_id != super::super::baggage::MODEL_ID;
+                && def.config.research_id != super::super::baggage::MODEL_ID
+                && def.config.research_id != catalog::SNOWMOBILE_ID;
             assert_eq!(world.toggle_door(), enclosed);
             if !enclosed {
                 continue;

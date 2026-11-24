@@ -39,6 +39,7 @@ egui-winit = { version = "0.36", default-features = false }
 rfd = "0.17"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+wgpu = { version = "30.0.1", features = ["webgl"] }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 wasm-bindgen-futures = "0.4"

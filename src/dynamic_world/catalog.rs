@@ -24,6 +24,8 @@ pub enum VehicleKind {
     Boat,
 }
 
+pub const SNOWMOBILE_ID: &str = "vehicle-winter-snowmobile";
+
 pub const SNOWPLOW_ID: &str = "vehicle-j03";
 
 // Preserve the integer paint-variant mask; fractional bits carry the authored
@@ -37,6 +39,9 @@ fn vehicle_finish(roughness: f32, metallic: f32, paint: bool, coat: bool) -> f32
 #[cfg(test)]
 #[path = "catalog_collecteur_tests.rs"]
 mod collecteur_tests;
+#[cfg(test)]
+#[path = "snowmobile_tests.rs"]
+mod snowmobile_tests;
 #[cfg(test)]
 #[path = "catalog_snowplow_tests.rs"]
 mod snowplow_tests;
@@ -56,6 +61,25 @@ pub struct Physics {
     pub wheel_radius: f32,
     pub wheelbase: f32,
     pub track: f32,
+    #[serde(default)]
+    pub traction: Option<Traction>,
+}
+/// Powered progress on seasonal ground; ordinary tires retain their existing response.
+#[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct Traction {
+    pub snow: f32,
+    pub grass: f32,
+    pub road: f32,
+}
+impl Traction {
+    pub fn multiplier(&self, surface: SurfaceKind, season: crate::season::Season) -> f32 {
+        match (surface, season) {
+            (SurfaceKind::Grass | SurfaceKind::Sand, crate::season::Season::Winter) => self.snow,
+            (SurfaceKind::Grass | SurfaceKind::Sand, _) => self.grass,
+            _ => self.road,
+        }
+    }
 }
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -474,6 +498,11 @@ impl Definition {
             ]
             .iter()
             .any(|v| !v.is_finite() || *v <= 0.)
+            || p.traction.as_ref().is_some_and(|t| {
+                [t.snow, t.grass, t.road]
+                    .iter()
+                    .any(|v| !v.is_finite() || *v <= 0. || *v > 1.)
+            })
             || !p.track.is_finite()
             || match config.vehicle_kind {
                 VehicleKind::Bicycle => p.track != 0.,
@@ -1166,6 +1195,9 @@ pub fn definitions() -> &'static [Definition] {
             Definition::load(cfg, glb, texture_layer).expect("bundled airport baggage tractor");
         texture_layer += u32::from(tug.texture_png.is_some());
         definitions.push(tug);
+        let (cfg, glb) = asset!("winter/snowmobile");
+        let snowmobile = Definition::load(cfg, glb, texture_layer).expect("bundled snowmobile");
+        definitions.push(snowmobile);
         for definition in &mut definitions[..plated] {
             if !definition.is_bicycle() {
                 definition.add_rear_plate(texture_layer);
@@ -1972,7 +2004,7 @@ mod tests {
 
     #[test]
     fn every_export_loads_with_authored_running_gear_and_si_data() {
-        assert_eq!(definitions().len(), 18);
+        assert_eq!(definitions().len(), 19);
         assert_eq!(
             definitions()
                 .iter()
@@ -1999,7 +2031,9 @@ mod tests {
                 }
                 continue;
             }
-            if def.config.vehicle_kind == VehicleKind::Boat {
+            if def.config.vehicle_kind == VehicleKind::Boat
+                || def.config.research_id == SNOWMOBILE_ID
+            {
                 assert!(!def.config.road_vehicle);
                 continue;
             }

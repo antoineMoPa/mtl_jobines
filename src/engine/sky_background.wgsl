@@ -21,8 +21,8 @@ struct SkydomeInput {
 struct Ray { @builtin(position) clip: vec4<f32>, @location(0) ray: vec3<f32> };
 @vertex fn vs(@builtin(vertex_index) vertex: u32) -> Ray {
     let p = vec2(f32((vertex << 1u) & 2u), f32(vertex & 2u)) * 2.0 - 1.0;
-    let world = camera.inverse_view_projection * vec4(p, 1.0, 1.0);
-    return Ray(vec4(p, 1.0, 1.0), world.xyz / world.w - camera.eye_time.xyz);
+    let world = camera.inverse_view_projection * vec4(p, 0.0, 1.0);
+    return Ray(vec4(p, 0.0, 1.0), world.xyz / world.w - camera.eye_time.xyz);
 }
 @fragment fn fs(v: Ray) -> @location(0) vec4<f32> {
     let ray = v.ray / max(length(v.ray), 0.000001);

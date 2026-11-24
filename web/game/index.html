@@ -38,7 +38,6 @@
     canvas.addEventListener('pointerdown', () => canvas.focus());
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     try {
-      if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over localhost or HTTPS.');
       const game = await import('./pkg/mtl_jobines.js');
       const { default: init, start, asset_paths, install_asset, install_assets, discard_pending_assets } = game;
       await init();

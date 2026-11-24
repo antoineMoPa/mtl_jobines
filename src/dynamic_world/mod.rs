@@ -861,6 +861,7 @@ impl DynamicWorld {
             }
         }
         for (i, vehicle) in self.vehicles.iter_mut().enumerate() {
+            vehicle.season = self.season;
             let signal = if driving && i == self.player_vehicle.0 {
                 hermes.route_signal()
             } else {

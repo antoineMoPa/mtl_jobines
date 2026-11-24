@@ -150,8 +150,8 @@ pub(super) fn weapon_pose(hand: Vec3, target: Vec3) -> Mat4 {
 }
 
 pub(super) fn sight_line(inverse: Mat4) -> Option<(Vec3, Vec3)> {
-    let near = inverse.project_point3(Vec3::ZERO) * METERS_PER_UNIT;
-    let far = inverse.project_point3(Vec3::Z * 0.8) * METERS_PER_UNIT;
+    let near = inverse.project_point3(Vec3::Z) * METERS_PER_UNIT;
+    let far = inverse.project_point3(Vec3::ZERO) * METERS_PER_UNIT;
     let delta = far - near;
     let length = delta.length();
     (length > 0. && length.is_finite()).then(|| (near, near + delta * (80. / length)))

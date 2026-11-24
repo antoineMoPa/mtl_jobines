@@ -167,6 +167,7 @@ impl Vehicle {
             float_phase: 0.,
             pedal_angle: 0.,
             riding_stand: 0.,
+            season: Default::default(),
             surface: support.kind,
             grounded: true,
             collisions: 0,

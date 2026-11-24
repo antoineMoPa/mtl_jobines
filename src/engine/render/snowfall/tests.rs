@@ -126,7 +126,7 @@ mod native {
         let r = pollster::block_on(Renderer::new(None, 960, 640)).unwrap();
         let eye = Vec3::new(0., 0., 0.017);
         let look = eye + Vec3::Y;
-        let first = capture(&r, eye, look, 12.5, 1., "snow-world-first");
+        let first = capture(&r, eye, look, 12.5, 0., "snow-world-first");
         assert!(bright(&first) > 500, "world snowfall is too sparse");
         let offset = Vec3::new(0.04, 0., 0.);
         let moved = capture(
@@ -134,7 +134,7 @@ mod native {
             eye + offset,
             look + offset,
             12.5,
-            1.,
+            0.,
             "snow-world-strafe",
         );
         assert!(
@@ -146,32 +146,32 @@ mod native {
             eye,
             eye + Vec3::new(0.5, 0.866, 0.),
             12.5,
-            1.,
+            0.,
             "snow-world-turn",
         );
         assert!(
             changed(&first, &turned) > 500,
             "turning did not change frozen snow"
         );
-        assert_eq!(first, capture(&r, eye, look, 12.5, 1., "snow-world-return"));
+        assert_eq!(first, capture(&r, eye, look, 12.5, 0., "snow-world-return"));
         let tiny = Vec3::new(0.0000001, 0., 0.);
-        let before = capture(&r, eye - tiny, look - tiny, 0., 1., "snow-cell-before");
-        let after = capture(&r, eye + tiny, look + tiny, 0., 1., "snow-cell-after");
+        let before = capture(&r, eye - tiny, look - tiny, 0., 0., "snow-cell-before");
+        let after = capture(&r, eye + tiny, look + tiny, 0., 0., "snow-cell-after");
         assert!(
             changed(&before, &after) < 50,
             "crossing a signed cell boundary reseeded flakes"
         );
         for axis in [Vec3::Y, Vec3::Z] {
             let tiny = axis * 0.0000001;
-            let before = capture(&r, -tiny, Vec3::Y - tiny, 0., 1., "snow-axis-before");
-            let after = capture(&r, tiny, Vec3::Y + tiny, 0., 1., "snow-axis-after");
+            let before = capture(&r, -tiny, Vec3::Y - tiny, 0., 0., "snow-axis-before");
+            let after = capture(&r, tiny, Vec3::Y + tiny, 0., 0., "snow-axis-after");
             assert!(
                 changed(&before, &after) < 50,
                 "grid rebasing popped flakes on axis {axis:?}"
             );
         }
         assert_eq!(
-            bright(&capture(&r, eye, look, 12.5, 0., "snow-depth-occluded")),
+            bright(&capture(&r, eye, look, 12.5, 1., "snow-depth-occluded")),
             0,
             "flakes drew through scene depth"
         );
@@ -182,7 +182,7 @@ mod native {
                     eye + offset,
                     look + offset,
                     12.5,
-                    1.,
+                    0.,
                     "snow-world-travel"
                 )) > 500,
                 "snow vanished at a distant/elevated camera"
@@ -202,7 +202,7 @@ mod native {
         r.snow.set_geometry(&[&roof]);
         r.snow.update(&r.queue, [0., 0.], &Tracks::default());
         assert_eq!(
-            bright(&capture(&r, eye, look, 12.5, 1., "snow-covered")),
+            bright(&capture(&r, eye, look, 12.5, 0., "snow-covered")),
             0,
             "snow appeared beneath a roof"
         );
@@ -219,7 +219,7 @@ mod native {
         );
         r.snow.set_geometry(&[&roof]);
         r.snow.update(&r.queue, [0., 0.], &Tracks::default());
-        let partial = capture(&r, eye, look, 12.5, 1., "snow-canopy-edge");
+        let partial = capture(&r, eye, look, 12.5, 0., "snow-canopy-edge");
         let half = |right: bool| {
             partial
                 .chunks_exact(4)
@@ -268,7 +268,7 @@ mod native {
             1,
         );
         let eye = Vec3::new(0., 0., 0.017);
-        let matrix = Mat4::perspective_rh(58_f32.to_radians(), 1.6, 0.003, 10.)
+        let matrix = Mat4::perspective_rh(58_f32.to_radians(), 1.6, 10., 0.003)
             * Mat4::look_at_rh(eye, eye + Vec3::Y, Vec3::Z);
         field.prepare(&queue, matrix, eye, 12.5, 1280, 800, 1.);
         let target = device
@@ -312,7 +312,7 @@ mod native {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &depth,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.),
+                        load: wgpu::LoadOp::Clear(0.),
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,

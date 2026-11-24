@@ -344,8 +344,8 @@ fn iso_view(doc: &Document) -> View {
             doc.span * 0.75,
             -doc.span / 2.,
             doc.span / 2.,
-            0.003,
             (doc.span * 4.).max(100.),
+            0.003,
         ) * glam::Mat4::look_at_rh(eye, look, Vec3::Z),
         viewport: egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(900., 600.)),
     }

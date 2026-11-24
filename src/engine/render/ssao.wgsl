@@ -21,7 +21,7 @@ fn position(p:vec2<i32>)->vec3<f32> {
 }
 @fragment fn ao(@builtin(position) screen:vec4<f32>)->@location(0) vec2<f32> {
     let q=pixel(vec2<i32>(screen.xy)*2+vec2<i32>(1));
-    if depth_at(q)>=0.999999 || settings.tuning.z<0.5 {return vec2<f32>(1.0,60000.0);}
+    if depth_at(q)<=0.0 || settings.tuning.z<0.5 {return vec2<f32>(1.0,60000.0);}
     let p=position(q);
     let right=position(q+vec2<i32>(1,0))-p;
     let left=p-position(q-vec2<i32>(1,0));
@@ -45,7 +45,7 @@ fn position(p:vec2<i32>)->vec3<f32> {
     for(var i=0u;i<8u;i++) {for(var ring=0u;ring<2u;ring++) {
         let step=pixels*select(0.28,0.78,ring==1u);
         let sample_pixel=pixel(q+vec2<i32>(round(directions[i]*step)));
-        if depth_at(sample_pixel)>=0.999999 {continue;}
+        if depth_at(sample_pixel)<=0.0 {continue;}
         let delta=position(sample_pixel)-p;let travel=length(delta);
         if travel<0.000001 || travel>radius {continue;}
         let horizon=max(dot(n,delta)-settings.tuning.x,0.0)/travel;
@@ -83,7 +83,7 @@ fn scene_color(screen:vec4<f32>)->vec4<f32> {
     }
     let daylight_grade = settings.viewport.z * settings.weather.z;
     if settings.tuning.z<0.5 && settings.weather.y==0.0 && daylight_grade==0.0 {return color;}
-    let has_surface=depth_at(p)<0.999999;
+    let has_surface=depth_at(p)>0.0;
     var distance=10.0;
     if has_surface {distance=length(settings.eye_radius.xyz-position(p));}
     var result=color;

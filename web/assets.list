@@ -98,3 +98,5 @@ data/maps/mtl/models/airport-control-tower.glb
 data/maps/mtl/models/airport-aircraft-hangar.glb
 data/vehicle/airport/baggage-tractor/model.glb
 data/maps/mtl/models/champlain-bridge.glb
+data/vehicle/winter/snowmobile/model.glb
+data/maps/mtl/models/ski-chalet.glb

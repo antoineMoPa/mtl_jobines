@@ -24,8 +24,8 @@ impl View {
         let x = (p.x - self.viewport.left()) / self.viewport.width() * 2. - 1.;
         let y = 1. - (p.y - self.viewport.top()) / self.viewport.height() * 2.;
         let inverse = self.matrix.inverse();
-        let a = inverse * Vec4::new(x, y, 0., 1.);
-        let b = inverse * Vec4::new(x, y, 1., 1.);
+        let a = inverse * Vec4::new(x, y, 1., 1.);
+        let b = inverse * Vec4::new(x, y, 0., 1.);
         let a = a.truncate() / a.w;
         (a, b.truncate() / b.w - a)
     }
