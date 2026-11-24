@@ -96,8 +96,9 @@
     "row_direction": "positive world Y",
     "water_level": 0,
     "width": 1024,
-    "sha256": "a1d4f722ed69acd01ea92f4b275ad199fb30f47fe5e86164c1cd509e3a117ac7",
+    "sha256": "f82db168698912a6a634a57b9e18d8a022cbf7b8903d4bf8ee14406faa2d929e",
     "authored_south_shore": {
+      "extension_note": "The terrain frame was extended 320 pixels (48.05 map units, about 4.8 km) south: origin y -124.84692082, same pixel pitch. Existing samples moved by whole rows; the South Shore land was lengthened to y -99.5.",
       "plateau_height": 0.1,
       "bank_width_map_units": 0.65,
       "note": "Authored gameplay land and sloped coastal bank south of the existing island; not sourced from OSM or a DEM. All original samples outside this addition are retained."

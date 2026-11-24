@@ -1,6 +1,7 @@
 # City coordinates: +X east, +Y north. The airport is west of the island.
 # Existing road IDs are stable references; use coordinates for compass directions.
-elevation_map("elevation.png", -76.8, -76.8, 153.6, 153.6, -0.18, 1.2);
+# The frame extends 48.05 units (4.8 km) further south, in whole pixels, for the South Shore.
+elevation_map("elevation.png", -76.8, -124.84692082, 153.6, 153.6, -0.18, 1.2);
 
 water_level(0);
 
@@ -33,7 +34,7 @@ block terrain_source:
     # Join the mainland bank to the reclaimed airport platform beside the access road.
     airport_bank = land(1, 5.6, 1, -5.6, -7, -5.6, -7, 5.6);
     # South Shore plateau and sloped banks are baked into elevation.png.
-    south_shore_land = land(-0.5, -38, 2.5, -36.4, 7.5, -36.1, 10.5, -36.3, 12, -35.9, 14.5, -36.4, 20.5, -36.8, 26.5, -39, 27.5, -45, 23.5, -49, 3.5, -49, -1.5, -45);
+    south_shore_land = land(-0.5, -38, 2.5, -36.4, 7.5, -36.1, 10.5, -36.3, 12, -35.9, 14.5, -36.4, 20.5, -36.8, 26.5, -39, 27.5, -45, 28.5, -55, 28, -68, 26.5, -80, 24, -91, 18, -98, 9, -99.5, 2.5, -97, -1, -88, -2.5, -75, -2.5, -60, -1.5, -45);
 end
 
 sphere_parking = concrete(-1.425655580, -0.842618636, -1.402087622, -1.637557790, -0.706893084, -1.616947009, -0.730461042, -0.822007856);
@@ -8025,6 +8026,11 @@ elevation(champlain_northbound, 0.2402);
 south_shore_highway_end = map_point(12, -39);
 south_shore_highway_start = map_point(12, -38);
 south_shore_boulevard_end = map_point(12, -47);
+south_shore_node_2 = map_point(12, -57);
+south_shore_node_3 = map_point(12, -67);
+south_shore_node_4 = map_point(12, -77);
+south_shore_node_5 = map_point(12, -87);
+south_shore_node_end = map_point(12, -95);
 south_shore_highway = east_clover_interstate_three_lane(south_shore_highway_end, 12, -38.666666667, 12, -38.333333333, south_shore_highway_start);
 elevation(south_shore_highway, 0.102001);
 south_shore_entry = lane_point(south_shore_highway, 3, 1);
@@ -8036,20 +8042,32 @@ grade(champlain_shore_in, 0.102001, 0.2402);
 south_shore_boulevard = east_clover_interstate_three_lane(south_shore_highway_end, 12, -41.666666667, 12, -44.333333333, south_shore_boulevard_end);
 elevation(south_shore_boulevard, 0.102001);
 
+# The autoroute continues south as a chain of three-lane segments (1 unit = 100 m).
+south_shore_autoroute_1 = east_clover_interstate_three_lane(south_shore_boulevard_end, 12, -50.333333333, 12, -53.666666667, south_shore_node_2);
+elevation(south_shore_autoroute_1, 0.102001);
+south_shore_autoroute_2 = east_clover_interstate_three_lane(south_shore_node_2, 12, -60.333333333, 12, -63.666666667, south_shore_node_3);
+elevation(south_shore_autoroute_2, 0.102001);
+south_shore_autoroute_3 = east_clover_interstate_three_lane(south_shore_node_3, 12, -70.333333333, 12, -73.666666667, south_shore_node_4);
+elevation(south_shore_autoroute_3, 0.102001);
+south_shore_autoroute_4 = east_clover_interstate_three_lane(south_shore_node_4, 12, -80.333333333, 12, -83.666666667, south_shore_node_5);
+elevation(south_shore_autoroute_4, 0.102001);
+south_shore_autoroute_5 = east_clover_interstate_three_lane(south_shore_node_5, 12, -89.666666667, 12, -92.333333333, south_shore_node_end);
+elevation(south_shore_autoroute_5, 0.102001);
+
 # Autoroute end: one U-turn per lane pair (inner, middle, outer) so southbound traffic returns north.
 road south_shore_turnaround_lane:
     carlane;
     direction forward;
 end
-south_shore_turn_in_1 = lane_point(south_shore_boulevard, 5, 1);
-south_shore_turn_out_1 = lane_point(south_shore_boulevard, 3, 1);
-south_shore_turn_in_2 = lane_point(south_shore_boulevard, 6, 1);
-south_shore_turn_out_2 = lane_point(south_shore_boulevard, 2, 1);
-south_shore_turn_in_3 = lane_point(south_shore_boulevard, 7, 1);
-south_shore_turn_out_3 = lane_point(south_shore_boulevard, 1, 1);
-south_shore_turn_inner = south_shore_turnaround_lane(south_shore_turn_in_1, 11.965, -47.12, 12.035, -47.12, south_shore_turn_out_1);
-south_shore_turn_middle = south_shore_turnaround_lane(south_shore_turn_in_2, 11.8975, -47.16, 12.1025, -47.16, south_shore_turn_out_2);
-south_shore_turn_outer = south_shore_turnaround_lane(south_shore_turn_in_3, 11.83, -47.2, 12.17, -47.2, south_shore_turn_out_3);
+south_shore_turn_in_1 = lane_point(south_shore_autoroute_5, 5, 1);
+south_shore_turn_out_1 = lane_point(south_shore_autoroute_5, 3, 1);
+south_shore_turn_in_2 = lane_point(south_shore_autoroute_5, 6, 1);
+south_shore_turn_out_2 = lane_point(south_shore_autoroute_5, 2, 1);
+south_shore_turn_in_3 = lane_point(south_shore_autoroute_5, 7, 1);
+south_shore_turn_out_3 = lane_point(south_shore_autoroute_5, 1, 1);
+south_shore_turn_inner = south_shore_turnaround_lane(south_shore_turn_in_1, 11.965, -95.12, 12.035, -95.12, south_shore_turn_out_1);
+south_shore_turn_middle = south_shore_turnaround_lane(south_shore_turn_in_2, 11.8975, -95.16, 12.1025, -95.16, south_shore_turn_out_2);
+south_shore_turn_outer = south_shore_turnaround_lane(south_shore_turn_in_3, 11.83, -95.2, 12.17, -95.2, south_shore_turn_out_3);
 elevation(south_shore_turn_inner, 0.102001);
 elevation(south_shore_turn_middle, 0.102001);
 elevation(south_shore_turn_outer, 0.102001);

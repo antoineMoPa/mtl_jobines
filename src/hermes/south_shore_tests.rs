@@ -186,3 +186,42 @@ fn imported_champlain_fits_the_pavement_and_leaves_structural_strips_clear() {
         }
     }
 }
+
+#[test]
+fn south_shore_autoroute_runs_five_kilometres_over_dry_land_and_routes_back() {
+    let base = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl");
+    let program = opencity::parse(include_str!("../../data/maps/mtl/map.road")).unwrap();
+    let city = City::from_program(&program, Some(&base)).unwrap();
+    let router = Router::new(&city, &program);
+    // Dry, level ground under the whole autoroute, from the landing to the turnaround.
+    for y in (-95..=-40).map(|y| y as f32) {
+        for x in [11.5, 12., 12.5] {
+            let surface = city.surface_at([x, y], 1.).unwrap();
+            assert!(surface.height > 0.0, "autoroute is wet at ({x}, {y})");
+        }
+    }
+    // The previous 4.8 km of frame is open water except the South Shore.
+    let sea = city.surface_at([40., -80.], 1.).unwrap();
+    assert_eq!(sea.kind, SurfaceKind::Water);
+    let city_side = Vec3::new(12., -25.4, 0.102001);
+    let far_end = Vec3::new(12., -90., 0.102001);
+    assert!(
+        router.can_route(city_side, far_end),
+        "no route to the far end"
+    );
+    assert!(
+        router.can_route(far_end, city_side),
+        "no route back from the far end"
+    );
+    let road = city
+        .roads
+        .iter()
+        .filter(|r| {
+            r.segment
+                .name
+                .as_deref()
+                .is_some_and(|n| n.starts_with("south_shore_autoroute_"))
+        })
+        .count();
+    assert_eq!(road, 5);
+}
