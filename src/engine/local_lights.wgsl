@@ -8,6 +8,12 @@ struct LightGrid {
     origin:vec4<f32>, lights:array<LocalLight,128>, cells:array<vec4<u32>,256>, wakes:array<Wake,32>, hulls:array<Waterline,8>,
 };
 @group(0) @binding(1) var<uniform> light_grid:LightGrid;
+// WebGL 2's GLSL ES 3.00 has no findLSB. Call only with a nonzero mask.
+fn light_bit_index(mask:u32)->u32 {
+    var bits=mask;var index=0u;
+    while (bits&1u)==0u {bits=bits>>1u;index++;}
+    return index;
+}
 fn local_irradiance(world:vec3<f32>,normal:vec3<f32>)->vec3<f32> {
     let night=1.0-clamp(camera.daylight_sky.x,0.0,1.0);
     let cell=vec2<i32>(floor((world.xy-light_grid.origin.xy)*light_grid.origin.z));
@@ -17,7 +23,7 @@ fn local_irradiance(world:vec3<f32>,normal:vec3<f32>)->vec3<f32> {
     for(var word=0u;word<4u;word++) {
         var bits=masks[word];
         while bits!=0u {
-            let index=word*32u+firstTrailingBit(bits);
+            let index=word*32u+light_bit_index(bits);
             bits=bits&(bits-1u);
             let light=light_grid.lights[index];
             let delta=light.position_range.xyz-world;

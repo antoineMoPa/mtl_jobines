@@ -38,7 +38,7 @@
     canvas.addEventListener('pointerdown', () => canvas.focus());
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     try {
-      const game = await import('./pkg/mtl_jobines.js');
+      const game = await import(new URL('./pkg/mtl_jobines.js', document.baseURI).href);
       const { default: init, start, asset_paths, install_asset, install_assets, discard_pending_assets } = game;
       await init();
       const paths = asset_paths().trim().split('\n');

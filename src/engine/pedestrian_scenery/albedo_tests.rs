@@ -51,11 +51,9 @@ fn native_player_outfits_front_and_back() {
             scenery.models[index].transforms.push(columns);
             let model = &mut scenery.models[index];
             renderer.update_instances(&mut model.mesh, &model.transforms);
-            renderer.queue.write_buffer(
-                &renderer.pedestrians.poses,
-                0,
-                bytemuck::cast_slice(&scenery.poses),
-            );
+            renderer
+                .pedestrians
+                .upload_poses(&renderer.queue, &scenery.poses);
             for (view, direction) in [("front", 1.), ("back", -1.)] {
                 let png = renderer
                     .report_screenshot(

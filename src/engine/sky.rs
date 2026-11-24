@@ -230,7 +230,7 @@ impl Sky {
 }
 const DEFAULT_SHADER: &str = "
 fn owe_skydome(input: SkydomeInput) -> vec3<f32> {
-    return mix(input.sky, input.panorama.rgb, select(0.0, input.panorama.a, custom_panorama != 0u));
+    return mix(input.sky, input.panorama.rgb, select(0.0, input.panorama.a, custom_panorama.x != 0u));
 }";
 
 fn background_source(hook: &str) -> String {

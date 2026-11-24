@@ -103,7 +103,7 @@ pub(super) fn create(
     });
     let mode = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("custom skydome panorama"),
-        contents: bytemuck::bytes_of(&u32::from(custom)),
+        contents: bytemuck::bytes_of(&[u32::from(custom), 0, 0, 0]),
         usage: wgpu::BufferUsages::UNIFORM,
     });
     let group = device.create_bind_group(&wgpu::BindGroupDescriptor {

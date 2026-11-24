@@ -43,6 +43,19 @@ pub(super) fn shader() -> String {
         include_str!("model_textures.wgsl")
     )
 }
+pub(super) fn shader_for_device(device: &wgpu::Device) -> String {
+    let source = shader();
+    if device.limits().max_storage_buffers_per_shader_stage == 0 {
+        // Bone textures need a texture unit on WebGL. Omit the optional debris
+        // atlas to keep the combined vertex/fragment layout within 16 units.
+        source.replace(
+            "textureSampleLevel(contact_atlas,contact_sampler,uv/scale,lod)",
+            "vec4<f32>(0.0)",
+        )
+    } else {
+        source.replace("light_bit_index(bits)", "firstTrailingBit(bits)")
+    }
+}
 impl Commerce {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, montreal_actors: bool) -> Self {
         let texture = |label, width, height, layers| {

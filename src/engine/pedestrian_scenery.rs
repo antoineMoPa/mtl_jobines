@@ -11,9 +11,55 @@ const POSE_CAPACITY: usize = (crate::dynamic_world::PEDESTRIAN_CAPACITY
     + super::fabula::staging::EXTRA_ACTORS)
     * JOINT_LIMIT;
 pub(super) struct Resources {
-    pub poses: wgpu::Buffer,
+    poses: Poses,
     texture: wgpu::TextureView,
     sampler: wgpu::Sampler,
+}
+enum Poses {
+    Buffer(wgpu::Buffer),
+    Texture(wgpu::Texture, wgpu::TextureView),
+}
+// A row holds one actor's bone palette. WebGL 2 has vertex texture reads,
+// but no storage buffers. Keep the same matrix indexing on both backends.
+const POSE_WIDTH: u32 = JOINT_LIMIT as u32 * 4;
+pub(super) fn shader(device: &wgpu::Device) -> String {
+    shader_for_storage(device.limits().max_storage_buffers_per_shader_stage > 0)
+}
+pub(super) fn shader_for_storage(storage: bool) -> String {
+    let source = include_str!("pedestrian.wgsl");
+    if storage {
+        return source.to_owned();
+    }
+    let texture_source = format!("const POSE_JOINTS: u32 = {JOINT_LIMIT}u;\n");
+    texture_source
+        + &source
+            .replace(
+                "@group(0) @binding(2) var<storage,read> pedestrian_poses: array<mat4x4<f32>>;",
+                "@group(0) @binding(2) var pedestrian_poses: texture_2d<f32>;\n\
+         fn pedestrian_pose(index: u32) -> mat4x4<f32> {\n\
+             let p = vec2<i32>(i32(index % POSE_JOINTS) * 4, i32(index / POSE_JOINTS));\n\
+             return mat4x4<f32>(textureLoad(pedestrian_poses,p,0),\n\
+                 textureLoad(pedestrian_poses,p+vec2<i32>(1,0),0),\n\
+                 textureLoad(pedestrian_poses,p+vec2<i32>(2,0),0),\n\
+                 textureLoad(pedestrian_poses,p+vec2<i32>(3,0),0));\n\
+         }",
+            )
+            .replace(
+                "pedestrian_poses[base+skin.joints.x]",
+                "pedestrian_pose(base+skin.joints.x)",
+            )
+            .replace(
+                "pedestrian_poses[base+skin.joints.y]",
+                "pedestrian_pose(base+skin.joints.y)",
+            )
+            .replace(
+                "pedestrian_poses[base+skin.joints.z]",
+                "pedestrian_pose(base+skin.joints.z)",
+            )
+            .replace(
+                "pedestrian_poses[base+skin.joints.w]",
+                "pedestrian_pose(base+skin.joints.w)",
+            )
 }
 impl Resources {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, montreal_actors: bool) -> Self {
@@ -27,26 +73,58 @@ impl Resources {
             queue,
             models.iter().map(|d| d.texture_png.as_slice()),
         );
-        let poses = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("pedestrian bone palettes"),
-            contents: bytemuck::cast_slice(&vec![Mat4::IDENTITY.to_cols_array_2d(); POSE_CAPACITY]),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
+        let poses = if device.limits().max_storage_buffers_per_shader_stage == 0 {
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("pedestrian bone palettes"),
+                size: wgpu::Extent3d {
+                    width: POSE_WIDTH,
+                    height: POSE_CAPACITY.div_ceil(JOINT_LIMIT) as u32,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba32Float,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            let view = texture.create_view(&Default::default());
+            Poses::Texture(texture, view)
+        } else {
+            Poses::Buffer(
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("pedestrian bone palettes"),
+                    contents: bytemuck::cast_slice(&vec![
+                        Mat4::IDENTITY.to_cols_array_2d();
+                        POSE_CAPACITY
+                    ]),
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                }),
+            )
+        };
         Self {
             poses,
             texture,
             sampler,
         }
     }
-    pub fn layout() -> [wgpu::BindGroupLayoutEntry; 3] {
+    pub fn layout(device: &wgpu::Device) -> [wgpu::BindGroupLayoutEntry; 3] {
         [
             wgpu::BindGroupLayoutEntry {
                 binding: 2,
                 visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+                ty: if device.limits().max_storage_buffers_per_shader_stage == 0 {
+                    wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    }
+                } else {
+                    wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    }
                 },
                 count: None,
             },
@@ -72,7 +150,10 @@ impl Resources {
         [
             wgpu::BindGroupEntry {
                 binding: 2,
-                resource: self.poses.as_entire_binding(),
+                resource: match &self.poses {
+                    Poses::Buffer(buffer) => buffer.as_entire_binding(),
+                    Poses::Texture(_, view) => wgpu::BindingResource::TextureView(view),
+                },
             },
             wgpu::BindGroupEntry {
                 binding: 3,
@@ -83,6 +164,30 @@ impl Resources {
                 resource: wgpu::BindingResource::Sampler(&self.sampler),
             },
         ]
+    }
+    pub fn upload_poses(&self, queue: &wgpu::Queue, poses: &[[[f32; 4]; 4]]) {
+        if poses.is_empty() {
+            return;
+        }
+        assert!(poses.len() <= POSE_CAPACITY && poses.len() % JOINT_LIMIT == 0);
+        let bytes = bytemuck::cast_slice(poses);
+        match &self.poses {
+            Poses::Buffer(buffer) => queue.write_buffer(buffer, 0, bytes),
+            Poses::Texture(texture, _) => queue.write_texture(
+                texture.as_image_copy(),
+                bytes,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(POSE_WIDTH * 16),
+                    rows_per_image: None,
+                },
+                wgpu::Extent3d {
+                    width: POSE_WIDTH,
+                    height: (poses.len() / JOINT_LIMIT) as u32,
+                    depth_or_array_layers: 1,
+                },
+            ),
+        }
     }
 }
 struct Model {
@@ -190,13 +295,9 @@ impl PedestrianScenery {
                 );
             }
         }
-        if !self.poses.is_empty() {
-            renderer.queue.write_buffer(
-                &renderer.pedestrians.poses,
-                0,
-                bytemuck::cast_slice(&self.poses),
-            );
-        }
+        renderer
+            .pedestrians
+            .upload_poses(&renderer.queue, &self.poses);
         for model in &mut self.models {
             renderer.update_instances(&mut model.mesh, &model.transforms);
         }

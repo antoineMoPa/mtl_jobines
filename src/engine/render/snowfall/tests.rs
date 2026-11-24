@@ -36,7 +36,7 @@ mod native {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
-        r.snowfall.prepare(
+        r.snowfall.as_ref().unwrap().prepare(
             &r.queue,
             r.view_projection(eye, look),
             eye,
@@ -90,7 +90,7 @@ mod native {
                 1.,
             );
             pass.set_scissor_rect(0, 0, r.config.width, r.scene_height());
-            r.snowfall.draw(&mut pass);
+            r.snowfall.as_ref().unwrap().draw(&mut pass);
         }
         r.queue.submit(Some(encoder.finish()));
         let pixels = r.rgba_pixels(&texture).unwrap();

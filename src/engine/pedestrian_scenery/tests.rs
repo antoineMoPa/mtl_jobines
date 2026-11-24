@@ -287,11 +287,9 @@ fn native_pedestrian_skins_textures_and_independent_poses() {
             model.transforms.push(columns);
             renderer.update_instances(&mut model.mesh, &model.transforms);
         }
-        renderer.queue.write_buffer(
-            &renderer.pedestrians.poses,
-            0,
-            bytemuck::cast_slice(&scenery.poses),
-        );
+        renderer
+            .pedestrians
+            .upload_poses(&renderer.queue, &scenery.poses);
         let meshes: Vec<_> = scenery.visible().collect();
         assert_eq!(meshes.len(), pedestrian_catalog::definitions().len());
         let png = renderer
@@ -471,11 +469,9 @@ fn native_ik_gait_six_rigs_and_rear_foot_placement() {
                 .extend(gait.palette.map(|m| m.to_cols_array_2d()));
             renderer.update_instances(&mut model.mesh, &model.transforms);
         }
-        renderer.queue.write_buffer(
-            &renderer.pedestrians.poses,
-            0,
-            bytemuck::cast_slice(&scenery.poses),
-        );
+        renderer
+            .pedestrians
+            .upload_poses(&renderer.queue, &scenery.poses);
         let eye = Vec3::new(0., if rear { 0.15 } else { -0.15 }, 0.035);
         let png = renderer
             .report_screenshot(

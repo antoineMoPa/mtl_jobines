@@ -190,7 +190,7 @@ pub(super) fn pipeline(
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("static textured models"),
-        source: wgpu::ShaderSource::Wgsl(super::commerce::shader().into()),
+        source: wgpu::ShaderSource::Wgsl(super::commerce::shader_for_device(device).into()),
     });
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("static models within default texture limits"),

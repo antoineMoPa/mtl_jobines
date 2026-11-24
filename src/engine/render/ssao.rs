@@ -1,6 +1,25 @@
 //! Half-resolution depth AO, followed by depth-aware upsampling before the HUD.
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
+
+pub(super) fn passthrough(device: &wgpu::Device) -> bool {
+    if device.limits().max_storage_buffers_per_shader_stage == 0 {
+        return true;
+    }
+    #[cfg(target_arch = "wasm32")]
+    if web_sys::window()
+        .and_then(|window| {
+            window
+                .match_media("(max-width: 600px), (max-width: 1024px) and (max-height: 600px)")
+                .ok()
+                .flatten()
+        })
+        .is_some_and(|query| query.matches())
+    {
+        return true;
+    }
+    false
+}
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Settings {
@@ -13,6 +32,14 @@ struct Settings {
 }
 pub(super) struct Ssao {
     pub scene: wgpu::TextureView,
+    format: wgpu::TextureFormat,
+    mode: Mode,
+}
+enum Mode {
+    Depth(Box<Effects>),
+    Passthrough(Passthrough),
+}
+struct Effects {
     ao: wgpu::TextureView,
     uniform: wgpu::Buffer,
     ao_layout: wgpu::BindGroupLayout,
@@ -21,7 +48,82 @@ pub(super) struct Ssao {
     composite_group: wgpu::BindGroup,
     ao_pipeline: wgpu::RenderPipeline,
     composite_pipeline: wgpu::RenderPipeline,
-    format: wgpu::TextureFormat,
+}
+struct Passthrough {
+    layout: wgpu::BindGroupLayout,
+    group: wgpu::BindGroup,
+    pipeline: wgpu::RenderPipeline,
+}
+impl Passthrough {
+    fn group(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        scene: &wgpu::TextureView,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("passthrough scene"),
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(scene),
+            }],
+        })
+    }
+    fn new(device: &wgpu::Device, format: wgpu::TextureFormat, scene: &wgpu::TextureView) -> Self {
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("passthrough"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            }],
+        });
+        let group = Self::group(device, &layout, scene);
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("passthrough"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("passthrough.wgsl").into()),
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("passthrough"),
+            bind_group_layouts: &[Some(&layout)],
+            immediate_size: 0,
+        });
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("passthrough"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: Default::default(),
+            depth_stencil: None,
+            multisample: Default::default(),
+            multiview_mask: None,
+            cache: None,
+        });
+        Self {
+            layout,
+            group,
+            pipeline,
+        }
+    }
 }
 fn layout(device: &wgpu::Device, composite: bool, samples: u32) -> wgpu::BindGroupLayout {
     let mut entries = vec![
@@ -97,6 +199,17 @@ impl Ssao {
         depth: &wgpu::TextureView,
         samples: u32,
     ) -> Self {
+        let scene = texture(device, width, height, format);
+        // Storage buffers are absent on WebGL. Its compatibility mode also
+        // avoids depth reads and float render targets in screen-space effects.
+        if passthrough(device) {
+            let passthrough = Passthrough::new(device, format, &scene);
+            return Self {
+                scene,
+                format,
+                mode: Mode::Passthrough(passthrough),
+            };
+        }
         let ao_layout = layout(device, false, samples);
         let composite_layout = layout(device, true, samples);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -145,7 +258,6 @@ impl Ssao {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let scene = texture(device, width, height, format);
         let ao = texture(
             device,
             width.div_ceil(2),
@@ -163,15 +275,17 @@ impl Ssao {
         );
         Self {
             scene,
-            ao,
-            uniform,
-            ao_layout,
-            composite_layout,
-            ao_group,
-            composite_group,
-            ao_pipeline,
-            composite_pipeline,
             format,
+            mode: Mode::Depth(Box::new(Effects {
+                ao,
+                uniform,
+                ao_layout,
+                composite_layout,
+                ao_group,
+                composite_group,
+                ao_pipeline,
+                composite_pipeline,
+            })),
         }
     }
     fn groups(
@@ -223,20 +337,27 @@ impl Ssao {
         depth: &wgpu::TextureView,
     ) {
         self.scene = texture(device, width, height, self.format);
-        self.ao = texture(
+        let effects = match &mut self.mode {
+            Mode::Passthrough(passthrough) => {
+                passthrough.group = Passthrough::group(device, &passthrough.layout, &self.scene);
+                return;
+            }
+            Mode::Depth(effects) => effects,
+        };
+        effects.ao = texture(
             device,
             width.div_ceil(2),
             height.div_ceil(2),
             wgpu::TextureFormat::Rg16Float,
         );
-        (self.ao_group, self.composite_group) = Self::groups(
+        (effects.ao_group, effects.composite_group) = Self::groups(
             device,
-            &self.uniform,
-            &self.ao_layout,
-            &self.composite_layout,
+            &effects.uniform,
+            &effects.ao_layout,
+            &effects.composite_layout,
             depth,
             &self.scene,
-            &self.ao,
+            &effects.ao,
         );
     }
     pub fn draw(
@@ -257,6 +378,33 @@ impl Ssao {
         ao_timestamp: Option<wgpu::RenderPassTimestampWrites<'_>>,
         timestamp: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
+        if let Mode::Passthrough(passthrough) = &self.mode {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("passthrough"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: timestamp,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_viewport(0., 0., width as f32, height as f32, 0., 1.);
+            pass.set_scissor_rect(0, 0, width, height);
+            pass.set_pipeline(&passthrough.pipeline);
+            pass.set_bind_group(0, &passthrough.group, &[]);
+            pass.draw(0..3, 0..1);
+            return;
+        }
+        let Mode::Depth(effects) = &self.mode else {
+            unreachable!()
+        };
         let data = Settings {
             inverse: matrix.inverse().to_cols_array_2d(),
             eye_radius: [eye.x, eye.y, eye.z, 0.015],
@@ -269,13 +417,13 @@ impl Ssao {
             tuning: [0.00012, 1.8, f32::from(enabled), f32::from(zombie_mode)],
             weather,
         };
-        queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
+        queue.write_buffer(&effects.uniform, 0, bytemuck::bytes_of(&data));
         {
             let _span = mtl_world::telemetry::span("render.encode.ambient_occlusion");
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("half-resolution ambient occlusion"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.ao,
+                    view: &effects.ao,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
@@ -297,8 +445,8 @@ impl Ssao {
                 1.,
             );
             pass.set_scissor_rect(0, 0, width.div_ceil(2), height.div_ceil(2));
-            pass.set_pipeline(&self.ao_pipeline);
-            pass.set_bind_group(0, &self.ao_group, &[]);
+            pass.set_pipeline(&effects.ao_pipeline);
+            pass.set_bind_group(0, &effects.ao_group, &[]);
             pass.draw(0..3, 0..1);
         }
         let _span = mtl_world::telemetry::span("render.encode.composite");
@@ -320,8 +468,8 @@ impl Ssao {
         });
         pass.set_viewport(0., 0., width as f32, height as f32, 0., 1.);
         pass.set_scissor_rect(0, 0, width, height);
-        pass.set_pipeline(&self.composite_pipeline);
-        pass.set_bind_group(0, &self.composite_group, &[]);
+        pass.set_pipeline(&effects.composite_pipeline);
+        pass.set_bind_group(0, &effects.composite_group, &[]);
         pass.draw(0..3, 0..1);
         if let Some(snowfall) = snowfall {
             let _span = mtl_world::telemetry::span("render.encode.snowfall");

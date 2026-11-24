@@ -9,7 +9,7 @@ struct Camera {
 @group(1) @binding(1) var sky_sampler: sampler;
 @group(2) @binding(0) var panorama: texture_2d<f32>;
 @group(2) @binding(1) var panorama_sampler: sampler;
-@group(2) @binding(2) var<uniform> custom_panorama: u32;
+@group(2) @binding(2) var<uniform> custom_panorama: vec4<u32>;
 struct SkydomeInput {
     direction: vec3<f32>,
     uv: vec2<f32>,
@@ -34,7 +34,7 @@ struct Ray { @builtin(position) clip: vec4<f32>, @location(0) ray: vec3<f32> };
     let texel = textureSampleLevel(panorama, panorama_sampler, uv, 0.0);
     let daylight = clamp(camera.daylight_sky.x, 0.0, 1.0);
     // Fade the source's landscape strip and converge cleanly at the dome pole.
-    let coverage = select(mix(texel.g, texel.r, daylight), 0.0, custom_panorama != 0u)
+    let coverage = select(mix(texel.g, texel.r, daylight), 0.0, custom_panorama.x != 0u)
         * smoothstep(0.015, 0.08, elevation)
         * (1.0 - smoothstep(1.25, 1.55, elevation));
     let sunward = pow(max(dot(ray, camera.sun_exposure.xyz), 0.0), 8.0);

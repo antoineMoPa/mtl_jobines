@@ -101,7 +101,7 @@ pub struct Renderer {
     pub(super) contact_debris: bool,
     contact_texture: super::contact_texture::ContactTexture,
     ssao: ssao::Ssao,
-    snowfall: snowfall::Snowfall,
+    snowfall: Option<snowfall::Snowfall>,
     pub(super) mission_markers: mission_markers::MissionMarkers,
     pipeline: wgpu::RenderPipeline,
     ribbons: projected_grass::Ribbons,
@@ -262,7 +262,7 @@ fn world_pipelines(
         source: wgpu::ShaderSource::Wgsl(
             format!(
                 "{}\n{}",
-                super::commerce::shader(),
+                super::commerce::shader_for_device(device),
                 format!(
                     "{}\n{}",
                     include_str!("vehicle.wgsl"),
@@ -497,6 +497,9 @@ impl Renderer {
             }
             None => wgpu::InstanceDescriptor::new_without_display_handle(),
         };
+        #[cfg(target_arch = "wasm32")]
+        let instance = wgpu::util::new_instance_with_webgpu_detection(descriptor).await;
+        #[cfg(not(target_arch = "wasm32"))]
         let instance = wgpu::Instance::new(descriptor);
         let surface = window
             .map(|w| instance.create_surface(w).map_err(|e| e.to_string()))
@@ -511,6 +514,22 @@ impl Renderer {
             .await
             .map_err(|e| e.to_string())?;
         let adapter_name = adapter.get_info().name;
+        #[cfg(target_arch = "wasm32")]
+        if let Some(canvas) = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.get_element_by_id("game"))
+        {
+            canvas
+                .set_attribute(
+                    "data-renderer",
+                    if adapter.get_info().backend == wgpu::Backend::Gl {
+                        "webgl"
+                    } else {
+                        "webgpu"
+                    },
+                )
+                .ok();
+        }
         #[cfg(not(target_arch = "wasm32"))]
         let profile = std::env::args().any(|arg| arg == "--profile" || arg == "--profile-120");
         #[cfg(target_arch = "wasm32")]
@@ -616,6 +635,9 @@ impl Renderer {
         shadow_entries.extend(super::contact_texture::ContactTexture::layout(2));
         shadow_entries.extend(opencity::runtime::surface_materials::SurfaceTextures::layout(8));
         shadow_entries.extend(super::snow::Snow::layout());
+        if device.limits().max_storage_buffers_per_shader_stage == 0 {
+            shadow_entries.retain(|entry| entry.binding != 2);
+        }
         let shadow_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("shadow layout"),
             entries: &shadow_entries,
@@ -675,6 +697,9 @@ impl Renderer {
         shadow_bindings.extend(contact_texture.entries(2));
         shadow_bindings.extend(pavement.entries(8));
         shadow_bindings.extend(snow.entries());
+        if device.limits().max_storage_buffers_per_shader_stage == 0 {
+            shadow_bindings.retain(|entry| entry.binding != 2);
+        }
         let shadow_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("sun shadow"),
             layout: &shadow_layout,
@@ -710,7 +735,8 @@ impl Renderer {
             &depth,
             samples,
         );
-        let snowfall = snowfall::Snowfall::new(&device, format, &depth, &snow, samples);
+        let snowfall = (!ssao::passthrough(&device))
+            .then(|| snowfall::Snowfall::new(&device, format, &depth, &snow, samples));
         let mission_markers = mission_markers::MissionMarkers::new(&device, format, samples);
         let hud = Hud::new(&device, format);
         #[cfg(not(target_arch = "wasm32"))]
@@ -798,7 +824,13 @@ impl Renderer {
         self.samples > 1
     }
     pub fn set_antialiasing(&mut self, enabled: bool) {
-        let samples = if enabled { 4 } else { 1 };
+        // WebGL cannot sample multisampled depth textures. Keep its scene
+        // targets single-sampled even when the settings toggle requests MSAA.
+        let samples = if enabled && self.device.limits().max_storage_buffers_per_shader_stage > 0 {
+            4
+        } else {
+            1
+        };
         if samples == self.samples {
             return;
         }
@@ -859,8 +891,9 @@ impl Renderer {
             &self.depth,
             samples,
         );
-        self.snowfall =
-            snowfall::Snowfall::new(&self.device, format, &self.depth, &self.snow, samples);
+        self.snowfall = (!ssao::passthrough(&self.device)).then(|| {
+            snowfall::Snowfall::new(&self.device, format, &self.depth, &self.snow, samples)
+        });
         self.mission_markers = mission_markers::MissionMarkers::new(&self.device, format, samples);
     }
     pub fn recreate_surface(&mut self, window: Arc<Window>) -> Result<(), String> {
@@ -901,7 +934,9 @@ impl Renderer {
             samples,
         );
         self.ssao.resize(&self.device, width, height, &self.depth);
-        self.snowfall.resize(&self.device, &self.depth);
+        if let Some(snowfall) = &mut self.snowfall {
+            snowfall.resize(&self.device, &self.depth);
+        }
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn sky_update_count(&self) -> u64 {
@@ -1521,8 +1556,8 @@ impl Renderer {
         let winter = self.season == crate::season::Season::Winter
             && self.winter_weather
             && self.construction_span.is_none();
-        if winter {
-            self.snowfall.prepare(
+        if let Some(snowfall) = self.snowfall.as_ref().filter(|_| winter) {
+            snowfall.prepare(
                 &self.queue,
                 view,
                 eye,
@@ -1548,7 +1583,7 @@ impl Renderer {
                 && self.retro_lens == 0.,
             self.flight_visibility.recip(),
             [time, f32::from(winter), lighting.daylight, self.retro_lens],
-            winter.then_some(&self.snowfall),
+            self.snowfall.as_ref().filter(|_| winter),
             gpu.map(|g| g.pass(Pass::Occlusion)),
             self.gpu_profile
                 .as_ref()
@@ -1795,16 +1830,20 @@ mod tests {
     }
     #[test]
     fn shader_validates() {
-        let source = format!(
-            "{}\n{}",
-            super::super::commerce::shader(),
+        let world_sources = [true, false].map(|storage| {
             format!(
-                "{}\n{}",
+                "{}\n{}\n{}",
+                super::super::commerce::shader(),
                 include_str!("vehicle.wgsl"),
-                include_str!("pedestrian.wgsl")
+                super::super::pedestrian_scenery::shader_for_storage(storage),
             )
-        );
-        for source in [source.as_str(), opencity::runtime::EDITOR_SHADER] {
+        });
+        for source in [
+            world_sources[0].as_str(),
+            world_sources[1].as_str(),
+            opencity::runtime::EDITOR_SHADER,
+            include_str!("render/passthrough.wgsl"),
+        ] {
             let module = naga::front::wgsl::parse_str(source).unwrap();
             naga::valid::Validator::new(
                 naga::valid::ValidationFlags::all(),

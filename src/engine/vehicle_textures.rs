@@ -50,7 +50,19 @@ pub(super) fn upload_pngs<'a>(
         size: wgpu::Extent3d {
             width,
             height,
-            depth_or_array_layers: images.len().max(1) as u32,
+            depth_or_array_layers: {
+                let count = images.len().max(1) as u32;
+                if device.limits().max_storage_buffers_per_shader_stage == 0 {
+                    // Force a 2D array rather than wgpu GL's D2/cube heuristic.
+                    if count == 1 || count % 6 == 0 {
+                        count + 1
+                    } else {
+                        count
+                    }
+                } else {
+                    count
+                }
+            },
         },
         mip_level_count: mip_levels,
         sample_count: 1,

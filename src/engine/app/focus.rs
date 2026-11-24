@@ -53,6 +53,22 @@ impl Game {
                 }
             }
             WindowEvent::Focused(false) => {
+                // winit watches the canvas, while the web game also owns DOM
+                // touch controls. A canvas blur inside the focused page is
+                // not the application losing focus (notably on Safari).
+                #[cfg(target_arch = "wasm32")]
+                if web_sys::window()
+                    .and_then(|window| window.document())
+                    .is_some_and(|document| {
+                        !document.hidden() && document.has_focus().unwrap_or(false)
+                    })
+                {
+                    self.keys.clear();
+                    self.mobile.clear();
+                    self.stop_orbit_drag();
+                    self.reset_frame_timing();
+                    return true;
+                }
                 self.kairos.save_now();
                 self.window_focus_lost();
             }
