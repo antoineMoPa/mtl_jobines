@@ -1,4 +1,4 @@
-.PHONY: all build serve editor web-check web-project web-deploy
+.PHONY: all build serve editor web-check web-project web-deploy test-web test-web-only
 
 PORT ?= 8878
 
@@ -12,6 +12,13 @@ serve:
 
 editor:
 	OPENCITY_LAUNCH_ACTION="$(CURDIR)/opencity-launch.json" cargo editor
+
+# Build the web game, then load it in Chrome (Playwright) and check that all
+# shaders compile and the first frame renders. Use test-web-only to reuse web/dist.
+test-web: build test-web-only
+
+test-web-only:
+	tests/web/run.sh
 
 web-check:
 	cargo xtask web-check
