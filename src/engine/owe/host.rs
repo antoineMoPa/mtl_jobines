@@ -100,7 +100,9 @@ impl Host {
         let now = Instant::now();
         let elapsed = (now - self.last).as_secs_f32().min(0.12);
         self.last = now;
-        let steps = crate::engine::frame_rate::physics_steps(&mut self.accumulator, elapsed, DT);
+        // Scripts assume a fixed tick, so coarser steps are not used here.
+        let (steps, _) =
+            crate::engine::frame_rate::physics_steps(&mut self.accumulator, elapsed, DT);
         {
             let mut w = self.world.borrow_mut();
             w.steps_left = steps;

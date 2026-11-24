@@ -565,7 +565,7 @@ impl Game {
         {
             self.abandon_mission();
         }
-        let steps = super::frame_rate::physics_steps(&mut self.accumulator, elapsed, DT);
+        let (steps, step_dt) = super::frame_rate::physics_steps(&mut self.accumulator, elapsed, DT);
         self.game_time += elapsed;
         self.loadout.advance(self.game_time);
         self.loadout.effects.step(elapsed.min(0.1));
@@ -616,19 +616,19 @@ impl Game {
                 walk.aim_move = Some(
                     (forward * walk.forward + forward.perp() * walk.turn).clamp_length_max(1.),
                 );
-                walk.turn = (self.orbit / (WALK_TURN_SPEED * DT)).clamp(-1., 1.);
+                walk.turn = (self.orbit / (WALK_TURN_SPEED * step_dt)).clamp(-1., 1.);
             } else if !self.world.is_driving() && !turn_key_held {
                 let step_turn = self
                     .orbit
-                    .clamp(-WALK_TURN_SPEED * DT, WALK_TURN_SPEED * DT);
-                walk.turn = step_turn / (WALK_TURN_SPEED * DT);
+                    .clamp(-WALK_TURN_SPEED * step_dt, WALK_TURN_SPEED * step_dt);
+                walk.turn = step_turn / (WALK_TURN_SPEED * step_dt);
                 self.orbit -= step_turn;
             }
             let mut driving = input;
             if let Some(drive) = &mut self.auto_drive {
                 let position = self.world.player_position() / METERS_PER_UNIT;
                 self.hermes.update_navigation(position.to_array());
-                match drive.step(&mut self.world, &self.hermes, DT) {
+                match drive.step(&mut self.world, &self.hermes, step_dt) {
                     DriveStep::Apply(controls) => driving = controls,
                     DriveStep::Finished => self.auto_drive = None,
                     DriveStep::Blocked => {
@@ -638,7 +638,7 @@ impl Game {
                     }
                 }
             }
-            self.world.step(&self.hermes, driving, walk, DT);
+            self.world.step(&self.hermes, driving, walk, step_dt);
             for hit in self.world.drain_player_tire_pops() {
                 self.loadout.effects.tire_pop(hit.point, hit.normal);
             }
