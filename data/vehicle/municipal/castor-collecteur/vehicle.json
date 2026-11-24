@@ -45,10 +45,10 @@
   "roadVehicle": true,
   "schemaVersion": 1,
   "sound": {
-    "bodyGain": 0.65,
+    "bodyGain": 0.5,
     "engine": "diesel",
-    "engineGain": 2.2,
-    "exhaustGain": 0.95,
+    "engineGain": 1.3,
+    "exhaustGain": 0.7,
     "finalDrive": 5,
     "firingOrder": 3,
     "gearRatios": [
@@ -67,10 +67,10 @@
       "gain": 1,
       "kind": "air"
     },
-    "idleRpm": 520,
-    "machineryGain": 0.45,
-    "mufflerHz": 360,
+    "idleRpm": 600,
+    "machineryGain": 0.22,
+    "mufflerHz": 280,
     "redlineRpm": 2100,
-    "roughness": 0.85
+    "roughness": 0.45
   }
 }
