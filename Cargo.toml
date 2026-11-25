@@ -16,6 +16,10 @@ resolver = "2"
 # The web build explicitly requests cdylib output with cargo rustc.
 crate-type = ["rlib"]
 
+[features]
+# Diagnostic counters only; default builds keep the standard allocator.
+memory-profile = ["mtl_world/memory-profile"]
+
 [dependencies]
 mtl_world = { path = "crates/mtl_world" }
 earcutr = "0.5"

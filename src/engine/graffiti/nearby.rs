@@ -177,6 +177,11 @@ pub(in crate::engine) struct Nearby {
     active: usize,
 }
 impl Nearby {
+    pub fn set_geometry(&mut self, world: &Mesh) {
+        self.planner = Planner::new(world);
+        self.last_cell = None;
+        self.active = 0;
+    }
     pub fn new(renderer: &Renderer, world: &Mesh) -> Self {
         Self {
             planner: Planner::new(world),

@@ -12,6 +12,7 @@ path = "../../src/world.rs"
 
 [features]
 test-support = []
+memory-profile = []
 
 [dependencies]
 flate2 = "1"

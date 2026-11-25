@@ -108,19 +108,27 @@ impl Snow {
         (&self.exposure_view, &self.settings)
     }
     pub fn set_geometry(&self, meshes: &[&Mesh]) {
+        self.set_occluders(
+            meshes
+                .iter()
+                .flat_map(|m| m.vertices.chunks_exact(3))
+                .filter_map(|triangle| {
+                    let kind = triangle[0].surface[0] as u32;
+                    (matches!(kind, 0 | 2 | 3 | 6 | 7 | 10 | 12 | 13)
+                        && triangle.iter().any(|v| v.normal[2] >= 0.05))
+                    .then(|| {
+                        [
+                            triangle[0].position,
+                            triangle[1].position,
+                            triangle[2].position,
+                        ]
+                    })
+                }),
+        );
+    }
+    pub fn set_occluders(&self, triangles: impl Iterator<Item = Triangle>) {
         let mut cache = Cache::default();
-        for triangle in meshes.iter().flat_map(|m| m.vertices.chunks_exact(3)) {
-            let kind = triangle[0].surface[0] as u32;
-            if !matches!(kind, 0 | 2 | 3 | 6 | 7 | 10 | 12 | 13)
-                || triangle.iter().all(|v| v.normal[2] < 0.05)
-            {
-                continue;
-            }
-            let points = [
-                triangle[0].position,
-                triangle[1].position,
-                triangle[2].position,
-            ];
+        for points in triangles {
             let lo = [
                 points.iter().map(|p| p[0]).fold(f32::INFINITY, f32::min),
                 points.iter().map(|p| p[1]).fold(f32::INFINITY, f32::min),

@@ -209,6 +209,7 @@ impl DynamicWorld {
                 .position(|definition| definition.config.research_id == initial_model)
                 .expect("bundled initial player vehicle"),
         ));
+        crate::performance::startup_memory("vehicle catalog");
         let prop_center = walking_start.map_or(vehicle.position, |point| {
             Vec3::new(
                 point.point[0] * METERS_PER_UNIT,
@@ -236,7 +237,11 @@ impl DynamicWorld {
             sound_foliage: 0.15,
             sound_geography_timer: 0.,
             dispatch_view: None,
-            traffic: traffic::Traffic::new_near(hermes.traffic_paths(), prop_center),
+            traffic: {
+                let traffic = traffic::Traffic::new_near(hermes.traffic_paths(), prop_center);
+                crate::performance::startup_memory("traffic signals");
+                traffic
+            },
             crowd: crowd::Crowd::new(hermes.walking_paths()),
             cyclists: cyclists::Cyclists::new(hermes),
             service_passengers: Default::default(),
@@ -244,7 +249,11 @@ impl DynamicWorld {
             building_candidates: Vec::new(),
             driver_controls: Vec::new(),
             metro: metro::Metro::new(hermes),
-            airport: airport::Airport::new(hermes.city())?,
+            airport: {
+                let airport = airport::Airport::new(hermes.city())?;
+                crate::performance::startup_memory("airport and world services");
+                airport
+            },
             vehicles: vec![vehicle],
             baggage_shift: None,
             parked_carts: Vec::new(),

@@ -61,6 +61,20 @@ enum Choice {
     Shadow,
 }
 impl GpuMesh {
+    pub(in crate::engine) fn buffer_bytes(&self) -> usize {
+        let mut bytes = self.buffer.size();
+        bytes += self.skin.as_ref().map_or(0, wgpu::Buffer::size);
+        bytes += self
+            .instances
+            .as_ref()
+            .map_or(0, |instances| instances.buffer.size());
+        if let Some(lod) = &self.lod {
+            for geometry in [&lod.medium, &lod.coarse, &lod.shadow] {
+                bytes += geometry.buffer.size() + geometry.indices.size();
+            }
+        }
+        bytes as usize
+    }
     fn geometry(&self, choice: Choice) -> Draw<'_> {
         let variant = self.lod.as_ref().and_then(|lod| match choice {
             Choice::Full => None,

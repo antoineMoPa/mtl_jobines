@@ -130,8 +130,8 @@ impl Traffic {
             seed: 7193,
             refill: 0.,
             signal_props: match center {
-                Some(center) => super::props::Props::from_groups_near(groups, center),
-                None => super::props::Props::from_groups(groups),
+                Some(center) => super::props::Props::from_parts_near(groups, center),
+                None => super::props::Props::from_parts(groups),
             },
             signal_models,
             // A junction without space for a supported mast uses the existing

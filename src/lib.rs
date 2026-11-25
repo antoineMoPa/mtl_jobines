@@ -1,4 +1,6 @@
 mod engine;
+#[cfg(all(target_arch = "wasm32", feature = "memory-profile"))]
+mod memory_profile;
 
 use mtl_world::web_asset;
 use mtl_world::{audio, dynamic_world, hermes, kairos, performance, props, season};

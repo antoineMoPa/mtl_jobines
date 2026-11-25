@@ -2193,7 +2193,9 @@ fn web_status(error: Option<&str>) {
 #[cfg(target_arch = "wasm32")]
 pub fn start_web(rule: Option<js_sys::Function>) -> Result<(), String> {
     use winit::platform::web::EventLoopExtWebSys;
+    crate::performance::startup_memory("before map");
     let hermes = Hermes::embedded()?;
+    crate::performance::startup_memory("map ready");
     let search = web_sys::window()
         .ok_or("Browser window unavailable")?
         .location()
@@ -2211,6 +2213,7 @@ pub fn start_web(rule: Option<js_sys::Function>) -> Result<(), String> {
     let proxy = event_loop.create_proxy();
     mobile::connect(proxy.clone());
     let mut game = Game::new_at(hermes, start, proxy)?;
+    crate::performance::startup_memory("world ready");
     if let Some(rule) = rule {
         game.kairos
             .set_vehicle_return_rule(move |away, previous, elapsed| {

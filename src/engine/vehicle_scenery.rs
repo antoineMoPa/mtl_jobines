@@ -18,19 +18,22 @@ impl VehicleScenery {
         Self {
             cutscene_cached: false,
             pedestrians: super::pedestrian_scenery::PedestrianScenery::new(renderer),
-            models: catalog::definitions()
-                .iter()
-                .map(|definition| {
-                    definition
-                        .part_vertices()
-                        .zip(definition.part_shadow_vertices())
-                        .map(|(vertices, shadow)| Part {
-                            mesh: renderer.upload_vehicle_lod(vertices, shadow),
-                            transforms: Vec::new(),
-                        })
-                        .collect()
-                })
+            models: (0..catalog::definitions().len())
+                .map(|_| Vec::new())
                 .collect(),
+        }
+    }
+    fn ensure_model(&mut self, renderer: &Renderer, model: usize) {
+        if self.models[model].is_empty() {
+            let definition = &catalog::definitions()[model];
+            self.models[model] = definition
+                .part_vertices()
+                .zip(definition.part_shadow_vertices())
+                .map(|(vertices, shadow)| Part {
+                    mesh: renderer.upload_vehicle_lod(vertices, shadow),
+                    transforms: Vec::new(),
+                })
+                .collect();
         }
     }
     pub fn update(&mut self, renderer: &Renderer, world: &DynamicWorld) {
@@ -80,6 +83,7 @@ impl VehicleScenery {
         for ((model, transforms, opacity, headlights, player, paint), patrol, vehicle) in
             world.vehicle_render_instances()
         {
+            self.ensure_model(renderer, model);
             if let (Some(hull), Some(level)) =
                 (&catalog::definitions()[model].water_hull, world.water_level)
             {
@@ -134,6 +138,7 @@ impl VehicleScenery {
             };
             let mut columns = pose.to_cols_array_2d();
             columns[1][3] = if player { 1. } else { 0. };
+            self.ensure_model(renderer, model);
             self.models[model][part].transforms.push(columns);
         }
         renderer.local_lights.hulls.set(hulls);

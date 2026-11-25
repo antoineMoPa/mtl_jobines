@@ -122,6 +122,9 @@ impl Props {
     pub fn from_parts_near(groups: Vec<Vec<Part>>, center: Vec3) -> Self {
         Self::build(groups, Some(Self::tile(center)))
     }
+    pub fn from_parts(groups: Vec<Vec<Part>>) -> Self {
+        Self::build(groups, None)
+    }
     pub(super) fn from_map(hermes: &crate::hermes::Hermes, center: Vec3) -> Self {
         let (parts, airport_groups) = hermes.prop_parts_with_airport();
         let mut props = Self::from_parts_near(parts, center);
@@ -250,11 +253,9 @@ impl Props {
                     light_lo.is_finite().then_some((light_lo + light_hi) * 0.5),
                 )
             };
-            let (local_lo, local_hi, lamp) = if mesh.template.is_some() {
+            let (local_lo, local_hi, lamp) = {
                 let key = std::sync::Arc::as_ptr(&mesh.mesh) as usize;
                 *model_bounds.entry(key).or_insert_with(bounds)
-            } else {
-                bounds()
             };
             let mut lo = Vec3::splat(f32::INFINITY);
             let mut hi = Vec3::splat(f32::NEG_INFINITY);
@@ -891,13 +892,15 @@ impl Props {
                             continue;
                         }
                         if item.collider.is_some() {
-                            output.vertices.extend_from_slice(&item.mesh.mesh.vertices);
+                            output.vertices.extend(
+                                item.mesh.mesh.vertices.iter().map(|v| item.mesh.vertex(*v)),
+                            );
                             continue;
                         }
                         output
                             .vertices
                             .extend(item.mesh.mesh.vertices.iter().map(|v| {
-                                let mut v = *v;
+                                let mut v = item.mesh.vertex(*v);
                                 let local =
                                     Vec3::from_array(v.position) * METERS_PER_UNIT - item.center;
                                 v.position =
@@ -977,7 +980,9 @@ impl Props {
             // A caller holding an older descriptor must never restore a prop
             // already removed by physics.
             if item.mesh.template.is_none() && item.collider.is_some() {
-                output.vertices.extend_from_slice(&item.mesh.mesh.vertices);
+                output
+                    .vertices
+                    .extend(item.mesh.mesh.vertices.iter().map(|v| item.mesh.vertex(*v)));
             }
         }
     }
@@ -1024,7 +1029,7 @@ impl Props {
             output
                 .vertices
                 .extend(item.mesh.mesh.vertices.iter().map(|v| {
-                    let mut v = *v;
+                    let mut v = item.mesh.vertex(*v);
                     let local = Vec3::from_array(v.position) * METERS_PER_UNIT - item.center;
                     v.position = ((position + rotation * local) / METERS_PER_UNIT).to_array();
                     v.normal = (rotation * Vec3::from_array(v.normal)).to_array();

@@ -13,7 +13,20 @@ struct Batch {
     bounds: [f32; 4],
     meshes: Vec<GpuMesh>,
 }
+struct Resident {
+    key: crate::hermes::scenery::Tile,
+    world: Vec<Batch>,
+    details: Vec<Batch>,
+    snow: Vec<[[f32; 3]; 3]>,
+    banks: super::snow::banks::Banks,
+    receivers: Mesh,
+    bytes: usize,
+    detail_ready: bool,
+}
 pub struct Scenery {
+    source: Option<crate::hermes::scenery::Source>,
+    resident: Vec<Resident>,
+    saturated: Option<((i32, i32), u32)>,
     pub(super) grass: super::render::SupportCache,
     pub(super) metro: crate::hermes::metro::MetroMap,
     banks: super::snow::banks::Banks,
@@ -202,19 +215,34 @@ pub(super) fn model_batches(
         gpu
     };
     if transforms == [glam::Mat4::IDENTITY] {
-        let mut mesh = source.clone();
-        partition(&mut mesh)
-            .into_iter()
-            .flat_map(|(_, ranges, _)| ranges)
-            .map(|range| upload(&mesh.vertices[range]))
-            .collect()
+        // Sort triangle IDs instead of cloning a potentially city-wide model.
+        // Only one 50 m draw's vertices need a temporary upload allocation.
+        let key = |id: usize| triangle_key(source.vertices[id * 3..id * 3 + 3].try_into().unwrap());
+        let mut triangles: Vec<_> = (0..source.vertices.len() / 3).collect();
+        triangles.sort_unstable_by_key(|&id| key(id));
+        let mut draws = Vec::new();
+        let mut vertices = Vec::new();
+        let mut previous = None;
+        for id in triangles {
+            let current = key(id);
+            if previous.is_some_and(|old| old != current) {
+                draws.push(upload(&vertices));
+                vertices.clear();
+            }
+            vertices.extend_from_slice(&source.vertices[id * 3..id * 3 + 3]);
+            previous = Some(current);
+        }
+        if !vertices.is_empty() {
+            draws.push(upload(&vertices));
+        }
+        draws
     } else {
         vec![upload(&source.vertices)]
     }
 }
 impl Scenery {
     pub fn new(renderer: &Renderer, hermes: &mut Hermes) -> Self {
-        let mut scenery = Self::streamed(renderer, hermes);
+        let mut scenery = Self::complete(renderer, hermes);
         let mut unlimited = usize::MAX;
         scenery.upload_neighborhood(
             renderer,
@@ -227,6 +255,31 @@ impl Scenery {
     }
 
     pub fn streamed(renderer: &Renderer, hermes: &mut Hermes) -> Self {
+        let source = hermes.take_scenery_source();
+        let empty = Mesh::default();
+        let models = hermes
+            .external_models
+            .iter()
+            .flat_map(|group| model_batches(renderer, &group.mesh, &group.transforms))
+            .collect();
+        renderer.snow.set_geometry(&[]);
+        Self {
+            source: Some(source),
+            resident: Vec::new(),
+            saturated: None,
+            grass: Default::default(),
+            metro: crate::hermes::metro::MetroMap::from_city(hermes.city()),
+            models,
+            banks: super::snow::banks::Banks::new(&empty),
+            winter: false,
+            world: Vec::new(),
+            details: Vec::new(),
+            pending_world: None,
+            pending_details: None,
+            paint: super::graffiti::Nearby::new(renderer, &empty),
+        }
+    }
+    fn complete(renderer: &Renderer, hermes: &mut Hermes) -> Self {
         let _span = mtl_world::telemetry::span("map.scenery.prepare_upload");
         let (world, details) = hermes.take_geometry();
         renderer.snow.set_geometry(&[&world, &details]);
@@ -240,6 +293,9 @@ impl Scenery {
         let (world, pending_world) = PendingLayer::partition(world);
         let (details, pending_details) = PendingLayer::partition(details);
         Self {
+            source: None,
+            resident: Vec::new(),
+            saturated: None,
             grass: Default::default(),
             metro: crate::hermes::metro::MetroMap::from_city(hermes.city()),
             models,
@@ -252,6 +308,183 @@ impl Scenery {
             paint,
         }
     }
+    // CPU render meshes live only during tile construction. GPU tiles have a fixed
+    // byte budget and are evicted on travel; the source can rebuild any dropped tile.
+    fn stream_tiles(
+        &mut self,
+        renderer: &Renderer,
+        center: [f32; 2],
+        radius: f32,
+        budget: &mut usize,
+    ) {
+        use crate::hermes::scenery::SPAN;
+        let Some(source) = &self.source else {
+            return;
+        };
+        let distance = |key: (i32, i32)| {
+            let b = [key.0 as f32 * SPAN, key.1 as f32 * SPAN];
+            (b[0] - center[0])
+                .max(center[0] - b[0] - SPAN)
+                .max(b[1] - center[1])
+                .max(center[1] - b[1] - SPAN)
+                .max(0.)
+        };
+        let request = (
+            (
+                (center[0] / DRAW_SPAN).floor() as i32,
+                (center[1] / DRAW_SPAN).floor() as i32,
+            ),
+            radius.to_bits(),
+        );
+        if self.saturated == Some(request) {
+            return;
+        }
+        self.saturated = None;
+        let old_len = self.resident.len();
+        self.resident
+            .retain(|tile| distance(tile.key) <= radius + SPAN);
+        let mut changed = old_len != self.resident.len();
+        let lo = center.map(|v| ((v - radius) / SPAN).floor() as i32);
+        let hi = center.map(|v| ((v + radius) / SPAN).floor() as i32);
+        let mut keys = Vec::new();
+        for x in lo[0]..=hi[0] {
+            for y in lo[1]..=hi[1] {
+                keys.push((x, y));
+            }
+        }
+        keys.sort_by(|a, b| {
+            let d = |key: (i32, i32)| {
+                (key.0 as f32 * SPAN + SPAN * 0.5 - center[0])
+                    .hypot(key.1 as f32 * SPAN + SPAN * 0.5 - center[1])
+            };
+            d(*a).total_cmp(&d(*b)).then(a.cmp(b))
+        });
+        let limit = if crate::performance::phone() { 32 } else { 96 } * 1024 * 1024;
+        // Remove old halo/far tiles first, even when a teleport keeps them in the
+        // same broad draw radius. Priorities are recomputed from the current view.
+        self.resident
+            .sort_by(|a, b| distance(a.key).total_cmp(&distance(b.key)));
+        let mut used: usize = self.resident.iter().map(|t| t.bytes).sum();
+        let mut built = 0;
+        for key in keys {
+            if *budget == 0 || built == 2 {
+                break;
+            }
+            let include_details = distance(key) <= crate::performance::draw_radius(1.5);
+            if let Some(index) = self.resident.iter().position(|t| t.key == key) {
+                if self.resident[index].detail_ready || !include_details {
+                    continue;
+                }
+                used -= self.resident.swap_remove(index).bytes;
+                changed = true;
+            }
+            let (world, details) = source.tile(key, include_details);
+            let bytes = (world.vertices.len() + details.vertices.len())
+                * std::mem::size_of::<opencity::runtime::Vertex>();
+            // Do not evict nearer geometry to make room for a farther tile.
+            while used + bytes > limit && !self.resident.is_empty() {
+                let far = self
+                    .resident
+                    .iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| distance(a.key).total_cmp(&distance(b.key)))
+                    .unwrap()
+                    .0;
+                if distance(self.resident[far].key) <= distance(key) {
+                    break;
+                }
+                used -= self.resident.swap_remove(far).bytes;
+                changed = true;
+            }
+            if used + bytes > limit && !self.resident.is_empty() {
+                self.saturated = Some(request);
+                break;
+            }
+            let mut snow = Vec::new();
+            for t in [&world, &details]
+                .into_iter()
+                .flat_map(|m| m.vertices.chunks_exact(3))
+            {
+                let kind = t[0].surface[0] as u32;
+                if matches!(kind, 0 | 2 | 3 | 6 | 7 | 10 | 12 | 13)
+                    && t.iter().any(|v| v.normal[2] >= 0.05)
+                {
+                    snow.push([t[0].position, t[1].position, t[2].position]);
+                }
+            }
+            snow.shrink_to_fit();
+            let banks = super::snow::banks::Banks::new(&world);
+            let receivers = super::graffiti::receiver_geometry(&world);
+            let vertices = world.vertices.len() + details.vertices.len();
+            let upload = |mesh| {
+                let (mut batches, mut pending) = PendingLayer::partition(mesh);
+                let mut unlimited = usize::MAX;
+                pending.upload(
+                    renderer,
+                    &mut batches,
+                    center,
+                    f32::INFINITY,
+                    &mut unlimited,
+                );
+                batches
+            };
+            let world = upload(world);
+            let details = upload(details);
+            let bytes = world
+                .iter()
+                .chain(&details)
+                .flat_map(|batch| &batch.meshes)
+                .map(GpuMesh::buffer_bytes)
+                .sum::<usize>();
+            // LOD vertex and index buffers count too. A transient incoming tile
+            // can exceed the budget while it replaces farther resident tiles.
+            while used + bytes > limit && !self.resident.is_empty() {
+                let far = self
+                    .resident
+                    .iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| distance(a.key).total_cmp(&distance(b.key)))
+                    .unwrap()
+                    .0;
+                if distance(self.resident[far].key) <= distance(key) {
+                    break;
+                }
+                used -= self.resident.swap_remove(far).bytes;
+                changed = true;
+            }
+            if used + bytes > limit && !self.resident.is_empty() {
+                self.saturated = Some(request);
+                break;
+            }
+            self.resident.push(Resident {
+                key,
+                detail_ready: include_details,
+                world,
+                details,
+                snow,
+                banks,
+                receivers,
+                bytes,
+            });
+            used += bytes;
+            *budget = budget.saturating_sub(vertices);
+            built += 1;
+            changed = true;
+        }
+        if changed {
+            let receivers = Mesh {
+                vertices: self
+                    .resident
+                    .iter()
+                    .flat_map(|tile| tile.receivers.vertices.iter().copied())
+                    .collect(),
+            };
+            self.paint.set_geometry(&receivers);
+            renderer
+                .snow
+                .set_occluders(self.resident.iter().flat_map(|t| t.snow.iter().copied()));
+        }
+    }
     fn upload_neighborhood(
         &mut self,
         renderer: &Renderer,
@@ -260,6 +493,7 @@ impl Scenery {
         detail_radius: f32,
         budget: &mut usize,
     ) {
+        self.stream_tiles(renderer, center, world_radius, budget);
         for (pending, batches, radius) in [
             (&mut self.pending_world, &mut self.world, world_radius),
             (&mut self.pending_details, &mut self.details, detail_radius),
@@ -308,6 +542,9 @@ impl Scenery {
         renderer.update_wheel_snow(world, city, eye, time, previous != self.winter);
         if self.winter {
             self.banks.update(renderer, eye);
+            for tile in &mut self.resident {
+                tile.banks.update(renderer, eye);
+            }
         }
     }
     pub fn update_graffiti(&mut self, renderer: &Renderer, center: [f32; 2]) {
@@ -321,14 +558,22 @@ impl Scenery {
         let intersects = |b: &Batch, radius: f32| b.distance(center) <= radius;
         self.world
             .iter()
+            .chain(self.resident.iter().flat_map(|t| &t.world))
             .filter(|b| (!preview || !b.infrastructure) && intersects(b, world_radius))
             .chain(
                 self.details
                     .iter()
+                    .chain(self.resident.iter().flat_map(|t| &t.details))
                     .filter(|b| intersects(b, crate::performance::draw_radius(1.5))),
             )
             .flat_map(|b| &b.meshes)
             .chain(self.banks.visible().filter(|_| self.winter && !preview))
+            .chain(
+                self.resident
+                    .iter()
+                    .flat_map(|t| t.banks.visible())
+                    .filter(|_| self.winter && !preview),
+            )
             .chain(self.models.iter())
             .chain(self.paint.visible())
             .collect()
@@ -337,6 +582,38 @@ impl Scenery {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    #[ignore = "requires a native GPU adapter"]
+    fn bounded_tiles_evict_after_teleport_and_rebuild_on_return() {
+        use super::*;
+        let renderer = pollster::block_on(Renderer::new(None, 64, 64)).unwrap();
+        let mut hermes = Hermes::test_map_from_source(
+            "road local: sidewalk carlane sidewalk; end; local(-1,0,1,0); local(19,0,21,0);",
+        );
+        let mut scenery = Scenery::streamed(&renderer, &mut hermes);
+        for center in [[0., 0.], [20., 0.], [0., 0.]] {
+            for _ in 0..16 {
+                scenery.upload_neighborhood(&renderer, center, 2., 1.5, &mut 60_000);
+            }
+            assert!(scenery.resident.iter().any(|tile| {
+                !tile.world.is_empty() && (tile.key.0 as f32 * 2. - center[0]).abs() <= 2.
+            }));
+            assert!(scenery
+                .resident
+                .iter()
+                .all(|tile| (tile.key.0 as f32 * 2. - center[0]).abs() <= 6.));
+            assert!(
+                scenery
+                    .resident
+                    .iter()
+                    .map(|tile| tile.bytes)
+                    .sum::<usize>()
+                    <= 96 * 1024 * 1024
+            );
+            assert!(scenery.pending_world.is_none() && scenery.pending_details.is_none());
+        }
+    }
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
     #[ignore = "requires a native GPU adapter"]

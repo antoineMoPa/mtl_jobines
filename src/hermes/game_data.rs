@@ -69,7 +69,7 @@ fn read_u64(reader: &mut impl Read) -> io::Result<u64> {
     Ok(u64::from_le_bytes(bytes))
 }
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data, test))]
-fn read_mesh(reader: &mut impl Read, budget: usize) -> io::Result<Mesh> {
+fn read_mesh(reader: &mut impl Read, budget: usize, retain: bool) -> io::Result<(Mesh, usize)> {
     let count = usize::try_from(read_u64(reader)?).map_err(|_| invalid("vertex count overflow"))?;
     if count > budget || count % 3 != 0 {
         return Err(invalid("invalid vertex count"));
@@ -87,19 +87,31 @@ fn read_mesh(reader: &mut impl Read, budget: usize) -> io::Result<Mesh> {
             if values.iter().any(|value| !value.is_finite()) {
                 return Err(invalid("nonfinite cached vertex"));
             }
-            mesh.vertices.push(Vertex {
-                position: values[0..3].try_into().unwrap(),
-                normal: values[3..6].try_into().unwrap(),
-                color: values[6..9].try_into().unwrap(),
-                surface: values[9..13].try_into().unwrap(),
-            });
+            if retain {
+                mesh.vertices.push(Vertex {
+                    position: values[0..3].try_into().unwrap(),
+                    normal: values[3..6].try_into().unwrap(),
+                    color: values[6..9].try_into().unwrap(),
+                    surface: values[9..13].try_into().unwrap(),
+                });
+            }
         }
     }
-    Ok(mesh)
+    Ok((mesh, count))
 }
 impl GameData {
     #[cfg(any(not(target_arch = "wasm32"), bundled_game_data, test))]
     pub fn decode(input: impl Read, expected: CacheKey) -> io::Result<Self> {
+        Self::decode_geometry(input, expected, true)
+    }
+    /// Validate old full-map caches while retaining only the minimap atlas.
+    /// Render tiles are regenerated from the compiled city on demand.
+    #[cfg(any(not(target_arch = "wasm32"), bundled_game_data, test))]
+    pub fn decode_for_streaming(input: impl Read, expected: CacheKey) -> io::Result<Self> {
+        Self::decode_geometry(input, expected, false)
+    }
+    #[cfg(any(not(target_arch = "wasm32"), bundled_game_data, test))]
+    fn decode_geometry(input: impl Read, expected: CacheKey, retain: bool) -> io::Result<Self> {
         let mut reader = GzDecoder::new(input);
         let mut magic = [0; 16];
         reader.read_exact(&mut magic)?;
@@ -111,8 +123,8 @@ impl GameData {
                 "game data belongs to another map or generator version",
             ));
         }
-        let world = read_mesh(&mut reader, MAX_VERTICES)?;
-        let details = read_mesh(&mut reader, MAX_VERTICES - world.vertices.len())?;
+        let (world, count) = read_mesh(&mut reader, MAX_VERTICES, retain)?;
+        let (details, _) = read_mesh(&mut reader, MAX_VERTICES - count, retain)?;
         if read_u64(&mut reader)? != ATLAS_BYTES as u64 {
             return Err(invalid("invalid atlas size"));
         }
@@ -127,6 +139,10 @@ impl GameData {
             details,
             atlas,
         })
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn read_for_streaming(path: &Path, expected: CacheKey) -> io::Result<Self> {
+        Self::decode_for_streaming(BufReader::new(fs::File::open(path)?), expected)
     }
     #[cfg(not(target_arch = "wasm32"))]
     pub fn read(path: &Path, expected: CacheKey) -> io::Result<Self> {
@@ -284,6 +300,9 @@ mod tests {
         }
 
         assert_eq!(data.atlas, atlas);
+        let streamed = GameData::read_for_streaming(&path, key).unwrap();
+        assert!(streamed.world.vertices.is_empty() && streamed.details.vertices.is_empty());
+        assert_eq!(streamed.atlas, atlas);
         drop(data);
         assert!(GameData::read(&path, CacheKey::for_map(b"changed", b"")).is_err());
         let mut bytes = fs::read(&path).unwrap();

@@ -185,6 +185,17 @@ fn panel_key(t: &[Vertex]) -> Option<PanelKey> {
     key[9] = i32::from(legacy_concrete);
     Some(PanelKey(key))
 }
+pub(super) fn receiver_geometry(world: &Mesh) -> Mesh {
+    Mesh {
+        vertices: world
+            .vertices
+            .chunks_exact(3)
+            .filter(|triangle| panel_key(triangle).is_some())
+            .flatten()
+            .copied()
+            .collect(),
+    }
+}
 fn seed(key: PanelKey) -> u32 {
     key.0
         .iter()

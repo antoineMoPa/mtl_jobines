@@ -1,4 +1,16 @@
 //! Fixed device budget, selected before the world spawns its first NPCs.
+pub fn startup_memory(stage: &str) {
+    #[cfg(all(target_arch = "wasm32", feature = "memory-profile"))]
+    web_sys::console::info_1(
+        &format!(
+            "[startup] {stage}: {} MiB WASM",
+            core::arch::wasm32::memory_size::<0>() / 16
+        )
+        .into(),
+    );
+    #[cfg(not(all(target_arch = "wasm32", feature = "memory-profile")))]
+    let _ = stage;
+}
 pub fn phone() -> bool {
     #[cfg(target_arch = "wasm32")]
     {

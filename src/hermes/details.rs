@@ -22,6 +22,7 @@ fn build(city: &City) -> Products {
         detailed_frontage,
     );
     let (mut commercial, groups) = commerce_mesh::parts(city);
+    crate::performance::startup_memory("commercial details");
     scenery.vertices.append(&mut commercial.vertices);
     let props = frontage
         .into_iter()

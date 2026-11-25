@@ -1,9 +1,9 @@
 //! Cached approved signal bodies and switchable lens/pedestrian GLB variants.
 use super::signals::Aspect;
 use crate::hermes::{external_models, traffic_paths::SignalApproach};
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use opencity::runtime::{Mesh, SurfaceKind};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 const ASSETS: [&[u8]; 4] = [
     include_bytes!("../../../data/props/signal-red.glb"),
@@ -12,12 +12,12 @@ const ASSETS: [&[u8]; 4] = [
     include_bytes!("../../../data/props/signal-off.glb"),
 ];
 struct Templates {
-    body: Mesh,
-    phases: [Mesh; 4],
+    body: Arc<Mesh>,
+    phases: [Arc<Mesh>; 4],
+    collision: [Arc<Mesh>; 2],
 }
 pub(super) struct Standing {
-    body: Mesh,
-    phases: [Mesh; 4],
+    placement: Option<Mat4>,
 }
 fn phase_index(active: Option<Aspect>) -> usize {
     match active {
@@ -63,75 +63,151 @@ fn templates() -> &'static Templates {
     static CACHE: OnceLock<Templates> = OnceLock::new();
     CACHE.get_or_init(|| {
         let decoded = ASSETS.map(decode);
-        let body = decoded[3].0.clone();
-        let phases = decoded.map(|(_, lenses)| lenses);
-        Templates { body, phases }
+        let mut decoded = decoded;
+        let body = template(std::mem::take(&mut decoded[3].0));
+        let phases = decoded.map(|(_, lenses)| template(lenses));
+        let mut lower = Mesh::default();
+        let mut overhead = Mesh::default();
+        for triangle in body
+            .vertices
+            .chunks_exact(3)
+            .chain(phases[3].vertices.chunks_exact(3))
+        {
+            let target = if triangle.iter().all(|v| v.position[2] > 0.035) {
+                &mut overhead
+            } else {
+                &mut lower
+            };
+            target.vertices.extend_from_slice(triangle);
+        }
+        Templates {
+            body,
+            phases,
+            collision: [Arc::new(lower), Arc::new(overhead)],
+        }
     })
 }
-fn placed(source: &Mesh, signal: &SignalApproach) -> Mesh {
+// Reflect X and reverse winding once. Placements can then use a proper rotation,
+// shared by intact rendering, collision hulls and broken-prop rendering.
+fn template(mut mesh: Mesh) -> Arc<Mesh> {
+    for triangle in mesh.vertices.chunks_exact_mut(3) {
+        triangle.swap(1, 2);
+        for vertex in triangle {
+            vertex.position = [
+                -vertex.position[0] / 100.,
+                vertex.position[1] / 100.,
+                vertex.position[2] / 100.,
+            ];
+            vertex.normal[0] = -vertex.normal[0];
+        }
+    }
+    mesh.vertices.shrink_to_fit();
+    Arc::new(mesh)
+}
+pub(super) fn instantiate(signal: &SignalApproach) -> (Standing, Vec<crate::props::Part>) {
+    let Some(base) = signal.mast_base else {
+        return (Standing { placement: None }, Vec::new());
+    };
     let length = signal.forward.x.hypot(signal.forward.y).max(1e-6);
     let forward = Vec3::new(signal.forward.x / length, signal.forward.y / length, 0.);
     let right = Vec3::new(forward.y, -forward.x, 0.);
-    let base = signal
-        .mast_base
-        .expect("placed signals have sidewalk support");
-    let mut result = Mesh::default();
-    result.vertices.reserve(source.vertices.len());
-    for triangle in source.vertices.chunks_exact(3) {
-        // Reflect the mast toward the road, face the lenses toward approaching
-        // drivers, and reverse winding to match the reflected vertex normals.
-        for i in [0, 2, 1] {
-            let mut v = triangle[i];
-            let p = Vec3::from_array(v.position);
-            v.position = ((base - right * p.x + forward * p.y + Vec3::Z * p.z) / 100.).to_array();
-            let n = Vec3::from_array(v.normal);
-            v.normal = (-right * n.x + forward * n.y + Vec3::Z * n.z).to_array();
-            result.vertices.push(v);
-        }
-    }
-    result
-}
-pub(super) fn instantiate(signal: &SignalApproach) -> (Standing, Vec<Mesh>) {
-    if signal.mast_base.is_none() {
-        return (
-            Standing {
-                body: Mesh::default(),
-                phases: std::array::from_fn(|_| Mesh::default()),
-            },
-            Vec::new(),
-        );
-    }
-    let model = templates();
-    let body = placed(&model.body, signal);
-    let phases = std::array::from_fn(|i| placed(&model.phases[i], signal));
-    let mut lower = Mesh::default();
-    let mut overhead = Mesh::default();
-    let cutoff = signal.mast_base.unwrap().z / 100. + 0.035;
-    for triangle in body
-        .vertices
-        .chunks_exact(3)
-        .chain(phases[3].vertices.chunks_exact(3))
-    {
-        let target = if triangle.iter().all(|v| v.position[2] > cutoff) {
-            &mut overhead
-        } else {
-            &mut lower
-        };
-        target.vertices.extend_from_slice(triangle);
-    }
-    (Standing { body, phases }, vec![lower, overhead])
+    let placement = Mat4::from_cols(
+        right.extend(0.),
+        forward.extend(0.),
+        Vec3::Z.extend(0.),
+        (base / 100.).extend(1.),
+    );
+    let groups = templates()
+        .collision
+        .iter()
+        .map(|mesh| crate::props::Part {
+            mesh: mesh.clone(),
+            transform: placement,
+            template: None,
+            automatic: false,
+            sign_profile: None,
+        })
+        .collect();
+    (
+        Standing {
+            placement: Some(placement),
+        },
+        groups,
+    )
 }
 impl Standing {
     pub(super) fn append(&self, mesh: &mut Mesh, active: Option<Aspect>) {
-        mesh.vertices.extend_from_slice(&self.body.vertices);
-        mesh.vertices
-            .extend_from_slice(&self.phases[phase_index(active)].vertices);
+        let Some(placement) = self.placement else {
+            return;
+        };
+        let model = templates();
+        mesh.vertices.extend(
+            model
+                .body
+                .vertices
+                .iter()
+                .chain(&model.phases[phase_index(active)].vertices)
+                .map(|vertex| {
+                    let mut vertex = *vertex;
+                    vertex.position = placement
+                        .transform_point3(vertex.position.into())
+                        .to_array();
+                    vertex.normal = placement.transform_vector3(vertex.normal.into()).to_array();
+                    vertex
+                }),
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn placements_share_collision_meshes_and_match_authored_vertices() {
+        let signal = SignalApproach {
+            position: Vec3::ZERO,
+            mast_base: Some(Vec3::new(120., -35., 7.)),
+            forward: Vec3::Y,
+            junction: 0,
+            phase: 0,
+        };
+        let (standing, first) = instantiate(&signal);
+        let mut other = signal;
+        other.mast_base = Some(Vec3::new(-80., 45., 2.));
+        let (_, second) = instantiate(&other);
+        for (a, b) in first.iter().zip(&second) {
+            assert!(Arc::ptr_eq(&a.mesh, &b.mesh));
+        }
+        for (index, aspect) in [
+            Some(Aspect::Red),
+            Some(Aspect::Amber),
+            Some(Aspect::Green),
+            None,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let (_, lenses) = decode(ASSETS[index]);
+            let (body, _) = decode(ASSETS[3]);
+            let mut rendered = Mesh::default();
+            standing.append(&mut rendered, aspect);
+            let expected: Vec<_> = body
+                .vertices
+                .chunks_exact(3)
+                .chain(lenses.vertices.chunks_exact(3))
+                .flat_map(|t| [t[0], t[2], t[1]])
+                .collect();
+            assert_eq!(rendered.vertices.len(), expected.len());
+            for (actual, original) in rendered.vertices.iter().zip(expected) {
+                let p = Vec3::from_array(original.position);
+                let expected = (Vec3::new(120., -35., 7.) + Vec3::new(-p.x, p.y, p.z)) / 100.;
+                assert!(Vec3::from_array(actual.position).distance(expected) < 1e-6);
+                assert_eq!(actual.color, original.color);
+                assert_eq!(actual.surface, original.surface);
+            }
+        }
+    }
 
     #[test]
     fn powered_states_have_the_correct_lens_and_unpowered_is_fully_dark() {
@@ -148,7 +224,7 @@ mod tests {
                 continue;
             }
             assert!(!lit.is_empty());
-            let lens: Vec<_> = lit.into_iter().filter(|v| v.position[2] > 3.).collect();
+            let lens: Vec<_> = lit.into_iter().filter(|v| v.position[2] > 0.03).collect();
             assert!(!lens.is_empty());
             assert!(lens.iter().all(|v| match index {
                 0 => v.color[0] > v.color[1] * 3.,
@@ -181,8 +257,13 @@ mod tests {
             let base = signal.mast_base.unwrap();
             let (standing, groups) = instantiate(&signal);
             assert_eq!(groups.len(), 2);
-            assert!(groups[1].vertices.iter().all(|v| v.position[2] > 0.035));
-            let lenses = &standing.phases[2];
+            assert!(groups[1]
+                .mesh
+                .vertices
+                .iter()
+                .all(|v| groups[1].vertex(*v).position[2] > base.z / 100. + 0.035));
+            let mut lenses = Mesh::default();
+            standing.append(&mut lenses, Some(Aspect::Green));
             let faces: Vec<_> = lenses
                 .vertices
                 .iter()
@@ -196,7 +277,7 @@ mod tests {
             assert!(faces
                 .iter()
                 .all(|v| { (Vec3::from_array(v.position) * 100. - base).dot(-right) > 2. }));
-            for triangle in standing.body.vertices.chunks_exact(3) {
+            for triangle in lenses.vertices.chunks_exact(3) {
                 let p: [Vec3; 3] = std::array::from_fn(|i| Vec3::from_array(triangle[i].position));
                 let area = (p[1] - p[0]).cross(p[2] - p[0]);
                 if area.length() > 1e-12 {

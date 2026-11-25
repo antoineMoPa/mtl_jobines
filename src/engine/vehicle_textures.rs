@@ -21,29 +21,40 @@ pub(super) fn upload_pngs<'a>(
     queue: &wgpu::Queue,
     images: impl Iterator<Item = &'a [u8]>,
 ) -> (wgpu::TextureView, wgpu::Sampler) {
-    let images: Vec<_> = images
-        .map(|bytes| {
-            let mut decoder = png::Decoder::new(bytes);
-            decoder
-                .set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
-            let mut reader = decoder.read_info().expect("embedded vehicle PNG");
-            let mut buffer = vec![0; reader.output_buffer_size()];
-            let info = reader.next_frame(&mut buffer).expect("vehicle PNG pixels");
-            let pixels: Vec<u8> = buffer[..info.buffer_size()]
-                .chunks_exact(info.color_type.samples())
-                .flat_map(|p| match info.color_type {
-                    png::ColorType::Rgb => [p[0], p[1], p[2], 255],
-                    png::ColorType::Rgba => [p[0], p[1], p[2], p[3]],
-                    png::ColorType::Grayscale => [p[0], p[0], p[0], 255],
-                    png::ColorType::GrayscaleAlpha => [p[0], p[0], p[0], p[1]],
-                    png::ColorType::Indexed => unreachable!("PNG palette is expanded"),
-                })
-                .collect();
-            (pixels, info.width, info.height)
-        })
-        .collect();
-    let width = images.iter().map(|(_, w, _)| *w).max().unwrap_or(1);
-    let height = images.iter().map(|(_, _, h)| *h).max().unwrap_or(1);
+    // Keep compressed inputs only; decoding the whole catalog at once retains
+    // every full-resolution albedo while the GPU array and mipmaps are built.
+    let images: Vec<_> = images.collect();
+    let mut width = 1;
+    let mut height = 1;
+    for bytes in &images {
+        let reader = png::Decoder::new(*bytes)
+            .read_info()
+            .expect("embedded vehicle PNG");
+        width = width.max(reader.info().width);
+        height = height.max(reader.info().height);
+    }
+    if crate::performance::phone() {
+        width = width.min(512);
+        height = height.min(512);
+    }
+    let decode = |bytes: &[u8]| {
+        let mut decoder = png::Decoder::new(bytes);
+        decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
+        let mut reader = decoder.read_info().expect("embedded vehicle PNG");
+        let mut buffer = vec![0; reader.output_buffer_size()];
+        let info = reader.next_frame(&mut buffer).expect("vehicle PNG pixels");
+        let pixels: Vec<u8> = buffer[..info.buffer_size()]
+            .chunks_exact(info.color_type.samples())
+            .flat_map(|p| match info.color_type {
+                png::ColorType::Rgb => [p[0], p[1], p[2], 255],
+                png::ColorType::Rgba => [p[0], p[1], p[2], p[3]],
+                png::ColorType::Grayscale => [p[0], p[0], p[0], 255],
+                png::ColorType::GrayscaleAlpha => [p[0], p[0], p[0], p[1]],
+                png::ColorType::Indexed => unreachable!("PNG palette is expanded"),
+            })
+            .collect();
+        (pixels, info.width, info.height)
+    };
     let mip_levels = 32 - width.max(height).leading_zeros();
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("embedded vehicle albedo"),
@@ -76,7 +87,8 @@ pub(super) fn upload_pngs<'a>(
     let linear: [f32; 256] = std::array::from_fn(|i| srgb_to_linear(i as f32 / 255.));
     let thresholds: [f32; 255] =
         std::array::from_fn(|i| 4. * srgb_to_linear((i as f32 + 0.5) / 255.));
-    for (layer, (source, source_width, source_height)) in images.into_iter().enumerate() {
+    for (layer, bytes) in images.into_iter().enumerate() {
+        let (source, source_width, source_height) = decode(bytes);
         let mut pixels = if (source_width, source_height) == (width, height) {
             source
         } else {

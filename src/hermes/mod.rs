@@ -12,6 +12,7 @@ pub mod external_models;
 mod game_data;
 pub mod landmark_destinations;
 pub mod landmarks;
+pub mod scenery;
 pub use landmark_destinations::Landmark;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod highway_tests;
@@ -206,7 +207,7 @@ impl Hermes {
         let cache_path = game_data::cache_path(key);
         let mut data = None;
         if let Some(path) = packaged {
-            match GameData::read(path, key) {
+            match GameData::read_for_streaming(path, key) {
                 Ok(value) => {
                     eprintln!("Using packaged game data: {}", path.display());
                     data = Some(value);
@@ -218,7 +219,7 @@ impl Hermes {
         }
         #[cfg(bundled_game_data)]
         if data.is_none() {
-            match GameData::decode(
+            match GameData::decode_for_streaming(
                 include_bytes!(env!("MTL_JOBINES_BUNDLED_GAME_DATA")).as_slice(),
                 key,
             ) {
@@ -232,7 +233,7 @@ impl Hermes {
             }
         }
         if data.is_none() {
-            match GameData::read(&cache_path, key) {
+            match GameData::read_for_streaming(&cache_path, key) {
                 Ok(value) => {
                     eprintln!("Using disk cache: {}", cache_path.display());
                     game_data::maintain(&cache_path);
@@ -284,7 +285,7 @@ impl Hermes {
                 include_bytes!("../../data/maps/mtl/map.road"),
                 include_bytes!("../../data/maps/mtl/elevation.png"),
             );
-            match GameData::decode(
+            match GameData::decode_for_streaming(
                 include_bytes!(env!("MTL_JOBINES_BUNDLED_GAME_DATA")).as_slice(),
                 key,
             ) {
@@ -301,15 +302,19 @@ impl Hermes {
         data: Option<GameData>,
         program: &opencity::Program,
     ) -> Result<Self, String> {
+        crate::performance::startup_memory("compiled city");
         let (minimap, prepared) = match data {
             Some(data) => (
                 minimap::Minimap::from_pixels(&city, data.atlas)?,
-                Some((data.world, data.details)),
+                (!data.world.vertices.is_empty() || !data.details.vertices.is_empty())
+                    .then_some((data.world, data.details)),
             ),
             None => (minimap::Minimap::new(&city)?, None),
         };
         let router = routing::Router::new(&city, program);
+        crate::performance::startup_memory("map navigation");
         let landmark_mesh = landmarks::build(&mut city)?;
+        crate::performance::startup_memory("map landmarks");
         let authored_props = crate::props::read(program)?;
         for entry in &authored_props {
             entry.placements(&city)?;
@@ -322,6 +327,7 @@ impl Hermes {
         if let Some(stations) = metro::MetroMap::from_city(&city).scenery()? {
             external_models.push(stations);
         }
+        crate::performance::startup_memory("map models");
         Ok(Self {
             wildlife_habitats: crate::dynamic_world::wildlife::Habitats::read(program, &city),
             wildlife: crate::dynamic_world::wildlife::Home::read(program, &city)?,
@@ -338,9 +344,21 @@ impl Hermes {
                 .duration_since(web_time::UNIX_EPOCH)
                 .map_or(1, |time| time.as_nanos() as u64 | 1),
             bikeshare_sites: crate::dynamic_world::bikeshare::Site::from_program(program, &city)?,
-            parked_vehicles: crate::dynamic_world::parked::ParkedVehicle::from_program(program)?,
-            traffic_paths: Arc::new(traffic_paths::TrafficPaths::new(&city, program)),
-            walking_paths: Arc::new(walking_paths::WalkingPaths::new(&city)),
+            parked_vehicles: {
+                let vehicles = crate::dynamic_world::parked::ParkedVehicle::from_program(program)?;
+                crate::performance::startup_memory("parked vehicle metadata");
+                vehicles
+            },
+            traffic_paths: {
+                let paths = Arc::new(traffic_paths::TrafficPaths::new(&city, program));
+                crate::performance::startup_memory("traffic graph");
+                paths
+            },
+            walking_paths: {
+                let paths = Arc::new(walking_paths::WalkingPaths::new(&city));
+                crate::performance::startup_memory("walking graph");
+                paths
+            },
             router,
             navigation: routing::Navigation::default(),
             city: Arc::new(city),
@@ -425,6 +443,9 @@ impl Hermes {
         self.prepared = Some(geometry);
         self.minimap.prepare_for_reload();
     }
+    pub fn take_scenery_source(&mut self) -> scenery::Source {
+        scenery::Source::new(self)
+    }
     pub fn take_geometry(&mut self) -> (Mesh, Mesh) {
         let _span = crate::telemetry::span("map.geometry");
         if let Some(meshes) = self.prepared.take() {
@@ -434,6 +455,17 @@ impl Hermes {
             .city
             .mesh_with_external_models(Region::WholeMap, 0.04)
             .expect("static map mesh");
+        crate::performance::startup_memory("world geometry");
+        #[cfg(all(target_arch = "wasm32", feature = "memory-profile"))]
+        web_sys::console::info_1(
+            &format!(
+                "[startup] world vertices: {} used / {} capacity ({} bytes each)",
+                world.vertices.len(),
+                world.vertices.capacity(),
+                std::mem::size_of::<opencity::runtime::Vertex>()
+            )
+            .into(),
+        );
         champlain::remove_generated_structure(&self.city, &mut world);
         metro::MetroMap::from_city(&self.city).open_portals(&mut world);
         world.vertices.append(&mut self.landmark_mesh.vertices);
@@ -487,8 +519,11 @@ impl Hermes {
     pub(crate) fn prop_parts_with_airport(
         &self,
     ) -> (Vec<Vec<crate::props::Part>>, std::ops::Range<usize>) {
+        crate::performance::startup_memory("before street props");
         let mut groups = street_props::parts(&self.city);
+        crate::performance::startup_memory("street props");
         groups.extend(self.details.take_props(&self.city, self.prepared.is_none()));
+        crate::performance::startup_memory("building props");
         groups.extend(orange_sign::parts(&self.city));
         groups.extend(
             crate::props::visible_placements(&self.authored_props, &self.city)

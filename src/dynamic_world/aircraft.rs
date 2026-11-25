@@ -90,7 +90,7 @@ impl Model {
             ),
         };
         let physics = self.physics();
-        catalog::Definition::load_config(
+        catalog::Definition::lazy_config(
             catalog::Config {
                 schema_version: 1,
                 name: name.into(),

@@ -49,7 +49,7 @@ mod snowplow_tests;
 #[path = "catalog_vehicle_qa.rs"]
 mod vehicle_qa;
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Physics {
     pub mass: f32,
@@ -65,7 +65,7 @@ pub struct Physics {
     pub traction: Option<Traction>,
 }
 /// Powered progress on seasonal ground; ordinary tires retain their existing response.
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Traction {
     pub snow: f32,
@@ -81,14 +81,14 @@ impl Traction {
         }
     }
 }
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Dimensions {
     pub length: f32,
     pub width: f32,
     pub height: f32,
 }
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Config {
     pub schema_version: u32,
@@ -282,17 +282,44 @@ fn folded_gear_pivot(pivot: Vec3, fraction: f32) -> Vec3 {
 }
 
 pub struct Definition {
+    pub config: Config,
+    pub texture_png: Option<Vec<u8>>,
+    geometry: OnceLock<ModelGeometry>,
+    source: Option<(&'static [u8], u32)>,
+    plate_layer: Option<u32>,
+}
+
+/// Geometry is decoded on the first physics or rendering request, never for ID lookup.
+pub struct ModelGeometry {
     pub(super) road_wheels: Option<[usize; 4]>,
     cargo_ground_origin: OnceLock<Vec3>,
     shot_meshes: OnceLock<Vec<rapier3d::prelude::TriMesh>>,
     aircraft_hulls: Vec<AircraftHull>,
     pub water_hull: Option<super::water_hull::WaterHull>,
-    pub config: Config,
-    pub texture_png: Option<Vec<u8>>,
     parts: Vec<Part>,
     rear_lenses: Vec<Vertex>,
     headlights: Vec<Vec3>,
     rear_emitters: Vec<Vec3>,
+}
+impl std::ops::Deref for Definition {
+    type Target = ModelGeometry;
+    fn deref(&self) -> &ModelGeometry {
+        self.geometry.get_or_init(|| {
+            let (bytes, layer) = self.source.expect("lazy model source");
+            let mut decoded = Self::load_config(self.config.clone(), bytes, layer)
+                .expect("validated bundled vehicle geometry");
+            if let Some(layer) = self.plate_layer {
+                decoded.add_rear_plate(layer);
+            }
+            decoded.geometry.into_inner().expect("decoded geometry")
+        })
+    }
+}
+impl std::ops::DerefMut for Definition {
+    fn deref_mut(&mut self) -> &mut ModelGeometry {
+        let _ = std::ops::Deref::deref(self);
+        self.geometry.get_mut().unwrap()
+    }
 }
 /// Explicit lens roles keep housings and roof beacons out of the light sources.
 fn headlight_lens(name: &str) -> bool {
@@ -467,6 +494,44 @@ impl Definition {
     pub(super) fn rear_lenses(&self) -> &[Vertex] {
         &self.rear_lenses
     }
+    fn lazy(config: &[u8], bytes: &'static [u8], layer: u32) -> Result<Self, String> {
+        Self::lazy_config(
+            serde_json::from_slice(config).map_err(|e| e.to_string())?,
+            bytes,
+            layer,
+        )
+    }
+    pub(super) fn lazy_config(
+        config: Config,
+        bytes: &'static [u8],
+        layer: u32,
+    ) -> Result<Self, String> {
+        let raw = gltf::binary::Glb::from_slice(bytes).map_err(|e| e.to_string())?;
+        let document = gltf::Document::from_json(
+            serde_json::from_slice(&raw.json).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        let binary = raw.bin.as_deref().ok_or("GLB has no buffer")?;
+        let texture_png = document
+            .textures()
+            .next()
+            .map(|texture| match texture.source().source() {
+                gltf::image::Source::View {
+                    view,
+                    mime_type: "image/png",
+                } => Ok(binary[view.offset()..view.offset() + view.length()].to_vec()),
+                _ => Err("Vehicle albedo requires an embedded PNG".to_string()),
+            })
+            .transpose()?;
+        Ok(Self {
+            config,
+            texture_png,
+            geometry: OnceLock::new(),
+            source: Some((bytes, layer)),
+            plate_layer: None,
+        })
+    }
+    #[cfg(test)]
     fn load(config: &[u8], bytes: &[u8], texture_layer: u32) -> Result<Self, String> {
         let config: Config = serde_json::from_slice(config).map_err(|e| e.to_string())?;
         Self::load_config(config, bytes, texture_layer)
@@ -512,8 +577,12 @@ impl Definition {
         {
             return Err(format!("Invalid SI vehicle configuration: {}", config.name));
         }
-        let glb = gltf::Gltf::from_slice(bytes).map_err(|e| e.to_string())?;
-        let binary = glb.blob.as_deref().ok_or("GLB has no embedded buffer")?;
+        let raw = gltf::binary::Glb::from_slice(bytes).map_err(|e| e.to_string())?;
+        let glb = gltf::Document::from_json(
+            serde_json::from_slice(&raw.json).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        let binary = raw.bin.as_deref().ok_or("GLB has no embedded buffer")?;
         let texture_png = glb
             .textures()
             .next()
@@ -919,21 +988,25 @@ impl Definition {
             }
         }
         Ok(Self {
-            road_wheels: Self::road_wheel_parts(&config, &articulated),
-            cargo_ground_origin: OnceLock::new(),
-            shot_meshes: OnceLock::new(),
-            water_hull: if config.vehicle_kind == VehicleKind::Boat {
-                Some(super::water_hull::WaterHull::new(shell_points)?)
-            } else {
-                None
-            },
-            config,
+            config: config.clone(),
             texture_png,
-            aircraft_hulls,
-            parts: articulated,
-            rear_lenses,
-            headlights,
-            rear_emitters,
+            source: None,
+            plate_layer: None,
+            geometry: OnceLock::from(ModelGeometry {
+                road_wheels: Self::road_wheel_parts(&config, &articulated),
+                cargo_ground_origin: OnceLock::new(),
+                shot_meshes: OnceLock::new(),
+                water_hull: if config.vehicle_kind == VehicleKind::Boat {
+                    Some(super::water_hull::WaterHull::new(shell_points)?)
+                } else {
+                    None
+                },
+                aircraft_hulls,
+                parts: articulated,
+                rear_lenses,
+                headlights,
+                rear_emitters,
+            }),
         })
     }
     pub(crate) fn crash_pieces(&self) -> impl Iterator<Item = (usize, Piece, Vec3)> + '_ {
@@ -1173,7 +1246,7 @@ pub fn definitions() -> &'static [Definition] {
         let mut definitions: Vec<_> = assets()
             .iter()
             .map(|(json, glb)| {
-                let definition = Definition::load(json, glb, texture_layer)
+                let definition = Definition::lazy(json, glb, texture_layer)
                     .expect("valid bundled Claydash vehicle");
                 texture_layer += u32::from(definition.texture_png.is_some());
                 definition
@@ -1188,19 +1261,19 @@ pub fn definitions() -> &'static [Definition] {
             asset!("boat/runabout"),
         ] {
             definitions
-                .push(Definition::load(cfg, glb, texture_layer).expect("bundled Claydash boat"));
+                .push(Definition::lazy(cfg, glb, texture_layer).expect("bundled Claydash boat"));
         }
         let (cfg, glb) = asset!("airport/baggage-tractor");
         let tug =
-            Definition::load(cfg, glb, texture_layer).expect("bundled airport baggage tractor");
+            Definition::lazy(cfg, glb, texture_layer).expect("bundled airport baggage tractor");
         texture_layer += u32::from(tug.texture_png.is_some());
         definitions.push(tug);
         let (cfg, glb) = asset!("winter/snowmobile");
-        let snowmobile = Definition::load(cfg, glb, texture_layer).expect("bundled snowmobile");
+        let snowmobile = Definition::lazy(cfg, glb, texture_layer).expect("bundled snowmobile");
         definitions.push(snowmobile);
         for definition in &mut definitions[..plated] {
             if !definition.is_bicycle() {
-                definition.add_rear_plate(texture_layer);
+                definition.plate_layer = Some(texture_layer);
             }
         }
         definitions
@@ -1208,6 +1281,38 @@ pub fn definitions() -> &'static [Definition] {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn metadata_and_texture_access_defer_geometry_and_preserve_plates() {
+        let (json, bytes) = super::assets()[0];
+        let mut lazy = super::Definition::lazy(json, bytes, 2).unwrap();
+        assert!(!lazy.config.research_id.is_empty());
+        let texture = lazy.texture_png.clone();
+        lazy.plate_layer = Some(7);
+        assert!(lazy.geometry.get().is_none());
+        let mut eager = super::Definition::load(json, bytes, 2).unwrap();
+        eager.add_rear_plate(7);
+        let signature = |definition: &super::Definition| {
+            definition
+                .part_vertices()
+                .map(|vertices| {
+                    vertices
+                        .iter()
+                        .flat_map(|v| {
+                            v.position
+                                .into_iter()
+                                .chain(v.normal)
+                                .chain(v.color)
+                                .chain(v.surface)
+                                .map(f32::to_bits)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(signature(&lazy), signature(&eager));
+        assert_eq!(texture, eager.texture_png);
+        assert!(lazy.geometry.get().is_some());
+    }
     #[test]
     fn authored_finish_round_trips_without_changing_paint_mask() {
         for paint in [false, true] {
