@@ -36,7 +36,7 @@ impl ParkedVehicle {
                     d.config.research_id == id
                         && (d.config.road_vehicle
                             || id == super::baggage::MODEL_ID
-                            || id == catalog::SNOWMOBILE_ID
+                            || matches!(id.as_str(), catalog::SNOWMOBILE_ID | catalog::ALPINE_ID)
                             || d.config.vehicle_kind == catalog::VehicleKind::Aircraft)
                 })
                 .ok_or_else(|| format!("Unknown parked vehicle: {id}"))?;
@@ -178,11 +178,11 @@ mod tests {
         let path = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road");
         let hermes = Hermes::load_with_game_data(&path, None).unwrap();
         let mut world = DynamicWorld::new(&hermes);
-        assert_eq!(hermes.parked_vehicles().len(), 89);
+        assert_eq!(hermes.parked_vehicles().len(), 90);
         // The first twelve visitors are at the sphere, then the driveway cars
-        // and the two airport aircraft, baggage tractor and ski-base snowmobile.
+        // and the two airport aircraft, baggage tractor and both ski-base snowmobiles.
         // Cyclists and traffic follow these slots.
-        assert_eq!(world.parked_vehicle_count, 89);
+        assert_eq!(world.parked_vehicle_count, 90);
         assert!(world.vehicles[86..=87].iter().all(Vehicle::is_aircraft));
         for (i, vehicle) in world.vehicles.iter().enumerate().skip(1).take(85) {
             assert!(!vehicle.is_aircraft());

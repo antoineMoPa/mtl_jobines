@@ -1,6 +1,101 @@
 use super::*;
 use crate::engine::{palette::Painter, render::Renderer};
 #[test]
+#[ignore = "requires a native GPU adapter; optional FUEL_STATION_BEFORE supplies a comparison asset"]
+fn native_fuel_station_asset_views() {
+    let output = std::env::var_os("FUEL_STATION_CAPTURE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("fuel-station-captures"));
+    std::fs::create_dir_all(&output).unwrap();
+    let after = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/models/fuel-station.glb");
+    let mut assets = Vec::new();
+    if let Some(before) = std::env::var_os("FUEL_STATION_BEFORE") {
+        assets.push(("before", PathBuf::from(before)));
+    }
+    assets.push(("after", after));
+    let mut renderer = pollster::block_on(Renderer::new(None, 1200, 800)).unwrap();
+    renderer.daylight = Some(1.);
+    renderer.sky_settings.solar_hour = Some(12.);
+    renderer.season = crate::season::Season::Summer;
+    renderer.winter_weather = false;
+    renderer.ambient_occlusion = false;
+    let mut ground = Mesh::default();
+    ground.quad(
+        [
+            [-1., -1., -0.001],
+            [1., -1., -0.001],
+            [1., 1., -0.001],
+            [-1., 1., -0.001],
+        ],
+        [0.2; 3],
+        opencity::runtime::SurfaceKind::Asphalt,
+    );
+    let ground = renderer.upload(&ground);
+    let nav = crate::hermes::MinimapView {
+        texture_region: [0., 0., 1., 1.],
+        uv_center: [0.5; 2],
+        uv_span: 1.,
+        heading: 0.,
+        player_uv: [0.5; 2],
+        destination_uv: [0.5; 2],
+        route_status: crate::hermes::RouteStatus::Inactive,
+    };
+    let mut original_bounds: Option<(Vec3, Vec3)> = None;
+    for (name, path) in assets {
+        let bytes = std::fs::read(path).unwrap();
+        let shared = crate::hermes::external_models::decode_shared(&bytes).unwrap();
+        let mut mesh = shared.as_ref().clone();
+        let mut lo = Vec3::splat(f32::INFINITY);
+        let mut hi = Vec3::splat(f32::NEG_INFINITY);
+        for v in &mesh.vertices {
+            lo = lo.min(v.position.into());
+            hi = hi.max(v.position.into());
+        }
+        if let Some((old_lo, old_hi)) = original_bounds {
+            let drift: Vec3 = (lo - old_lo).abs().max((hi - old_hi).abs());
+            assert!(
+                drift.max_element() < 0.01,
+                "asset bounds moved by {drift:?} metres"
+            );
+        } else {
+            original_bounds = Some((lo, hi));
+        }
+        eprintln!(
+            "{name}: {} triangles, {} used / {} allocated bytes, bounds {lo:?} .. {hi:?}",
+            mesh.vertices.len() / 3,
+            mesh.vertices.len() * 52,
+            shared.vertices.capacity() * 52
+        );
+        let origin = Vec3::new((lo.x + hi.x) * 0.5, (lo.y + hi.y) * 0.5, lo.z);
+        for v in &mut mesh.vertices {
+            v.position = ((Vec3::from(v.position) - origin) / 100.).to_array();
+        }
+        let gpu = renderer.upload(&mesh);
+        for (view, eye, look) in [
+            (
+                "overview",
+                Vec3::new(0.38, -0.48, 0.28),
+                Vec3::new(0., 0., 0.04),
+            ),
+            (
+                "forecourt",
+                Vec3::new(0.10, -0.26, 0.045),
+                Vec3::new(-0.02, 0.025, 0.035),
+            ),
+            (
+                "reverse",
+                Vec3::new(-0.38, 0.46, 0.24),
+                Vec3::new(0., 0., 0.04),
+            ),
+        ] {
+            let png = renderer
+                .report_screenshot(&[&ground, &gpu], eye, look, 0., nav)
+                .unwrap();
+            std::fs::write(output.join(format!("{name}-{view}.png")), png).unwrap();
+        }
+    }
+}
+#[test]
 #[ignore = "requires a native GPU adapter"]
 fn native_building_tool_captures_both_cameras() {
     let dir = std::env::temp_dir().join(format!("building-gpu-{}", std::process::id()));

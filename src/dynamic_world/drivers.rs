@@ -7,6 +7,7 @@ pub(super) fn seat(id: &str) -> Option<Vec3> {
     let position = match id {
         "vehicle-v2-09" | "vehicle-j01" | "vehicle-j06" => [0.10, 0.35, 0.46],
         super::baggage::MODEL_ID => [-0.54, 0., 1.04],
+        super::catalog::ALPINE_ID => [-0.32, 0.20, 0.92].map(|v| v * super::catalog::ALPINE_SCALE),
         super::catalog::SNOWMOBILE_ID => [-0.55, 0., 0.88],
         "vehicle-v2-01" => [0.44, 0.47, 0.97],
         "vehicle-12" => [0.13, 0.44, 0.76],

@@ -191,9 +191,35 @@ pub fn prop_groups(city: &City) -> Vec<Vec<Mesh>> {
     parts(city).1
 }
 pub(super) fn parts(city: &City) -> (Mesh, Vec<Vec<Mesh>>) {
+    parts_observed(city, |_, _, _| {})
+}
+#[cfg(feature = "memory-profile")]
+pub(super) fn memory_by_building(city: &City) -> Vec<opencity::runtime::BuildingDetailMemory> {
+    let mut rows = Vec::new();
+    parts_observed(city, |feature, scenery_vertices, groups| {
+        rows.push(opencity::runtime::BuildingDetailMemory {
+            feature,
+            scenery_vertices,
+            prop_vertices: groups.iter().flatten().map(|m| m.vertices.len()).sum(),
+            prop_capacity_bytes: groups
+                .iter()
+                .flatten()
+                .map(|m| m.vertices.capacity() * std::mem::size_of::<Vertex>())
+                .sum(),
+            prop_meshes: groups.iter().map(Vec::len).sum(),
+        });
+    });
+    rows
+}
+fn parts_observed(
+    city: &City,
+    mut observe: impl FnMut(usize, usize, &[Vec<Mesh>]),
+) -> (Mesh, Vec<Vec<Mesh>>) {
     let mut mesh = Mesh::default();
     let mut props = Vec::new();
-    for (_, feature) in city.query(Region::WholeMap).buildings {
+    for (feature_id, feature) in city.query(Region::WholeMap).buildings {
+        let scenery_start = mesh.vertices.len();
+        let props_start = props.len();
         if !matches!(
             feature.building_use,
             BuildingUse::Commercial | BuildingUse::MixedUse
@@ -237,6 +263,11 @@ pub(super) fn parts(city: &City) -> (Mesh, Vec<Vec<Mesh>>) {
                 8.,
                 0.,
                 [0., 1.],
+            );
+            observe(
+                feature_id,
+                mesh.vertices.len() - scenery_start,
+                &props[props_start..],
             );
             continue;
         }
@@ -553,6 +584,11 @@ pub(super) fn parts(city: &City) -> (Mesh, Vec<Vec<Mesh>>) {
                 );
             }
         }
+        observe(
+            feature_id,
+            mesh.vertices.len() - scenery_start,
+            &props[props_start..],
+        );
     }
     (mesh, props)
 }

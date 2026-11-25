@@ -62,6 +62,32 @@ impl Prepared {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "memory-profile")]
+    #[test]
+    fn per_building_detail_totals_match_the_generated_products() {
+        let city = city();
+        let mut rows = city.building_detail_memory_matching(
+            Region::WholeMap,
+            &building_style::residential(),
+            detailed_frontage,
+        );
+        rows.extend(commerce_mesh::memory_by_building(&city));
+        let products = build(&city);
+        let props = products.props.unwrap();
+        assert!(!rows.is_empty());
+        assert_eq!(
+            rows.iter().map(|r| r.scenery_vertices).sum::<usize>(),
+            products.scenery.unwrap().vertices.len()
+        );
+        assert_eq!(
+            rows.iter().map(|r| r.prop_vertices).sum::<usize>(),
+            props
+                .iter()
+                .flatten()
+                .map(|p| p.mesh.vertices.len())
+                .sum::<usize>()
+        );
+    }
     fn city() -> City {
         City::from_program(
             &opencity::parse(

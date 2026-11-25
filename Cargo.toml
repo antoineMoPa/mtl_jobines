@@ -16,9 +16,17 @@ resolver = "2"
 # The web build explicitly requests cdylib output with cargo rustc.
 crate-type = ["rlib"]
 
+[[example]]
+name = "procedural_residency"
+required-features = ["memory-profile"]
+
+[[example]]
+name = "building_memory"
+required-features = ["memory-profile"]
+
 [features]
 # Diagnostic counters only; default builds keep the standard allocator.
-memory-profile = ["mtl_world/memory-profile"]
+memory-profile = ["mtl_world/memory-profile", "opencity/memory-profile"]
 
 [dependencies]
 mtl_world = { path = "crates/mtl_world" }

@@ -443,6 +443,16 @@ impl Hermes {
         self.prepared = Some(geometry);
         self.minimap.prepare_for_reload();
     }
+    #[cfg(feature = "memory-profile")]
+    pub fn building_detail_memory(&self) -> Vec<opencity::runtime::BuildingDetailMemory> {
+        let mut rows = self.city.building_detail_memory_matching(
+            Region::WholeMap,
+            &building_style::residential(),
+            detailed_frontage,
+        );
+        rows.extend(commerce_mesh::memory_by_building(&self.city));
+        rows
+    }
     pub fn take_scenery_source(&mut self) -> scenery::Source {
         scenery::Source::new(self)
     }

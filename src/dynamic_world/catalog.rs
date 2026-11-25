@@ -4,6 +4,7 @@ mod crash_mesh;
 mod door_mesh;
 use super::vehicle::damage::Piece;
 mod shot_mesh;
+mod snow_tracks;
 use super::doors::{self, Door, Motion};
 use super::vehicle::tire::{Wheel, FLAT_HEIGHT};
 use glam::{Mat4, Quat, Vec3};
@@ -11,6 +12,7 @@ use glam::{Mat4, Quat, Vec3};
 use opencity::runtime::Mesh;
 use opencity::runtime::{SurfaceKind, Vertex};
 use serde::Deserialize;
+use snow_tracks::Belt;
 use std::sync::OnceLock;
 pub const BICYCLE_ID: &str = "vehicle-bike-share";
 
@@ -25,6 +27,9 @@ pub enum VehicleKind {
 }
 
 pub const SNOWMOBILE_ID: &str = "vehicle-winter-snowmobile";
+pub const ALPINE_ID: &str = "vehicle-winter-alpine-340";
+// Matches the authored export scale in scripts/export-alpine-340.mjs.
+pub(super) const ALPINE_SCALE: f32 = 1.25;
 
 pub const SNOWPLOW_ID: &str = "vehicle-j03";
 
@@ -114,6 +119,9 @@ enum PartRole {
     BaggageCargo,
     BaggageTrailer,
     BaggageWheel,
+    TrackShoe(Belt),
+    TrackWheel,
+    Ski,
     RearWheel,
     FrontWheel,
     Steering,
@@ -180,6 +188,9 @@ impl Gear {
 }
 
 fn part_role(name: &str) -> Result<PartRole, String> {
+    if let Some(belt) = Belt::from_node(name) {
+        return Ok(PartRole::TrackShoe(belt));
+    }
     match name {
         "Gear strut nose" | "Tire nose" | "Hub nose -1" | "Hub nose 1" => {
             Ok(PartRole::AircraftGear(Gear::Nose))
@@ -190,6 +201,8 @@ fn part_role(name: &str) -> Result<PartRole, String> {
         "Gear strut main right" | "Tire main right" | "Hub main right -1" | "Hub main right 1" => {
             Ok(PartRole::AircraftGear(Gear::Right))
         }
+        "snow_track_wheel" => Ok(PartRole::TrackWheel),
+        "snow_ski" => Ok(PartRole::Ski),
         "baggage_cargo" => Ok(PartRole::BaggageCargo),
         "baggage_trailer" => Ok(PartRole::BaggageTrailer),
         "baggage_wheel_front_left"
@@ -395,7 +408,9 @@ impl Part {
             .copied()
     }
     fn animated_pivot(&self, vehicle: &super::Vehicle) -> Vec3 {
-        if self.role == PartRole::FrontWheel && vehicle.is_bicycle() {
+        if let PartRole::TrackShoe(belt) = self.role {
+            self.pivot + belt.motion(vehicle.wheel_angle * vehicle.wheel_radius()).0
+        } else if self.role == PartRole::FrontWheel && vehicle.is_bicycle() {
             let stem = Vec3::new(0.35, 0., 0.90) - Vec3::Z * vehicle.ride_height();
             stem + Quat::from_rotation_z(vehicle.steering) * (self.pivot - stem)
         } else if matches!(self.role, PartRole::AircraftGear(_)) {
@@ -644,6 +659,15 @@ impl Definition {
                 let pivot = match role {
                     // Swivel at the aft face of the fixed transom bracket.
                     PartRole::Outboard => Vec3::new(-2.43, 0., 0.27 - ride),
+                    PartRole::TrackShoe(belt @ Belt::Motoneige(_)) => belt.rest() - Vec3::Z * ride,
+                    PartRole::Ski => {
+                        let point = game_vector(transform.transform_point3(Vec3::ZERO).to_array());
+                        Vec3::new(
+                            1.55 * ALPINE_SCALE,
+                            point.y.signum() * 0.42 * ALPINE_SCALE,
+                            -ride,
+                        )
+                    }
                     PartRole::AircraftGear(gear) => {
                         gear.hinge(config.dimensions.length, config.physics.track)
                     }
@@ -1071,7 +1095,13 @@ impl Definition {
             PartRole::BaggageCargo | PartRole::BaggageTrailer | PartRole::BaggageWheel => {
                 Quat::IDENTITY
             }
-            PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
+            PartRole::TrackShoe(belt) => {
+                belt.motion(vehicle.wheel_angle * vehicle.wheel_radius()).1
+            }
+            PartRole::Ski => Quat::from_rotation_z(vehicle.steering),
+            PartRole::TrackWheel | PartRole::RearWheel => {
+                Quat::from_rotation_y(vehicle.wheel_angle)
+            }
             PartRole::FrontWheel => {
                 Quat::from_rotation_z(vehicle.steering) * Quat::from_rotation_y(vehicle.wheel_angle)
             }
@@ -1178,7 +1208,13 @@ impl Definition {
                 PartRole::BaggageCargo | PartRole::BaggageTrailer | PartRole::BaggageWheel => {
                     Quat::IDENTITY
                 }
-                PartRole::RearWheel => Quat::from_rotation_y(vehicle.wheel_angle),
+                PartRole::TrackShoe(belt) => {
+                    belt.motion(vehicle.wheel_angle * vehicle.wheel_radius()).1
+                }
+                PartRole::Ski => Quat::from_rotation_z(vehicle.steering),
+                PartRole::TrackWheel | PartRole::RearWheel => {
+                    Quat::from_rotation_y(vehicle.wheel_angle)
+                }
                 PartRole::FrontWheel => {
                     Quat::from_rotation_z(vehicle.steering)
                         * Quat::from_rotation_y(vehicle.wheel_angle)
@@ -1268,9 +1304,11 @@ pub fn definitions() -> &'static [Definition] {
             Definition::lazy(cfg, glb, texture_layer).expect("bundled airport baggage tractor");
         texture_layer += u32::from(tug.texture_png.is_some());
         definitions.push(tug);
-        let (cfg, glb) = asset!("winter/snowmobile");
-        let snowmobile = Definition::lazy(cfg, glb, texture_layer).expect("bundled snowmobile");
-        definitions.push(snowmobile);
+        for (cfg, glb) in [asset!("winter/snowmobile"), asset!("winter/alpine-340")] {
+            let snowmobile = Definition::lazy(cfg, glb, texture_layer).expect("bundled snowmobile");
+            texture_layer += u32::from(snowmobile.texture_png.is_some());
+            definitions.push(snowmobile);
+        }
         for definition in &mut definitions[..plated] {
             if !definition.is_bicycle() {
                 definition.plate_layer = Some(texture_layer);
@@ -2109,7 +2147,7 @@ mod tests {
 
     #[test]
     fn every_export_loads_with_authored_running_gear_and_si_data() {
-        assert_eq!(definitions().len(), 19);
+        assert_eq!(definitions().len(), 20);
         assert_eq!(
             definitions()
                 .iter()
@@ -2137,7 +2175,7 @@ mod tests {
                 continue;
             }
             if def.config.vehicle_kind == VehicleKind::Boat
-                || def.config.research_id == SNOWMOBILE_ID
+                || matches!(def.config.research_id.as_str(), SNOWMOBILE_ID | ALPINE_ID)
             {
                 assert!(!def.config.road_vehicle);
                 continue;

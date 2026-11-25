@@ -112,5 +112,11 @@
     "path": "winter/snowmobile",
     "researchId": "vehicle-winter-snowmobile",
     "roadVehicle": false
+  },
+  {
+    "name": "Alpine 340 WT",
+    "path": "winter/alpine-340",
+    "researchId": "vehicle-winter-alpine-340",
+    "roadVehicle": false
   }
 ]

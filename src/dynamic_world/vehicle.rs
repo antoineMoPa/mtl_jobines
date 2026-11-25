@@ -245,7 +245,7 @@ impl Vehicle {
             4.
         }
     }
-    fn wheel_radius(&self) -> f32 {
+    pub(super) fn wheel_radius(&self) -> f32 {
         self.definition()
             .map_or(0.32, |d| d.config.physics.wheel_radius)
     }

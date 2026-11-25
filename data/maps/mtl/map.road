@@ -8253,3 +8253,6 @@ ski_chalet = building(0.07450055, "models/ski-chalet.glb", 4.041, -82.6525, 4.15
 elevation(ski_chalet, 0.100001);
 # Grass support becomes snow in winter. Leave space to board and turn toward the hill.
 parked_vehicle("vehicle-winter-snowmobile", 4.1, -82.4, 180);
+
+# Larger enclosed Alpine beside the original Motoneige; 5m centre spacing leaves boarding room.
+parked_vehicle("vehicle-winter-alpine-340", 4.1, -82.35, 180);

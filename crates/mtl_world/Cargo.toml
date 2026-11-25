@@ -12,7 +12,7 @@ path = "../../src/world.rs"
 
 [features]
 test-support = []
-memory-profile = []
+memory-profile = ["opencity/memory-profile"]
 
 [dependencies]
 flate2 = "1"

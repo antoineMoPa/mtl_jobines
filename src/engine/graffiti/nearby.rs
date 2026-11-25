@@ -58,10 +58,6 @@ impl Planner {
                 }
             }
         }
-        eprintln!(
-            "Graffiti indexed {} concrete receivers; maximum {MAX_VISIBLE} active nearby marks",
-            receivers.len()
-        );
         Self {
             receivers,
             index,

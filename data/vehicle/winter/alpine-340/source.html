@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALPINE 340 WT — Classic Snowmobile Configurator</title>
+<style>
+  :root{
+    --accent:#f5b301;
+    --panel:rgba(16,20,26,.82);
+    --panel-border:rgba(255,255,255,.09);
+    --text:#e8edf4;
+    --muted:#93a0b4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:#dfe9f5;color:var(--text);overflow:hidden;
+  }
+  #scene{position:fixed;inset:0;display:block}
+  .vignette{position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse at 50% 42%,transparent 55%,rgba(30,42,60,.28) 100%);}
+  /* ---------- header card ---------- */
+  .header{
+    position:fixed;top:22px;left:24px;z-index:10;padding:16px 20px 14px;
+    background:var(--panel);border:1px solid var(--panel-border);border-radius:14px;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    box-shadow:0 10px 30px rgba(10,18,30,.25);
+    min-width:270px;
+  }
+  .header h1{font-size:19px;letter-spacing:.04em;font-weight:700}
+  .header h1 span{color:var(--accent);transition:color .3s}
+  .header .sub{font-size:11.5px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;margin-top:3px}
+  .price-row{display:flex;align-items:baseline;gap:10px;margin-top:10px;border-top:1px solid var(--panel-border);padding-top:10px}
+  .price{font-size:22px;font-weight:700;color:#fff;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+  .price-note{font-size:11px;color:var(--muted)}
+  /* ---------- side panel ---------- */
+  .panel{
+    position:fixed;top:22px;right:22px;bottom:22px;width:316px;z-index:10;
+    background:var(--panel);border:1px solid var(--panel-border);border-radius:16px;
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    box-shadow:0 10px 30px rgba(10,18,30,.25);
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  .panel-head{padding:16px 18px 12px;border-bottom:1px solid var(--panel-border)}
+  .panel-head h2{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#fff}
+  .panel-head p{font-size:11px;color:var(--muted);margin-top:3px}
+  .panel-body{flex:1;overflow-y:auto;padding:6px 18px 18px;scrollbar-width:thin;scrollbar-color:#3a4657 transparent}
+  .panel-body::-webkit-scrollbar{width:8px}
+  .panel-body::-webkit-scrollbar-thumb{background:#3a4657;border-radius:4px}
+  .sec{margin-top:16px}
+  .sec-title{display:flex;justify-content:space-between;align-items:center;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+  .sec-title b{color:var(--accent);font-weight:600;letter-spacing:.02em;text-transform:none;transition:color .3s}
+  /* swatches */
+  .swatches{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .swatch{width:32px;height:32px;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,.18);
+    box-shadow:inset 0 2px 5px rgba(255,255,255,.35),inset 0 -3px 6px rgba(0,0,0,.35);transition:transform .15s,border-color .15s}
+  .swatch:hover{transform:scale(1.12)}
+  .swatch.active{border-color:#fff;transform:scale(1.12)}
+  /* segmented control */
+  .seg{display:flex;background:rgba(255,255,255,.06);border-radius:9px;padding:3px;gap:3px}
+  .seg button{flex:1;border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:600;
+    padding:8px 6px;border-radius:7px;cursor:pointer;transition:background .15s,color .15s;letter-spacing:.02em}
+  .seg button:hover{color:#fff}
+  .seg button.active{background:var(--accent);color:#15181d;transition:color .3s}
+  /* toggles */
+  .opt{display:flex;align-items:center;justify-content:space-between;padding:8px 2px;cursor:pointer;border-radius:8px}
+  .opt:hover{background:rgba(255,255,255,.04)}
+  .opt .lbl{font-size:13px;color:#dbe3ee}
+  .opt .lbl small{display:block;font-size:10.5px;color:var(--muted);margin-top:1px}
+  .opt .plus{font-size:12px;color:var(--accent);font-variant-numeric:tabular-nums;transition:color .3s}
+  .switch{position:relative;width:38px;height:22px;flex:none;margin-left:12px}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;inset:0;background:#39424f;border-radius:22px;transition:background .2s}
+  .slider::before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;border-radius:50%;
+    background:#cfd8e3;transition:transform .2s,background .2s}
+  .switch input:checked + .slider{background:var(--accent)}
+  .switch input:checked + .slider::before{transform:translateX(16px);background:#15181d}
+  /* camera row */
+  .cams{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+  .cams button{border:1px solid var(--panel-border);background:rgba(255,255,255,.05);color:#cfd9e6;
+    font-size:11.5px;font-weight:600;padding:8px 2px;border-radius:8px;cursor:pointer;letter-spacing:.03em}
+  .cams button:hover{background:rgba(255,255,255,.12);color:#fff}
+  .export{margin-top:10px;width:100%;border:1px solid var(--panel-border);background:rgba(255,255,255,.07);
+    color:#e8edf4;font-size:12.5px;font-weight:700;letter-spacing:.05em;padding:10px 8px;border-radius:9px;
+    cursor:pointer;transition:background .15s,transform .1s}
+  .export:hover{background:rgba(255,255,255,.14);color:#fff}
+  .export:active{transform:scale(.98)}
+  .export[disabled]{opacity:.55;cursor:progress}
+  .hint{position:fixed;bottom:20px;left:24px;z-index:10;font-size:11.5px;color:#5d6b80;letter-spacing:.05em;
+    background:rgba(240,245,250,.7);padding:7px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.5)}
+  .badge{position:fixed;bottom:20px;right:22px;z-index:10;font-size:10.5px;color:#5d6b80;letter-spacing:.08em}
+  @media (max-width:760px){
+    .panel{right:12px;left:12px;top:auto;bottom:12px;width:auto;max-height:46vh}
+    .header{left:12px;top:12px;min-width:0}
+    .hint,.badge{display:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="vignette"></div>
+
+<div class="header">
+  <h1>ALPINE <span>340</span> WT</h1>
+  <div class="sub">Classic utility · enclosed cab</div>
+  <div class="price-row">
+    <div class="price" id="price">$12,400</div>
+    <div class="price-note">as configured</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Configurator</h2>
+    <p>Build your classic workhorse</p>
+  </div>
+  <div class="panel-body">
+    <div class="sec">
+      <div class="sec-title"><span>Paint</span><b id="paintName">Sunburst Yellow</b></div>
+      <div class="swatches" id="swatches"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title"><span>Front end</span></div>
+      <div class="seg" id="segFront"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title"><span>Doors</span></div>
+      <div class="seg" id="segDoors"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title"><span>Track</span></div>
+      <div class="seg" id="segTrack"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title"><span>Accessories</span></div>
+      <div id="options"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title"><span>Scene</span></div>
+      <label class="opt"><span class="lbl">Headlights<small>spots + tail lens</small></span>
+        <span class="switch"><input type="checkbox" id="chkLights" checked><span class="slider"></span></span>
+      </label>
+      <label class="opt"><span class="lbl">Turntable<small>slow auto-rotate</small></span>
+        <span class="switch"><input type="checkbox" id="chkSpin" checked><span class="slider"></span></span>
+      </label>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title"><span>Camera</span></div>
+      <div class="cams" id="cams"></div>
+      <button class="export" id="btnExport" title="Downloads alpine-340-glb — drag the file into Blender, three.js Editor, or any glTF viewer (shortcut: E)">Export GLB</button>
+    </div>
+  </div>
+</div>
+
+<div class="hint">drag to orbit &nbsp;·&nbsp; scroll to zoom &nbsp;·&nbsp; click a door</div>
+<div class="badge">ALPINE MOTORS · EST. 1963</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+/* ============================================================
+   ALPINE 340 WT — classic enclosed-cab snowmobile configurator
+   All geometry is procedural: extruded hood, framed cab with
+   swing-open doors, skis + rear track with running gear.
+   Axis convention: +X forward, +Y up, +Z left.
+   ============================================================ */
+
+const COLORS = [
+  { name:'Sunburst Yellow', hex:0xf5b301 },
+  { name:'Signal Red',      hex:0xc23128 },
+  { name:'Glacier Blue',    hex:0x2f6cb0 },
+  { name:'Arctic White',    hex:0xe9edf1 },
+  { name:'Forest Green',    hex:0x2e5c43 },
+  { name:'Burnt Orange',    hex:0xc4622d },
+  { name:'Midnight Black',  hex:0x23262b },
+];
+const PRICE_BASE = 12400;
+const OPT_DEFS = [
+  { key:'rack',   label:'Roof rack + jerry can', note:'expedition cargo', price:390 },
+  { key:'bar',    label:'LED light bar',         note:'roof mounted',     price:240 },
+  { key:'beacon', label:'Amber beacon',          note:'work-site spec',   price:150 },
+  { key:'hitch',  label:'Tow hitch',             note:'toboggan ready',   price:120 },
+  { key:'box',    label:'Rear cargo box',        note:'locks, 120 L',     price:310 },
+];
+
+const state = {
+  color: 0,
+  front: 'skis',        // skis | wheels
+  doors: 'glass',       // glass | solid
+  track: 'standard',    // standard | extended
+  lights: true,
+  opt: { rack:false, bar:false, beacon:false, hitch:false, box:false },
+  spin: true,
+};
+
+/* ---------------- renderer / scene ---------------- */
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdfe9f5);
+scene.fog = new THREE.Fog(0xdfe9f5, 20, 60);
+
+const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 200);
+camera.position.set(6.4, 3.0, 7.2);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 0.95, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 3.2;
+controls.maxDistance = 18;
+controls.maxPolarAngle = Math.PI/2 - 0.03;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.7;
+
+/* lights */
+scene.add(new THREE.HemisphereLight(0xdfeaf6, 0x8f9db2, 0.9));
+const sun = new THREE.DirectionalLight(0xfff4e0, 2.4);
+sun.position.set(7, 11, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -7; sun.shadow.camera.right = 7;
+sun.shadow.camera.top = 7;   sun.shadow.camera.bottom = -7;
+sun.shadow.camera.far = 30;
+sun.shadow.bias = -0.0004;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xcfe0f2, 0.95);
+fill.position.set(-6, 3.5, -3);
+scene.add(fill);
+
+/* ground: snowfield */
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(30, 64),
+  new THREE.MeshStandardMaterial({ color:0xf2f6fa, roughness:0.96, metalness:0 })
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+/* faint service ring under the machine */
+const ring = new THREE.Mesh(
+  new THREE.RingGeometry(2.35, 2.45, 80),
+  new THREE.MeshBasicMaterial({ color:0xb9c6d6, transparent:true, opacity:0.55 })
+);
+ring.rotation.x = -Math.PI/2; ring.position.y = 0.005;
+scene.add(ring);
+/* snow mounds for depth */
+{
+  const moundMat = new THREE.MeshStandardMaterial({ color:0xedf2f8, roughness:1 });
+  const rnd = mulberry(7);
+  for (let i=0;i<9;i++){
+    const s = 0.6 + rnd()*1.4;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(s, 20, 12), moundMat);
+    const a = rnd()*Math.PI*2, r = 5.5 + rnd()*9;
+    m.position.set(Math.cos(a)*r, -s*0.72, Math.sin(a)*r);
+    m.scale.y = 0.55;
+    scene.add(m);
+  }
+}
+function mulberry(seed){ let t = seed>>>0; return function(){ t += 0x6D2B79F5; let r = Math.imul(t ^ (t>>>15), 1|t); r ^= r + Math.imul(r ^ (r>>>7), 61|r); return ((r ^ (r>>>14))>>>0)/4294967296; }; }
+
+/* ---------------- shared materials ---------------- */
+const paintMat = new THREE.MeshStandardMaterial({ color:COLORS[0].hex, metalness:0.35, roughness:0.32 });
+const trimMat  = new THREE.MeshStandardMaterial({ color:0x1b1e23, metalness:0.25, roughness:0.6 });
+const darkMat  = new THREE.MeshStandardMaterial({ color:0x2a2e34, metalness:0.4,  roughness:0.5 });
+const chromeMat= new THREE.MeshStandardMaterial({ color:0xd9dde2, metalness:1.0,  roughness:0.18 });
+const steelMat = new THREE.MeshStandardMaterial({ color:0x6d7580, metalness:0.85, roughness:0.4 });
+const glassMat = new THREE.MeshPhysicalMaterial({ color:0x9fc6dd, metalness:0, roughness:0.06,
+  transmission:0.75, thickness:0.4, transparent:true, opacity:0.42, clearcoat:1 });
+const rubberMat= new THREE.MeshStandardMaterial({ color:0x22252a, roughness:0.92 });
+const seatMat  = new THREE.MeshStandardMaterial({ color:0x5e4a38, roughness:0.85 });
+const tanMat   = new THREE.MeshStandardMaterial({ color:0x8a6a4f, roughness:0.8 });
+const lensMat  = new THREE.MeshStandardMaterial({ color:0xfff3c4, emissive:0xffe9a8, emissiveIntensity:1.4 });
+const redLens  = new THREE.MeshStandardMaterial({ color:0x8c1613, emissive:0xd41f14, emissiveIntensity:0.7 });
+const amberMat = new THREE.MeshStandardMaterial({ color:0xd98a1c, emissive:0xffa416, emissiveIntensity:0.35 });
+
+/* cleat texture + one shared material for track segments */
+function cleatTexture(){
+  const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#23262b'; g.fillRect(0,0,64,64);
+  g.fillStyle = '#31353c'; g.fillRect(0,0,64,18);
+  g.fillStyle = '#3c4048'; g.fillRect(0,4,64,3);
+  g.fillStyle = '#3c4048'; g.fillRect(0,13,64,3);
+  g.fillStyle = '#181a1e'; g.fillRect(0,44,64,4);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.center.set(0.5, 0.5);
+  t.rotation = Math.PI/2;
+  t.repeat.set(1, 6);
+  return t;
+}
+const trackSegMat = new THREE.MeshStandardMaterial({ map:cleatTexture(), roughness:0.9 });
+
+/* ---------------- helpers ---------------- */
+function box(w,h,d,mat,px,py,pz,parent,cast=true){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.position.set(px,py,pz);
+  m.castShadow = cast; m.receiveShadow = true;
+  (parent||scene).add(m); return m;
+}
+function cyl(r,h,mat,px,py,pz,parent,axis='y',rad2=null,cast=true){
+  const g = (rad2!==null) ? new THREE.CylinderGeometry(r,rad2,h,24) : new THREE.CylinderGeometry(r,r,h,28);
+  const m = new THREE.Mesh(g, mat);
+  m.position.set(px,py,pz);
+  if (axis==='z') m.rotation.x = Math.PI/2;
+  if (axis==='x') m.rotation.z = Math.PI/2;
+  m.castShadow = cast; m.receiveShadow = true;
+  (parent||scene).add(m); return m;
+}
+function tube(pts, r, mat, parent){
+  const curve = new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p)));
+  const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 32, r, 10), mat);
+  m.castShadow = true; m.receiveShadow = true;
+  (parent||scene).add(m); return m;
+}
+function disposeGroup(g){
+  g.traverse(o=>{ if(o.isMesh){ o.geometry.dispose(); } });
+  while(g.children.length) g.remove(g.children[0]);
+}
+
+/* vehicle root groups */
+const vehicle = new THREE.Group();
+scene.add(vehicle);
+const gChassis = new THREE.Group();  vehicle.add(gChassis);
+const gCab     = new THREE.Group();  vehicle.add(gCab);
+const gTrack   = new THREE.Group();  vehicle.add(gTrack);
+const gFront   = new THREE.Group();  vehicle.add(gFront);
+const gExtras  = new THREE.Group();  vehicle.add(gExtras);
+
+/* ============================================================
+   CHASSIS — belly pan, hood, engine, seat, boards
+   Track occupies roughly x:-2.7..0.6, cab x:-1.45..0.45.
+   ============================================================ */
+function buildChassis(){
+  disposeGroup(gChassis);
+
+  /* belly pan under cab (clears the track's upper run) */
+  box(2.1, 0.10, 1.10, darkMat, -0.45, 0.60, 0, gChassis);
+  /* tunnel sides behind the seat */
+  box(1.5, 0.16, 0.06, trimMat, -1.15, 0.60, 0.56, gChassis);
+  box(1.5, 0.16, 0.06, trimMat, -1.15, 0.60,-0.56, gChassis);
+
+  /* hood — extruded side profile, symmetric across Z */
+  const hs = new THREE.Shape();
+  hs.moveTo(-0.05, 0.55);
+  hs.lineTo(1.15, 0.55);          // lower front
+  hs.lineTo(1.28, 0.72);          // nose
+  hs.lineTo(0.95, 0.95);          // grille slope
+  hs.lineTo(0.10, 1.02);          // cowl top
+  hs.lineTo(-0.05, 0.92);
+  hs.closePath();
+  const hoodGeo = new THREE.ExtrudeGeometry(hs, { depth:1.06, bevelEnabled:true, bevelThickness:0.03, bevelSize:0.035, bevelSegments:3 });
+  hoodGeo.translate(0, 0, -0.53);
+  const hood = new THREE.Mesh(hoodGeo, paintMat);
+  hood.position.set(0.25, 0, 0);
+  hood.castShadow = hood.receiveShadow = true;
+  gChassis.add(hood);
+  /* hood centre crease */
+  box(0.85, 0.015, 0.05, trimMat, 0.72, 1.055, 0, gChassis, false);
+
+  /* headlight buckets + lenses */
+  cyl(0.11, 0.10, chromeMat, 1.46, 0.78, 0.30, gChassis, 'x');
+  cyl(0.11, 0.10, chromeMat, 1.46, 0.78,-0.30, gChassis, 'x');
+  const lensL = cyl(0.085, 0.02, lensMat, 1.52, 0.78, 0.30, gChassis, 'x', null, false);
+  const lensR = cyl(0.085, 0.02, lensMat, 1.52, 0.78,-0.30, gChassis, 'x', null, false);
+
+  /* grille slats */
+  for(let i=0;i<3;i++) box(0.03, 0.035, 0.44, trimMat, 1.30, 0.68+i*0.075, 0, gChassis, false);
+
+  /* engine block + exhaust */
+  box(0.55, 0.32, 0.42, steelMat, 0.55, 0.70, 0, gChassis);
+  cyl(0.045, 0.30, chromeMat, 0.52, 0.93, 0.14, gChassis);
+  cyl(0.045, 0.30, chromeMat, 0.52, 0.93,-0.14, gChassis);
+  tube([[0.5,0.62,0.18],[0.15,0.58,0.28],[-0.5,0.55,0.30],[-1.1,0.50,0.30],[-1.6,0.52,0.28]], 0.038, chromeMat, gChassis);
+  cyl(0.06, 0.16, darkMat, -1.72, 0.54, 0.28, gChassis, 'x'); // muffler tip
+
+  /* bench seat + backrest + base */
+  box(0.78, 0.08, 0.94, trimMat, -0.55, 0.675, 0, gChassis);
+  box(0.78, 0.14, 0.94, seatMat, -0.55, 0.78, 0, gChassis);
+  box(0.12, 0.46, 0.94, seatMat, -0.98, 1.02, 0, gChassis);
+  box(0.80, 0.02, 0.96, tanMat, -0.55, 0.86, 0, gChassis, false);   // piping
+
+  /* running boards */
+  box(1.15, 0.05, 0.16, trimMat, -0.35, 0.56, 0.63, gChassis);
+  box(1.15, 0.05, 0.16, trimMat, -0.35, 0.56,-0.63, gChassis);
+
+  /* rear rack base + tail light */
+  box(0.7, 0.05, 0.9, trimMat, -1.65, 0.72, 0, gChassis);
+  box(0.03, 0.12, 0.34, redLens, -1.99, 0.86, 0, gChassis, false);
+}
+
+/* ============================================================
+   CAB — fully enclosed habitacle: floor, walls, glass band,
+   raked windshield, roof, swing-open doors, interior.
+   Door opening: x -0.62..0.06 each side.
+   ============================================================ */
+const doors = []; // pivot groups with userData.target / openSign
+function buildCab(){
+  disposeGroup(gCab);
+  doors.length = 0;
+
+  const floorY = 0.62;
+  const wallT  = 0.045;
+  const Z      = 0.66;             // half width of cab
+  const X0     = -1.45, X1 = 0.45; // rear..front of cab box
+  const H      = 1.68;             // roof height
+  const SH     = 1.10;             // shoulder: top of lower wall / bottom of glass
+  const glassH = H - 0.10 - SH;    // window band height (1.10..1.58)
+
+  /* floor + mat */
+  box(X1-X0, 0.05, Z*2, darkMat, (X0+X1)/2, floorY, 0, gCab);
+  box(X1-X0-0.1, 0.02, Z*2-0.12, rubberMat, (X0+X1)/2, floorY+0.035, 0, gCab, false);
+
+  /* rear wall with window */
+  box(wallT, SH-floorY, Z*2, paintMat, X0+wallT/2, (floorY+SH)/2, 0, gCab);
+  box(wallT, glassH, Z*2-0.30, glassMat, X0+wallT/2, SH+glassH/2, 0, gCab, false);
+  box(wallT, 0.10, Z*2, paintMat, X0+wallT/2, H-0.05, 0, gCab);
+
+  /* front wall under the windshield + cowl cap */
+  box(0.05, 0.46, Z*2, paintMat, 0.47, 0.85, 0, gCab);
+  box(0.16, 0.04, Z*2, trimMat, 0.50, 1.085, 0, gCab, false);
+
+  /* side walls: lower panels + window band, split around door opening */
+  for (const s of [1,-1]){
+    const wz = s*(Z-wallT/2);
+    /* slim post finishing the front edge of the door opening (0.06..0.10) */
+    box(0.04, H-floorY, wallT, trimMat, 0.08, (floorY+H)/2, wz, gCab);
+    /* lower panels: front of opening (0.10..0.45) and rear (-1.45..-0.645) */
+    box(0.35, SH-floorY, wallT, paintMat, 0.275, (floorY+SH)/2, wz, gCab);
+    box(0.805, SH-floorY, wallT, paintMat, -1.0475, (floorY+SH)/2, wz, gCab);
+    /* window band, door span included — fixed transom glass above the
+       door; the door itself glazes below it */
+    box(0.35, glassH, wallT, glassMat, 0.275, SH+glassH/2, wz, gCab, false);
+    box(0.805, glassH, wallT, glassMat, -1.0475, SH+glassH/2, wz, gCab, false);
+    box(0.68, glassH, wallT, glassMat, -0.28, SH+glassH/2, wz, gCab, false);
+    /* top rails */
+    box(0.35, 0.10, wallT, paintMat, 0.275, H-0.05, wz, gCab);
+    box(0.805, 0.10, wallT, paintMat, -1.0475, H-0.05, wz, gCab);
+    /* B-pillar at the rear edge of the opening */
+    box(0.05, H-floorY, wallT, paintMat, -0.62, (floorY+H)/2, wz, gCab);
+  }
+
+  /* raked windshield between the A-pillars */
+  const wsh = box(0.03, 0.62, Z*2-0.10, glassMat, 0.50, 1.38, 0, gCab, false);
+  wsh.rotation.z = 0.18;
+  const wfr = box(0.04, 0.66, 0.05, trimMat, 0.50, 1.38, Z-0.06, gCab, false);
+  wfr.rotation.z = 0.18;
+  const wfl = wfr.clone(); wfl.position.z = -(Z-0.06); gCab.add(wfl);
+  const wft = box(0.06, 0.05, Z*2-0.08, trimMat, 0.45, 1.695, 0, gCab, false);
+  wft.rotation.z = 0.18;
+  /* A-pillars */
+  const apR = box(0.05, 0.72, 0.05, trimMat, 0.50, 1.32, Z-0.07, gCab, false); apR.rotation.z = 0.18;
+  const apL = apR.clone(); apL.position.z = -(Z-0.07); gCab.add(apL);
+
+  /* roof + drip rails */
+  const roof = box(2.20, 0.05, Z*2+0.10, paintMat, -0.44, H+0.02, 0, gCab);
+  box(2.20, 0.02, 0.03, trimMat, -0.44, H+0.055,  Z+0.03, gCab, false);
+  box(2.20, 0.02, 0.03, trimMat, -0.44, H+0.055, -(Z+0.03), gCab, false);
+
+  /* interior: dash, wheel, gauges, grab handle, armrests */
+  box(0.30, 0.22, Z*2-0.10, trimMat, 0.29, 1.02, 0, gCab);
+  const col = cyl(0.028, 0.34, trimMat, 0.11, 1.12, -0.20, gCab, 'x', null, false);
+  col.rotation.z = 1.15;
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.02, 10, 28), trimMat);
+  wheel.position.set(0.25, 1.26, -0.20); wheel.rotation.y = Math.PI/2; wheel.rotation.z = 0.25;
+  wheel.castShadow = true; gCab.add(wheel);
+  cyl(0.045, 0.015, lensMat, 0.40, 1.10, 0.12, gCab, 'x', null, false);
+  cyl(0.045, 0.015, lensMat, 0.40, 1.10, 0.02, gCab, 'x', null, false);
+  box(0.34, 0.05, 0.08, seatMat, -0.60, 0.88,  Z-0.12, gCab, false);
+  box(0.34, 0.05, 0.08, seatMat, -0.60, 0.88, -(Z-0.12), gCab, false);
+  tube([[0.05,1.06,Z-0.08],[-0.25,1.06,Z-0.08]], 0.016, trimMat, gCab);
+
+  /* dome light */
+  cyl(0.06, 0.02, lensMat, -0.4, H-0.015, 0, gCab, 'y', null, false);
+
+  /* ---------- doors ---------- */
+  const doorW = 0.68, doorH = SH - floorY;   // 0.48
+  const gH = 0.26, gY = 0.23;                // window: height, centre (local y)
+  for (const s of [1,-1]){
+    const pivot = new THREE.Group();
+    /* skin sits in the wall depth, lip ~7 mm proud of the outer face */
+    pivot.position.set(0.06, floorY, s*(Z-wallT/2+0.015));
+    pivot.userData.isDoor = true;
+    pivot.userData.openSign = s;
+    pivot.userData.target = 0;
+    gCab.add(pivot);
+
+    /* outer skin: rails + stiles framing the window hole — no backing
+       slab, so nothing is buried inside or pasted over anything.
+       Stiles run between the rails so no faces coincide */
+    const T = 0.035;                                           // skin depth
+    box(doorW, 0.10, T, paintMat, -doorW/2, 0.05, 0, pivot);   // bottom rail
+    box(doorW, 0.12, T, paintMat, -doorW/2, 0.42, 0, pivot);   // top rail
+    box(0.06, 0.26, T, paintMat, -doorW+0.03, gY, 0, pivot);   // rear stile
+    box(0.06, 0.26, T, paintMat, -0.03, gY, 0, pivot);         // front stile
+    /* window pane set into the hole (no proud trim — the painted frame
+       rails themselves frame the glass), hidden on solid doors */
+    const winAsm = new THREE.Group();
+    pivot.add(winAsm);
+    box(doorW-0.12, gH, 0.012, glassMat, -doorW/2, gY, 0, winAsm, false);
+    /* vertical grab handle on the front stile */
+    box(0.025, 0.10, 0.045, chromeMat, -0.03, gY, 0.035, pivot, false);
+    /* solid door style: steel panel fills the window hole instead */
+    if (state.doors === 'solid'){
+      winAsm.visible = false;
+      box(doorW-0.12, gH, 0.012, paintMat, -doorW/2, gY, 0, pivot, false);
+      box(0.30, 0.015, 0.01, trimMat, -doorW/2+0.05, gY-0.05, 0.02, pivot, false);
+      box(0.30, 0.015, 0.01, trimMat, -doorW/2+0.05, gY+0.02, 0.02, pivot, false);
+    }
+
+    /* generous invisible click target (never exported) */
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(doorW+0.10, doorH+0.34, 0.16),
+      new THREE.MeshBasicMaterial({ visible:false }));
+    hit.position.set(-doorW/2, doorH/2+0.08, s*0.02);
+    hit.userData.skipExport = true;
+    pivot.add(hit);
+
+    doors.push(pivot);
+  }
+
+  /* side decals "ALPINE 340" */
+  const dtex = decalTexture();
+  for (const s of [1,-1]){
+    const d = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.115),
+      new THREE.MeshBasicMaterial({ map:dtex, transparent:true }));
+    d.position.set(-1.02, 0.88, s*(Z+0.003));
+    d.rotation.y = s>0 ? 0 : Math.PI;
+    gCab.add(d);
+  }
+}
+function decalTexture(){
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  const g = c.getContext('2d');
+  g.clearRect(0,0,512,128);
+  g.fillStyle = '#f4f6f8';
+  g.font = 'bold 74px Arial, sans-serif';
+  g.textBaseline = 'middle';
+  g.fillText('ALPINE', 8, 52);
+  g.font = 'bold 44px Arial, sans-serif';
+  g.fillText('340 WT', 330, 62);
+  g.fillStyle = '#f5b301';
+  g.fillRect(8, 96, 400, 10);
+  const t = new THREE.CanvasTexture(c);
+  t.anisotropy = 4;
+  return t;
+}
+
+/* ============================================================
+   TRACK — twin bogies (one per side): road wheels, idler,
+   drive sprocket, segmented wrap, cross shafts tying the sides.
+   ============================================================ */
+function buildTrack(){
+  disposeGroup(gTrack);
+  const ext = state.track === 'extended';
+  const R   = 0.24;                  // road wheel radius
+  const CX  = -0.85;                 // skid frame centre x
+  const TC  = 0.42;                  // track centreline (one track per side)
+  const w   = 0.30;                  // per-side track width
+  const RW  = 0.26;                  // wrap radius at the ends
+  const sprX = CX + 1.17;            // drive sprocket (front)
+  const idlX = CX - (ext ? 1.51 : 1.17); // idler (rear)
+  const segL = 0.11, segH = 0.035;
+  const railLen = sprX - idlX + 0.40, railCX = (sprX + idlX)/2;
+
+  /* cross shafts + centre beam tying the two sides together */
+  for (const x of [sprX, idlX])
+    cyl(0.03, TC*2+0.16, steelMat, x, 0.24, 0, gTrack, 'z', null, false);
+  box((sprX-idlX)*0.7, 0.05, TC*2+0.10, trimMat, CX-0.1, 0.26, 0, gTrack);
+
+  /* one bogie + track wrap per side */
+  for (const s of [1,-1]){
+    const side = new THREE.Group();
+    side.position.z = s*TC;
+    gTrack.add(side);
+
+    /* bogie tubes across each axle pair */
+    for (const dx of [0.4, -0.4])
+      cyl(0.025, 0.36, steelMat, CX+dx, 0.40, 0, side, 'z', null, false);
+
+    /* road wheels (twin per axle) */
+    const wheelGeo = new THREE.CylinderGeometry(R, R, 0.055, 22);
+    const xs = ext ? [0.45, 0.0, -0.45, -0.9, -1.35] : [0.5, 0.0, -0.5];
+    for (const dx of xs) for (const lz of [-0.075, 0.075]){
+      const m = new THREE.Mesh(wheelGeo, darkMat);
+      m.rotation.x = Math.PI/2;
+      m.position.set(CX+dx, R, lz);
+      m.castShadow = true;
+      side.add(m);
+    }
+
+    /* idler + sprocket — same radius as the wrap so the track hugs them */
+    const idl = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.08, 24), darkMat);
+    idl.rotation.x = Math.PI/2; idl.position.set(idlX, 0.24, 0); idl.castShadow = true; side.add(idl);
+    const spr = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.08, 20), steelMat);
+    spr.rotation.x = Math.PI/2; spr.position.set(sprX, 0.24, 0); spr.castShadow = true; side.add(spr);
+
+    /* frame rails */
+    box(railLen, 0.07, 0.05, trimMat, railCX, 0.44,  0.105, side);
+    box(railLen, 0.07, 0.05, trimMat, railCX, 0.44, -0.105, side);
+
+    /* --- track wrap (shared material, one cleat texture) ---
+       segments are laid TANGENT to the wrap (rotZ = a + 90°) so the
+       ends curl around the pulleys instead of splaying inward */
+    function seg(x, y, rotZ){
+      const m = new THREE.Mesh(new THREE.BoxGeometry(segL, segH, w), trackSegMat);
+      m.position.set(x, y, 0);
+      m.rotation.z = rotZ;
+      m.castShadow = true;
+      side.add(m);
+    }
+    /* ground run, front tangency at the sprocket */
+    {
+      const x0 = idlX, x1 = sprX;
+      const n = Math.floor((x1 - x0)/segL);
+      for (let i=0;i<n;i++) seg(x0 + segL/2 + i*segL, 0.018, 0);
+    }
+    /* top run between the pulley tops */
+    {
+      const x0 = idlX, x1 = sprX;
+      const n = Math.floor((x1 - x0)/segL);
+      for (let i=0;i<n;i++) seg(x0 + segL/2 + i*segL, 0.50, 0);
+    }
+    /* rear curve: wraps AROUND the idler (back half), tangent to it */
+    for (let i=0;i<12;i++){
+      const a = -Math.PI/2 - Math.PI*(i+0.5)/12;
+      seg(idlX + Math.cos(a)*RW, 0.24 + Math.sin(a)*RW, a + Math.PI/2);
+    }
+    /* front curve: wraps AROUND the sprocket (front half), tangent to it */
+    for (let i=0;i<12;i++){
+      const a = Math.PI/2 - Math.PI*(i+0.5)/12;
+      seg(sprX + Math.cos(a)*RW, 0.24 + Math.sin(a)*RW, a + Math.PI/2);
+    }
+
+    /* mud flap behind the idler */
+    const flap = box(0.05, 0.22, w, rubberMat, idlX - 0.10, 0.15, 0, side, false);
+    flap.rotation.z = 0.25;
+  }
+}
+
+/* ============================================================
+   FRONT END — skis (A-arms + coil spring) or twin wheels
+   ============================================================ */
+function buildFront(){
+  disposeGroup(gFront);
+  const x = 1.55;
+
+  /* chassis outriggers shared by both front ends: rails running back to
+     the skid-frame front shaft, + a pivot cross tube the arms hang from */
+  for (const s of [1,-1]){
+    box(0.87, 0.075, 0.06, trimMat, 0.755, 0.355, s*0.42, gFront);
+    box(0.05, 0.09, 0.05, trimMat, 0.36, 0.295, s*0.42, gFront);   // gusset to shaft
+  }
+  cyl(0.028, 1.0, steelMat, 1.19, 0.355, 0, gFront, 'z', null, false);
+
+  /* rod between two points */
+  const link = (a, b, r, mat, parent) => {
+    const A = new THREE.Vector3(a[0], a[1], a[2]), B = new THREE.Vector3(b[0], b[1], b[2]);
+    const d = B.clone().sub(A), L = d.length();
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, L, 14), mat);
+    m.position.copy(A).add(B).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), d.normalize());
+    m.castShadow = true; parent.add(m); return m;
+  };
+  /* vertical coil spring */
+  const coilSpring = (cx, cy, cz, r0, half, parent) => {
+    const curve = new THREE.Curve();
+    curve.getPoint = t => new THREE.Vector3(Math.cos(t*Math.PI*14)*r0, (t-0.5)*half*2, Math.sin(t*Math.PI*14)*r0);
+    const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 120, 0.011, 8), chromeMat);
+    m.position.set(cx, cy, cz); m.castShadow = true; parent.add(m); return m;
+  };
+
+  if (state.front === 'skis'){
+    for (const s of [1,-1]){
+      const g = new THREE.Group();
+      g.position.set(x, 0, s*0.42);
+      gFront.add(g);
+      /* ski body — extruded profile with upturned tip */
+      const p = new THREE.Shape();
+      p.moveTo(-0.62, 0.02);
+      p.lineTo( 0.42, 0.02);
+      p.quadraticCurveTo(0.66, 0.02, 0.72, 0.20);
+      p.quadraticCurveTo(0.74, 0.30, 0.66, 0.30);
+      p.lineTo( 0.40, 0.10);
+      p.lineTo(-0.62, 0.10);
+      p.closePath();
+      const geo = new THREE.ExtrudeGeometry(p, { depth:0.24, bevelEnabled:true, bevelThickness:0.015, bevelSize:0.02, bevelSegments:2 });
+      geo.translate(0,0,-0.12);
+      const ski = new THREE.Mesh(geo, paintMat);
+      ski.castShadow = ski.receiveShadow = true;
+      g.add(ski);
+      /* keel + wear runner */
+      box(1.0, 0.055, 0.05, darkMat, -0.1, 0.015, 0, g, false);
+      box(1.0, 0.02, 0.012, chromeMat, -0.1, 0.0, 0, g, false);
+    }
+    /* linkage per side, chassis space — every rod lands on the rails /
+       pivot tube added above, so the front end is visibly attached */
+    for (const s of [1,-1]){
+      const z = s*0.42;
+      link([1.19,0.355,z],[1.55,0.33,z],0.027,steelMat,gFront);  // trailing arm
+      link([1.19,0.355,z],[1.55,0.24,z],0.022,steelMat,gFront);  // lower torque arm
+      link([1.55,0.12,z],[1.55,0.36,z],0.030,steelMat,gFront);   // spindle
+      coilSpring(1.55,0.40,z,0.052,0.07,gFront);                 // coil over upper joint
+      link([1.19,0.355,s*0.38],[1.28,0.55,s*0.38],0.018,steelMat,gFront); // tower strut
+      link([1.28,0.55,s*0.38],[1.50,0.34,s*0.38],0.020,darkMat,gFront);   // shock rod
+    }
+    link([1.28,0.55,-0.38],[1.28,0.55,0.38],0.015,steelMat,gFront); // tower crossbar
+  } else {
+    for (const s of [1,-1]){
+      const g = new THREE.Group();
+      g.position.set(x, 0, s*0.42);
+      gFront.add(g);
+      const tireGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.13, 26);
+      for (const dz of [-0.128, 0.128]){
+        const t = new THREE.Mesh(tireGeo, rubberMat);
+        t.rotation.x = Math.PI/2;
+        t.position.set(0, 0.22, dz);
+        t.castShadow = true;
+        g.add(t);
+        const rim = cyl(0.10, 0.05, chromeMat, 0, 0.22, dz + Math.sign(s)*0.045, g, 'z', null, false);
+        for (let k=0;k<5;k++){
+          const a = k/5*Math.PI*2;
+          const lug = box(0.02, 0.07, 0.015, darkMat,
+            Math.cos(a)*0.055, 0.22 + Math.sin(a)*0.055, dz + Math.sign(s)*0.065, g, false);
+          lug.rotation.z = a;
+        }
+      }
+      cyl(0.02, 0.2, steelMat, 0, 0.22, 0, g, 'z');
+    }
+    /* wishbone + coil-over upright, tied to the same pivot tube */
+    for (const s of [1,-1]){
+      const z = s*0.42;
+      link([1.19,0.355,z],[1.55,0.40,z],0.026,steelMat,gFront);  // upper arm
+      link([1.19,0.355,z],[1.55,0.20,z],0.022,steelMat,gFront);  // lower arm
+      link([1.55,0.12,z],[1.55,0.44,z],0.028,steelMat,gFront);   // upright
+      coilSpring(1.55,0.47,z,0.05,0.07,gFront);
+      link([1.19,0.355,s*0.38],[1.28,0.57,s*0.38],0.018,steelMat,gFront);
+      link([1.28,0.57,s*0.38],[1.51,0.42,s*0.38],0.020,darkMat,gFront);
+    }
+    link([1.28,0.57,-0.38],[1.28,0.57,0.38],0.015,steelMat,gFront);
+    cyl(0.02, 0.6, steelMat, x, 0.5, 0, gFront, 'z', null, false).rotation.x = Math.PI/2;
+  }
+  /* steering linkage: rack + tie rods out to the spindle tops */
+  cyl(0.018, 0.55, steelMat, 0.9, 0.5, 0, gFront, 'z', null, false).rotation.x = Math.PI/2;
+  for (const s of [1,-1])
+    link([0.9,0.5,s*0.18],[1.50,0.37,s*0.40],0.014,steelMat,gFront);
+}
+
+/* ============================================================
+   EXTRAS — roof rack, light bar, beacon, hitch, cargo box
+   ============================================================ */
+let beaconLight = null, beaconMesh = null;
+const spotL = new THREE.SpotLight(0xfff2cf, 0, 16, 0.5, 0.5, 1.3);
+const spotR = new THREE.SpotLight(0xfff2cf, 0, 16, 0.5, 0.5, 1.3);
+spotL.position.set(1.52, 0.78, 0.30); spotL.target.position.set(9, 0.1, 0.9);
+spotR.position.set(1.52, 0.78,-0.30); spotR.target.position.set(9, 0.1,-0.9);
+vehicle.add(spotL, spotR, spotL.target, spotR.target);
+
+function buildExtras(){
+  disposeGroup(gExtras);
+  beaconLight = null; beaconMesh = null;
+
+  if (state.opt.rack){
+    const Y = 1.75;
+    box(1.3, 0.04, 0.05, trimMat, -0.65, Y,  0.55, gExtras);
+    box(1.3, 0.04, 0.05, trimMat, -0.65, Y, -0.55, gExtras);
+    box(0.05, 0.04, 1.15, trimMat, -0.02, Y, 0, gExtras);
+    box(0.05, 0.04, 1.15, trimMat, -1.28, Y, 0, gExtras);
+    for (const dx of [-0.02,-1.28]) for (const s of [1,-1])
+      box(0.05, 0.06, 0.05, trimMat, dx, Y-0.05, s*0.55, gExtras, false);
+    const can = box(0.24, 0.32, 0.16,
+      new THREE.MeshStandardMaterial({ color:0xb3231d, roughness:0.6, metalness:0.2 }),
+      -0.45, Y+0.18, 0.38, gExtras);
+    cyl(0.02, 0.05, darkMat, -0.36, Y+0.36, 0.38, gExtras, 'y', null, false);
+    /* spare drive belt on a peg */
+    const belt = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.022, 10, 30), rubberMat);
+    belt.position.set(-1.1, Y+0.11, -0.35); belt.rotation.x = Math.PI/2;
+    belt.castShadow = true; gExtras.add(belt);
+  }
+  if (state.opt.bar){
+    box(0.05, 0.06, 1.0, trimMat, 0.25, 1.80, 0, gExtras);
+    for (let i=0;i<5;i++) box(0.02, 0.045, 0.10, lensMat, 0.29, 1.80, -0.4+i*0.2, gExtras, false);
+  }
+  if (state.opt.beacon){
+    cyl(0.05, 0.03, trimMat, -0.7, 1.745, -0.45, gExtras, 'y', null, false);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.06, 18, 12, 0, Math.PI*2, 0, Math.PI/2), amberMat);
+    dome.position.set(-0.7, 1.76, -0.45); dome.castShadow = true;
+    gExtras.add(dome);
+    beaconMesh = dome;
+    beaconLight = new THREE.PointLight(0xffa416, 0, 4, 2);
+    beaconLight.position.set(-0.7, 1.90, -0.45);
+    gExtras.add(beaconLight);
+  }
+  if (state.opt.hitch){
+    cyl(0.03, 0.22, steelMat, -2.05, 0.62, 0, gExtras, 'x');
+    box(0.10, 0.05, 0.16, trimMat, -2.18, 0.62, 0, gExtras);
+    cyl(0.035, 0.06, steelMat, -2.24, 0.62, 0, gExtras, 'x');
+  }
+  if (state.opt.box){
+    box(0.85, 0.4, 0.9, paintMat, -1.72, 0.94, 0, gExtras);
+    box(0.86, 0.03, 0.92, trimMat, -1.72, 1.15, 0, gExtras, false);
+    for (const s of [1,-1]) box(0.03, 0.06, 0.05, chromeMat, -1.32, 0.98, s*0.3, gExtras, false);
+  }
+}
+
+/* ============================================================
+   APPLY STATE
+   ============================================================ */
+function applyPaint(){
+  const c = COLORS[state.color];
+  paintMat.color.setHex(c.hex);
+  document.documentElement.style.setProperty('--accent', '#'+c.hex.toString(16).padStart(6,'0'));
+  document.getElementById('paintName').textContent = c.name;
+}
+function applyLights(){
+  const on = state.lights;
+  lensMat.color.setHex(on ? 0xfff3c4 : 0xd8d2c0);
+  lensMat.emissiveIntensity = on ? 1.5 : 0.05;
+  redLens.emissiveIntensity = on ? 0.9 : 0.08;
+  spotL.intensity = spotR.intensity = on ? 55 : 0;
+}
+function applyAll(){
+  applyPaint();
+  buildChassis();
+  buildCab();
+  buildTrack();
+  buildFront();
+  buildExtras();
+  applyLights();
+  updatePrice();
+}
+function updatePrice(){
+  let p = PRICE_BASE;
+  if (state.front === 'wheels') p += 850;
+  if (state.doors === 'solid')  p -= 180;
+  if (state.track === 'extended') p += 640;
+  for (const o of OPT_DEFS) if (state.opt[o.key]) p += o.price;
+  document.getElementById('price').textContent = '$' + p.toLocaleString('en-US');
+}
+
+/* ============================================================
+   UI
+   ============================================================ */
+function seg(id, items, get, set){
+  const el = document.getElementById(id);
+  items.forEach(it=>{
+    const b = document.createElement('button');
+    b.textContent = it.label;
+    b.dataset.value = it.value;
+    b.addEventListener('click', ()=>{ set(it.value); render({ [id.slice(3).toLowerCase()]:1 }); });
+    el.appendChild(b);
+  });
+  el._sync = ()=>{ for (const b of el.children) b.classList.toggle('active', b.dataset.value === get()); };
+}
+seg('segFront', [{label:'Skis',value:'skis'},{label:'Wheels',value:'wheels'}], ()=>state.front, v=>state.front=v);
+seg('segDoors', [{label:'Glass',value:'glass'},{label:'Solid',value:'solid'}], ()=>state.doors, v=>state.doors=v);
+seg('segTrack', [{label:'Standard',value:'standard'},{label:'Extended',value:'extended'}], ()=>state.track, v=>state.track=v);
+
+/* swatches */
+{
+  const el = document.getElementById('swatches');
+  COLORS.forEach((c,i)=>{
+    const s = document.createElement('div');
+    s.className = 'swatch';
+    s.style.background = '#'+c.hex.toString(16).padStart(6,'0');
+    s.title = c.name;
+    s.addEventListener('click', ()=>{ state.color = i; render({}); });
+    el.appendChild(s);
+  });
+}
+/* option toggles */
+{
+  const el = document.getElementById('options');
+  OPT_DEFS.forEach(o=>{
+    const l = document.createElement('label');
+    l.className = 'opt';
+    l.innerHTML = `<span class="lbl">${o.label}<small>${o.note}</small></span>
+      <span class="plus">+$${o.price}</span>
+      <span class="switch"><input type="checkbox" data-key="${o.key}"><span class="slider"></span></span>`;
+    l.querySelector('input').addEventListener('change', e=>{
+      state.opt[o.key] = e.target.checked;
+      buildExtras();
+      applyLights();
+      updatePrice();
+    });
+    el.appendChild(l);
+  });
+}
+/* cameras */
+const CAM_PRESETS = [
+  { label:'¾ Front', pos:[6.4, 3.0, 7.2] },
+  { label:'Side',    pos:[0.2, 1.6, 9.2] },
+  { label:'Rear',    pos:[-6.6, 2.4, 6.4] },
+  { label:'Top',     pos:[3.4, 8.2, 3.4] },
+];
+{
+  const el = document.getElementById('cams');
+  CAM_PRESETS.forEach(p=>{
+    const b = document.createElement('button');
+    b.textContent = p.label;
+    b.addEventListener('click', ()=>flyTo(p.pos));
+    el.appendChild(b);
+  });
+}
+document.getElementById('chkSpin').addEventListener('change', e=>{
+  state.spin = e.target.checked;
+  controls.autoRotate = state.spin;
+});
+document.getElementById('chkLights').addEventListener('change', e=>{
+  state.lights = e.target.checked;
+  applyLights();
+});
+
+/* ---------------- GLB export ---------------- */
+const btnExport = document.getElementById('btnExport');
+btnExport.addEventListener('click', exportGLB);
+addEventListener('keydown', e=>{
+  if ((e.key === 'e' || e.key === 'E') && !e.metaKey && !e.ctrlKey && !e.altKey) exportGLB();
+});
+function exportGLB(){
+  btnExport.disabled = true;
+  btnExport.textContent = 'Exporting…';
+  /* strip invisible click targets for the export, restore right after */
+  const skipped = [];
+  vehicle.traverse(o=>{ if (o.userData && o.userData.skipExport) skipped.push({ o, parent:o.parent }); });
+  skipped.forEach(x=>x.parent.remove(x.o));
+  const restore = ()=>skipped.forEach(x=>x.parent.add(x.o));
+  /* export only the machine (scene.background is a Color, fine to leave out) */
+  const exporter = new GLTFExporter();
+  exporter.parse(vehicle, gltf=>{
+    restore();
+    const blob = new Blob([gltf], { type:'model/gltf-binary' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'alpine-340-wt.glb';
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+    btnExport.disabled = false;
+    btnExport.textContent = 'Export GLB';
+  }, err=>{
+    restore();
+    console.error('GLB export failed', err);
+    btnExport.disabled = false;
+    btnExport.textContent = 'Export GLB';
+  }, { binary:true });
+}
+
+/* rebuild only what changed; render({}) = cosmetic only (keeps doors open) */
+function render(changed){
+  applyPaint();
+  if (!changed || changed.doors) buildCab();
+  if (!changed || changed.front) buildFront();
+  if (!changed || changed.track) buildTrack();
+  applyLights();
+  updatePrice();
+  syncUI();
+}
+function syncUI(){
+  document.querySelectorAll('.seg').forEach(s=>s._sync && s._sync());
+  document.querySelectorAll('#swatches .swatch').forEach((s,i)=>s.classList.toggle('active', i===state.color));
+  document.querySelectorAll('#options input').forEach(i=>i.checked = !!state.opt[i.dataset.key]);
+  document.getElementById('chkSpin').checked = state.spin;
+  document.getElementById('chkLights').checked = state.lights;
+}
+
+/* camera fly */
+let fly = null;
+function flyTo(pos){
+  fly = { t:0, from:camera.position.clone(), to:new THREE.Vector3(...pos) };
+  controls.autoRotate = false;
+  document.getElementById('chkSpin').checked = false;
+}
+
+/* door picking */
+const ray = new THREE.Raycaster();
+canvas.addEventListener('pointerdown', e=>{
+  canvas._down = { x:e.clientX, y:e.clientY };
+});
+canvas.addEventListener('pointerup', e=>{
+  if (!canvas._down) return;
+  const moved = Math.hypot(e.clientX-canvas._down.x, e.clientY-canvas._down.y);
+  canvas._down = null;
+  if (moved > 6) return; // that was an orbit drag
+  const ndc = new THREE.Vector2(e.clientX/innerWidth*2-1, -(e.clientY/innerHeight)*2+1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(vehicle.children, true);
+  for (const h of hits){
+    let o = h.object;
+    while (o && !(o.userData && o.userData.isDoor)) o = o.parent;
+    if (o){
+      const door = o;
+      door.userData.target = Math.abs(door.userData.target) > 0.1 ? 0 : door.userData.openSign * 1.25;
+      break;
+    }
+  }
+});
+
+/* ---------------- loop ---------------- */
+const clock = new THREE.Clock();
+function tick(){
+  requestAnimationFrame(tick);
+  const t = clock.getElapsedTime();
+
+  /* door animation */
+  for (const d of doors){
+    d.rotation.y += (d.userData.target - d.rotation.y) * 0.12;
+  }
+  /* beacon pulse */
+  if (beaconMesh && beaconLight){
+    const p = Math.max(0, Math.sin(t*4.2));
+    beaconMesh.material.emissiveIntensity = 0.2 + p*2.2;
+    beaconLight.intensity = p*14;
+  }
+  /* headlight shimmer */
+  if (state.lights) lensMat.emissiveIntensity = 1.45 + Math.sin(t*3)*0.12;
+
+  /* camera fly */
+  if (fly){
+    fly.t = Math.min(1, fly.t + 0.045);
+    const e = 1 - Math.pow(1-fly.t, 3);
+    camera.position.lerpVectors(fly.from, fly.to, e);
+    if (fly.t >= 1) fly = null;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ---------------- boot ---------------- */
+applyAll();
+syncUI();
+tick();
+
+/* tiny debug handle (also handy in devtools) */
+window.__cfg = { camera, controls, doors, vehicle, state, renderer, scene };
+</script>
+</body>
+</html>

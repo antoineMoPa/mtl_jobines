@@ -9,8 +9,10 @@ Game integration adds two front lenses and one rear lens using existing catalog 
 
 Bounds including the rear lens: X -1.38–1.52002 m (nose +X), Y 0–1.22003 m, Z ±0.54994 m.
 The importer subtracts the 0.22 m ride height; track and ski bottoms touch ground.
-Four support samples approximate the rear track and front skis. The joined mesh
-is rigid; track motion and ski steering are not separately animated.
+Four support samples approximate the rear track and front skis. The body and skis
+remain rigid. The 44 cleats and 44 band sections are separate nodes; the catalog advances them
+around the authored capsule path with signed wheel
+travel, including reverse, and holds their phase when stopped.
 
 The optional physics traction profile scales acceleration and powered top speed.
 Winter grass/sand uses the snow response; summer grass/sand crawls at under 1 m/s.

@@ -138,6 +138,18 @@ pub(super) fn opening(id: &str, door: Door) -> Option<Opening> {
             1.31,
             Slide,
         ),
+        super::catalog::ALPINE_ID => {
+            let s = super::catalog::ALPINE_SCALE;
+            (
+                (-0.62 * s, 0.06 * s),
+                None,
+                0.62 * s,
+                1.58 * s,
+                0.61 * s,
+                0.6525 * s,
+                Swing,
+            )
+        }
         "vehicle-j03" => ((0.41, 2.10), None, 1.51, 3.09, 0.94, 1.12, Swing),
         "vehicle-j05" => ((2.04, 3.67), None, 0.88, 3.18, 0.85, 1.14, Swing),
         "vehicle-j07" => ((1.61, 3.82), None, 0.65, 2.29, 1.08, 1.25, Swing),

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "name": "Alpine 340 WT",
+  "researchId": "vehicle-winter-alpine-340",
+  "category": "winter",
+  "roadVehicle": false,
+  "model": "model.glb",
+  "dimensions": {
+    "length": 5.725,
+    "width": 1.8875,
+    "height": 2.1975
+  },
+  "physics": {
+    "mass": 680,
+    "maxSpeed": 20,
+    "acceleration": 6,
+    "friction": 1.05,
+    "maxSteerAngle": 0.65,
+    "heightOffset": 0.325,
+    "wheelRadius": 0.3,
+    "wheelbase": 3.0,
+    "track": 1.05,
+    "traction": {
+      "snow": 1.0,
+      "grass": 0.04,
+      "road": 0.15
+    }
+  },
+  "sound": {
+    "engine": "petrol",
+    "idleRpm": 1200,
+    "redlineRpm": 8000
+  },
+  "qa": {
+    "claydashExport": "completed",
+    "source": "source.html / Alpine 340 WT configurator",
+    "pivot": "ground"
+  }
+}

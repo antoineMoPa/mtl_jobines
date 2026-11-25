@@ -2,6 +2,8 @@
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod aircraft_tests;
 mod airport_lights;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod alpine_gpu_tests;
 mod app;
 #[cfg(not(target_arch = "wasm32"))]
 mod boot;
@@ -53,6 +55,8 @@ mod sky_probe;
 #[cfg(not(target_arch = "wasm32"))]
 mod smoke;
 mod snow;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod snowmobile_gpu_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod snowplow_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
