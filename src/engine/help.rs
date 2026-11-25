@@ -162,7 +162,11 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
                     });
                     ui.separator();
                     ui.add_space(8.);
-                    super::tooltip::hint(ui, Some("F"), "Entrer ou sortir du véhicule");
+                    super::tooltip::hint(
+                        ui,
+                        Some("F"),
+                        "Chausser les skis à proximité, entrer ou sortir du véhicule",
+                    );
                     super::tooltip::hint(ui, Some("O"), "Ouvrir ou fermer la portière");
                     ui.add_space(8.);
                     ui.separator();

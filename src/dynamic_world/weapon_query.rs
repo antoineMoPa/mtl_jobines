@@ -121,6 +121,7 @@ impl DynamicWorld {
             && self.health > 0
             && self.pedestrian.as_ref().is_some_and(|p| !p.swimming)
             && !self.metro.aboard
+            && !self.riding_chairlift()
     }
 
     pub(super) fn first_zombie_on_segment(&self, city: &City, from: Vec3, to: Vec3) -> Option<u32> {

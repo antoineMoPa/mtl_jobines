@@ -163,6 +163,36 @@ mod tests {
     use super::*;
 
     #[test]
+    fn alpine_player_has_comfortable_headroom_in_both_seasons() {
+        let pelvis = seat(super::super::catalog::ALPINE_ID).unwrap();
+        let ceiling = 1.675 * super::super::catalog::ALPINE_SCALE;
+        for season in [crate::season::Season::Summer, crate::season::Season::Winter] {
+            let model = pedestrian_catalog::player_model(season);
+            let definition = &pedestrian_catalog::definitions()[model];
+            let pose = seat_pose(super::super::catalog::ALPINE_ID, model);
+            let top = definition
+                .vertices
+                .iter()
+                .zip(&definition.skin)
+                .map(|(v, skin)| {
+                    pelvis.z
+                        + (0..4)
+                            .map(|i| {
+                                pose[skin.joints[i] as usize]
+                                    .transform_point3(v.position.into())
+                                    .y
+                                    * skin.weights[i]
+                            })
+                            .sum::<f32>()
+                })
+                .fold(f32::NEG_INFINITY, f32::max);
+            let clearance = ceiling - top;
+            eprintln!("Alpine {season:?}: driver top {top:.3}m, ceiling {ceiling:.3}m, headroom {clearance:.3}m");
+            assert!(clearance >= 0.12, "only {clearance:.3}m headroom");
+        }
+    }
+
+    #[test]
     fn seated_people_fit_under_the_compact_roof_and_above_its_floor() {
         let pelvis = seat("vehicle-v2-09").unwrap();
         for (model, definition) in pedestrian_catalog::definitions().iter().enumerate() {

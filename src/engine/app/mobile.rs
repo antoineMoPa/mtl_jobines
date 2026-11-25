@@ -165,9 +165,7 @@ mod browser {
                         match action {
                             MobileAction::Vehicle => {
                                 self.mobile.clear();
-                                if self.world.toggle_vehicle(&self.hermes) {
-                                    self.reset_boarding_camera();
-                                }
+                                self.use_equipment_or_vehicle();
                             }
                             MobileAction::Door => {
                                 self.world.toggle_door();

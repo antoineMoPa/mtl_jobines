@@ -39,8 +39,10 @@ mod props;
 mod ragdoll;
 mod service_passengers;
 pub use props::PropBatch;
+mod chairlift;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod physics_lod_tests;
+mod skis;
 pub mod snow;
 mod spawn;
 #[cfg(test)]
@@ -117,6 +119,8 @@ pub struct DynamicWorld {
     season: crate::season::Season,
     pub snow: snow::Tracks,
     snow_timer: f32,
+    skis: skis::SkiSet,
+    chairlift: Option<chairlift::Lift>,
     player_tire_pops: Vec<ShotHit>,
     crash: Option<Crash>,
     sound_impacts: [crate::audio::Impact; crate::audio::IMPACT_VOICES],
@@ -267,6 +271,8 @@ impl DynamicWorld {
                 .and_then(|e| e.spec.water_level),
             player_vehicle: VehicleId(0),
             health: melee::PLAYER_HEALTH,
+            skis: skis::SkiSet::new(hermes),
+            chairlift: chairlift::Lift::new(hermes),
             pedestrian: None,
             entry: None,
             displaced: Vec::new(),
@@ -377,6 +383,7 @@ impl DynamicWorld {
             return;
         }
         self.season = season;
+        self.skis.reset();
         self.snow.reset();
         self.snow_timer = 0.;
         self.traffic
@@ -441,7 +448,7 @@ impl DynamicWorld {
         Some((eye, eye + forward * 0.1))
     }
     pub fn camera_eye(&self, hermes: &Hermes, anchor: Vec3, desired: Vec3) -> Vec3 {
-        if let Some((eye, _)) = self.metro_camera() {
+        if let Some((eye, _)) = self.chairlift_camera().or_else(|| self.metro_camera()) {
             return eye;
         }
         let eye = self.buildings.camera_eye(hermes.city(), anchor, desired);
@@ -560,7 +567,8 @@ impl DynamicWorld {
             .map(|(index, _)| index)
     }
     pub fn toggle_vehicle(&mut self, hermes: &Hermes) -> bool {
-        if self.crash.is_some() || self.metro.aboard || self.health == 0 {
+        if self.crash.is_some() || self.metro.aboard || self.riding_chairlift() || self.health == 0
+        {
             return false;
         }
         if let Some(player) = &self.pedestrian {
@@ -611,6 +619,7 @@ impl DynamicWorld {
                 self.boat_routes.retain(|route| route.vehicle != index);
                 self.traffic.claim_player_slot(index);
                 self.player_vehicle = VehicleId(index);
+                self.put_down_skis();
                 self.pedestrian = None;
                 if occupied {
                     self.report_crime(Crime::VehicleTheft);
@@ -672,6 +681,8 @@ impl DynamicWorld {
         false
     }
     pub fn reset_player(&mut self, hermes: &Hermes) {
+        self.reset_chairlift();
+        self.skis.reset();
         self.invalidate_baggage_shift();
         self.crash = None;
         self.displaced.clear();
@@ -755,6 +766,7 @@ impl DynamicWorld {
         drop(phase);
         let phase = crate::telemetry::span("npc.transit");
         self.metro.step(dt, self.pedestrian.as_mut());
+        self.step_chairlift(hermes, dt);
         self.airport.step(hermes.city(), dt);
         drop(phase);
         let phase = crate::telemetry::span("traffic.population_and_lod");
@@ -993,17 +1005,18 @@ impl DynamicWorld {
             return;
         }
         let mut walking = None;
-        if let Some(player) = self
-            .pedestrian
-            .as_mut()
-            .filter(|_| self.health > 0 && self.entry.is_none())
-        {
+        if let Some(player) = self.pedestrian.as_mut().filter(|_| {
+            self.health > 0
+                && self.entry.is_none()
+                && !self.chairlift.as_ref().is_some_and(|l| l.is_riding())
+        }) {
             let before = player.position;
             self.metro.walk(hermes, player, walk, dt, |position| {
                 self.parked_carts
                     .iter()
                     .any(|c| c.blocks(position, player::RADIUS))
                     || self.props.blocked(position)
+                    || self.chairlift.as_ref().is_some_and(|l| l.blocked(position))
                     || self
                         .vehicles
                         .iter()
@@ -1111,11 +1124,17 @@ impl DynamicWorld {
     pub fn pedestrian_instances(&self) -> impl Iterator<Item = crowd::Instance<'_>> + '_ {
         self.pedestrian
             .iter()
-            .map(|player| match &self.entry {
-                Some(motion) => {
-                    motion.instance(&self.vehicles[motion.vehicle(self.player_vehicle.0)])
+            .map(|player| {
+                if let Some(rider) = self.chairlift_rider_instance() {
+                    rider
+                } else {
+                    match &self.entry {
+                        Some(motion) => {
+                            motion.instance(&self.vehicles[motion.vehicle(self.player_vehicle.0)])
+                        }
+                        None => player.instance(self.season),
+                    }
                 }
-                None => player.instance(self.season),
             })
             .chain(self.crowd.instances(self.player_position()))
             .chain(self.cyclists.waiting_instances(self.player_position()))
@@ -1206,6 +1225,7 @@ impl DynamicWorld {
     ) {
         self.write_non_vehicle_actors_with_player_pose(mesh, player_pose_delta);
         self.props.append_moving(mesh, self.player_position());
+        self.append_skis(mesh, player_pose_delta);
     }
     pub fn standing_signal_batches(&self) -> impl Iterator<Item = SignalBatch> + '_ {
         self.traffic.standing_signal_batches(self.player_position())

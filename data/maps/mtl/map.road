@@ -8256,3 +8256,11 @@ parked_vehicle("vehicle-winter-snowmobile", 4.1, -82.4, 180);
 
 # Larger enclosed Alpine beside the original Motoneige; 5m centre spacing leaves boarding room.
 parked_vehicle("vehicle-winter-alpine-340", 4.1, -82.35, 180);
+
+# Winter equipment outside the chalet entrance; F equips the skis on foot.
+ski_set(4.1, -82.52, 180);
+
+# Chairlift: base 30 m west of the chalet, summit on the upper hill.
+# Both endpoints are ground coordinates; supports follow elevation.png at runtime.
+chairlift_base(3.8, -82.6);
+chairlift_top(-2.2, -85.2);

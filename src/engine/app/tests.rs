@@ -1191,3 +1191,29 @@ fn cinematic_drive_returns_to_map_when_traffic_cannot_clear() {
     choose_drive_point(&mut game, [-0.4, 0.]);
     assert_eq!(game.full_map.selection, hud::MapSelection::Route);
 }
+
+#[test]
+fn f_equips_skis_before_vehicle_entry_and_prompt_uses_the_same_action() {
+    let hermes = Hermes::test_map_from_source("road local:carlane;end local(-2,-1,2,-1);ground=land(-5,-5,5,-5,5,5,-5,5);elevation(ground,0.1);player_start(-0.025,0,0);pedestrian_start(0.01,0,180);ski_set(0,0,0);");
+    let mut game = Game::new(hermes);
+    game.world
+        .set_season(&game.hermes, crate::season::Season::Winter);
+    game.use_equipment_or_vehicle();
+    assert!(game.world.is_wearing_skis());
+    assert!(!game.world.is_driving());
+    game.apply_palette_action(PaletteAction::UseSkis);
+    assert!(!game.world.is_wearing_skis());
+    assert!(!game.world.is_driving());
+    game.use_equipment_or_vehicle();
+    assert!(game.world.is_wearing_skis());
+    game.use_equipment_or_vehicle();
+    assert!(!game.world.is_wearing_skis());
+    assert_eq!(game.world.skis_hint(), Some("Chausser les skis"));
+    let hermes = Hermes::test_map_from_source("road local:carlane;end local(-2,-1,2,-1);ground=land(-5,-5,5,-5,5,5,-5,5);elevation(ground,0.1);player_start(0,0,0);pedestrian_start(-0.003,0.022,0);");
+    let mut game = Game::new(hermes);
+    game.use_equipment_or_vehicle();
+    assert!(
+        game.world.is_driving(),
+        "F still boards when no ski action is pending"
+    );
+}

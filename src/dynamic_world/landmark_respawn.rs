@@ -183,6 +183,8 @@ impl DynamicWorld {
     }
 
     fn finish_respawn(&mut self, hermes: &Hermes, vehicle: Vehicle, spawn: SpawnPoint) {
+        self.reset_chairlift();
+        self.skis.reset();
         self.crash = None;
         self.traffic.claim_player_slot(self.player_vehicle.0);
         self.clear_chase();

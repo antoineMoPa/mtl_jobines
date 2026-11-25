@@ -6,9 +6,9 @@
   "roadVehicle": false,
   "model": "model.glb",
   "dimensions": {
-    "length": 5.725,
-    "width": 1.8875,
-    "height": 2.1975
+    "length": 6.183,
+    "width": 2.0385,
+    "height": 2.3733
   },
   "physics": {
     "mass": 680,
@@ -16,10 +16,10 @@
     "acceleration": 6,
     "friction": 1.05,
     "maxSteerAngle": 0.65,
-    "heightOffset": 0.325,
-    "wheelRadius": 0.3,
-    "wheelbase": 3.0,
-    "track": 1.05,
+    "heightOffset": 0.351,
+    "wheelRadius": 0.324,
+    "wheelbase": 3.24,
+    "track": 1.134,
     "traction": {
       "snow": 1.0,
       "grass": 0.04,

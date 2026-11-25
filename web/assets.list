@@ -100,3 +100,9 @@ data/vehicle/airport/baggage-tractor/model.glb
 data/maps/mtl/models/champlain-bridge.glb
 data/vehicle/winter/snowmobile/model.glb
 data/maps/mtl/models/ski-chalet.glb
+data/vehicle/winter/alpine-340/model.glb
+data/equipment/ski-set/model.glb
+data/equipment/chairlift/chair.glb
+data/equipment/chairlift/pylon.glb
+data/equipment/chairlift/base-station.glb
+data/equipment/chairlift/top-station.glb

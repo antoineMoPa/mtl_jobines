@@ -17,8 +17,9 @@ node scripts/export-alpine-340.mjs
 The exporter uses local Three modules, removes invisible hit targets and decal textures,
 names both door assemblies, and replaces the static belts with 56 evenly pitched shoes
 per side. Upper door glazing follows the lower leaf to provide a full-height opening.
-The GLB is Y-up, +X forward, in metres. Bounds are approximately X −2.285..2.294,
-Y −0.0125..1.745, Z ±0.7525.
+The game export scales the original configurator by 1.35 for adult driver headroom,
+with matching door/seat/ski and belt-path dimensions. The GLB is Y-up, +X forward,
+in metres. Bounds are approximately X −3.084..3.097, Y −0.0169..2.3558, Z ±1.0159.
 
 In-game door controls operate the left/right front-hinged assemblies, including glass
 and handles. There are no rear doors. The original open-seat Motoneige has no doors.

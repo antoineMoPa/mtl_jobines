@@ -3,9 +3,14 @@ use super::{catalog, Controls, DynamicWorld};
 
 impl DynamicWorld {
     pub fn switch_vehicle(&mut self, model: usize) -> bool {
-        if self.crash.is_some() || self.health == 0 || catalog::definitions().get(model).is_none() {
+        if self.crash.is_some()
+            || self.riding_chairlift()
+            || self.health == 0
+            || catalog::definitions().get(model).is_none()
+        {
             return false;
         }
+        self.put_down_skis();
         self.invalidate_baggage_shift();
         let index = self.player_vehicle.0;
         let on_foot = self

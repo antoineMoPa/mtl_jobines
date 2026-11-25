@@ -18,3 +18,5 @@ __pycache__/
 
 research/**
 data/maps/montreal
+
+.tmp/**

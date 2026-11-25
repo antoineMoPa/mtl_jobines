@@ -80,4 +80,37 @@ fn native_alpine_doors_and_tracks() {
             std::fs::write(output.join(format!("alpine-{label}-{view}.png")), png).unwrap();
         }
     }
+    // The original Motoneige uses the same arc-length mechanism, with its own loop size.
+    let classic = catalog::definitions()
+        .iter()
+        .position(|d| d.config.research_id == catalog::SNOWMOBILE_ID)
+        .unwrap();
+    assert!(world.switch_vehicle(classic));
+    for (label, frames) in [("classic-rest", 0), ("classic-driven", 90)] {
+        for _ in 0..frames {
+            world.step(
+                &hermes,
+                Controls {
+                    throttle: 1.,
+                    ..Default::default()
+                },
+                Default::default(),
+                1. / 60.,
+            );
+        }
+        scenery.update(&renderer, &world);
+        let mut meshes = vec![&ground, &details];
+        meshes.extend(scenery.visible());
+        let p = world.player_position() / METERS_PER_UNIT;
+        let png = renderer
+            .report_screenshot(
+                &meshes,
+                p + Vec3::new(-0.024, 0.03, 0.012),
+                p + Vec3::new(-0.006, 0., 0.001),
+                0.,
+                hermes.minimap_view([p.x, p.y], 0.),
+            )
+            .unwrap();
+        std::fs::write(output.join(format!("{label}.png")), png).unwrap();
+    }
 }

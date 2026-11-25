@@ -29,7 +29,7 @@ pub enum VehicleKind {
 pub const SNOWMOBILE_ID: &str = "vehicle-winter-snowmobile";
 pub const ALPINE_ID: &str = "vehicle-winter-alpine-340";
 // Matches the authored export scale in scripts/export-alpine-340.mjs.
-pub(super) const ALPINE_SCALE: f32 = 1.25;
+pub(super) const ALPINE_SCALE: f32 = 1.35;
 
 pub const SNOWPLOW_ID: &str = "vehicle-j03";
 

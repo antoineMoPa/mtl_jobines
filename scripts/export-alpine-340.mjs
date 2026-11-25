@@ -66,7 +66,7 @@ try {
       if(!o.name)o.name='body';
     });
     // Room for an adult driver: scale geometry, with matching game articulation dimensions.
-    vehicle.scale.setScalar(1.25);
+    vehicle.scale.setScalar(1.35);
     vehicle.updateMatrixWorld(true);
     const bounds=new THREE.Box3().setFromObject(vehicle);
     const glb=await new GLTFExporter().parseAsync(vehicle,{binary:true,onlyVisible:true});

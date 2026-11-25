@@ -54,6 +54,8 @@ pub(super) enum PaletteAction {
     ResumeDriving,
     InteractWithCat,
     UseBikeshare,
+    UseSkis,
+    UseChairlift,
     RestartBaggage,
     AttachCart,
     DetachCart,
@@ -617,6 +619,32 @@ impl Palette {
         self.cutscene_skip = false;
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(self.input.take_egui_input(window), |ui| {
+            if world.riding_chairlift() {
+                let fade = world.chairlift_fade();
+                if fade > 0. {
+                    ctx.layer_painter(egui::LayerId::new(
+                        egui::Order::Foreground,
+                        "chairlift_cut".into(),
+                    ))
+                    .rect_filled(
+                        ctx.content_rect(),
+                        0.,
+                        egui::Color32::from_black_alpha((fade * 255.) as u8),
+                    );
+                }
+                egui::Area::new("chairlift_caption".into())
+                    .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -35.))
+                    .show(&ctx, |ui| {
+                        egui::Frame::popup(ui.style()).show(ui, |ui| {
+                            ui.label(if fade > 0.2 {
+                                "Un peu plus haut…"
+                            } else {
+                                "Télésiège · montée abrégée vers le sommet"
+                            });
+                        });
+                    });
+                return;
+            }
             if let Some(playback) = cutscene {
                 self.cutscene_skip =
                     super::fabula::show(ui.ctx(), playback, cutscene_waiting_for_gesture);
@@ -673,8 +701,18 @@ impl Palette {
             );
             if game_overlay == Overlay::Driving && !*help_visible && !self.is_open() {
                 let prompt = world
-                    .cat_action()
-                    .map(|a| ("Entrée", a.label(), PaletteAction::InteractWithCat))
+                    .chairlift_hint()
+                    .map(|label| ("F", label, PaletteAction::UseChairlift))
+                    .or_else(|| {
+                        world
+                            .cat_action()
+                            .map(|a| ("Entrée", a.label(), PaletteAction::InteractWithCat))
+                    })
+                    .or_else(|| {
+                        world
+                            .skis_hint()
+                            .map(|label| ("F", label, PaletteAction::UseSkis))
+                    })
                     .or_else(|| {
                         world
                             .bikeshare_hint()

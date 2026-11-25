@@ -48,6 +48,8 @@ mod report_replay;
 mod scenery;
 #[cfg(not(target_arch = "wasm32"))]
 mod screen_capture;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod ski_set_gpu_tests;
 mod sky;
 mod sky_controls;
 #[cfg(not(target_arch = "wasm32"))]

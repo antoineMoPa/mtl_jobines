@@ -238,6 +238,22 @@ struct Game {
     frame_rate: FrameRate,
 }
 impl Game {
+    pub(super) fn use_equipment_or_vehicle(&mut self) {
+        if self.world.riding_chairlift() {
+            return;
+        }
+        if self.world.board_chairlift() {
+            self.reset_boarding_camera();
+            return;
+        }
+        if self.world.toggle_skis() {
+            return;
+        }
+        if self.world.toggle_vehicle(&self.hermes) {
+            self.reset_boarding_camera();
+        }
+    }
+
     fn show_cursor(&mut self) {
         self.cursor_hide_at = None;
         if self.cursor_hidden {
@@ -742,6 +758,14 @@ impl Game {
                     self.reset_boarding_camera();
                 }
             }
+            PaletteAction::UseChairlift => {
+                if self.world.board_chairlift() {
+                    self.reset_boarding_camera();
+                }
+            }
+            PaletteAction::UseSkis => {
+                self.world.toggle_skis();
+            }
             PaletteAction::InteractWithCat => {
                 self.interact_with_cat();
             }
@@ -1001,9 +1025,12 @@ impl Game {
             let eye = self.world.camera_eye(&self.hermes, look, eye);
             (eye, look)
         } else {
-            self.world.metro_camera().unwrap_or_else(|| {
-                build_camera.map_or((self.eye, look), |(eye, look, _)| (eye, look))
-            })
+            self.world
+                .chairlift_camera()
+                .or_else(|| self.world.metro_camera())
+                .unwrap_or_else(|| {
+                    build_camera.map_or((self.eye, look), |(eye, look, _)| (eye, look))
+                })
         };
         let arrest = self.world.arrest_progress();
         let (eye, look) = if let Some(t) = arrest {
@@ -1903,11 +1930,7 @@ impl ApplicationHandler<GameEvent> for Game {
                                 KeyCode::KeyO if !self.simulation_paused() => {
                                     self.world.toggle_door();
                                 }
-                                KeyCode::KeyF => {
-                                    if self.world.toggle_vehicle(&self.hermes) {
-                                        self.reset_boarding_camera();
-                                    }
-                                }
+                                KeyCode::KeyF => self.use_equipment_or_vehicle(),
                                 KeyCode::Tab => self.hood = !self.hood,
                                 KeyCode::BracketLeft | KeyCode::BracketRight => {
                                     if let Some(renderer) = &mut self.renderer {

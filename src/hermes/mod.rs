@@ -133,6 +133,8 @@ pub struct Hermes {
     taxi_seed: u64,
     pub(crate) bikeshare_sites: Vec<crate::dynamic_world::bikeshare::Site>,
     parked_vehicles: Vec<crate::dynamic_world::parked::ParkedVehicle>,
+    pub(crate) ski_set: Option<crate::dynamic_world::SpawnPoint>,
+    pub(crate) chairlift: Option<[crate::dynamic_world::SpawnPoint; 2]>,
     city: Arc<City>,
     minimap: minimap::Minimap,
     prepared: Option<(Mesh, Mesh)>,
@@ -344,6 +346,15 @@ impl Hermes {
                 .duration_since(web_time::UNIX_EPOCH)
                 .map_or(1, |time| time.as_nanos() as u64 | 1),
             bikeshare_sites: crate::dynamic_world::bikeshare::Site::from_program(program, &city)?,
+            ski_set: crate::dynamic_world::SpawnPoint::from_named_program(program, "ski_set")?,
+            chairlift: match (
+                crate::dynamic_world::SpawnPoint::from_named_program(program, "chairlift_base")?,
+                crate::dynamic_world::SpawnPoint::from_named_program(program, "chairlift_top")?,
+            ) {
+                (Some(base), Some(top)) => Some([base, top]),
+                (None, None) => None,
+                _ => return Err("chairlift requires both chairlift_base and chairlift_top".into()),
+            },
             parked_vehicles: {
                 let vehicles = crate::dynamic_world::parked::ParkedVehicle::from_program(program)?;
                 crate::performance::startup_memory("parked vehicle metadata");
