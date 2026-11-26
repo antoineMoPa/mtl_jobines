@@ -1217,3 +1217,59 @@ fn f_equips_skis_before_vehicle_entry_and_prompt_uses_the_same_action() {
         "F still boards when no ski action is pending"
     );
 }
+
+#[test]
+fn chairlift_auto_boards_with_skis_and_f_cannot_interrupt_the_ride() {
+    let h=Hermes::test_map_from_source("road local:carlane;end local(-3,-1,3,-1);ground=land(-5,-5,5,-5,5,5,-5,5);elevation(ground,0.1);hill=terrain(0.5,-1,0.9,1,0.9,1,3,-1,3);player_start(-0.2,-1,0);pedestrian_start(0.04,0.05,90);ski_set(0.04,0.05,0);chairlift_base(0,0);chairlift_top(0,2);");
+    let mut game = Game::new(h);
+    game.world
+        .set_season(&game.hermes, crate::season::Season::Winter);
+    assert!(game.world.toggle_skis());
+    game.world.prepare_chairlift_boarding(&game.hermes);
+    for _ in 0..720 {
+        game.world.step(
+            &game.hermes,
+            Default::default(),
+            Default::default(),
+            1. / 60.,
+        );
+        if game.world.riding_chairlift() {
+            break;
+        }
+    }
+    assert!(game.world.riding_chairlift());
+    assert!(game.world.is_wearing_skis());
+    game.use_equipment_or_vehicle();
+    assert!(game.world.riding_chairlift());
+    assert!(game.world.is_wearing_skis());
+    for _ in 0..481 {
+        game.world.step(
+            &game.hermes,
+            Default::default(),
+            Default::default(),
+            1. / 60.,
+        );
+    }
+    assert!(!game.world.riding_chairlift());
+    assert!(game.world.is_wearing_skis());
+}
+
+#[test]
+fn ski_inputs_preserve_walking_and_add_independent_pole_strokes() {
+    let (_, walk) = movement_controls(
+        &HashSet::from([
+            KeyCode::KeyW,
+            KeyCode::KeyE,
+            KeyCode::KeyA,
+            KeyCode::ShiftLeft,
+            KeyCode::Space,
+        ]),
+        0.,
+    );
+    assert_eq!(walk.forward, 1.);
+    assert_eq!(walk.turn, 1.);
+    assert!(walk.poles && walk.run && walk.jump);
+    let (_, walk) = movement_controls(&HashSet::from([KeyCode::KeyE]), 0.);
+    assert!(walk.poles);
+    assert_eq!(walk.forward, 0.);
+}

@@ -24,28 +24,38 @@ impl SpawnPoint {
         program: &opencity::Program,
         name: &str,
     ) -> Result<Option<Self>, String> {
-        let mut result = None;
-        for statement in &program.statements {
-            let opencity::Statement::Call(call) = statement else {
-                continue;
-            };
-            if call.name != name {
-                continue;
-            }
-            if result.is_some() {
-                return Err(format!("Only one {name} is allowed"));
-            }
-            let values = call
-                .args
-                .iter()
-                .map(|argument| match argument {
-                    opencity::Argument::Number(value) => Ok(value.as_str()),
-                    _ => Err(format!("{name} expects x,y[,heading-degrees]")),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            result = Some(values.join(",").parse()?);
+        let points = Self::all_named_program(program, name)?;
+        if points.len() > 1 {
+            return Err(format!("Only one {name} is allowed"));
         }
-        Ok(result)
+        Ok(points.into_iter().next())
+    }
+    /// Repeatable equipment markers; player start markers still use the single-point API.
+    pub(crate) fn all_named_program(
+        program: &opencity::Program,
+        name: &str,
+    ) -> Result<Vec<Self>, String> {
+        program
+            .statements
+            .iter()
+            .filter_map(|statement| {
+                let opencity::Statement::Call(call) = statement else {
+                    return None;
+                };
+                (call.name == name).then_some(call)
+            })
+            .map(|call| {
+                let values = call
+                    .args
+                    .iter()
+                    .map(|argument| match argument {
+                        opencity::Argument::Number(value) => Ok(value.as_str()),
+                        _ => Err(format!("{name} expects x,y[,heading-degrees]")),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                values.join(",").parse()
+            })
+            .collect()
     }
 }
 impl FromStr for SpawnPoint {

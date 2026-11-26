@@ -121,6 +121,8 @@ fn detailed_frontage(feature: &opencity::LandscapeFeature) -> bool {
         .as_deref()
         .is_some_and(|name| name.starts_with("generated_area_"))
 }
+mod chairlifts;
+pub mod ski_hill;
 pub struct Hermes {
     pub(crate) wildlife: Vec<crate::dynamic_world::wildlife::Home>,
     pub(crate) wildlife_habitats: crate::dynamic_world::wildlife::Habitats,
@@ -133,8 +135,9 @@ pub struct Hermes {
     taxi_seed: u64,
     pub(crate) bikeshare_sites: Vec<crate::dynamic_world::bikeshare::Site>,
     parked_vehicles: Vec<crate::dynamic_world::parked::ParkedVehicle>,
-    pub(crate) ski_set: Option<crate::dynamic_world::SpawnPoint>,
-    pub(crate) chairlift: Option<[crate::dynamic_world::SpawnPoint; 2]>,
+    pub(crate) ski_sets: Vec<crate::dynamic_world::SpawnPoint>,
+    pub(crate) chairlifts: Vec<[crate::dynamic_world::SpawnPoint; 2]>,
+    pub ski_hill: Option<ski_hill::SkiHill>,
     city: Arc<City>,
     minimap: minimap::Minimap,
     prepared: Option<(Mesh, Mesh)>,
@@ -346,15 +349,9 @@ impl Hermes {
                 .duration_since(web_time::UNIX_EPOCH)
                 .map_or(1, |time| time.as_nanos() as u64 | 1),
             bikeshare_sites: crate::dynamic_world::bikeshare::Site::from_program(program, &city)?,
-            ski_set: crate::dynamic_world::SpawnPoint::from_named_program(program, "ski_set")?,
-            chairlift: match (
-                crate::dynamic_world::SpawnPoint::from_named_program(program, "chairlift_base")?,
-                crate::dynamic_world::SpawnPoint::from_named_program(program, "chairlift_top")?,
-            ) {
-                (Some(base), Some(top)) => Some([base, top]),
-                (None, None) => None,
-                _ => return Err("chairlift requires both chairlift_base and chairlift_top".into()),
-            },
+            ski_sets: crate::dynamic_world::SpawnPoint::all_named_program(program, "ski_set")?,
+            chairlifts: chairlifts::read(program)?,
+            ski_hill: ski_hill::SkiHill::read(program)?,
             parked_vehicles: {
                 let vehicles = crate::dynamic_world::parked::ParkedVehicle::from_program(program)?;
                 crate::performance::startup_memory("parked vehicle metadata");

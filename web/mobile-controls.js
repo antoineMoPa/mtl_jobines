@@ -50,6 +50,7 @@ export function installMobileControls(api, canvas) {
   const holds = new Map();
   let state = 'hidden';
   const holdActions = {
+    skiing: { forward: A.Forward, backward: A.Backward, left: A.Left, right: A.Right, secondary: A.Jump, primary: A.Poles },
     walking: { forward: A.Forward, backward: A.Backward, left: A.Left, right: A.Right, secondary: A.Jump, primary: A.Run },
     driving: { forward: A.Forward, backward: A.Backward, left: A.Left, right: A.Right, secondary: A.Jump, primary: A.Forward },
   };
@@ -127,12 +128,13 @@ export function installMobileControls(api, canvas) {
       reset();
       state = next;
       const driving = state === 'driving';
+      const skiing = state === 'skiing';
       root.dataset.mode = state;
-      setButton(buttons.primary, driving ? 'pedal' : 'run', driving ? 'Accélérer' : 'Courir');
-      setButton(buttons.secondary, driving ? 'brake' : 'jump', driving ? 'Frein à main' : 'Sauter');
+      setButton(buttons.primary, skiing ? 'forward' : driving ? 'pedal' : 'run', skiing ? 'Bâtons' : driving ? 'Accélérer' : 'Courir');
+      setButton(buttons.secondary, skiing || driving ? 'brake' : 'jump', skiing ? 'Freiner' : driving ? 'Frein à main' : 'Sauter');
       setButton(buttons.vehicle, driving ? 'exit' : 'enter', driving ? 'Descendre' : 'Monter');
-      buttons.forward.setAttribute('aria-label', driving ? 'Accélérer' : 'Avancer');
-      buttons.backward.setAttribute('aria-label', driving ? 'Freiner / reculer' : 'Reculer');
+      buttons.forward.setAttribute('aria-label', skiing ? 'Glisser' : driving ? 'Accélérer' : 'Avancer');
+      buttons.backward.setAttribute('aria-label', skiing ? 'Freiner' : driving ? 'Freiner / reculer' : 'Reculer');
     }
     root.hidden = !available();
   }

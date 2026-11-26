@@ -12,6 +12,8 @@ mod bug_report;
 #[cfg(not(target_arch = "wasm32"))]
 mod buildings;
 #[cfg(all(test, not(target_arch = "wasm32")))]
+mod chairlift_gpu_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod collecteur_tests;
 mod commerce;
 #[cfg(all(test, not(target_arch = "wasm32")))]

@@ -120,7 +120,7 @@ pub struct DynamicWorld {
     pub snow: snow::Tracks,
     snow_timer: f32,
     skis: skis::SkiSet,
-    chairlift: Option<chairlift::Lift>,
+    chairlifts: Vec<chairlift::Lift>,
     player_tire_pops: Vec<ShotHit>,
     crash: Option<Crash>,
     sound_impacts: [crate::audio::Impact; crate::audio::IMPACT_VOICES],
@@ -272,7 +272,11 @@ impl DynamicWorld {
             player_vehicle: VehicleId(0),
             health: melee::PLAYER_HEALTH,
             skis: skis::SkiSet::new(hermes),
-            chairlift: chairlift::Lift::new(hermes),
+            chairlifts: hermes
+                .chairlifts
+                .iter()
+                .filter_map(|endpoints| chairlift::Lift::new(hermes, *endpoints))
+                .collect(),
             pedestrian: None,
             entry: None,
             displaced: Vec::new(),
@@ -1008,20 +1012,28 @@ impl DynamicWorld {
         if let Some(player) = self.pedestrian.as_mut().filter(|_| {
             self.health > 0
                 && self.entry.is_none()
-                && !self.chairlift.as_ref().is_some_and(|l| l.is_riding())
+                && !self.chairlifts.iter().any(|l| l.is_riding())
         }) {
             let before = player.position;
-            self.metro.walk(hermes, player, walk, dt, |position| {
+            let blocked = |position| {
                 self.parked_carts
                     .iter()
                     .any(|c| c.blocks(position, player::RADIUS))
                     || self.props.blocked(position)
-                    || self.chairlift.as_ref().is_some_and(|l| l.blocked(position))
+                    || self.chairlifts.iter().any(|l| l.blocked(position))
                     || self
                         .vehicles
                         .iter()
                         .any(|v| player::blocked_by_vehicle(position, v))
-            });
+            };
+            let support = |p| self.chairlifts.iter().find_map(|l| l.platform(p));
+            if self.skis.worn && !player.swimming && player.fallen.is_none() && !self.metro.aboard {
+                self.skis
+                    .step(player, hermes.city(), walk, dt, blocked, support);
+            } else {
+                self.metro
+                    .walk_supported(hermes, player, walk, dt, blocked, support);
+            }
             self.crowd
                 .player_move(hermes.city(), before, player.position, dt, &self.vehicles);
             let after = player.position;
@@ -1132,7 +1144,9 @@ impl DynamicWorld {
                         Some(motion) => {
                             motion.instance(&self.vehicles[motion.vehicle(self.player_vehicle.0)])
                         }
-                        None => player.instance(self.season),
+                        None => self
+                            .skiing_instance()
+                            .unwrap_or_else(|| player.instance(self.season)),
                     }
                 }
             })

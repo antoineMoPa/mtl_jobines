@@ -117,6 +117,9 @@ pub fn ground_shot_contact(city: &City, from: Vec3, dir: Vec3, limit: f32) -> Op
 
 impl DynamicWorld {
     pub fn can_equip_weapon(&self) -> bool {
+        if self.is_wearing_skis() {
+            return false;
+        }
         self.cat_grip().is_none()
             && self.health > 0
             && self.pedestrian.as_ref().is_some_and(|p| !p.swimming)

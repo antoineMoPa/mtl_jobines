@@ -206,6 +206,7 @@ impl Metro {
             gradient: [0.; 2],
         })
     }
+    #[cfg(test)]
     pub fn walk(
         &mut self,
         hermes: &Hermes,
@@ -214,8 +215,19 @@ impl Metro {
         dt: f32,
         blocked: impl Fn(Vec3) -> bool,
     ) {
+        self.walk_supported(hermes, player, input, dt, blocked, |_| None);
+    }
+    pub fn walk_supported(
+        &mut self,
+        hermes: &Hermes,
+        player: &mut Pedestrian,
+        input: WalkControls,
+        dt: f32,
+        blocked: impl Fn(Vec3) -> bool,
+        extra_ground: impl Fn(Vec3) -> Option<Ground>,
+    ) {
         if self.train.is_none() {
-            player.step(hermes.city(), input, dt, blocked);
+            player.step_supported(hermes.city(), input, dt, blocked, extra_ground);
             return;
         }
         let previous = self.local(player.position);
@@ -224,7 +236,7 @@ impl Metro {
             input,
             dt,
             |p| blocked(p) || self.blocked(p),
-            |p| self.ground(p),
+            |p| self.ground(p).or_else(|| extra_ground(p)),
         );
         if let Some((index, p)) = self.local_car(player.position) {
             if (p.z - (1.025 + super::player::HALF_HEIGHT)).abs() > 0.5 {

@@ -78,6 +78,7 @@ impl super::DynamicWorld {
                     })
                 })
             })
+            .chain(self.ski_snow_contacts(eye))
     }
 }
 impl Tracks {

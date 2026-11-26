@@ -71,6 +71,8 @@ pub struct WalkControls {
     pub turn: f32,
     pub run: bool,
     pub jump: bool,
+    /// Independent low-speed pole strokes while wearing skis.
+    pub poles: bool,
 }
 
 pub struct Pedestrian {
@@ -234,7 +236,7 @@ impl Pedestrian {
         }
         None
     }
-    fn blocked(city: &City, position: Vec3) -> bool {
+    pub(super) fn blocked(city: &City, position: Vec3) -> bool {
         city.road_barrier_contact(
             (position.truncate() / METERS_PER_UNIT).to_array(),
             RADIUS / METERS_PER_UNIT,
@@ -254,6 +256,19 @@ impl Pedestrian {
         self.position = to + rotation * (self.position - from);
         self.yaw += angle;
         self.gait.carry(from, to, angle);
+    }
+    pub(super) fn ski_position(&mut self, feet: Vec3, yaw: f32) {
+        let next = feet + Vec3::Z * HALF_HEIGHT;
+        self.gait
+            .carry(self.position - Vec3::Z * HALF_HEIGHT, feet, yaw - self.yaw);
+        self.position = next;
+        self.yaw = yaw;
+        self.speed = 0.;
+        self.travel_velocity = Vec2::ZERO;
+        self.vertical_speed = 0.;
+        self.jump = Jump::Grounded;
+        self.jump_held = false;
+        self.weapon_pose = None;
     }
     pub(crate) fn foot_motion(&self) -> super::pedestrian_gait::FootMotion {
         self.gait.foot_motion()

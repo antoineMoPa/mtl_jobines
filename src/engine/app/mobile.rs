@@ -15,6 +15,7 @@ pub enum MobileAction {
     Phone,
     Menu,
     Door,
+    Poles,
 }
 impl MobileAction {
     fn key(self) -> Option<KeyCode> {
@@ -25,6 +26,7 @@ impl MobileAction {
             Self::Right => Some(KeyCode::ArrowRight),
             Self::Run => Some(KeyCode::ShiftLeft),
             Self::Jump => Some(KeyCode::Space),
+            Self::Poles => Some(KeyCode::KeyE),
             Self::Vehicle | Self::Map | Self::Phone | Self::Menu | Self::Door => None,
         }
     }
@@ -33,7 +35,7 @@ impl MobileAction {
 pub(super) struct Input {
     keys: HashSet<KeyCode>,
     #[cfg(target_arch = "wasm32")]
-    view: Option<(bool, bool)>,
+    view: Option<(bool, bool, bool)>,
     #[cfg(target_arch = "wasm32")]
     scene_tap: Option<(u64, [f32; 2], Overlay)>,
 }
@@ -131,13 +133,16 @@ mod browser {
                 && !self.simulation_paused()
                 && !self.recovery_in_progress();
             let driving = self.world.is_driving();
-            if self.mobile.view != Some((active, driving)) {
+            let skiing = self.world.is_wearing_skis();
+            if self.mobile.view != Some((active, driving, skiing)) {
                 self.mobile.clear();
-                self.mobile.view = Some((active, driving));
+                self.mobile.view = Some((active, driving, skiing));
                 canvas_attribute(
                     "data-mobile-mode",
                     if !active {
                         "hidden"
+                    } else if skiing {
+                        "skiing"
                     } else if driving {
                         "driving"
                     } else {
@@ -298,5 +303,21 @@ mod tests {
         let (car, _) = movement_controls(&input.keys, 10.);
         assert!(car.brake);
         assert_eq!(car.steering, -1.);
+    }
+}
+
+#[cfg(test)]
+mod ski_input_tests {
+    use super::*;
+    #[test]
+    fn pole_action_is_independent_and_releases_cleanly() {
+        let mut input = Input::default();
+        input.hold(MobileAction::Poles, true, true);
+        let (_, walk) = movement_controls(&input.keys, 0.);
+        assert!(walk.poles);
+        assert_eq!(walk.forward, 0.);
+        assert!(!walk.run && !walk.jump);
+        input.hold(MobileAction::Poles, false, true);
+        assert!(!movement_controls(&input.keys, 0.).1.poles);
     }
 }

@@ -2,6 +2,7 @@
 use super::render::{GpuMesh, Renderer};
 use crate::dynamic_world::{catalog, DynamicWorld};
 use glam::Mat4;
+mod chairlift;
 #[cfg(test)]
 mod tests;
 struct Part {
@@ -11,12 +12,14 @@ struct Part {
 pub(super) struct VehicleScenery {
     models: Vec<Vec<Part>>,
     cutscene_cached: bool,
+    chairlift: chairlift::Scenery,
     pedestrians: super::pedestrian_scenery::PedestrianScenery,
 }
 impl VehicleScenery {
     pub fn new(renderer: &Renderer) -> Self {
         Self {
             cutscene_cached: false,
+            chairlift: Default::default(),
             pedestrians: super::pedestrian_scenery::PedestrianScenery::new(renderer),
             models: (0..catalog::definitions().len())
                 .map(|_| Vec::new())
@@ -54,6 +57,7 @@ impl VehicleScenery {
         player_pose_delta: Mat4,
         stage: Option<super::fabula::Stage<'_>>,
     ) {
+        self.chairlift.update(renderer, world);
         let pedestrians = mtl_world::telemetry::span("scene.pedestrians");
         self.pedestrians.update_with_stage_and_player_pose(
             renderer,
@@ -153,5 +157,6 @@ impl VehicleScenery {
             .filter(|p| !p.transforms.is_empty())
             .map(|p| &p.mesh)
             .chain(self.pedestrians.visible())
+            .chain(self.chairlift.visible())
     }
 }

@@ -55,7 +55,6 @@ pub(super) enum PaletteAction {
     InteractWithCat,
     UseBikeshare,
     UseSkis,
-    UseChairlift,
     RestartBaggage,
     AttachCart,
     DetachCart,
@@ -632,17 +631,6 @@ impl Palette {
                         egui::Color32::from_black_alpha((fade * 255.) as u8),
                     );
                 }
-                egui::Area::new("chairlift_caption".into())
-                    .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0., -35.))
-                    .show(&ctx, |ui| {
-                        egui::Frame::popup(ui.style()).show(ui, |ui| {
-                            ui.label(if fade > 0.2 {
-                                "Un peu plus haut…"
-                            } else {
-                                "Télésiège · montée abrégée vers le sommet"
-                            });
-                        });
-                    });
                 return;
             }
             if let Some(playback) = cutscene {
@@ -701,13 +689,8 @@ impl Palette {
             );
             if game_overlay == Overlay::Driving && !*help_visible && !self.is_open() {
                 let prompt = world
-                    .chairlift_hint()
-                    .map(|label| ("F", label, PaletteAction::UseChairlift))
-                    .or_else(|| {
-                        world
-                            .cat_action()
-                            .map(|a| ("Entrée", a.label(), PaletteAction::InteractWithCat))
-                    })
+                    .cat_action()
+                    .map(|a| ("Entrée", a.label(), PaletteAction::InteractWithCat))
                     .or_else(|| {
                         world
                             .skis_hint()

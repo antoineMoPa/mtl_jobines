@@ -165,8 +165,10 @@ pub(super) fn show(ctx: &egui::Context, open: &mut bool, first_play: bool) {
                     super::tooltip::hint(
                         ui,
                         Some("F"),
-                        "Chausser les skis à proximité, entrer ou sortir du véhicule",
+                        "Chausser les skis, entrer ou sortir du véhicule",
                     );
+                    super::tooltip::message(ui, "À skis : W glisser, E bâtons, A/D tourner, Espace freiner, Maj se ramasser. Espace + A/D : arrêt hockey.");
+                    super::tooltip::message(ui, "Télésiège : attendez dans la voie bleue, le siège vous embarque automatiquement.");
                     super::tooltip::hint(ui, Some("O"), "Ouvrir ou fermer la portière");
                     ui.add_space(8.);
                     ui.separator();

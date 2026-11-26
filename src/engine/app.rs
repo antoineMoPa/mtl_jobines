@@ -144,6 +144,7 @@ fn movement_controls(keys: &HashSet<KeyCode>, speed: f32) -> (Controls, WalkCont
         turn: driving.steering,
         run: held(KeyCode::ShiftLeft) || held(KeyCode::ShiftRight),
         jump: held(KeyCode::Space),
+        poles: held(KeyCode::KeyE),
         ..WalkControls::default()
     };
     (driving, walking)
@@ -240,10 +241,6 @@ struct Game {
 impl Game {
     pub(super) fn use_equipment_or_vehicle(&mut self) {
         if self.world.riding_chairlift() {
-            return;
-        }
-        if self.world.board_chairlift() {
-            self.reset_boarding_camera();
             return;
         }
         if self.world.toggle_skis() {
@@ -620,6 +617,9 @@ impl Game {
         {
             self.auto_drive = None;
         }
+        if self.world.is_wearing_skis() {
+            self.orbit = 0.;
+        }
         for _ in 0..steps {
             self.previous_car_position = self.world.player().position;
             self.previous_car_orientation = self.world.player().orientation();
@@ -755,11 +755,6 @@ impl Game {
             PaletteAction::UseBikeshare => {
                 if self.world.bikeshare_hint().is_some() && self.world.toggle_vehicle(&self.hermes)
                 {
-                    self.reset_boarding_camera();
-                }
-            }
-            PaletteAction::UseChairlift => {
-                if self.world.board_chairlift() {
                     self.reset_boarding_camera();
                 }
             }
@@ -979,6 +974,8 @@ impl Game {
                 };
                 (p + eye, p + aim)
             }
+        } else if let Some(view) = self.world.skiing_camera() {
+            view
         } else if !self.world.is_driving() {
             weapon_camera::on_foot_view(p, forward, self.zoom, self.camera_pitch)
         } else if self.hood {
