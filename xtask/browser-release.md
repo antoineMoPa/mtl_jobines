@@ -9,14 +9,12 @@ forward their parameters to the game.
 
 ## One-time setup
 
-Use Node.js 22 or newer. Each release looks up the current Wrangler version on
-npm and uses that version throughout the command. npx caches each version
-separately. Deploy checks that Wrangler starts before building the game.
-Authenticate with `npx --yes wrangler@latest login`.
+Use Node.js 22 or newer. Release commands run `npx --yes wrangler`, so no global
+Wrangler installation is needed. Deploy checks that Wrangler starts before
+building the game. Authenticate with `npx --yes wrangler login`.
 The release commands look for a compatible Node on `PATH`, in nvm, or in
 Homebrew. Set `NODE_BIN` to its absolute path if Node is installed elsewhere.
-You can set `WRANGLER_BIN` to an existing Wrangler
-executable to skip `npx`. For an API token, Wrangler also
+For an API token, Wrangler also
 accepts `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in the environment.
 Do not put credentials in the repository.
 

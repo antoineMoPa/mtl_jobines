@@ -3,7 +3,7 @@
 use std::{
     env, fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
 };
 
 use crate::Result;
@@ -234,29 +234,9 @@ fn run(mut command: Command, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-// Resolve once per release. An exact package spec gives each update its own
-// npx installation directory, so updates never rewrite the previous release.
 fn wrangler(root: &Path) -> Result<Command> {
-    if let Ok(binary) = env::var("WRANGLER_BIN") {
-        return command(root, &binary, true);
-    }
-    let output = command(root, "npm", true)?
-        .args(["view", "wrangler@latest", "version", "--prefer-online"])
-        .stderr(Stdio::inherit())
-        .output()?;
-    if !output.status.success() {
-        return Err(format!(
-            "Could not resolve the latest Wrangler version: {}",
-            output.status
-        )
-        .into());
-    }
-    let version = std::str::from_utf8(&output.stdout)?.trim();
-    if version.is_empty() || version.split_whitespace().count() != 1 {
-        return Err(format!("Unexpected Wrangler version from npm: {version:?}").into());
-    }
     let mut npx = command(root, "npx", true)?;
-    npx.args(["--yes", &format!("wrangler@{version}")]);
+    npx.args(["--yes", "wrangler"]);
     Ok(npx)
 }
 
