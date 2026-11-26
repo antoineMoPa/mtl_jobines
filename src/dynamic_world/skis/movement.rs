@@ -1,4 +1,4 @@
-//! The approved prototype's 120 Hz movement in game coordinates (+X forward, +Z up).
+//! Fixed-step ski movement in game coordinates (+X forward, +Z up).
 use super::super::{pedestrian_gait::Ground, WalkControls};
 use glam::{Mat3, Vec3};
 use std::f32::consts::{FRAC_PI_2, TAU};
@@ -6,6 +6,7 @@ use std::f32::consts::{FRAC_PI_2, TAU};
 #[derive(Clone, Copy, Default)]
 pub(super) struct Input {
     pub shuffle: bool,
+    pub backward: bool,
     pub poles: bool,
     pub steer: f32,
     pub brake: f32,
@@ -15,9 +16,10 @@ impl From<WalkControls> for Input {
     fn from(w: WalkControls) -> Self {
         Self {
             shuffle: w.forward > 0.,
+            backward: w.forward < 0.,
             poles: w.poles,
             steer: -w.turn.clamp(-1., 1.),
-            brake: if w.jump || w.forward < 0. { 1. } else { 0. },
+            brake: if w.jump { 1. } else { 0. },
             tuck: w.run,
         }
     }
@@ -43,6 +45,7 @@ pub(super) struct Motion {
     pub stride_phase: f32,
     pub stride_offsets: [f32; 2],
     pub input: Input,
+    pub brake: f32,
     pub ground: Ground,
     pub travel: f32,
 }
@@ -81,11 +84,20 @@ impl Motion {
             stride_phase: 0.,
             stride_offsets: [0.; 2],
             input: Input::default(),
+            brake: 0.,
             travel: 0.,
         }
     }
     pub fn speed(&self) -> f32 {
         self.velocity.length()
+    }
+    // Fully apply level-ground controls below a 5% grade and fade out by 15%.
+    fn level_ground_factor(&self) -> f32 {
+        let [gx, gy] = self.ground.gradient;
+        ((0.15 - gx.hypot(gy)) / 0.10).clamp(0., 1.)
+    }
+    pub fn poling_speed_limit(&self) -> f32 {
+        3.5 * (1. + self.level_ground_factor())
     }
     pub fn release_poles(&mut self) {
         self.contact = false;
@@ -108,8 +120,20 @@ impl Motion {
             return;
         };
         self.ground = ground;
-        let i = self.input;
+        let mut i = self.input;
+        let (_, facing, _) = basis(self.yaw, ground);
+        // Back brakes forward travel, then becomes a slow backward shuffle.
+        let reverse = i.backward
+            && i.brake < 0.1
+            && self.velocity.dot(facing) <= 0.05
+            && (self.hockey_side == 0. || self.speed() < 0.15);
+        if i.backward && !reverse {
+            i.brake = 1.;
+        }
+        self.brake = i.brake;
         let speed = self.speed();
+        let level_ground = self.level_ground_factor();
+        let ground_speed_scale = 1. + level_ground;
         self.tuck_blend +=
             ((if i.tuck { 1. } else { 0. }) - self.tuck_blend) * (1. - (-8. * dt).exp());
         if i.brake > 0.2 && i.steer.abs() > 0.15 && speed > 1. && self.hockey_side == 0. {
@@ -132,7 +156,11 @@ impl Motion {
             let delta = self.hockey_target_yaw - self.yaw;
             self.yaw += delta.sin().atan2(delta.cos()).clamp(-3.8 * dt, 3.8 * dt);
         } else {
-            self.yaw -= i.steer * 1.25 * (speed / (speed + 2.5)) * (0.3 + 0.7 * 0.25) * dt;
+            let downhill_turn_rate = 1.25 * (speed / (speed + 2.5)) * (0.3 + 0.7 * 0.25);
+            let level_turn_rate = 2.2 / (1. + 0.025 * speed);
+            let turn_rate =
+                downhill_turn_rate + level_ground * (level_turn_rate - downhill_turn_rate);
+            self.yaw -= i.steer * turn_rate * dt;
         }
         let (n, f, r) = basis(self.yaw, ground);
         let tangent = self.velocity - n * self.velocity.dot(n);
@@ -142,24 +170,38 @@ impl Motion {
             vf = if vf < 0. { -1. } else { 1. } * vf.hypot(vl);
             vl = 0.;
         }
-        let shuffle = i.brake < 0.1 && i.shuffle;
+        let shuffle = i.brake < 0.1 && (i.shuffle || reverse);
         self.shuffle_blend +=
             ((if shuffle { 1. } else { 0. }) - self.shuffle_blend).clamp(-4. * dt, 4. * dt);
         if self.shuffle_blend > 0. {
-            self.stride_phase += TAU * (0.9 + 0.25 * (vf.abs() / 4.).min(1.)) * dt;
+            self.stride_phase +=
+                TAU * (0.9 + 0.25 * (vf.abs() / (4. * ground_speed_scale)).min(1.)) * dt;
         }
-        let glide = self.shuffle_blend * ((7. - vf.max(0.)) / 3.).clamp(0., 1.);
+        let glide = self.shuffle_blend
+            * ((7. * ground_speed_scale - vf.max(0.)) / (3. * ground_speed_scale)).clamp(0., 1.);
         let offset = 0.18 * self.stride_phase.sin() * glide;
         self.stride_offsets = [offset, -offset];
+        let shuffle_direction = if reverse { -1. } else { 1. };
+        let shuffle_speed_limit = if reverse {
+            2.
+        } else {
+            4.2 * ground_speed_scale
+        };
         self.shuffle_force = if shuffle {
             self.shuffle_blend
-                * 2.8
+                * (2.8 * ground_speed_scale)
                 * (0.35 + 0.65 * self.stride_phase.sin().abs())
-                * (1. - vf.max(0.) / 4.2).max(0.)
+                * (1. - (vf * shuffle_direction).max(0.) / shuffle_speed_limit).max(0.)
+                * shuffle_direction
         } else {
             0.
         };
-        let poling = i.brake < 0.1 && !i.tuck && self.tuck_blend < 0.15 && speed < 3.5 && i.poles;
+        let poling = !reverse
+            && i.brake < 0.1
+            && !i.tuck
+            && self.tuck_blend < 0.15
+            && speed < self.poling_speed_limit()
+            && i.poles;
         let old = self.phase;
         self.phase = if poling || self.contact || self.phase < 0.42 {
             (self.phase + dt / 1.6) % 1.
@@ -191,11 +233,16 @@ impl Motion {
         } else {
             0.
         };
-        self.push = 320. * 0.85 / 80. * stroke * (1. - vf.max(0.) / 3.).max(0.);
+        self.push = 320. * 0.85 / 80.
+            * ground_speed_scale
+            * stroke
+            * (1. - vf.max(0.) / (3. * ground_speed_scale)).max(0.);
         let gravity = Vec3::NEG_Z * 9.81 + n * (9.81 * n.z);
         let acceleration = gravity + f * (self.push + self.shuffle_force);
         let normal = 9.81 * n.z;
-        let static_grip = normal * (0.018 + 0.4 * 0.25 + 0.6 * i.brake + 0.65 * self.hockey_blend);
+        let static_grip = normal
+            * ground_speed_scale
+            * (0.018 + 0.4 * 0.25 + 0.6 * i.brake + 0.65 * self.hockey_blend);
         let damp = |v: f32, amount: f32| v.signum() * (v.abs() - amount).max(0.);
         if speed < 0.015 && acceleration.length() <= static_grip {
             vf = 0.;
@@ -203,14 +250,18 @@ impl Motion {
         } else {
             vf += acceleration.dot(f) * dt;
             vl += acceleration.dot(r) * dt;
-            let drag = (0.007 - 0.003 * self.tuck_blend) * speed * speed;
+            let drag = (0.007 - 0.003 * self.tuck_blend) * speed * speed / ground_speed_scale;
             vf = damp(
                 vf,
-                (normal * (0.018 + 0.6 * i.brake) + drag * vf.abs() / speed.max(0.01)) * dt,
+                (normal * ground_speed_scale * (0.018 + 0.6 * i.brake)
+                    + drag * vf.abs() / speed.max(0.01))
+                    * dt,
             );
             vl = damp(
                 vl,
-                (normal * (0.018 + 0.7 * 0.25 + 0.6 * i.brake + 0.45 * self.hockey_blend)
+                (normal
+                    * ground_speed_scale
+                    * (0.018 + 0.7 * 0.25 + 0.6 * i.brake + 0.45 * self.hockey_blend)
                     + drag * vl.abs() / speed.max(0.01))
                     * dt,
             );

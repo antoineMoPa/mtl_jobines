@@ -20,7 +20,99 @@ fn slope_ground(p: Vec3, slope: f32) -> Ground {
     }
 }
 #[test]
-fn port_matches_the_qa_approved_javascript_trajectories() {
+fn back_shuffles_from_rest_without_snowplow_and_keeps_bindings_fixed() {
+    let support = |p| Some(slope_ground(p, 0.));
+    let mut m = Motion::new(Vec3::ZERO, 0., support(Vec3::ZERO).unwrap());
+    m.input = super::super::WalkControls {
+        forward: -1.,
+        ..Default::default()
+    }
+    .into();
+    for _ in 0..360 {
+        m.step(1. / 120., &support, &|_| false);
+        let pose = Pose::build(&mut m, &support);
+        assert_eq!(m.brake, 0.);
+        assert!(pose.binding_error < 0.001);
+        let left = pose.gear[0].x_axis.truncate();
+        let right = pose.gear[1].x_axis.truncate();
+        assert!(left.dot(right) > 0.999, "reverse keeps the skis parallel");
+    }
+    assert!(m.position.x < -2., "reverse travel {}", m.position.x);
+    assert!(
+        (-2.0..-1.0).contains(&m.velocity.x),
+        "reverse speed {}",
+        m.velocity.x
+    );
+}
+
+#[test]
+fn back_brakes_forward_motion_then_reverses_but_space_remains_a_brake() {
+    let support = |p| Some(slope_ground(p, 0.));
+    let mut m = Motion::new(Vec3::ZERO, 0., support(Vec3::ZERO).unwrap());
+    m.velocity = Vec3::X * 3.;
+    m.input = super::super::WalkControls {
+        forward: -1.,
+        ..Default::default()
+    }
+    .into();
+    m.step(1. / 120., &support, &|_| false);
+    assert_eq!(m.brake, 1.);
+    assert!((0.0..3.0).contains(&m.velocity.x));
+    for _ in 0..360 {
+        m.step(1. / 120., &support, &|_| false);
+    }
+    assert!(m.velocity.x < -1.);
+    m.input = super::super::WalkControls {
+        forward: -1.,
+        jump: true,
+        ..Default::default()
+    }
+    .into();
+    for _ in 0..240 {
+        m.step(1. / 120., &support, &|_| false);
+    }
+    assert_eq!(m.speed(), 0.);
+    assert_eq!(m.brake, 1.);
+}
+
+#[test]
+fn level_ground_turns_pivot_at_rest_and_keep_a_tight_glide_radius() {
+    let support = |p| Some(slope_ground(p, 0.));
+    for speed in [0., 1., 3.5, 7.] {
+        for steer in [-1., 1.] {
+            let mut m = Motion::new(Vec3::ZERO, 0., support(Vec3::ZERO).unwrap());
+            m.velocity = Vec3::X * speed;
+            m.input.steer = steer;
+            for _ in 0..60 {
+                m.step(1. / 120., &support, &|_| false);
+            }
+            assert!(m.yaw * steer < -0.85, "speed {speed}: yaw {}", m.yaw);
+            assert!(m.travel / m.yaw.abs() < 4.5, "speed {speed}: turn too wide");
+            let heading = Vec3::new(m.yaw.cos(), m.yaw.sin(), 0.);
+            assert!(m.velocity.cross(heading).length() < 0.0001);
+            if speed == 0. {
+                assert_eq!(m.position, Vec3::ZERO, "pivot without inventing motion");
+            }
+        }
+    }
+}
+
+#[test]
+fn level_ground_shuffle_reaches_seven_metres_per_second_with_fixed_bindings() {
+    let support = |p| Some(slope_ground(p, 0.));
+    let mut m = Motion::new(Vec3::ZERO, 0., support(Vec3::ZERO).unwrap());
+    m.input.shuffle = true;
+    for _ in 0..1440 {
+        m.step(1. / 120., &support, &|_| false);
+        let pose = Pose::build(&mut m, &support);
+        assert!(pose.binding_error < 0.001);
+    }
+    assert!((7.2..7.5).contains(&m.speed()), "speed {}", m.speed());
+    assert!((72.0..76.0).contains(&m.travel), "travel {}", m.travel);
+}
+
+#[test]
+fn movement_matches_reference_trajectories() {
     let fixtures: serde_json::Value =
         serde_json::from_str(include_str!("trajectory-reference.json")).unwrap();
     for case in fixtures.as_array().unwrap() {
@@ -32,6 +124,7 @@ fn port_matches_the_qa_approved_javascript_trajectories() {
             let input = &segment[1];
             m.input = Input {
                 shuffle: input["shuffle"].as_bool().unwrap_or(false),
+                backward: input["backward"].as_bool().unwrap_or(false),
                 poles: input["pole"].as_bool().unwrap_or(false),
                 steer: input["steer"].as_f64().unwrap_or(0.) as f32,
                 brake: input["brake"].as_f64().unwrap_or(0.) as f32,
@@ -46,8 +139,9 @@ fn port_matches_the_qa_approved_javascript_trajectories() {
         }));
         assert!(
             m.position.distance(p) < 0.025,
-            "{name}: {:?} != {p:?}",
-            m.position
+            "{name}: {:?} != {p:?}; speed {}",
+            m.position,
+            m.speed()
         );
         assert!(
             (m.speed() - case["speed"].as_f64().unwrap() as f32).abs() < 0.003,

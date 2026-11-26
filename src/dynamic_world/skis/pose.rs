@@ -52,13 +52,14 @@ impl Pose {
         let (_, forward, right) = basis(m.yaw, m.ground);
         let mut locals = def.rest.clone();
         let tuck = m.tuck_blend;
-        let brake = m.input.brake;
+        let brake = m.brake;
         let hockey = m.hockey_side != 0.;
         let poling = !hockey
+            && !m.input.backward
             && !m.input.tuck
             && tuck <= 0.15
             && m.input.poles
-            && m.speed() < 3.5
+            && m.speed() < m.poling_speed_limit()
             && brake < 0.1;
         if !poling {
             m.release_poles();
