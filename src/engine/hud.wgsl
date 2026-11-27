@@ -1,20 +1,46 @@
-struct Hud { texture_region:vec4<f32>, rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec4<f32>, full_map:vec4<f32>, destination:vec4<f32>, performance:vec4<f32>, job_marker:vec4<f32>, police:array<vec4<f32>,80> };
+struct Hud { texture_region:vec4<f32>, rect:vec4<f32>, screen:vec4<f32>, map:vec4<f32>, mode:vec3<f32>, minimap_fade:f32, full_map:vec4<f32>, destination:vec4<f32>, fps:f32, minimap_layer_size:f32, job_marker:vec4<f32>, police:array<vec4<f32>,80> };
 @group(0) @binding(0) var chart:texture_2d<f32>;
 @group(0) @binding(1) var filtering:sampler;
 @group(0) @binding(2) var<uniform> hud:Hud;
-struct Vertex { @builtin(position) position:vec4<f32>, @location(0) uv:vec2<f32> };
-@vertex fn vs(@builtin(vertex_index) index:u32)->Vertex {
+struct Vertex { @builtin(position) position:vec4<f32>, @location(0) @interpolate(flat) fps:u32 };
+fn quad_uv(index:u32)->vec2<f32> {
     let corners=array<vec2<f32>,6>(vec2<f32>(0.,0.),vec2<f32>(1.,0.),vec2<f32>(1.,1.),vec2<f32>(0.,0.),vec2<f32>(1.,1.),vec2<f32>(0.,1.));
-    let uv=corners[index%6u];
-    var rect=hud.rect;
+    return corners[index%6u];
+}
+fn clip_position(p:vec2<f32>, size:vec2<f32>)->vec4<f32> {
+    return vec4<f32>(p.x/size.x*2.-1.,1.-p.y/size.y*2.,0.,1.);
+}
+fn minimap_bounds()->vec4<f32> {
+    let fade=hud.minimap_fade;
+    return hud.rect+vec4<f32>(-fade,-fade,2.*fade,2.*fade);
+}
+fn minimap_origin()->vec2<f32> {
+    return floor(minimap_bounds().xy);
+}
+fn map_clip_position(p:vec2<f32>)->vec4<f32> {
     if hud.mode.x==0. {
-        let size=max(1.,min(clamp(min(hud.screen.x,hud.screen.y)*0.29,60.,340.),min(hud.screen.x,hud.screen.y)-16.));
-        rect=vec4<f32>(16.,hud.screen.y-size-16.,size,size);
-        if index>=6u {rect=fps_rect();}
+        return clip_position(p-minimap_origin(),vec2<f32>(hud.minimap_layer_size));
     }
-    let p=rect.xy+uv*rect.zw;
-    var out:Vertex;out.position=vec4<f32>(p.x/hud.screen.x*2.-1.,1.-p.y/hud.screen.y*2.,0.,1.);
-    out.uv=select(uv,p,hud.mode.x==0.);return out;
+    return clip_position(p,hud.screen.xy);
+}
+@vertex fn vs(@builtin(vertex_index) index:u32)->Vertex {
+    var rect=hud.rect;
+    let fps=index>=6u;
+    if hud.mode.x==0. {
+        rect=select(minimap_bounds(),fps_rect(),fps);
+    }
+    return Vertex(clip_position(rect.xy+quad_uv(index)*rect.zw,hud.screen.xy),u32(fps));
+}
+@vertex fn vs_minimap(@builtin(vertex_index) index:u32)->@builtin(position) vec4<f32> {
+    let rect=minimap_bounds();
+    return map_clip_position(rect.xy+quad_uv(index)*rect.zw);
+}
+fn minimap_center()->vec2<f32> {
+    return hud.rect.xy+hud.rect.zw*0.5;
+}
+fn minimap_opacity(offset:vec2<f32>)->f32 {
+    let edge=hud.rect.z*0.5;
+    return 0.75*(1.-smoothstep(edge,edge+hud.minimap_fade,length(offset)));
 }
 fn inside(p:vec2<f32>, r:vec4<f32>)->bool {
     return all(p>=r.xy)&&all(p<=r.xy+r.zw);
@@ -84,9 +110,9 @@ fn fps_lettering(p:vec2<f32>,origin:vec2<f32>,scale:f32)->bool {
     if index>=8u || col>=5u {return false;}
     var code=32u;
     if index<4u {
-        if hud.performance.x<=0.0 {code=45u;}
+        if hud.fps<=0.0 {code=45u;}
         else {
-            let fps=u32(clamp(round(hud.performance.x),1.0,9999.0));
+            let fps=u32(clamp(round(hud.fps),1.0,9999.0));
             let divisor=array<u32,4>(1000u,100u,10u,1u)[index];
             if fps>=divisor || index==3u {code=48u+(fps/divisor)%10u;}
         }
@@ -188,9 +214,9 @@ fn map_overlay(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f
     return color;
 }
 @fragment fn fs(v:Vertex)->@location(0) vec4<f32> {
-    let p=select(v.uv*hud.rect.zw,v.uv,hud.mode.x==0.);
+    let p=v.position.xy;
     let screen=hud.screen.xy;
-    if hud.mode.x==0. && inside(p,fps_rect()) {
+    if v.fps!=0u {
         let scale=fps_scale();
         let origin=fps_rect().xy+vec2<f32>(10.0,11.0)*scale;
         if fps_lettering(p,origin,2.0*scale) {return vec4<f32>(0.93,0.96,0.95,1.0);}
@@ -227,22 +253,25 @@ fn map_overlay(uv:vec2<f32>, pixels:vec2<f32>, forward:vec2<f32>, atlas_pixels:f
         let forward=vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w));
         return vec4<f32>(map_color(uv,(uv-hud.map.zw)*span,forward,span),1.);
     }
-    let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));
-    let uv=(p-vec2<f32>(16.,screen.y-size-16.))/size;
-    let radius=length((uv-0.5)*size);
-    let edge=size*0.5-radius;
-    if edge<0. {discard;}
+    let opacity=minimap_opacity(p-minimap_center());
+    if opacity<=0. {discard;}
+    let texel=vec2<i32>(p-minimap_origin());
+    return vec4<f32>(textureLoad(chart,texel,0).rgb,opacity);
+}
+@fragment fn fs_minimap(@builtin(position) position:vec4<f32>)->@location(0) vec4<f32> {
+    let size=hud.rect.z;
+    let pixels=position.xy+minimap_origin()-minimap_center();
     // Atlas Y points south. Screen up samples ahead of the player's heading;
     // screen right samples the player's right, keeping the marker upright.
     let forward=vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w));
     let right=vec2<f32>(-forward.y,forward.x);
-    let offset=uv-0.5;
+    let offset=pixels/size;
+    let uv=offset+0.5;
     let chart_offset=right*offset.x-forward*offset.y;
-    var color=map_color(hud.map.xy+chart_offset*hud.screen.z,offset*size,vec2<f32>(0.,-1.),size/hud.screen.z);
-    if edge<3. {color=vec3<f32>(0.035,0.055,0.065);}
+    var color=map_color(hud.map.xy+chart_offset*hud.screen.z,pixels,vec2<f32>(0.,-1.),size/hud.screen.z);
     // Quarter-span scale bar (100 m on the ground, 1 km in flight).
     if uv.x>0.375 && uv.x<0.625 && uv.y>0.88 && uv.y<0.89 {color=vec3<f32>(0.95);}
-    return vec4<f32>(color,smoothstep(0.,1.,edge));
+    return vec4<f32>(color,1.);
 }
 
 // Route geometry remains in atlas coordinates; only the small ribbon buffer changes on reroute.
@@ -251,29 +280,23 @@ fn route_screen(uv:vec2<f32>)->vec2<f32> {
         let size=hud.screen.xy-vec2<f32>(48.,108.);
         return vec2<f32>(24.,84.)+size*0.5+(uv-hud.full_map.xy)*min(size.x,size.y)*hud.full_map.z;
     }
-    let screen=hud.screen.xy;
-    let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));
     let forward=vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w));
     let right=vec2<f32>(-forward.y,forward.x);
     let offset=(uv-hud.map.xy)/hud.screen.z;
-    return vec2<f32>(16.+size*0.5,screen.y-size*0.5-16.)+vec2<f32>(dot(offset,right),-dot(offset,forward))*size;
+    return minimap_center()+vec2<f32>(dot(offset,right),-dot(offset,forward))*hud.rect.z;
 }
-@vertex fn vs_route(@location(0) uv:vec2<f32>, @location(1) other:vec2<f32>, @location(2) side:f32)->Vertex {
+@vertex fn vs_route(@location(0) uv:vec2<f32>, @location(1) other:vec2<f32>, @location(2) side:f32)->@builtin(position) vec4<f32> {
     let a=route_screen(uv);let delta=route_screen(other)-a;
     let perpendicular=vec2<f32>(-delta.y,delta.x)/max(length(delta),0.001);
     let p=a+perpendicular*side*3.;
-    var out:Vertex;
-    out.position=vec4<f32>(p.x/hud.screen.x*2.-1.,1.-p.y/hud.screen.y*2.,0.,1.);
-    out.uv=p;return out;
+    return map_clip_position(p);
 }
-@fragment fn fs_route(v:Vertex)->@location(0) vec4<f32> {
-    let p=v.uv;
+@fragment fn fs_route(@builtin(position) position:vec4<f32>)->@location(0) vec4<f32> {
+    var p=position.xy;
     if hud.mode.x==2. {
         if !inside(p,vec4<f32>(24.,84.,hud.screen.xy-vec2<f32>(48.,108.))) {discard;}
     } else {
-        let screen=hud.screen.xy;
-        let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));
-        if length(p-vec2<f32>(16.+size*0.5,screen.y-size*0.5-16.))>size*0.5-3. {discard;}
+        p+=minimap_origin();
     }
     if hud.job_marker.z > 0. && length(p-route_screen(hud.job_marker.xy)) < 9. {discard;}
     // Keep the destination and heading markers above the route.
@@ -290,7 +313,7 @@ struct MapVertex { @builtin(position) position:vec4<f32>, @location(0) uv:vec2<f
 @vertex fn vs_map(@location(0) uv:vec2<f32>, @location(1) color:vec3<f32>)->MapVertex {
     let p=route_screen(uv);
     var out:MapVertex;
-    out.position=vec4<f32>(p.x/hud.screen.x*2.-1.,1.-p.y/hud.screen.y*2.,0.,1.);
+    out.position=map_clip_position(p);
     out.uv=uv;out.color=color;return out;
 }
 @fragment fn fs_map(v:MapVertex)->@location(0) vec4<f32> {
@@ -301,10 +324,8 @@ struct MapVertex { @builtin(position) position:vec4<f32>, @location(0) uv:vec2<f
         let forward=vec2<f32>(cos(hud.screen.w),-sin(hud.screen.w));
         return vec4<f32>(map_overlay(v.uv,p-route_screen(hud.map.zw),forward,span,v.color),1.);
     }
-    let screen=hud.screen.xy;
-    let size=max(1.,min(clamp(min(screen.x,screen.y)*0.29,60.,340.),min(screen.x,screen.y)-16.));
-    let offset=p-vec2<f32>(16.+size*0.5,screen.y-size*0.5-16.);
-    if length(offset)>size*0.5-3. {discard;}
+    let size=hud.rect.z;
+    let offset=p+minimap_origin()-minimap_center();
     var color=map_overlay(v.uv,offset,vec2<f32>(0.,-1.),size/hud.screen.z,v.color);
     let uv=offset/size+0.5;
     if uv.x>0.375 && uv.x<0.625 && uv.y>0.88 && uv.y<0.89 {color=vec3<f32>(0.95);}

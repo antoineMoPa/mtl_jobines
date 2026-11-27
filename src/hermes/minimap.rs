@@ -1,6 +1,12 @@
-use opencity::runtime::City;
+use opencity::runtime::{City, NavigationPalette};
 use resvg::{tiny_skia, usvg};
 pub const TEXTURE_SIZE: u32 = 1024;
+pub const NAVIGATION_PALETTE: NavigationPalette = NavigationPalette {
+    grass: [51; 3],
+    street: [80; 3],
+    street_edge: [66; 3],
+};
+
 #[derive(Clone, Copy)]
 pub enum MinimapScale {
     Ground,
@@ -257,7 +263,7 @@ mod tests {
         let uv = map.map_uv([0.5, 0.]);
         let pixels = map.update_view([0., 0.], Some((uv, 0.25))).unwrap();
         let i = ((TEXTURE_SIZE / 2 * TEXTURE_SIZE + TEXTURE_SIZE / 2) * 4) as usize;
-        assert!(pixels[i] > 180 && pixels[i + 1] > 180);
+        assert_eq!(&pixels[i..i + 3], &[80; 3]);
         assert_eq!(map.view([0.5, 0.], 0.).player_uv, uv);
         assert!(map.update_view([0., 0.], Some((uv, 0.25))).is_none());
     }
@@ -303,10 +309,7 @@ mod tests {
         let i = ((uv[1] * TEXTURE_SIZE as f32) as u32 * TEXTURE_SIZE
             + (uv[0] * TEXTURE_SIZE as f32) as u32) as usize
             * 4;
-        assert!(
-            pixels[i] > 180 && pixels[i + 1] > 180,
-            "road should be light in actual raster"
-        );
+        assert_eq!(&pixels[i..i + 3], &[80; 3]);
     }
     #[test]
     fn quick_reload_atlas_keeps_world_mapping_and_has_no_deferred_raster_work() {
@@ -321,7 +324,7 @@ mod tests {
         let i = ((uv[1] * TEXTURE_SIZE as f32) as usize * TEXTURE_SIZE as usize
             + (uv[0] * TEXTURE_SIZE as f32) as usize)
             * 4;
-        assert!(atlas[i] > 180 && atlas[i + 1] > 180);
+        assert_eq!(&atlas[i..i + 3], &[80; 3]);
         assert!(map.update([0., 0.]).is_none());
     }
     #[test]
@@ -387,11 +390,7 @@ mod tests {
                 let i = ((uv[1] * TEXTURE_SIZE as f32) as usize * TEXTURE_SIZE as usize
                     + (uv[0] * TEXTURE_SIZE as f32) as usize)
                     * 4;
-                let expected = if pavement {
-                    [226, 229, 210]
-                } else {
-                    [167, 175, 161]
-                };
+                let expected = if pavement { [80; 3] } else { [66; 3] };
                 assert_eq!(
                     &pixels[i..i + 3],
                     &expected,

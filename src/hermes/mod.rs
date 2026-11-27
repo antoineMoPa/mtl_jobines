@@ -36,7 +36,7 @@ pub mod walking_paths;
 #[cfg(any(not(target_arch = "wasm32"), bundled_game_data))]
 use game_data::CacheKey;
 use game_data::GameData;
-pub use minimap::{MinimapScale, MinimapView, TEXTURE_SIZE};
+pub use minimap::{MinimapScale, MinimapView, NAVIGATION_PALETTE, TEXTURE_SIZE};
 use opencity::runtime::City;
 use opencity::runtime::{Mesh, Region};
 pub use routing::RouteStatus;

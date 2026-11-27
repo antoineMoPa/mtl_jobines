@@ -46,12 +46,16 @@ impl MenuItem {
         }
     }
 }
+const MINIMAP_FADE_PX: f32 = 40.;
+const MINIMAP_MAX_SIDE: u32 = 340;
+const MINIMAP_LAYER_SIZE: u32 = MINIMAP_MAX_SIDE + 2 * MINIMAP_FADE_PX as u32;
+
 pub fn minimap_rect(width: f32, height: f32) -> [f32; 4] {
     let side = (height.min(width) * 0.29)
-        .clamp(60., 340.)
-        .min(width.min(height) - 16.)
+        .clamp(60., MINIMAP_MAX_SIDE as f32)
+        .min(width.min(height) - 2. * MINIMAP_FADE_PX)
         .max(1.);
-    [16., height - side - 16., side, side]
+    [MINIMAP_FADE_PX, height - side - MINIMAP_FADE_PX, side, side]
 }
 pub fn full_map_rect(width: f32, height: f32) -> [f32; 4] {
     [24., 84., width - 48., height - 108.]
@@ -160,10 +164,13 @@ struct Uniform {
     rect: [f32; 4],
     screen: [f32; 4],
     map: [f32; 4],
-    mode: [f32; 4],
+    mode: [f32; 3],
+    minimap_fade: f32,
     full_map: [f32; 4],
     destination: [f32; 4],
-    performance: [f32; 4],
+    fps: f32,
+    minimap_layer_size: f32,
+    _padding: [f32; 2],
     job_marker: [f32; 4],
     police: [[f32; 4]; 80],
 }
@@ -174,6 +181,9 @@ pub struct Hud {
     uniform: wgpu::Buffer,
     group: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
+    minimap_layer: wgpu::TextureView,
+    minimap_group: wgpu::BindGroup,
+    minimap_pipeline: wgpu::RenderPipeline,
     ready: bool,
     vector_city: Option<std::sync::Arc<opencity::runtime::City>>,
     vector_pipeline: wgpu::RenderPipeline,
@@ -242,24 +252,45 @@ impl Hud {
                 },
             ],
         });
-        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("minimap"),
-            layout: &layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
+        let bind_texture = |view: &wgpu::TextureView| {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("minimap"),
+                layout: &layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: uniform.as_entire_binding(),
+                    },
+                ],
+            })
+        };
+        let group = bind_texture(&view);
+        let minimap_layer = device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("minimap layer"),
+                size: wgpu::Extent3d {
+                    width: MINIMAP_LAYER_SIZE,
+                    height: MINIMAP_LAYER_SIZE,
+                    depth_or_array_layers: 1,
                 },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: uniform.as_entire_binding(),
-                },
-            ],
-        });
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            })
+            .create_view(&Default::default());
+        let minimap_group = bind_texture(&minimap_layer);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("minimap"),
             source: wgpu::ShaderSource::Wgsl(include_str!("hud.wgsl").into()),
@@ -269,31 +300,35 @@ impl Hud {
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("minimap overlay"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: Default::default(),
-            depth_stencil: None,
-            multisample: Default::default(),
-            multiview_mask: None,
-            cache: None,
-        });
+        let quad_pipeline = |label, vertex, fragment| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some(vertex),
+                    compilation_options: Default::default(),
+                    buffers: &[],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some(fragment),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: Default::default(),
+                depth_stencil: None,
+                multisample: Default::default(),
+                multiview_mask: None,
+                cache: None,
+            })
+        };
+        let pipeline = quad_pipeline("HUD overlay", "vs", "fs");
+        let minimap_pipeline = quad_pipeline("minimap layer", "vs_minimap", "fs_minimap");
         let vector_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Hermes vector map"),
             layout: Some(&layout),
@@ -375,6 +410,9 @@ impl Hud {
             uniform,
             group,
             pipeline,
+            minimap_layer,
+            minimap_group,
+            minimap_pipeline,
             ready: false,
             route_pipeline,
             route_buffer,
@@ -468,6 +506,7 @@ impl Hud {
         &self,
         encoder: &'a mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
+        load: wgpu::LoadOp<wgpu::Color>,
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) -> wgpu::RenderPass<'a> {
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -477,7 +516,7 @@ impl Hud {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
+                    load,
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -486,6 +525,18 @@ impl Hud {
             occlusion_query_set: None,
             multiview_mask: None,
         })
+    }
+    fn draw_map_layers(&self, pass: &mut wgpu::RenderPass<'_>) {
+        if self.vector_count > 0 {
+            pass.set_pipeline(&self.vector_pipeline);
+            pass.set_vertex_buffer(0, self.vector_buffer.slice(..));
+            pass.draw(0..self.vector_count, 0..1);
+        }
+        if self.route_count > 0 {
+            pass.set_pipeline(&self.route_pipeline);
+            pass.set_vertex_buffer(0, self.route_buffer.slice(..));
+            pass.draw(0..self.route_count, 0..1);
+        }
     }
     pub fn render(
         &self,
@@ -499,12 +550,15 @@ impl Hud {
         full_map: FullMapView,
         menu_selection: MenuItem,
         fps: Option<f32>,
-        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+        mut timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         if !self.ready {
             return;
         }
-        let rect = [0., 0., width as f32, height as f32];
+        let rect = match overlay {
+            Overlay::Driving => minimap_rect(width as f32, height as f32),
+            _ => [0., 0., width as f32, height as f32],
+        };
         let data = Uniform {
             texture_region: if self.vector_city.is_some() {
                 [0., 0., 1., 1.]
@@ -536,7 +590,9 @@ impl Hud {
                 },
                 0.,
             ],
-            performance: [fps.unwrap_or(0.), 0., 0., 0.],
+            fps: fps.unwrap_or(0.),
+            minimap_layer_size: MINIMAP_LAYER_SIZE as f32,
+            _padding: [0.; 2],
             job_marker: self.job_marker,
             police: self.police,
             mode: [
@@ -552,23 +608,53 @@ impl Hud {
                     MenuItem::Settings => 2.,
                     MenuItem::Exit => 3.,
                 },
-                0.,
             ],
+            minimap_fade: MINIMAP_FADE_PX,
         };
         queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
-        let mut pass = self.begin_pass(encoder, target, timestamps);
+        if overlay == Overlay::Driving {
+            let start = timestamps.as_mut().and_then(|writes| {
+                Some(wgpu::RenderPassTimestampWrites {
+                    query_set: writes.query_set,
+                    beginning_of_pass_write_index: Some(
+                        writes.beginning_of_pass_write_index.take()?,
+                    ),
+                    end_of_pass_write_index: None,
+                })
+            });
+            // Build the map in one layer so overlapping roads and routes share the same opacity.
+            let mut pass = self.begin_pass(
+                encoder,
+                &self.minimap_layer,
+                wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                start,
+            );
+            let side = ((rect[2] + 2. * MINIMAP_FADE_PX).ceil() as u32 + 1).min(MINIMAP_LAYER_SIZE);
+            pass.set_scissor_rect(0, 0, side, side);
+            pass.set_pipeline(&self.minimap_pipeline);
+            pass.set_bind_group(0, &self.group, &[]);
+            pass.draw(0..6, 0..1);
+            self.draw_map_layers(&mut pass);
+        }
+        let timestamps = timestamps.filter(|writes| {
+            writes.beginning_of_pass_write_index.is_some()
+                || writes.end_of_pass_write_index.is_some()
+        });
+        let mut pass = self.begin_pass(encoder, target, wgpu::LoadOp::Load, timestamps);
         pass.set_viewport(0., 0., width as f32, height as f32, 0., 1.);
         pass.set_scissor_rect(0, 0, width, height);
         pass.set_pipeline(&self.pipeline);
+        if overlay == Overlay::Driving {
+            pass.set_bind_group(0, &self.minimap_group, &[]);
+            pass.draw(0..12, 0..1);
+            return;
+        }
         pass.set_bind_group(0, &self.group, &[]);
-        pass.draw(0..if overlay == Overlay::Driving { 12 } else { 6 }, 0..1);
-        // The zoomed city extends far beyond the minimap. Clip at rasterization
-        // before running the circular mask and marker shader on map fragments.
-        let [x, y, w, h] = match overlay {
-            Overlay::Driving => minimap_rect(width as f32, height as f32),
-            Overlay::Map => full_map_rect(width as f32, height as f32),
-            _ => return,
-        };
+        pass.draw(0..6, 0..1);
+        if overlay != Overlay::Map {
+            return;
+        }
+        let [x, y, w, h] = full_map_rect(width as f32, height as f32);
         let left = x.floor().max(0.) as u32;
         let top = y.floor().max(0.) as u32;
         let right = ((x + w).ceil() as u32).min(width);
@@ -577,16 +663,7 @@ impl Hud {
             return;
         }
         pass.set_scissor_rect(left, top, right - left, bottom - top);
-        if self.vector_count > 0 {
-            pass.set_pipeline(&self.vector_pipeline);
-            pass.set_vertex_buffer(0, self.vector_buffer.slice(..));
-            pass.draw(0..self.vector_count, 0..1);
-        }
-        if self.route_count > 0 {
-            pass.set_pipeline(&self.route_pipeline);
-            pass.set_vertex_buffer(0, self.route_buffer.slice(..));
-            pass.draw(0..self.route_count, 0..1);
-        }
+        self.draw_map_layers(&mut pass);
     }
 }
 #[cfg(test)]
@@ -694,5 +771,87 @@ mod tests {
         )
         .validate(&module)
         .unwrap();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn minimap_blends_its_layers_once_at_75_percent_and_fades_at_the_edge() {
+        use super::*;
+        use wgpu::util::DeviceExt;
+
+        let renderer =
+            pollster::block_on(crate::engine::render::Renderer::new(None, 400, 400)).unwrap();
+        let mut hud = Hud::new(&renderer.device, wgpu::TextureFormat::Rgba8Unorm);
+        hud.update(
+            &renderer.queue,
+            &vec![255; (TEXTURE_SIZE * TEXTURE_SIZE * 4) as usize],
+        );
+        let vertices: [[f32; 5]; 6] = [
+            [0.51, 0., 0., 1., 1.],
+            [1., 0., 0., 1., 1.],
+            [1., 1., 0., 1., 1.],
+            [0.51, 0., 0., 1., 1.],
+            [1., 1., 0., 1., 1.],
+            [0.51, 1., 0., 1., 1.],
+        ];
+        hud.vector_buffer = renderer
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("test minimap vector"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        hud.vector_count = vertices.len() as u32;
+        hud.update_route(&renderer.device, &[[0.2, 0.5], [0.5, 0.5]]);
+        let target = renderer.device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d {
+                width: 400,
+                height: 400,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let mut encoder = renderer.device.create_command_encoder(&Default::default());
+        hud.render(
+            &renderer.queue,
+            &mut encoder,
+            &target.create_view(&Default::default()),
+            400,
+            400,
+            MinimapView {
+                texture_region: [0., 0., 1., 1.],
+                uv_center: [0.5; 2],
+                uv_span: 0.5,
+                heading: 0.,
+                player_uv: [0.5; 2],
+                destination_uv: [0.; 2],
+                route_status: crate::hermes::RouteStatus::Inactive,
+            },
+            Overlay::Driving,
+            FullMapView::default(),
+            MenuItem::default(),
+            None,
+            None,
+        );
+        renderer.queue.submit(Some(encoder.finish()));
+        let pixels = renderer.rgba_pixels(&target).unwrap();
+        let [left, top, side, _] = minimap_rect(400., 400.);
+        let edge_x = (left + side) as usize;
+        let center_x = (left + side * 0.5) as usize;
+        let center_y = (top + side * 0.5) as usize;
+        let rgb = |x: usize, y: usize| &pixels[(y * 400 + x) * 4..][..3];
+        assert_eq!(rgb(edge_x - 1, center_y), &[191; 3]);
+        assert!((89..=95).contains(&rgb(edge_x + 20, center_y)[0]));
+        assert_eq!(rgb(edge_x + 40, center_y), &[0; 3]);
+        assert_eq!(rgb(center_x, center_y - 24), &[0, 191, 191]);
+        let route = rgb(center_x, center_y + 24);
+        assert!(route[0] < 12 && route[2] == 191, "route: {route:?}");
     }
 }

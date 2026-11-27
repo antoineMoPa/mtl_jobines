@@ -206,7 +206,7 @@ impl MetroMap {
 }
 /// All map presentations share this overlay, including SVG export and GPU vectors.
 pub fn navigation_svg(city: &City) -> Result<String, String> {
-    let mut svg = city.minimap_svg()?;
+    let mut svg = city.minimap_svg_with_palette(&super::NAVIGATION_PALETTE)?;
     let metro = MetroMap::from_city(city);
     if metro.samples.is_empty() {
         return Ok(svg);

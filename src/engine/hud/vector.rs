@@ -22,8 +22,11 @@ pub(super) fn build(city: &City) -> Result<(Vec<[f32; 5]>, Vec<u8>), String> {
     // ViewBox transforms may wrap the ocean rectangle in a group. Walk the
     // entire tree and exclude that background by identity, never by nesting.
     collect(tree.root(), transform, &mut vertices)?;
-    let background = usvg::Tree::from_str(&city.minimap_relief_svg()?, &Default::default())
-        .map_err(|e| e.to_string())?;
+    let background = usvg::Tree::from_str(
+        &city.minimap_relief_svg_with_palette(&crate::hermes::NAVIGATION_PALETTE)?,
+        &Default::default(),
+    )
+    .map_err(|e| e.to_string())?;
     let size = crate::hermes::TEXTURE_SIZE;
     let mut pixels = sk::Pixmap::new(size, size).ok_or("map background allocation")?;
     pixels.fill(sk::Color::from_rgba8(23, 62, 85, 255));
@@ -184,14 +187,11 @@ mod tests {
         .unwrap()
     }
     #[test]
-    fn terrain_background_is_green_and_vector_layer_does_not_cover_it_with_ocean() {
+    fn terrain_background_is_dark_gray_and_vector_layer_does_not_cover_it_with_ocean() {
         let (vertices, pixels) = build(&terrain_city()).unwrap();
         let size = crate::hermes::TEXTURE_SIZE as usize;
         let rgb = &pixels[(size / 2 * size + size / 2) * 4..][..3];
-        assert!(
-            rgb[1] > rgb[0] && rgb[1] > rgb[2],
-            "terrain background: {rgb:?}"
-        );
+        assert_eq!(rgb, &[46; 3]);
         assert!(
             !vertices.iter().any(|v| v[4] > v[3]),
             "ocean background must not be drawn over the terrain image"
@@ -216,6 +216,26 @@ mod tests {
             destination_uv: [0.; 2],
             route_status: crate::hermes::RouteStatus::Inactive,
         };
+        let capture = |renderer: &Renderer| {
+            renderer
+                .report_screenshot(
+                    &[],
+                    glam::Vec3::new(0., -1., 0.5),
+                    glam::Vec3::ZERO,
+                    0.,
+                    navigation,
+                )
+                .unwrap()
+        };
+        let decode = |png: &[u8]| {
+            let mut reader = png::Decoder::new(png).read_info().unwrap();
+            let mut pixels = vec![0; reader.output_buffer_size()];
+            reader.next_frame(&mut pixels).unwrap();
+            pixels
+        };
+        renderer.cinematic = true;
+        let scene = decode(&capture(&renderer));
+        renderer.cinematic = false;
         for (name, overlay, zoom) in [
             ("overview", Overlay::Map, 1.),
             ("zoom", Overlay::Map, 16.),
@@ -226,45 +246,44 @@ mod tests {
                 zoom,
                 ..Default::default()
             };
-            let png = renderer
-                .report_screenshot(
-                    &[],
-                    glam::Vec3::new(0., -1., 0.5),
-                    glam::Vec3::ZERO,
-                    0.,
-                    navigation,
-                )
-                .unwrap();
+            let png = capture(&renderer);
             if let Some(dir) = std::env::var_os("VECTOR_MAP_CAPTURE") {
                 std::fs::create_dir_all(&dir).unwrap();
                 std::fs::write(std::path::Path::new(&dir).join(format!("{name}.png")), &png)
                     .unwrap();
             }
-            let mut reader = png::Decoder::new(png.as_slice()).read_info().unwrap();
-            let mut pixels = vec![0; reader.output_buffer_size()];
-            reader.next_frame(&mut pixels).unwrap();
-            let (x, y) = if overlay == Overlay::Map {
-                (680, 430)
+            let pixels = decode(&png);
+            let ((x, y), (ground_x, ground_y)) = if overlay == Overlay::Map {
+                ((680, 430), (640, 270))
             } else {
-                (132, 628)
+                let [left, top, side, _] = super::super::minimap_rect(1280., 800.);
+                let x = (left + side * 0.5) as usize;
+                let y = (top + side * 0.5) as usize;
+                ((x, y - 40), (x + 46, y))
             };
-            let (ground_x, ground_y) = if overlay == Overlay::Map {
-                (640, 270)
-            } else {
-                (178, 668)
+            let linear = |value: u8| {
+                let value = f32::from(value) / 255.;
+                if value <= 0.04045 {
+                    value / 12.92
+                } else {
+                    ((value + 0.055) / 1.055).powf(2.4)
+                }
             };
-            let ground = &pixels[(ground_y * 1280 + ground_x) * 4..][..3];
-            assert!(
-                ground[1] > ground[0] && ground[1] > ground[2],
-                "{name} ground: {ground:?}"
-            );
-            let rgb = &pixels[(y * 1280 + x) * 4..][..3];
-            assert!(
-                rgb.iter()
-                    .zip([226u8, 229, 210])
-                    .all(|(&a, b)| a.abs_diff(b) <= 2),
-                "{name}: {rgb:?}"
-            );
+            for (x, y, map_color) in [(x, y, 80), (ground_x, ground_y, 46)] {
+                let index = (y * 1280 + x) * 4;
+                let rgb = &pixels[index..][..3];
+                for (&channel, &background) in rgb.iter().zip(&scene[index..][..3]) {
+                    let expected = if overlay == Overlay::Driving {
+                        linear(map_color) * 0.75 + linear(background) * 0.25
+                    } else {
+                        linear(map_color)
+                    };
+                    assert!(
+                        (linear(channel) - expected).abs() < 0.006,
+                        "{name} ({x}, {y}): {rgb:?}"
+                    );
+                }
+            }
         }
     }
     #[test]
@@ -281,11 +300,11 @@ mod tests {
         assert!(!vertices.is_empty());
         assert_eq!(vertices.len() % 3, 0);
         assert!(vertices.iter().all(|v| v.iter().all(|c| c.is_finite())));
-        let light: Vec<_> = vertices.iter().filter(|v| v[2] > 0.7).collect();
-        assert!(!light.is_empty());
-        assert!(light.iter().any(|v| v[0] < 0.1));
-        assert!(light.iter().any(|v| v[0] > 0.9));
-        assert!(light.iter().all(|v| (v[1] - 0.5).abs() < 0.1));
+        let streets: Vec<_> = vertices.iter().filter(|v| v[2] > 0.07).collect();
+        assert!(!streets.is_empty());
+        assert!(streets.iter().any(|v| v[0] < 0.1));
+        assert!(streets.iter().any(|v| v[0] > 0.9));
+        assert!(streets.iter().all(|v| (v[1] - 0.5).abs() < 0.1));
         let size = crate::hermes::TEXTURE_SIZE as usize;
         assert_eq!(
             &pixels[(size / 2 * size + size / 2) * 4..][..4],
