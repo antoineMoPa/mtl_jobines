@@ -106,6 +106,26 @@ fn population_is_nearby_separated_and_reuses_slots_after_travel() {
     assert_eq!(traffic.drivers.len(), TARGET);
 }
 #[test]
+fn ski_base_has_three_ambient_cars_and_leaves_other_roads_populated() {
+    let (city, graph) = map(STRAIGHT);
+    let mut traffic = Traffic::new(&graph);
+    let mut cars = Vec::new();
+    traffic.populate(&city, &mut cars, Vec3::ZERO);
+    assert_eq!(traffic.count(), TARGET);
+
+    traffic.set_ski_base(Vec2::ZERO);
+    traffic.populate(&city, &mut cars, Vec3::ZERO);
+    assert_eq!(traffic.count(), SKI_AREA_TARGET);
+    traffic.release(traffic.drivers[0].vehicle);
+    traffic.populate(&city, &mut cars, Vec3::ZERO);
+    assert_eq!(traffic.count(), SKI_AREA_TARGET);
+
+    // Move the resort outside the traffic spawning radius.
+    traffic.set_ski_base(Vec2::X * 600.);
+    traffic.populate(&city, &mut cars, Vec3::ZERO);
+    assert_eq!(traffic.count(), TARGET);
+}
+#[test]
 fn budgeted_population_spreads_spawns_over_passes() {
     let (city, graph) = map(STRAIGHT);
     let mut traffic = Traffic::new(&graph);

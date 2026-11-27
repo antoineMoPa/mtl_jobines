@@ -60,6 +60,7 @@
 }
 #mobile-controls .mobile-utilities .mobile-button { width: 52px; height: 58px; }
 #mobile-controls .mobile-utilities .icon { width: 24px; height: 24px; }
+#mobile-controls #mobile-fullscreen span { display: none; }
 #mobile-controls .mobile-directions {
   position: absolute;
   left: max(20px, env(safe-area-inset-left));

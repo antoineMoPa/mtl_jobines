@@ -44,6 +44,14 @@ impl LocalLight {
             beam: [0.85, 4., 1., 0.],
         }
     }
+    pub fn ski_floodlight(position: Vec3, direction: Vec3) -> Self {
+        Self {
+            position_range: position.extend(0.20).to_array(),
+            direction_outer: direction.extend(0.20).to_array(),
+            color_intensity: [0.90, 0.95, 1., 55.],
+            beam: [0.75, 12., 1., 0.],
+        }
+    }
     pub fn headlight(position: Vec3, orientation: Quat, strength: f32) -> Self {
         let tilt = Quat::from_rotation_y(0.04);
         Self {

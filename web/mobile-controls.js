@@ -13,7 +13,9 @@ const icons = {
   "pedal": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m10 4 7-1a2 2 0 0 1 2 2l1 10a2 2 0 0 1-2 2l-7 1a2 2 0 0 1-2-2L8 6a2 2 0 0 1 2-2Z M12 7l1 7 M16 6l1 7 M14 18v3H6\"/></svg>",
   "brake": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"7\"/><path d=\"M3 5a11 11 0 0 0 0 14 M21 5a11 11 0 0 1 0 14 M11 16V8h2a2.5 2.5 0 0 1 0 5h-2\"/></svg>",
   "enter": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M14 4h6v16h-6 M3 12h12 m-4-4 4 4-4 4\"/></svg>",
-  "exit": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10 4H4v16h6 M9 12h12 m-4-4 4 4-4 4\"/></svg>"
+  "exit": "<svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10 4H4v16h6 M9 12h12 m-4-4 4 4-4 4\"/></svg>",
+  "fullscreen": '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H4v5 m11-5h5v5 M4 15v5h5 m11-5v5h-5"/></svg>',
+  "windowed": '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h5V4 m6 0v5h5 M4 15h5v5 m6 0v-5h5"/></svg>'
 };
 
 // CSS pixels, independent of device pixel ratio. Desktop-sized web views stay unchanged.
@@ -33,6 +35,7 @@ export function installMobileControls(api, canvas) {
       ${button('phone', 'phone', 'Tél.')}
       ${button('menu', 'menu', 'Menu')}
       ${button('door', 'door', 'Portière')}
+      ${button('fullscreen', 'fullscreen', 'Plein écran')}
     </nav>
     <div class="mobile-directions" role="group" aria-label="Déplacement">
       ${button('forward', 'forward', 'Avancer', 'direction up')}
@@ -122,6 +125,45 @@ export function installMobileControls(api, canvas) {
     button.innerHTML = `${icons[icon]}<span>${label}</span>`;
     button.setAttribute('aria-label', label);
   };
+  const fullscreen = buttons.fullscreen;
+  const page = document.documentElement;
+  function syncFullscreenButton() {
+    const active = document.fullscreenElement === page;
+    const label = active ? 'Quitter le plein écran' : 'Plein écran';
+    fullscreen.hidden = !document.fullscreenEnabled || typeof page.requestFullscreen !== 'function';
+    fullscreen.title = label;
+    setButton(fullscreen, active ? 'windowed' : 'fullscreen', label);
+  }
+  fullscreen.addEventListener('pointerdown', event => event.preventDefault());
+  fullscreen.addEventListener('click', async () => {
+    if (!available() || fullscreen.disabled) return;
+    reset();
+    canvas.focus({ preventScroll: true });
+    fullscreen.disabled = true;
+    try {
+      if (document.fullscreenElement === page) {
+        await document.exitFullscreen();
+        return;
+      }
+      await page.requestFullscreen();
+    } catch {
+      // Fullscreen can be denied even when the API is available.
+      return;
+    } finally {
+      fullscreen.disabled = false;
+    }
+    if (document.fullscreenElement === page) {
+      try {
+        // The browser releases a fullscreen orientation lock when fullscreen ends.
+        await window.screen.orientation?.lock?.('landscape');
+      } catch {
+        // Keep fullscreen available when the device cannot lock its orientation.
+      }
+    }
+  });
+  document.addEventListener('fullscreenchange', syncFullscreenButton);
+  syncFullscreenButton();
+
   function render() {
     const next = canvas.dataset.mobileMode || 'hidden';
     if (next !== state) {

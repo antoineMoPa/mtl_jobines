@@ -25,6 +25,8 @@ use std::{
 pub(super) const RATE: u32 = 24_000;
 const BLOCK: usize = 256;
 const OUTPUT_GAIN: f32 = 1.6;
+const STALE_BLOCKS: usize = RATE as usize / BLOCK / 2;
+const STALE_FADE_STEP: f32 = 1. / (RATE as f32 * 0.01);
 const SIREN_PERIOD: f32 = 3.8;
 const VOICES: usize = CAR_VOICES + IMPACT_VOICES + 2;
 
@@ -120,6 +122,7 @@ struct Synth {
     output: f32,
     gain: f32,
     rpm: f32,
+    load: f32,
     impact: u32,
     age: f32,
     pulse: f32,
@@ -142,6 +145,7 @@ impl Synth {
             output: 0.,
             gain: 0.,
             rpm: 750.,
+            load: 0.,
             impact: 0,
             age: 5.,
             pulse: 0.,
@@ -182,6 +186,7 @@ impl Synth {
             // A recycled slot starts at the new engine's pitch, not a glide
             // from the previous car. Slot reuse happens only after fade-out.
             self.rpm = get(&self.parameters.rpm);
+            self.load = get(&self.parameters.load);
             self.gain = 0.;
             self.output = 0.;
         }
@@ -204,7 +209,8 @@ impl Synth {
         let raw = if self.kind < CAR_VOICES {
             let rpm = get(&self.parameters.rpm);
             self.rpm += (rpm - self.rpm) * 0.001;
-            let load = get(&self.parameters.load);
+            self.load += (get(&self.parameters.load) - self.load) * 0.003;
+            let load = self.load;
             let profile = get(&self.parameters.profile);
             self.phase = (self.phase + self.rpm / 60. / RATE as f32).fract();
             let a = self.phase * std::f32::consts::TAU;
@@ -543,6 +549,7 @@ pub(super) struct Mix {
     block_left: usize,
     right: Option<f32>,
     stale_blocks: usize,
+    scene_gain: f32,
     last_impacts: [u64; IMPACT_VOICES],
     impact_position: [Vec3; IMPACT_VOICES],
     impact_life: [f32; IMPACT_VOICES],
@@ -584,6 +591,7 @@ impl Mix {
             block_left: 0,
             right: None,
             stale_blocks: 0,
+            scene_gain: 0.,
             last_impacts: [0; IMPACT_VOICES],
             impact_position: [Vec3::ZERO; IMPACT_VOICES],
             impact_life: [0.; IMPACT_VOICES],
@@ -604,11 +612,7 @@ impl Mix {
         }
         // Stop before sending any controller commands. Stalled main threads
         // cannot accumulate ambisonic's internal command vectors.
-        if self.stale_blocks > RATE as usize / BLOCK / 2 {
-            if self.started {
-                self.clear_transients();
-            }
-            self.started = false;
+        if self.stale_blocks > STALE_BLOCKS {
             return false;
         }
         #[cfg(test)]
@@ -739,31 +743,43 @@ impl Mix {
 impl Iterator for Mix {
     type Item = f32;
     fn next(&mut self) -> Option<f32> {
+        if let Some(right) = self.right.take() {
+            return Some(right);
+        }
         if self.bridge.reset.swap(false, Ordering::AcqRel) {
             self.clear_transients();
-            self.right = None;
             self.block_left = 0;
+            self.scene_gain = 0.;
+            self.stale_blocks = 0;
             self.started = false;
         }
         if !self.bridge.active.load(Ordering::Acquire) {
-            self.right = None;
+            self.right = Some(0.);
             self.block_left = 0;
+            self.scene_gain = 0.;
             if self.started {
                 self.clear_transients();
             }
             self.started = false;
             return Some(0.);
         }
-        if let Some(right) = self.right.take() {
-            return Some(right);
-        }
         if self.block_left == 0 {
             self.control();
             self.block_left = BLOCK;
         }
         self.block_left -= 1;
-        // A blocked/minimized main thread cannot leave the previous scene playing.
-        if self.stale_blocks > RATE as usize / BLOCK / 2 {
+        // Fade a stalled snapshot to silence and ramp back in on a fresh one.
+        let target = if self.stale_blocks > STALE_BLOCKS {
+            0.
+        } else {
+            1.
+        };
+        self.scene_gain += (target - self.scene_gain).clamp(-STALE_FADE_STEP, STALE_FADE_STEP);
+        if self.scene_gain == 0. {
+            if self.started {
+                self.clear_transients();
+                self.started = false;
+            }
             self.right = Some(0.);
             return Some(0.);
         }
@@ -781,11 +797,10 @@ impl Iterator for Mix {
             l += voice.renderer.next().unwrap_or(0.) * envelope;
             r += voice.renderer.next().unwrap_or(0.) * envelope;
         }
-        // Smooth bounded saturation, unity at low level, no hard clipping.
-        let l = l * OUTPUT_GAIN;
-        let r = r * OUTPUT_GAIN;
-        self.right = Some(r / (1. + r.abs()));
-        Some(l / (1. + l.abs()))
+        let gain = OUTPUT_GAIN * self.scene_gain;
+        let [left, right] = protect_peaks([l * gain, r * gain]);
+        self.right = Some(right);
+        Some(left)
     }
 }
 impl Source for Mix {

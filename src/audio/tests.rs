@@ -1,4 +1,16 @@
 use super::*;
+
+#[test]
+fn peak_protection_keeps_headroom_and_stereo_balance() {
+    assert_eq!(protect_peaks([0.25, -0.5]), [0.25, -0.5]);
+    for peak in [0.66, 1., 4., f32::MAX] {
+        let [left, right] = protect_peaks([peak, -peak * 0.5]);
+        assert!((0.65..=0.95).contains(&left));
+        assert_eq!(right, -left * 0.5);
+    }
+    assert_eq!(protect_peaks([f32::NAN, f32::INFINITY]), [0.; 2]);
+}
+
 #[test]
 fn camera_basis_preserves_physical_directions_and_velocity() {
     assert_eq!(listener_vector(Vec3::X, Vec3::X), [0., 1., 0.]);

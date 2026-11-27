@@ -1,9 +1,11 @@
-//! The same CPAL output path on native and wasm; no browser-only synthesizer.
+//! Device transport for the shared world and dialogue mixer.
 use super::{
     scene::{Bridge, Mix},
     Frame,
 };
+#[cfg(not(target_arch = "wasm32"))]
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+#[cfg(any(not(target_arch = "wasm32"), test))]
 use rodio::source::UniformSourceIterator;
 use std::{
     cell::Cell,
@@ -14,40 +16,23 @@ use std::{
     },
 };
 
+pub(super) type WorldSoundtrack = super::voice::Soundtrack<Mix>;
+
 pub(super) struct Backend {
     #[cfg(target_arch = "wasm32")]
     cutscene: std::cell::RefCell<Option<super::browser_cutscene::BrowserCutscene>>,
     bridge: Arc<Bridge>,
     voice: Arc<super::voice::VoiceBus>,
+    #[cfg(not(target_arch = "wasm32"))]
     stream: cpal::Stream,
-    playing: Rc<Cell<bool>>,
     #[cfg(target_arch = "wasm32")]
-    browser_start: BrowserStart,
+    stream: Rc<super::browser_output::BrowserOutput>,
+    playing: Rc<Cell<bool>>,
     #[cfg(target_arch = "wasm32")]
     _visibility: VisibilityGuard,
 }
 impl Backend {
     pub fn open() -> Result<Self, String> {
-        let device = cpal::default_host()
-            .default_output_device()
-            .ok_or("No audio output device")?;
-        let supported = device
-            .default_output_config()
-            .map_err(|error| error.to_string())?;
-        let format = supported.sample_format();
-        let config: cpal::StreamConfig = supported.into();
-        #[cfg(target_arch = "wasm32")]
-        let config = cpal::StreamConfig {
-            channels: 2,
-            // CPAL's web backend refills two alternating buffers from main-thread
-            // onended callbacks. 512 frames leave only ~11 ms at 48 kHz, less
-            // than one city render frame. Keep ~85 ms ahead for render jitter.
-            buffer_size: cpal::BufferSize::Fixed(4096),
-            ..config
-        };
-        if config.channels == 0 || config.sample_rate.0 == 0 {
-            return Err("Invalid audio device format".into());
-        }
         let bridge = Arc::new(Bridge {
             latest: Mutex::new(Frame::default()),
             active: AtomicBool::new(false),
@@ -60,17 +45,16 @@ impl Backend {
             voice: voice.clone(),
             right: None,
         };
-        let stream = match format {
-            cpal::SampleFormat::F32 => build::<f32>(&device, &config, mixer, bridge.clone()),
-            cpal::SampleFormat::F64 => build::<f64>(&device, &config, mixer, bridge.clone()),
-            cpal::SampleFormat::I16 => build::<i16>(&device, &config, mixer, bridge.clone()),
-            cpal::SampleFormat::U16 => build::<u16>(&device, &config, mixer, bridge.clone()),
-            cpal::SampleFormat::I32 => build::<i32>(&device, &config, mixer, bridge.clone()),
-            _ => return Err(format!("Unsupported audio format: {format:?}")),
-        }?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let stream = build_native(mixer, bridge.clone())?;
+        #[cfg(target_arch = "wasm32")]
+        let stream = Rc::new(
+            super::browser_output::BrowserOutput::new(mixer, bridge.clone())
+                .map_err(|error| format!("Could not open browser audio: {error:?}"))?,
+        );
         let playing = Rc::new(Cell::new(false));
         #[cfg(target_arch = "wasm32")]
-        let visibility = VisibilityGuard::new(&stream, bridge.clone(), playing.clone())?;
+        let visibility = VisibilityGuard::new(stream.clone(), bridge.clone(), playing.clone())?;
         Ok(Self {
             #[cfg(target_arch = "wasm32")]
             cutscene: Default::default(),
@@ -78,8 +62,6 @@ impl Backend {
             voice,
             stream,
             playing,
-            #[cfg(target_arch = "wasm32")]
-            browser_start: BrowserStart::default(),
             #[cfg(target_arch = "wasm32")]
             _visibility: visibility,
         })
@@ -110,7 +92,7 @@ impl Backend {
         {
             self.cutscene.borrow_mut().take();
             match super::browser_cutscene::BrowserCutscene::new(
-                &web_context(&self.stream),
+                &self.stream.context,
                 clip.as_deref(),
                 start,
                 duration,
@@ -130,7 +112,7 @@ impl Backend {
         #[cfg(target_arch = "wasm32")]
         {
             self.playing.get()
-                && web_context(&self.stream).state() == web_sys::AudioContextState::Suspended
+                && self.stream.context.state() == web_sys::AudioContextState::Suspended
         }
         #[cfg(not(target_arch = "wasm32"))]
         false
@@ -138,7 +120,7 @@ impl Backend {
     pub fn cutscene_time(&self) -> Option<f32> {
         #[cfg(target_arch = "wasm32")]
         if let Some(scene) = self.cutscene.borrow().as_ref() {
-            return Some(scene.time(&web_context(&self.stream)) as f32);
+            return Some(scene.time(&self.stream.context) as f32);
         }
         self.playing.get().then(|| self.voice.time()).flatten()
     }
@@ -152,12 +134,12 @@ impl Backend {
                 if let Err(error) = cutscene
                     .as_mut()
                     .unwrap()
-                    .set_playing(&web_context(&self.stream), active)
+                    .set_playing(&self.stream.context, active)
                 {
                     eprintln!("Could not play scene audio: {error:?}");
                 }
             }
-            // CPAL stays silent; the complete buffer is scheduled separately.
+            // Dialogue is scheduled directly on the same browser audio clock.
             self.bridge.active.store(false, Ordering::Release);
             if active && !self.playing.get() {
                 self.resume();
@@ -188,10 +170,7 @@ impl Backend {
         #[cfg(not(target_arch = "wasm32"))]
         let result = self.stream.play().map_err(|error| error.to_string());
         #[cfg(target_arch = "wasm32")]
-        let result = self.browser_start.resume(
-            || self.stream.play().map_err(|error| error.to_string()),
-            || settle_web_change(web_context(&self.stream).resume()),
-        );
+        let result = settle_web_change(self.stream.context.resume());
         match result {
             Ok(()) => self.playing.set(true),
             Err(error) => eprintln!("Sound unavailable: {error}"),
@@ -200,7 +179,7 @@ impl Backend {
     pub fn silence(&self) {
         #[cfg(target_arch = "wasm32")]
         if let Some(scene) = self.cutscene.borrow_mut().as_mut() {
-            let _ = scene.set_playing(&web_context(&self.stream), false);
+            let _ = scene.set_playing(&self.stream.context, false);
         }
         self.voice.set_playing(false);
         self.bridge.active.store(false, Ordering::Release);
@@ -208,17 +187,48 @@ impl Backend {
             // Pause can stop callbacks before Mix sees active=false. Keep a
             // reset pending until its next sample, even if gameplay resumes first.
             self.bridge.reset.store(true, Ordering::Release);
-            if self.stream.pause().is_ok() {
+            #[cfg(not(target_arch = "wasm32"))]
+            let paused = self.stream.pause().is_ok();
+            #[cfg(target_arch = "wasm32")]
+            let paused = {
+                self.stream.clear();
+                settle_web_change(self.stream.context.suspend()).is_ok()
+            };
+            if paused {
                 self.playing.set(false);
             }
         }
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn build_native(mixer: WorldSoundtrack, bridge: Arc<Bridge>) -> Result<cpal::Stream, String> {
+    let device = cpal::default_host()
+        .default_output_device()
+        .ok_or("No audio output device")?;
+    let supported = device
+        .default_output_config()
+        .map_err(|error| error.to_string())?;
+    let format = supported.sample_format();
+    let config: cpal::StreamConfig = supported.into();
+    if config.channels == 0 || config.sample_rate.0 == 0 {
+        return Err("Invalid audio device format".into());
+    }
+    match format {
+        cpal::SampleFormat::F32 => build::<f32>(&device, &config, mixer, bridge.clone()),
+        cpal::SampleFormat::F64 => build::<f64>(&device, &config, mixer, bridge.clone()),
+        cpal::SampleFormat::I16 => build::<i16>(&device, &config, mixer, bridge.clone()),
+        cpal::SampleFormat::U16 => build::<u16>(&device, &config, mixer, bridge.clone()),
+        cpal::SampleFormat::I32 => build::<i32>(&device, &config, mixer, bridge.clone()),
+        _ => return Err(format!("Unsupported audio format: {format:?}")),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn build<T: cpal::SizedSample + cpal::FromSample<f32>>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
-    mixer: super::voice::Soundtrack<Mix>,
+    mixer: WorldSoundtrack,
     bridge: Arc<Bridge>,
 ) -> Result<cpal::Stream, String> {
     let channels = config.channels as usize;
@@ -242,9 +252,11 @@ fn build<T: cpal::SizedSample + cpal::FromSample<f32>>(
 }
 
 /// Explicit stereo -> device-channel mapping, preserving stereo resampler phase.
+#[cfg(any(not(target_arch = "wasm32"), test))]
 struct OutputSamples<S> {
     source: S,
 }
+#[cfg(any(not(target_arch = "wasm32"), test))]
 impl<S: Iterator<Item = f32>> OutputSamples<S> {
     fn write<T: cpal::Sample + cpal::FromSample<f32>>(&mut self, data: &mut [T], channels: usize) {
         if channels == 0 {
@@ -273,44 +285,11 @@ impl<S: Iterator<Item = f32>> OutputSamples<S> {
 mod tests {
     use super::*;
     #[test]
-    fn browser_resume_installs_one_scheduler_and_retries_initial_failure() {
-        let transport = BrowserStart::default();
-        let starts = Cell::new(0);
-        let resumes = Cell::new(0);
-        assert!(transport
-            .resume(|| Err("initial failure".into()), || panic!("not started"))
-            .is_err());
-        transport
-            .resume(
-                || {
-                    starts.set(starts.get() + 1);
-                    Ok(())
-                },
-                || panic!("not started"),
-            )
-            .unwrap();
-        for _ in 0..1000 {
-            transport
-                .resume(
-                    || panic!("must not install more workers"),
-                    || {
-                        resumes.set(resumes.get() + 1);
-                        Ok(())
-                    },
-                )
-                .unwrap();
-        }
-        assert_eq!(starts.get(), 1);
-        assert_eq!(resumes.get(), 1000);
-        assert!(transport
-            .resume(
-                || panic!("already started"),
-                || Err("blocked resume".into())
-            )
-            .is_err());
-        transport
-            .resume(|| panic!("resume must reuse existing context"), || Ok(()))
-            .unwrap();
+    fn browser_queue_rebases_after_stalls_and_keeps_contiguous_buffers() {
+        assert_eq!(buffer_start(None, 1.), (1.01, true));
+        assert_eq!(buffer_start(Some(1.08), 1.06), (1.08, false));
+        assert_eq!(buffer_start(Some(1.08), 2.), (2.01, true));
+        assert_eq!(buffer_start(Some(2.03), 2.01), (2.03, false));
     }
     #[test]
     fn shared_resampler_keeps_tone_pitch_at_device_sample_rate() {
@@ -353,34 +332,14 @@ mod tests {
     }
 }
 
-/// CPAL's initial scheduler is installed once. Later gestures resume the same
-/// context, including after pause or an autoplay block; they never add workers.
 #[cfg(any(target_arch = "wasm32", test))]
-#[derive(Default)]
-struct BrowserStart {
-    started: Cell<bool>,
-}
-#[cfg(any(target_arch = "wasm32", test))]
-impl BrowserStart {
-    fn resume(
-        &self,
-        start: impl FnOnce() -> Result<(), String>,
-        resume_context: impl FnOnce() -> Result<(), String>,
-    ) -> Result<(), String> {
-        if self.started.get() {
-            resume_context()
-        } else {
-            start()?;
-            self.started.set(true);
-            Ok(())
-        }
+pub(super) fn buffer_start(previous_end: Option<f64>, now: f64) -> (f64, bool) {
+    match previous_end.filter(|end| *end > now) {
+        Some(end) => (end, false),
+        None => (now + 0.010, true),
     }
 }
-#[cfg(target_arch = "wasm32")]
-fn web_context(stream: &cpal::Stream) -> web_sys::AudioContext {
-    let cpal::platform::StreamInner::WebAudio(stream) = stream.as_inner();
-    stream.audio_context().clone()
-}
+
 #[cfg(target_arch = "wasm32")]
 fn settle_web_change(result: Result<js_sys::Promise, wasm_bindgen::JsValue>) -> Result<(), String> {
     result
@@ -401,7 +360,7 @@ struct VisibilityGuard {
 #[cfg(target_arch = "wasm32")]
 impl VisibilityGuard {
     fn new(
-        stream: &cpal::Stream,
+        stream: Rc<super::browser_output::BrowserOutput>,
         bridge: Arc<Bridge>,
         playing: Rc<Cell<bool>>,
     ) -> Result<Self, String> {
@@ -410,13 +369,13 @@ impl VisibilityGuard {
             .and_then(|window| window.document())
             .ok_or("No browser document for audio")?;
         let observed = document.clone();
-        let context = web_context(stream);
         let callback = wasm_bindgen::closure::Closure::new(move || {
             if observed.hidden() {
                 bridge.active.store(false, Ordering::Release);
                 bridge.reset.store(true, Ordering::Release);
                 playing.set(false);
-                let _ = settle_web_change(context.suspend());
+                stream.clear();
+                let _ = settle_web_change(stream.context.suspend());
             }
         });
         document

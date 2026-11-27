@@ -1,5 +1,5 @@
 //! Bounded procedural sound scene. Physics/world positions are meters, Z up.
-//! Shared Rust synthesis/spatial mix with native and browser CPAL output.
+//! Shared Rust synthesis/spatial mix with native CPAL and browser Web Audio output.
 use glam::Vec3;
 use opencity::runtime::SurfaceKind;
 mod vehicle;
@@ -8,6 +8,8 @@ pub use vehicle::{EngineKind, HornKind};
 
 #[cfg(target_arch = "wasm32")]
 mod browser_cutscene;
+#[cfg(target_arch = "wasm32")]
+mod browser_output;
 mod output;
 mod voice;
 pub use voice::VoiceClip;
@@ -151,6 +153,21 @@ fn listener_vector(vector: Vec3, forward: Vec3) -> [f32; 3] {
     let right = Vec3::new(forward.y / horizontal, -forward.x / horizontal, 0.);
     let up = right.cross(forward);
     [vector.dot(right), vector.dot(forward), vector.dot(up)]
+}
+
+/// Leave headroom at the device and apply the same gain to both channels.
+fn protect_peaks(frame: [f32; 2]) -> [f32; 2] {
+    const KNEE: f32 = 0.65;
+    const CEILING: f32 = 0.95;
+    let frame = frame.map(|sample| if sample.is_finite() { sample } else { 0. });
+    let peak = frame[0].abs().max(frame[1].abs());
+    if peak <= KNEE {
+        return frame;
+    }
+    let excess = peak - KNEE;
+    let range = CEILING - KNEE;
+    let limited = KNEE + range * (excess / (excess + range));
+    frame.map(|sample| sample * (limited / peak))
 }
 
 #[derive(Default)]

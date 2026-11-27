@@ -39,7 +39,7 @@
     },
     {
       "name": "base-station",
-      "triangles": 2292,
+      "triangles": 2304,
       "bounds": {
         "min": [
           -5.199999809265137,
@@ -52,11 +52,11 @@
           11.100000095367431
         ]
       },
-      "bytes": 110100
+      "bytes": 110440
     },
     {
       "name": "top-station",
-      "triangles": 2256,
+      "triangles": 2268,
       "bounds": {
         "min": [
           -4.699999809265137,
@@ -69,7 +69,7 @@
           9.100000095367431
         ]
       },
-      "bytes": 107792
+      "bytes": 108124
     }
   ]
 }

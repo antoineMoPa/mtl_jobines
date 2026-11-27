@@ -61,8 +61,14 @@ use crate::hermes::Hermes;
 use glam::Vec3;
 use opencity::runtime::Mesh;
 use player::Pedestrian;
-pub const PEDESTRIAN_CAPACITY: usize =
-    crowd::CAPACITY + crowd::KIOSK_CAPACITY + cyclists::CAPACITY + traffic::TARGET + 1 + 9 + 4;
+pub const PEDESTRIAN_CAPACITY: usize = crowd::CAPACITY
+    + crowd::KIOSK_CAPACITY
+    + cyclists::CAPACITY
+    + traffic::TARGET
+    + skis::ambient::CAPACITY
+    + 1
+    + 9
+    + 4;
 pub use player::WalkControls;
 pub use player::TURN_SPEED as WALK_TURN_SPEED;
 pub use vehicle::{Controls, Vehicle, METERS_PER_UNIT};
@@ -121,6 +127,7 @@ pub struct DynamicWorld {
     snow_timer: f32,
     skis: skis::SkiSet,
     chairlifts: Vec<chairlift::Lift>,
+    ambient_skiers: skis::ambient::Skiers,
     player_tire_pops: Vec<ShotHit>,
     crash: Option<Crash>,
     sound_impacts: [crate::audio::Impact; crate::audio::IMPACT_VOICES],
@@ -242,7 +249,14 @@ impl DynamicWorld {
             sound_geography_timer: 0.,
             dispatch_view: None,
             traffic: {
-                let traffic = traffic::Traffic::new_near(hermes.traffic_paths(), prop_center);
+                let mut traffic = traffic::Traffic::new_near(hermes.traffic_paths(), prop_center);
+                if let Some([base, _]) = hermes
+                    .chairlifts
+                    .first()
+                    .filter(|_| hermes.ski_hill.is_some())
+                {
+                    traffic.set_ski_base(glam::Vec2::from_array(base.point) * METERS_PER_UNIT);
+                }
                 crate::performance::startup_memory("traffic signals");
                 traffic
             },
@@ -277,6 +291,7 @@ impl DynamicWorld {
                 .iter()
                 .filter_map(|endpoints| chairlift::Lift::new(hermes, *endpoints))
                 .collect(),
+            ambient_skiers: Default::default(),
             pedestrian: None,
             entry: None,
             displaced: Vec::new(),
@@ -388,6 +403,7 @@ impl DynamicWorld {
         }
         self.season = season;
         self.skis.reset();
+        self.ambient_skiers.clear();
         self.snow.reset();
         self.snow_timer = 0.;
         self.traffic
@@ -771,6 +787,13 @@ impl DynamicWorld {
         let phase = crate::telemetry::span("npc.transit");
         self.metro.step(dt, self.pedestrian.as_mut());
         self.step_chairlift(hermes, dt);
+        self.ambient_skiers.step(
+            hermes,
+            &self.chairlifts,
+            self.season,
+            self.player_position(),
+            dt,
+        );
         self.airport.step(hermes.city(), dt);
         drop(phase);
         let phase = crate::telemetry::span("traffic.population_and_lod");
@@ -1151,6 +1174,7 @@ impl DynamicWorld {
                 }
             })
             .chain(self.crowd.instances(self.player_position()))
+            .chain(self.ambient_skiers.instances())
             .chain(self.cyclists.waiting_instances(self.player_position()))
             .chain(self.service_passengers.instances())
             .chain(
@@ -1240,6 +1264,7 @@ impl DynamicWorld {
         self.write_non_vehicle_actors_with_player_pose(mesh, player_pose_delta);
         self.props.append_moving(mesh, self.player_position());
         self.append_skis(mesh, player_pose_delta);
+        self.ambient_skiers.append_gear(mesh);
     }
     pub fn standing_signal_batches(&self) -> impl Iterator<Item = SignalBatch> + '_ {
         self.traffic.standing_signal_batches(self.player_position())

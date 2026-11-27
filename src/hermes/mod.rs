@@ -539,6 +539,13 @@ impl Hermes {
     ) -> (Vec<Vec<crate::props::Part>>, std::ops::Range<usize>) {
         crate::performance::startup_memory("before street props");
         let mut groups = street_props::parts(&self.city);
+        if let Some(hill) = &self.ski_hill {
+            groups.extend(
+                hill.lamp_positions(&self.city, self.chairlifts.iter().map(|lift| lift[0].point))
+                    .into_iter()
+                    .map(|(position, yaw)| ski_hill::floodlight_parts(position, yaw)),
+            );
+        }
         crate::performance::startup_memory("street props");
         groups.extend(self.details.take_props(&self.city, self.prepared.is_none()));
         crate::performance::startup_memory("building props");

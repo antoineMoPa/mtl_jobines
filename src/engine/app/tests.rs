@@ -717,6 +717,7 @@ fn switching_spaces_parks_timers_and_resumes_without_replaying_the_gap() {
     game.cursor_activity(now);
     game.retry_surface(Duration::from_millis(100));
     game.handle_window_activity(&WindowEvent::Occluded(true));
+    game.handle_window_activity(&WindowEvent::Focused(false));
     let position = game.world.player_position();
     for _ in 0..3 {
         assert_eq!(game.wait_for_event(later), ControlFlow::Wait);
@@ -729,7 +730,6 @@ fn switching_spaces_parks_timers_and_resumes_without_replaying_the_gap() {
     assert!(game.cursor_hide_at.is_none());
     assert_eq!(game.world.player_position(), position);
 
-    game.handle_window_activity(&WindowEvent::Focused(false));
     game.handle_window_activity(&WindowEvent::Occluded(false));
     assert!(!game.window_active());
     game.handle_window_activity(&WindowEvent::Resized(winit::dpi::PhysicalSize::new(0, 0)));
@@ -747,6 +747,35 @@ fn switching_spaces_parks_timers_and_resumes_without_replaying_the_gap() {
     let elapsed = game.frame_elapsed(later + Duration::from_millis(16));
     game.simulate(elapsed);
     assert!((game.game_time - 0.016).abs() < 0.00001);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn switching_spaces_can_redraw_before_both_visibility_and_focus_return() {
+    let mut game = Game::new(Hermes::test_map());
+    game.handle_window_activity(&WindowEvent::Focused(false));
+    game.handle_window_activity(&WindowEvent::Occluded(true));
+    assert!(!game.can_present_frame());
+
+    // Focus returns first, while the last occlusion event still says hidden.
+    game.handle_window_activity(&WindowEvent::Focused(true));
+    assert!(game.can_present_frame());
+    assert!(!game.window_active());
+    game.retry_surface(Duration::from_millis(250));
+    let retry = game.surface_retry.unwrap();
+    assert_eq!(
+        game.wait_for_event(Instant::now()),
+        ControlFlow::WaitUntil(retry)
+    );
+    assert!(!game.wake_surface(retry - Duration::from_millis(1)));
+    assert!(game.wake_surface(retry));
+
+    // Visibility returns first. The game can repaint while input stays paused.
+    game.handle_window_activity(&WindowEvent::Focused(false));
+    game.handle_window_activity(&WindowEvent::Occluded(false));
+    assert!(game.can_present_frame());
+    assert!(!game.window_active());
+    assert_eq!(game.wait_for_event(Instant::now()), ControlFlow::Wait);
 }
 
 #[test]

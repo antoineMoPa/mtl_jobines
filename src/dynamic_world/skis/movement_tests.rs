@@ -324,3 +324,52 @@ fn actual_arm_reach_keeps_low_speed_poling_functional_and_contacts_fixed() {
         assert!(!m.contact);
     }
 }
+
+#[test]
+fn traversing_a_slope_keeps_body_upright_and_each_ski_on_its_own_height() {
+    let support = |p| Some(slope_ground(p, 20.));
+    for yaw in [std::f32::consts::FRAC_PI_2, -std::f32::consts::FRAC_PI_2] {
+        let mut motion = Motion::new(Vec3::ZERO, yaw, support(Vec3::ZERO).unwrap());
+        let pose = Pose::build(&mut motion, &support);
+        let body_up = pose.transform.transform_vector3(Vec3::Y);
+        assert!(body_up.x.abs() < 1e-5 && body_up.y.abs() < 1e-5 && body_up.z > 0.);
+        let skis = [0, 1].map(|i| {
+            let side = if i == 0 { 0.13 } else { -0.13 };
+            (pose.gear[i] * glam::Mat4::from_translation(Vec3::new(0., side, 0.)))
+                .w_axis
+                .truncate()
+        });
+        assert!((skis[0].z - skis[1].z).abs() > 0.08);
+        for ski in skis {
+            assert!((ski.z - support(ski).unwrap().point.z - 0.008).abs() < 0.002);
+        }
+        assert!(pose.binding_error < 0.001);
+    }
+}
+
+#[test]
+fn torso_and_head_stay_balanced_when_edging_across_a_steep_slope() {
+    use super::super::pedestrian_catalog;
+    let def = &pedestrian_catalog::definitions()[pedestrian_catalog::PLAYER_WINTER_MODEL];
+    let support = |p| Some(slope_ground(p, 23.));
+    for yaw in [std::f32::consts::FRAC_PI_2, -std::f32::consts::FRAC_PI_2] {
+        let lateral = Vec3::new(-yaw.sin(), yaw.cos(), 0.);
+        for (edge, hockey, tuck) in [(0.17, 0., 0.), (-0.17, 0., 1.), (0., 1., 0.), (0., -1., 0.)] {
+            let mut motion = Motion::new(Vec3::ZERO, yaw, support(Vec3::ZERO).unwrap());
+            motion.turn_edge = edge;
+            motion.hockey_side = hockey;
+            motion.hockey_blend = hockey.abs();
+            motion.tuck_blend = tuck;
+            let pose = Pose::build(&mut motion, &support);
+            let joints = def.joint_worlds(&pose.palette);
+            let joint_transform = |name| pose.transform * joints[def.joint(name)];
+            let hip = joint_transform("Hips").w_axis.truncate();
+            let chest = joint_transform("Chest").w_axis.truncate();
+            let head_up = joint_transform("Head").transform_vector3(Vec3::Y);
+            assert!((chest - hip).dot(lateral).abs() < (chest.z - hip.z) * 0.09);
+            assert!(head_up.dot(lateral).abs() < head_up.z * 0.09);
+            assert!(head_up.z > 0.);
+            assert!(pose.binding_error < 0.001);
+        }
+    }
+}

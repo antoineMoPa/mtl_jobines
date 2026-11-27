@@ -157,6 +157,21 @@ fn latest_frame_has_no_backlog_and_callback_never_waits_for_publisher() {
     publish(&bridge, Frame::default());
     assert!(render(&mut mix, BLOCK * 8) > 0.);
 }
+
+#[test]
+fn stalled_world_fades_out_and_fresh_audio_fades_in() {
+    let bridge = bridge();
+    let mut mix = Mix::new(bridge.clone());
+    render(&mut mix, BLOCK * (STALE_BLOCKS + 1));
+    assert_eq!(mix.scene_gain, 1.);
+    render(&mut mix, 1);
+    assert_eq!(mix.scene_gain, 1. - STALE_FADE_STEP);
+    render(&mut mix, BLOCK - 1);
+    assert_eq!(mix.scene_gain, 0.);
+    publish(&bridge, Frame::default());
+    render(&mut mix, 1);
+    assert_eq!(mix.scene_gain, STALE_FADE_STEP);
+}
 #[test]
 fn category_mute_updates_existing_breakage_tail() {
     let bridge = bridge();

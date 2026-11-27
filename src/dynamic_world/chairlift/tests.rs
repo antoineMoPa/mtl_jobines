@@ -198,6 +198,8 @@ fn only_the_next_chair_picks_up_a_person_in_the_loading_lane() {
     let h = hill();
     let mut w = DynamicWorld::new(&h);
     at_boarding(&mut w, &h);
+    let lift = &w.chairlifts[0];
+    w.pedestrian.as_mut().unwrap().position += lift.right * 1.3;
     let lift = w.chairlifts.first_mut().unwrap();
     lift.clock = 1.;
     for _ in 0..120 {
@@ -271,6 +273,71 @@ fn ramp_leads_to_the_loading_deck_without_a_jump_or_boarding_action() {
 }
 
 #[test]
+fn side_ramp_reaches_the_wider_loading_area_on_skis() {
+    let h = hill();
+    let mut w = DynamicWorld::new(&h);
+    w.set_season(&h, Season::Winter);
+    let lift = &w.chairlifts[0];
+    let start = lift.base + lift.right * 11. + lift.forward * BOARDING_OFFSET;
+    // Stop inside the new outline, outside the previous boarding trigger.
+    let target = TRACK_HALF + 1.3;
+    let yaw = (-lift.right.y).atan2(-lift.right.x);
+    w.prepare_skiing_run(&h, start.truncate(), yaw, 1.5);
+    for _ in 0..480 {
+        let lift = &w.chairlifts[0];
+        let across = (w.player_position() - lift.base).dot(lift.right);
+        if w.riding_chairlift() || across < target {
+            break;
+        }
+        w.step(
+            &h,
+            Controls::default(),
+            WalkControls {
+                forward: 1.,
+                ..Default::default()
+            },
+            1. / 60.,
+        );
+    }
+    if !w.riding_chairlift() {
+        let lift = &w.chairlifts[0];
+        let feet = w.player_position() - Vec3::Z * player::HALF_HEIGHT;
+        assert!(
+            (feet.z - lift.base.z - DECK_HEIGHT).abs() < 0.03,
+            "{feet:?}"
+        );
+        assert!((feet - lift.boarding()).dot(lift.right).abs() < BOARDING_HALF_WIDTH);
+        assert!(w.is_wearing_skis());
+    }
+}
+
+#[test]
+fn ski_mission_starts_on_the_lower_side_ramp() {
+    let path = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road");
+    let h = Hermes::load_with_game_data(&path, None).unwrap();
+    let mut world = DynamicWorld::new(&h);
+    let lift = &world.chairlifts[0];
+    let pickup = h.ski_sets[0].point;
+    let terrain = ground(
+        h.city(),
+        Vec3::new(pickup[0], pickup[1], 0.) * METERS_PER_UNIT,
+    )
+    .unwrap();
+    let ramp = lift.side_ramps[0]
+        .as_ref()
+        .unwrap()
+        .surface(terrain, lift.right, lift.forward)
+        .unwrap();
+    assert!(ramp.point.z > terrain.z);
+
+    world.start_skiing_at_base(&h).unwrap();
+    let expected = ramp.point + Vec3::Z * player::HALF_HEIGHT;
+    assert!(world.player_position().distance(expected) < 0.01);
+    world.step(&h, Controls::default(), WalkControls::default(), 1. / 60.);
+    assert!(world.player_position().distance(expected) < 0.01);
+}
+
+#[test]
 fn both_authored_lifts_board_and_return_to_the_imported_pistes() {
     let path = std::path::Path::new(env!("MTL_WORKSPACE_DIR")).join("data/maps/mtl/map.road");
     let h = Hermes::load_with_game_data(&path, None).unwrap();
@@ -289,6 +356,33 @@ fn both_authored_lifts_board_and_return_to_the_imported_pistes() {
             h.ski_hill.as_ref().unwrap().area_at(point.to_array()),
             Some(crate::hermes::ski_hill::Area::Piste)
         );
+        if line == 0 {
+            // The chalet chair should unload on the crest, with downhill snow
+            // available in several directions from the dismount.
+            let downhill_piste_directions = (0..8)
+                .filter(|&step| {
+                    let direction =
+                        glam::Vec2::from_angle(step as f32 * std::f32::consts::TAU / 8.);
+                    let sample = (point + direction * (20. / METERS_PER_UNIT)).to_array();
+                    h.ski_hill.as_ref().unwrap().area_at(sample)
+                        == Some(crate::hermes::ski_hill::Area::Piste)
+                        && h.city()
+                            .surface_at(sample, f32::INFINITY)
+                            .is_some_and(|surface| {
+                                surface.height * METERS_PER_UNIT < lift.landing.z - 0.25
+                            })
+                })
+                .count();
+            assert!(
+                downhill_piste_directions >= 6,
+                "{downhill_piste_directions} downhill piste directions"
+            );
+            assert!(!w
+                .chairlifts
+                .iter()
+                .any(|lift_station| lift_station
+                    .blocked(lift.landing + Vec3::Z * player::HALF_HEIGHT)));
+        }
         let feet = lift.boarding();
         let yaw = lift.yaw;
         w.pedestrian = Some(player::Pedestrian::new(

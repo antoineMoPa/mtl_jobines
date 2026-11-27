@@ -5,6 +5,12 @@ impl Game {
     }
 
     pub(super) fn can_present_frame(&self) -> bool {
+        if cfg!(target_os = "macos") {
+            // A Space can reveal a window before it becomes key, or restore
+            // focus before winit reports visibility. Metal checks live occlusion
+            // on acquisition, so either signal can restart presentation.
+            return (self.focused || !self.hidden) && !self.minimized && !self.suspended;
+        }
         // The web loader covers the canvas until presentation. A visible tab
         // can finish that first frame before the canvas receives keyboard focus.
         let first_web_frame = cfg!(target_arch = "wasm32") && self.first_frame;

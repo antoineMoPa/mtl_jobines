@@ -43,11 +43,19 @@ fn supported_ski(
 }
 impl Pose {
     pub fn build(m: &mut Motion, support: &impl Fn(Vec3) -> Option<Ground>) -> Self {
-        let def = &pedestrian_catalog::definitions()[pedestrian_catalog::PLAYER_WINTER_MODEL];
+        Self::for_model(m, support, pedestrian_catalog::PLAYER_WINTER_MODEL)
+    }
+    pub fn for_model(
+        m: &mut Motion,
+        support: &impl Fn(Vec3) -> Option<Ground>,
+        model: usize,
+    ) -> Self {
+        let def = &pedestrian_catalog::definitions()[model];
         let axes = Mat4::from_cols(Vec4::Y, Vec4::Z, Vec4::X, Vec4::W);
-        let actor =
-            Mat4::from_rotation_translation(frame(m.yaw, m.ground), m.position + Vec3::Z * 0.018)
-                * axes;
+        let actor = Mat4::from_rotation_translation(
+            Quat::from_rotation_z(m.yaw),
+            m.position + Vec3::Z * 0.018,
+        ) * axes;
         let inverse = actor.inverse();
         let (_, forward, right) = basis(m.yaw, m.ground);
         let mut locals = def.rest.clone();
@@ -69,11 +77,18 @@ impl Pose {
         } else {
             0.
         };
+        // Keep the upper body stacked on a traverse while the skis retain their edge.
+        let across = glam::Vec2::new(-m.yaw.sin(), m.yaw.cos());
+        let crossfall = across.dot(glam::Vec2::from_array(m.ground.gradient)).abs();
+        let traverse = ((crossfall - 0.08) / 0.22).clamp(0., 1.);
+        let traverse = traverse * traverse * (3. - 2. * traverse);
+        let turn_lean = 1. - traverse;
         let inside = (-m.turn_edge * 1.1).clamp(-0.22, 0.22);
         locals[def.node("Hips")].translation = Vec3::new(
             inside - m.hockey_side * 0.035 * m.hockey_blend
                 + 0.018 * m.shuffle_blend * m.stride_phase.sin(),
-            0.81 - inside.abs() * 0.18
+            0.81 - glam::Vec2::from_array(m.ground.gradient).length().min(0.6) * 0.28
+                - inside.abs() * 0.18
                 - 0.095 * stroke
                 - 0.10 * tuck
                 - 0.045 * brake
@@ -85,15 +100,16 @@ impl Pose {
             glam::EulerRot::XYZ,
             0.12 + 0.23 * stroke + 0.40 * tuck,
             0.,
-            m.turn_edge * 1.35 + m.hockey_side * 0.18 * m.hockey_blend,
+            (m.turn_edge * 1.35 + m.hockey_side * 0.18 * m.hockey_blend) * turn_lean,
         );
         locals[def.node("Chest")].rotation *= Quat::from_euler(
             glam::EulerRot::XYZ,
             0.04 + 0.10 * tuck,
             0.,
-            m.turn_edge * 0.4,
+            m.turn_edge * 0.4 * turn_lean,
         );
-        locals[def.node("Head")].rotation *= Quat::from_rotation_x(-0.09 - 0.20 * tuck);
+        let head = def.node("Head");
+        locals[head].rotation *= Quat::from_rotation_x(-0.09 - 0.20 * tuck);
         let mut overrides = vec![None; locals.len()];
         let mut gear = [Mat4::IDENTITY; 6];
         let mut targets = [Vec3::ZERO; 2];
@@ -128,6 +144,13 @@ impl Pose {
             );
         }
         let worlds = def.worlds(&locals, Mat4::IDENTITY, &overrides);
+        if traverse > 0. {
+            let (_, head_rotation, _) = worlds[head].to_scale_rotation_translation();
+            let gaze = Quat::from_rotation_x(0.07 + 0.12 * tuck);
+            // Convert the actor-space gaze correction back into the head joint.
+            locals[head].rotation = locals[head].rotation
+                * (head_rotation.inverse() * head_rotation.slerp(gaze, traverse));
+        }
         let chest = worlds[def.node("Chest")];
         let (_, chest_q, _) = chest.to_scale_rotation_translation();
         let mut release = false;

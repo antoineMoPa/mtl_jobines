@@ -1,6 +1,6 @@
 //! A complete scene buffer runs on the browser audio clock without refill callbacks.
 use super::{scene::RATE, VoiceClip};
-use web_sys::{AudioBuffer, AudioBufferSourceNode, AudioContext};
+use web_sys::{AudioBuffer, AudioBufferSourceNode, AudioContext, AudioScheduledSourceNode};
 
 pub(super) struct BrowserCutscene {
     buffer: AudioBuffer,
@@ -59,7 +59,7 @@ impl BrowserCutscene {
     }
     fn stop(&mut self) {
         if let Some(source) = self.source.take() {
-            let _ = source.stop();
+            let _ = AsRef::<AudioScheduledSourceNode>::as_ref(&source).stop();
             let _ = source.disconnect();
         }
     }

@@ -13,8 +13,40 @@ const SPEED: f32 = 2.5;
 const RIDE_SECONDS: f32 = 8.;
 const PYLON_CABLE: f32 = 12.95;
 const STATION_CABLE: f32 = 3.1;
-const LOAD_DISTANCE: f32 = 0.05;
+pub(super) const LOAD_DISTANCE: f32 = 0.05;
 const SIT_TIME: f32 = 0.65;
+const DECK_HEIGHT: f32 = 0.6;
+const BOARDING_OFFSET: f32 = 0.3;
+const BOARDING_HALF_WIDTH: f32 = 1.55;
+const BOARDING_HALF_LENGTH: f32 = 1.9;
+const SIDE_RAMP_LENGTH: f32 = 5.;
+const SIDE_RAMP_HALF_WIDTH: f32 = 2.;
+pub(super) const SEATS: usize = 4;
+pub(super) const SEAT_WIDTH: f32 = 0.5875;
+
+pub(super) fn seat_offset(seat: usize) -> f32 {
+    (seat as f32 - (SEATS - 1) as f32 * 0.5) * SEAT_WIDTH
+}
+
+pub(super) struct ChairCycle {
+    pub clock: f32,
+    pub total: f32,
+    pub uphill_end: f32,
+    pub count: usize,
+    spacing: f32,
+}
+
+impl ChairCycle {
+    pub(super) fn distance(&self, clock: f32, chair: usize) -> f32 {
+        (clock + chair as f32 * self.spacing).rem_euclid(self.total)
+    }
+
+    pub(super) fn passed(&self, previous: f32, chair: usize, distance: f32) -> bool {
+        let remaining = (distance - self.distance(previous, chair)).rem_euclid(self.total);
+        let travel = (self.clock - previous).rem_euclid(self.total);
+        remaining <= travel
+    }
+}
 
 pub(super) struct Lift {
     base: Vec3,
@@ -28,12 +60,72 @@ pub(super) struct Lift {
     distances: Vec<f32>,
     uphill_end: f32,
     cable: Mesh,
+    side_ramps: [Option<SideRamp>; 2],
     clock: f32,
     ride: Option<Ride>,
     landing: Vec3,
     pose_model: usize,
     seated: [Mat4; pedestrian_catalog::JOINT_LIMIT],
     pose: [Mat4; pedestrian_catalog::JOINT_LIMIT],
+}
+struct SideRamp {
+    inner: Vec3,
+    outer_heights: [f32; 2],
+}
+impl SideRamp {
+    fn new(city: &City, deck_edge: Vec3, right: Vec3, forward: Vec3) -> Option<Self> {
+        let outer = deck_edge + right * SIDE_RAMP_LENGTH;
+        let outer_heights = [-SIDE_RAMP_HALF_WIDTH, SIDE_RAMP_HALF_WIDTH]
+            .map(|offset| ground(city, outer + forward * offset).map(|p| p.z));
+        let [Some(lo), Some(hi)] = outer_heights else {
+            return None;
+        };
+        Some(Self {
+            inner: deck_edge,
+            outer_heights: [lo, hi],
+        })
+    }
+
+    fn points(&self, right: Vec3, forward: Vec3) -> [Vec3; 4] {
+        let side = forward * SIDE_RAMP_HALF_WIDTH;
+        let outer = self.inner + right * SIDE_RAMP_LENGTH;
+        [
+            self.inner - side,
+            (outer - side).truncate().extend(self.outer_heights[0]),
+            (outer + side).truncate().extend(self.outer_heights[1]),
+            self.inner + side,
+        ]
+    }
+
+    fn surface(
+        &self,
+        p: Vec3,
+        right: Vec3,
+        forward: Vec3,
+    ) -> Option<super::pedestrian_gait::Ground> {
+        let offset = p - self.inner;
+        let across = offset.dot(right);
+        let along = offset.dot(forward);
+        if !(0.0..=SIDE_RAMP_LENGTH).contains(&across) || along.abs() > SIDE_RAMP_HALF_WIDTH {
+            return None;
+        }
+        let u = across / SIDE_RAMP_LENGTH;
+        let v = (along + SIDE_RAMP_HALF_WIDTH) / (2. * SIDE_RAMP_HALF_WIDTH);
+        // Match the diagonal shared by the two triangles in Mesh::quad.
+        let [lo, hi] = self.outer_heights.map(|z| z - self.inner.z);
+        let (rise, dx, dy) = if u >= v {
+            (u * lo + v * (hi - lo), lo, hi - lo)
+        } else {
+            (u * hi, hi, 0.)
+        };
+        let z = self.inner.z + rise;
+        let gradient =
+            right * (dx / SIDE_RAMP_LENGTH) + forward * (dy / (2. * SIDE_RAMP_HALF_WIDTH));
+        Some(super::pedestrian_gait::Ground {
+            point: p.truncate().extend(z),
+            gradient: gradient.truncate().to_array(),
+        })
+    }
 }
 struct Ride {
     elapsed: f32,
@@ -223,26 +315,54 @@ impl Lift {
         for p in path.windows(2) {
             cable_segment(&mut cable, p[0] - base, p[1] - base);
         }
-        // The loading lane sits on the station's deck, under the uphill strand.
-        let lane = base + right * TRACK_HALF + forward * 0.6 + Vec3::Z * 0.615;
-        let corners = [
-            lane - right * 1.05 - forward * 0.9,
-            lane + right * 1.05 - forward * 0.9,
-            lane + right * 1.05 + forward * 0.9,
-            lane - right * 1.05 + forward * 0.9,
-        ];
+        let side_ramps = [(base, 5.2), (top, 4.7)].map(|(center, width)| {
+            SideRamp::new(
+                city,
+                center + right * width + Vec3::Z * DECK_HEIGHT,
+                right,
+                forward,
+            )
+        });
+        for ramp in side_ramps.iter().flatten() {
+            cable.quad(
+                ramp.points(right, forward).map(|p| (p - base).to_array()),
+                [0.36, 0.40, 0.42],
+                SurfaceKind::Prop,
+            );
+        }
+        // Outline and arrow occupy separate areas on a single plane above the deck.
+        let lane =
+            base + right * TRACK_HALF + forward * BOARDING_OFFSET + Vec3::Z * (DECK_HEIGHT + 0.04);
+        let mark = |x: f32, y: f32| (lane + right * x + forward * y - base).to_array();
+        let w = BOARDING_HALF_WIDTH;
+        let l = BOARDING_HALF_LENGTH;
+        let t = 0.14;
+        for (x0, y0, x1, y1) in [
+            (-w, -l, w, -l + t),
+            (-w, l - t, w, l),
+            (-w, -l + t, -w + t, l - t),
+            (w - t, -l + t, w, l - t),
+        ] {
+            cable.quad(
+                [mark(x0, y0), mark(x1, y0), mark(x1, y1), mark(x0, y1)],
+                [0.13, 0.58, 0.85],
+                SurfaceKind::Prop,
+            );
+        }
+        let arrow = [0.95, 0.95, 0.84];
         cable.quad(
-            corners.map(|p| (p - base).to_array()),
-            [0.12, 0.42, 0.60],
+            [
+                mark(-0.19, -1.),
+                mark(0.19, -1.),
+                mark(0.19, 0.),
+                mark(-0.19, 0.),
+            ],
+            arrow,
             SurfaceKind::Prop,
         );
         cable.triangle(
-            [
-                (lane - right * 0.5 - forward * 0.2 - base).to_array(),
-                (lane + right * 0.5 - forward * 0.2 - base).to_array(),
-                (lane + forward * 0.55 - base).to_array(),
-            ],
-            [0.95, 0.95, 0.84],
+            [mark(-0.65, 0.), mark(0.65, 0.), mark(0., 1.18)],
+            arrow,
             SurfaceKind::Prop,
             [0.; 3],
         );
@@ -262,6 +382,7 @@ impl Lift {
             distances,
             uphill_end,
             cable,
+            side_ramps,
             clock: 0.,
             ride: None,
             landing,
@@ -270,7 +391,7 @@ impl Lift {
             pose: [Mat4::IDENTITY; pedestrian_catalog::JOINT_LIMIT],
         })
     }
-    fn at(&self, distance: f32) -> (Vec3, f32) {
+    pub(super) fn at(&self, distance: f32) -> (Vec3, f32) {
         let total = *self.distances.last().unwrap();
         let d = distance.rem_euclid(total);
         let i = self
@@ -296,14 +417,54 @@ impl Lift {
         }
     }
     fn boarding(&self) -> Vec3 {
-        self.base + self.right * TRACK_HALF + self.forward * 0.3 + Vec3::Z * 0.6
+        self.base + self.right * TRACK_HALF + self.forward * BOARDING_OFFSET + Vec3::Z * DECK_HEIGHT
     }
     fn spacing(&self) -> (usize, f32) {
         let total = *self.distances.last().unwrap();
         let count = (total / 24.).ceil() as usize;
         (count, total / count as f32)
     }
+    pub(super) fn ambient_chairs(&self) -> ChairCycle {
+        let (count, spacing) = self.spacing();
+        ChairCycle {
+            clock: self.clock * SPEED,
+            total: *self.distances.last().unwrap(),
+            uphill_end: self.uphill_end,
+            count,
+            spacing,
+        }
+    }
+    pub(super) fn ambient_loading_chair(&self) -> Option<usize> {
+        self.ride.as_ref().map(|ride| ride.chair)
+    }
+    pub(super) fn ambient_stations(&self) -> [Vec3; 2] {
+        [self.base, self.top]
+    }
+    pub(super) fn ambient_gate(&self, top: bool) -> [Vec3; 3] {
+        let (station, width) = if top {
+            (self.top, 4.7)
+        } else {
+            (self.base, 5.2)
+        };
+        [
+            station + self.right * TRACK_HALF,
+            station + self.right * width,
+            station + self.right * (width + SIDE_RAMP_LENGTH),
+        ]
+    }
+    pub(super) fn ambient_queue(&self, index: usize) -> (Vec3, f32) {
+        let row = index / SEATS;
+        (
+            self.boarding() + self.right * seat_offset(index % SEATS)
+                - self.forward * (1.15 + row as f32 * 0.95),
+            self.yaw,
+        )
+    }
     pub(super) fn platform(&self, p: Vec3) -> Option<super::pedestrian_gait::Ground> {
+        self.platform_surface(p)
+            .filter(|surface| (p.z - surface.point.z).abs() <= 0.43)
+    }
+    pub(super) fn platform_surface(&self, p: Vec3) -> Option<super::pedestrian_gait::Ground> {
         for (center, sign, width, back) in [(self.base, 1., 5.2, 11.1), (self.top, -1., 4.7, 9.1)] {
             let delta = p - center;
             let x = delta.dot(self.right);
@@ -312,9 +473,6 @@ impl Lift {
                 continue;
             }
             let height = if y <= 3.7 { 0.6 } else { 0.6 * (6.7 - y) / 3. };
-            if (p.z - center.z - height).abs() > 0.43 {
-                continue;
-            }
             let gradient = if y <= 3.7 {
                 [0., 0.]
             } else {
@@ -325,7 +483,10 @@ impl Lift {
                 gradient,
             });
         }
-        None
+        self.side_ramps
+            .iter()
+            .flatten()
+            .find_map(|ramp| ramp.surface(p, self.right, self.forward))
     }
     pub(super) fn blocked(&self, p: Vec3) -> bool {
         for (center, sign, width, depth) in [(self.base, 1., 4.5, 10.6), (self.top, -1., 4., 8.6)] {
@@ -341,10 +502,9 @@ impl Lift {
                 return true;
             }
             if d.z > -0.4 && d.z < 6. {
-                if ((x.abs() - width).abs() < 0.5 && y < -0.6 && y > -depth)
-                    || ((y + depth).abs() < 0.5 && x.abs() < width + 0.4)
-                    || (x.abs() < 0.5 && y.abs() < 0.5)
-                {
+                let roof_post = (x.abs() - width).abs() < 0.45
+                    && ((y + 2.5).abs() < 0.45 || (y + depth - 0.35).abs() < 0.45);
+                if roof_post || (x.abs() < 0.5 && y.abs() < 0.5) {
                     return true;
                 }
             }
@@ -356,7 +516,7 @@ impl Lift {
     }
 }
 // Pose in motion-space metres: pelvis on the seat, knees forward, feet hanging.
-fn seated_pose(model: usize) -> [Mat4; pedestrian_catalog::JOINT_LIMIT] {
+pub(super) fn seated_pose(model: usize) -> [Mat4; pedestrian_catalog::JOINT_LIMIT] {
     let def = &pedestrian_catalog::definitions()[model];
     let locals = def.rest.clone();
     let rest = def.rest_worlds();
@@ -430,14 +590,14 @@ impl DynamicWorld {
         }
         let lift = &mut self.chairlifts[line];
         let across = (person.position - lift.base).dot(lift.right) - TRACK_HALF;
-        let slot = ((across + 1.175) / 0.5875).floor().clamp(0., 3.);
+        let slot = (across / SEAT_WIDTH + SEATS as f32 * 0.5) as usize;
         lift.pose_model = model;
         lift.seated = seated_pose(model);
         lift.ride = Some(Ride {
             elapsed: 0.,
             chair,
             start_distance: distance,
-            seat_offset: -1.175 + (slot + 0.5) * 0.5875,
+            seat_offset: seat_offset(slot.min(SEATS - 1)),
             standing_worlds: standing,
         });
         lift.pose = def.skin_from_worlds(&standing);
@@ -473,8 +633,8 @@ impl DynamicWorld {
             if lift.ride.is_none() {
                 let in_lane = feet.is_some_and(|p| {
                     let d = p - lift.boarding();
-                    d.dot(lift.right).abs() < 1.0
-                        && d.dot(lift.forward).abs() < 0.65
+                    d.dot(lift.right).abs() <= BOARDING_HALF_WIDTH
+                        && d.dot(lift.forward).abs() <= BOARDING_HALF_LENGTH
                         && d.z.abs() < 0.25
                 });
                 if can_load && in_lane && pickup.is_none() {

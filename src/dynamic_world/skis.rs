@@ -1,5 +1,6 @@
 //! A winter equipment pickup. Geometry stays shared; only the six placements move.
 use super::{pedestrian_catalog, player, DynamicWorld, SpawnPoint, METERS_PER_UNIT};
+pub(super) mod ambient;
 mod movement;
 mod pose;
 use crate::{hermes::Hermes, season::Season};
@@ -224,6 +225,68 @@ impl DynamicWorld {
         self.skis.active_slot = 0;
         self.skis.slots[0].ground = None;
     }
+    pub fn start_skiing_at_base(&mut self, hermes: &Hermes) -> Result<(), String> {
+        let [base, _] = hermes.chairlifts.first().ok_or("Ski lift unavailable")?;
+        let base = glam::Vec2::from_array(base.point) * METERS_PER_UNIT;
+        // The authored base pickup is beside the loading lane and faces the chair.
+        let (index, slot) = self
+            .skis
+            .slots
+            .iter()
+            .enumerate()
+            .filter(|(_, slot)| slot.home.position.truncate().distance(base) <= 12.)
+            .min_by(|(_, a), (_, b)| {
+                a.home
+                    .position
+                    .truncate()
+                    .distance_squared(base)
+                    .total_cmp(&b.home.position.truncate().distance_squared(base))
+            })
+            .ok_or("No ski set beside the lower lift station")?;
+        let home = slot.home;
+        let start = SpawnPoint {
+            point: (home.position.truncate() / METERS_PER_UNIT).to_array(),
+            heading: Some(home.yaw),
+        };
+        let city = hermes.city();
+        let mut person = player::Pedestrian::at(city, start)?;
+        let ground = self
+            .chairlifts
+            .iter()
+            .filter_map(|lift| lift.platform_surface(home.position))
+            .find(|surface| surface.point.z >= home.position.z)
+            .or_else(|| super::pedestrian_gait::footing(city, home.position, false))
+            .ok_or("Ski start has no ground support")?;
+        let support = |p| {
+            self.chairlifts
+                .iter()
+                .find_map(|lift| lift.platform(p))
+                .or_else(|| super::pedestrian_gait::footing(city, p, false))
+        };
+        let mut motion = movement::Motion::new(ground.point, home.yaw, ground);
+        let pose = pose::Pose::build(&mut motion, &support);
+        person.ski_position(motion.position, motion.yaw);
+
+        self.reset_chairlift();
+        self.metro.aboard = false;
+        self.entry = None;
+        self.crash = None;
+        self.clear_chase();
+        self.health = super::melee::PLAYER_HEALTH;
+        self.crowd.cancel_bites();
+        self.pedestrian = Some(person);
+        self.set_season(hermes, Season::Winter);
+        self.skis.reset();
+        self.skis.active_slot = index;
+        self.skis.slots[index].ground = None;
+        self.skis.worn = true;
+        self.skis.pose = Some(pose);
+        self.skis.motion = Some(motion);
+        self.props.update_focus(ground.point);
+        self.update_riders();
+        Ok(())
+    }
+
     pub fn is_wearing_skis(&self) -> bool {
         self.skis.worn
     }

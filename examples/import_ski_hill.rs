@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|s| s.height)
             .ok_or("station/tree without ground")
     };
-    let main = [Vec2::new(3.8, -82.6), Vec2::new(-2.2, -85.2)];
+    let main = [Vec2::new(3.8, -82.6), Vec2::new(-1.92, -85.51)];
     let mut lifts = vec![main];
     let mut occupied = main.to_vec();
     for (name, base, top) in [("South", [-4.85, -92.05], [-2.25, -85.85])] {

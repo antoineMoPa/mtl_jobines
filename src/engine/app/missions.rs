@@ -9,7 +9,8 @@ const BUS_PASSENGERS: &[(u32, SiteId)] = &[
 
 impl Game {
     pub(super) fn abandon_mission(&mut self) {
-        let winter = self.kairos.active_id() == Some(MissionId::Snowplow);
+        let winter = self.kairos.active_id().and_then(MissionId::required_season)
+            == Some(crate::season::Season::Winter);
         self.world.end_baggage_shift();
         self.kairos.abandon();
         self.world.rescue_cat = None;
@@ -87,7 +88,11 @@ impl Game {
         let required: &[(u32, SiteId)] = match id {
             MissionId::Taxi => &[(1, SiteId::TaxiPickup)],
             MissionId::Bus => BUS_PASSENGERS,
-            MissionId::Baggage | MissionId::Cat | MissionId::Snowplow | MissionId::Zombie => &[],
+            MissionId::Baggage
+            | MissionId::Cat
+            | MissionId::Snowplow
+            | MissionId::Skiing
+            | MissionId::Zombie => &[],
         };
         let Some(passengers) = required
             .iter()
@@ -105,7 +110,7 @@ impl Game {
             MissionId::Taxi => &[SiteId::TaxiPickup, SiteId::TaxiDropoff],
             MissionId::Bus => &[SiteId::BusStop1, SiteId::BusStop2, SiteId::BusStop3],
             MissionId::Baggage => &[SiteId::BaggageDispatch, SiteId::BaggageAircraft],
-            MissionId::Cat | MissionId::Snowplow | MissionId::Zombie => &[],
+            MissionId::Cat | MissionId::Snowplow | MissionId::Skiing | MissionId::Zombie => &[],
         };
         if destinations
             .iter()
@@ -113,6 +118,12 @@ impl Game {
         {
             eprintln!("Mission destination unavailable: {}", id.title());
             return;
+        }
+        if id == MissionId::Skiing {
+            if let Err(error) = self.world.start_skiing_at_base(&self.hermes) {
+                eprintln!("Ski mission unavailable: {error}");
+                return;
+            }
         }
         if id == MissionId::Baggage {
             if self.world.baggage_shift_invalid() && !self.world.restart_baggage_shift(&self.hermes)
@@ -149,7 +160,7 @@ impl Game {
             self.world
                 .spawn_service_passenger(actor_id, point + Vec3::X * (index as f32 * 0.6));
         }
-        if id == MissionId::Snowplow {
+        if matches!(id, MissionId::Snowplow | MissionId::Skiing) {
             self.finish_location_change();
         }
         if id != MissionId::Taxi {
@@ -449,6 +460,21 @@ mod tests {
         assert!(game.interact_with_cat());
         game.activate_mission_now(MissionId::Zombie);
         assert!(game.world.cat_marker().is_none());
+    }
+
+    #[test]
+    fn bromine_job_starts_at_the_lower_station_in_winter_with_skis() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/mtl/map.road");
+        let mut game = Game::new(Hermes::load_with_game_data(&path, None).unwrap());
+        game.apply_palette_action(PaletteAction::SelectMission(MissionId::Skiing));
+        assert_eq!(game.kairos.active_id(), Some(MissionId::Skiing));
+        assert_eq!(game.world.season(), crate::season::Season::Winter);
+        assert!(game.world.is_wearing_skis());
+        assert!(game.world.skiing_camera().is_some());
+        assert!(!game.world.is_driving());
+        assert_eq!(game.overlay, Overlay::Driving);
+        let position = game.world.player_position().truncate() / METERS_PER_UNIT;
+        assert!(position.distance(glam::Vec2::new(3.776, -82.545)) < 0.001);
     }
 
     #[test]

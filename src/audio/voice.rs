@@ -101,7 +101,7 @@ impl VoiceClip {
         let first = (start * RATE as f32).round() as usize;
         if let Some(clip) = clip {
             for (sample, frame) in samples.iter_mut().skip(first).zip(&clip.frames) {
-                *sample = frame[channel] * gain.clamp(0., 1.);
+                *sample = super::protect_peaks(frame.map(|s| s * gain.clamp(0., 1.)))[channel];
             }
         }
         samples
@@ -163,7 +163,7 @@ impl VoiceBus {
             .copied()
             .unwrap_or([0.; 2]);
         t.cursor += 1;
-        Some(sample.map(|s| s * t.gain))
+        Some(super::protect_peaks(sample.map(|s| s * t.gain)))
     }
 }
 /// Cutscene output replaces world sounds while the world is paused.

@@ -311,6 +311,11 @@ impl Game {
         if !self.can_present_frame() {
             return ControlFlow::Wait;
         }
+        if !self.window_active() {
+            return self
+                .surface_retry
+                .map_or(ControlFlow::Wait, ControlFlow::WaitUntil);
+        }
         let cursor = self.cursor_wait(now);
         let waiting = match (cursor, self.surface_retry) {
             (ControlFlow::WaitUntil(deadline), Some(retry)) => {
@@ -868,6 +873,12 @@ impl Game {
         let Some((frame, suboptimal)) = acquired else {
             return;
         };
+        // Metal acquired a drawable, so a cached occlusion event from a Space
+        // transition no longer describes the window.
+        #[cfg(target_os = "macos")]
+        {
+            self.hidden = false;
+        }
         let cutscene_waiting_for_gesture =
             self.cutscene_can_play() && self.audio.cutscene_waiting_for_gesture();
         let frame_elapsed = self.frame_elapsed(Instant::now());
@@ -1081,13 +1092,13 @@ impl Game {
             self.loadout.equipped == Some(weapons::Weapon::Rifle),
         );
         let sound_eye = eye * METERS_PER_UNIT;
-        let sound_velocity = self.sound_eye.map_or(Vec3::ZERO, |previous| {
-            if elapsed > 0.0001 {
-                ((sound_eye - previous) / elapsed).clamp_length_max(100.)
-            } else {
-                Vec3::ZERO
-            }
-        });
+        let vehicle_velocity = if self.world.is_driving() {
+            self.world.player().velocity
+        } else {
+            Vec3::ZERO
+        };
+        let sound_velocity =
+            camera_input::listener_velocity(self.sound_eye, sound_eye, elapsed, vehicle_velocity);
         self.sound_eye = if paused { None } else { Some(sound_eye) };
         if !self.fabula.active() {
             let _span = mtl_world::telemetry::span("scene.audio");
@@ -1472,9 +1483,11 @@ impl ApplicationHandler<GameEvent> for Game {
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
-        self.kairos.save_if_due();
-        #[cfg(not(target_arch = "wasm32"))]
-        self.poll_map_reload(Instant::now());
+        if self.window_active() {
+            self.kairos.save_if_due();
+            #[cfg(not(target_arch = "wasm32"))]
+            self.poll_map_reload(Instant::now());
+        }
         if self.simulation_paused() && !self.cutscene_can_play() {
             self.audio.silence();
         }

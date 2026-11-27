@@ -114,13 +114,8 @@ fn authored_lift_pickups_are_near_both_stations_supported_and_clear() {
     let mut world = DynamicWorld::new(&hermes);
     world.set_season(&hermes, Season::Winter);
     assert_eq!(world.skis.slots.len(), 2);
-    for (index, station) in [
-        glam::Vec2::new(380., -8260.),
-        glam::Vec2::new(-220., -8520.),
-    ]
-    .into_iter()
-    .enumerate()
-    {
+    for (index, endpoint) in hermes.chairlifts[0].iter().enumerate() {
+        let station = glam::Vec2::from_array(endpoint.point) * METERS_PER_UNIT;
         let ground = world.skis.slots[index].home;
         assert!(
             ground.position.truncate().distance(station) < 12.,

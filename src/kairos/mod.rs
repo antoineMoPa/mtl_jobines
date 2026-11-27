@@ -3,6 +3,7 @@ mod baggage;
 mod bus;
 mod cat;
 mod save;
+mod skiing;
 mod snowplow;
 mod taxi;
 mod zombie;
@@ -17,6 +18,7 @@ pub enum MissionId {
     Taxi,
     Bus,
     Snowplow,
+    Skiing,
     Zombie,
     Cat,
 }
@@ -28,6 +30,7 @@ impl MissionId {
             Self::Taxi => "Taxi",
             Self::Bus => "Autobus",
             Self::Snowplow => "Déneigeuse",
+            Self::Skiing => "Ski à Bromine",
             Self::Zombie => "Mode zombie",
             Self::Cat => "Chat perdu",
         }
@@ -39,14 +42,14 @@ impl MissionId {
             Self::Taxi => Some("vehicle-j01"),
             Self::Bus => Some("vehicle-j02"),
             Self::Snowplow => Some("vehicle-j03"),
-            Self::Zombie | Self::Cat => None,
+            Self::Zombie | Self::Cat | Self::Skiing => None,
         }
     }
 
     pub fn required_season(self) -> Option<crate::season::Season> {
         match self {
             Self::Baggage | Self::Taxi | Self::Bus => Some(crate::season::Season::Summer),
-            Self::Snowplow => Some(crate::season::Season::Winter),
+            Self::Snowplow | Self::Skiing => Some(crate::season::Season::Winter),
             Self::Zombie | Self::Cat => None,
         }
     }
@@ -137,6 +140,7 @@ pub enum MissionObjective {
     BusStop2,
     BusStop3,
     SnowClearing,
+    SkiBromine,
     SurviveZombies,
     FindCat,
     ReturnCat,
@@ -159,6 +163,7 @@ impl MissionObjective {
             Self::BusStop2 => "Approche-toi de l'arrêt 2/3 et arrête-toi",
             Self::BusStop3 => "Approche-toi de l'arrêt 3/3 et arrête-toi",
             Self::SnowClearing => "Déneige les rues",
+            Self::SkiBromine => "Prends le télésiège et explore les pistes de Bromine.",
             Self::FindCat => "Retrouve le chat perdu.",
             Self::ReturnCat => "Ramène le chat au duplex.",
             Self::CatHome => "Le chat est rentré chez lui !",
@@ -186,6 +191,7 @@ struct Completed {
     taxi: u32,
     bus: u32,
     snowplow: u32,
+    skiing: u32,
     zombie: u32,
     cat: u32,
 }
@@ -197,6 +203,7 @@ impl Completed {
             MissionId::Taxi => self.taxi,
             MissionId::Bus => self.bus,
             MissionId::Snowplow => self.snowplow,
+            MissionId::Skiing => self.skiing,
             MissionId::Zombie => self.zombie,
             MissionId::Cat => self.cat,
         }
@@ -208,6 +215,7 @@ impl Completed {
             MissionId::Taxi => &mut self.taxi,
             MissionId::Bus => &mut self.bus,
             MissionId::Snowplow => &mut self.snowplow,
+            MissionId::Skiing => &mut self.skiing,
             MissionId::Zombie => &mut self.zombie,
             MissionId::Cat => &mut self.cat,
         };
@@ -315,6 +323,7 @@ impl Kairos {
             MissionId::Taxi => Box::new(taxi::TaxiMission::default()),
             MissionId::Bus => Box::new(bus::BusMission::default()),
             MissionId::Snowplow => Box::new(snowplow::SnowplowMission::default()),
+            MissionId::Skiing => Box::new(skiing::SkiingMission),
             MissionId::Cat => Box::new(cat::CatMission::default()),
             MissionId::Zombie => Box::new(zombie::ZombieMission),
         });

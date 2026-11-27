@@ -27,18 +27,36 @@ pub(super) fn install_font(ctx: &egui::Context) {
 }
 
 pub(super) struct Portraits {
-    taxi: egui::TextureHandle,
-    bus: egui::TextureHandle,
-    snowplow: egui::TextureHandle,
+    cynthia: egui::TextureHandle,
+    mike: egui::TextureHandle,
+    yvan: egui::TextureHandle,
     phone: egui::TextureHandle,
 }
 
-impl Portraits {
-    fn for_mission(&self, id: MissionId) -> &egui::TextureHandle {
-        match id {
-            MissionId::Baggage | MissionId::Cat | MissionId::Taxi | MissionId::Zombie => &self.taxi,
-            MissionId::Bus => &self.bus,
-            MissionId::Snowplow => &self.snowplow,
+#[derive(Clone, Copy)]
+enum Author {
+    Yulpet,
+    Cynthia,
+    Mike,
+    Yvan,
+}
+
+impl Author {
+    fn profile(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Yulpet => ("Répartition YULPET", "@yulpet  service au sol"),
+            Self::Cynthia => ("Cynthia Tremblay", "@cynthia_tremblay  construction civile"),
+            Self::Mike => ("Mike Vachon", "@mike_vachon  chauffeur d'autobus"),
+            Self::Yvan => ("Yvan Tansiarge", "@yvan_tansiarge  déneigeur"),
+        }
+    }
+
+    fn portrait(self, portraits: &Portraits) -> Option<&egui::TextureHandle> {
+        match self {
+            Self::Yulpet => None,
+            Self::Cynthia => Some(&portraits.cynthia),
+            Self::Mike => Some(&portraits.mike),
+            Self::Yvan => Some(&portraits.yvan),
         }
     }
 }
@@ -80,25 +98,25 @@ fn load_phone_icon(ctx: &egui::Context) -> egui::TextureHandle {
 
 pub(super) fn load_portraits(ctx: &egui::Context) -> Portraits {
     Portraits {
-        taxi: load_portrait(
+        cynthia: load_portrait(
             ctx,
-            "job portrait taxi",
+            "job portrait cynthia",
             crate::web_asset!(
                 "../../assets/jobines/worker-portrait-01.png",
                 "assets/jobines/worker-portrait-01.png"
             ),
         ),
-        bus: load_portrait(
+        mike: load_portrait(
             ctx,
-            "job portrait bus",
+            "job portrait mike",
             crate::web_asset!(
                 "../../assets/jobines/driver-portrait-01.png",
                 "assets/jobines/driver-portrait-01.png"
             ),
         ),
-        snowplow: load_portrait(
+        yvan: load_portrait(
             ctx,
-            "job portrait snowplow",
+            "job portrait yvan",
             crate::web_asset!(
                 "../../assets/jobines/plow-portrait-01.png",
                 "assets/jobines/plow-portrait-01.png"
@@ -360,41 +378,42 @@ pub(super) fn show(
                     });
                 });
             ui.add_space(12.);
-            for (id, author, handle, message, icon) in [
-                (MissionId::Baggage, "Répartition YULPET", "@yulpet  service au sol", "Il nous manque un bagagiste à l’aéroport. Es-tu dispo ?", "✈"),
+            for (id, author, message, icon) in [
+                (MissionId::Baggage, Author::Yulpet, "Il nous manque un bagagiste à l’aéroport. Es-tu dispo ?", "✈"),
                 (
                     MissionId::Taxi,
-                    "Cynthia Tremblay",
-                    "@cynthia_tremblay  construction civile",
+                    Author::Cynthia,
                     "Mon ami cherche quelqu'un pour conduire son taxi aujourd'hui. Ça te dit?",
                     "🚕",
                 ),
                 (
                     MissionId::Bus,
-                    "Mike Vachon",
-                    "@mike_vachon  chauffeur d'autobus",
+                    Author::Mike,
                     "On cherche du monde pour conduire l'autobus du quartier. Tu embarques?",
                     "🚌",
                 ),
                 (
                     MissionId::Snowplow,
-                    "Yvan Tansiarge",
-                    "@yvan_tansiarge  déneigeur",
+                    Author::Yvan,
                     "Une déneigeuse t'attend.",
                     "❄",
                 ),
                 (
+                    MissionId::Skiing,
+                    Author::Cynthia,
+                    "On va skier à Bromine aujourd'hui?",
+                    "⛷",
+                ),
+                (
                     MissionId::Zombie,
-                    "Cynthia Tremblay",
-                    "@cynthia_tremblay  construction civile",
-                    "Y’a des zombies dans les rues! Tes munitions sont illimitées.",
+                    Author::Cynthia,
+                    "Un ami vient de m’appeler. Y’a des zombies dans sa rue et il a besoin d’aide! Tes munitions sont illimitées.",
                     "⚠",
                 ),
                 (
                     MissionId::Cat,
-                    "Cynthia Tremblay",
-                    "@cynthia_tremblay  construction civile",
-                    "Mon chat blanc s’est sauvé ! J’ai marqué le coin sur ta carte. Peux-tu me le ramener au duplex ?",
+                    Author::Cynthia,
+                    "Le chat blanc d’une amie s’est sauvé. J’ai marqué le coin sur ta carte. Peux-tu le ramener à son duplex ?",
                     "🐈",
                 ),
             ] {
@@ -412,11 +431,20 @@ pub(super) fn show(
                         ui.set_min_width((ctx.content_rect().width() - 84.).clamp(230., 450.));
                         ui.horizontal(|ui| {
                             if let Some(texture) =
-                                portraits.map(|portraits| portraits.for_mission(id))
+                                portraits.and_then(|portraits| author.portrait(portraits))
                             {
                                 ui.add(
                                     egui::Image::new((texture.id(), egui::vec2(40., 40.)))
                                         .corner_radius(20),
+                                );
+                            } else if matches!(author, Author::Yulpet) {
+                                let (rect, _) = ui.allocate_exact_size(
+                                    egui::vec2(40., 40.), egui::Sense::hover(),
+                                );
+                                ui.painter().circle_filled(rect.center(), 20., GREEN);
+                                ui.painter().text(
+                                    rect.center(), egui::Align2::CENTER_CENTER, "YUL",
+                                    egui::FontId::proportional(11.), Color32::WHITE,
                                 );
                             } else {
                                 let (rect, _) = ui.allocate_exact_size(
@@ -440,8 +468,9 @@ pub(super) fn show(
                                 );
                             }
                             ui.vertical(|ui| {
-                                ui.label(RichText::new(author).color(INK).strong().size(12.));
-                                ui.label(RichText::new(handle).color(MUTED).size(10.));
+                                let (name, description) = author.profile();
+                                ui.label(RichText::new(name).color(INK).strong().size(12.));
+                                ui.label(RichText::new(description).color(MUTED).size(10.));
                             });
                         });
                         ui.add_space(7.);
@@ -578,6 +607,22 @@ mod tests {
         frame(vec![]);
         frame(click(screen.max - egui::vec2(42., 42.)));
         frame(vec![]);
+        let shapes = frame(vec![]);
+        assert!(shapes.iter().any(|entry| {
+            matches!(&entry.shape, egui::Shape::Text(text) if text.galley.text() == "YUL")
+        }));
+        frame(vec![
+            egui::Event::PointerMoved(screen.center()),
+            egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                phase: egui::TouchPhase::Move,
+                delta: egui::vec2(0., -240.),
+                modifiers: egui::Modifiers::NONE,
+            },
+        ]);
+        for _ in 0..12 {
+            frame(vec![]);
+        }
         let shapes = frame(vec![]);
         let mut labels = shapes.iter().filter_map(|shape| match &shape.shape {
             egui::Shape::Text(text) => Some(text),

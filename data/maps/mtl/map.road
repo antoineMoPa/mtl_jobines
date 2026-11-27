@@ -8267,12 +8267,12 @@ parked_vehicle("vehicle-winter-alpine-340", 4.1, -82.35, 180);
 
 # Winter ski equipment beside the Chalet lift loading lane and summit exit. F equips on foot.
 ski_set(3.776, -82.545, 203.43);
-ski_set(-2.305, -85.18, 23.43);
+ski_set(-2.015814, -85.579706, 21.8);
 
-# Chairlift: base 30 m west of the chalet, summit on the upper hill.
+# Chairlift: base 30 m west of the chalet, with the upper exit on the crest.
 # Both endpoints are ground coordinates; supports follow elevation.png at runtime.
 chairlift_base(3.8, -82.6);
-chairlift_top(-2.2, -85.2);
+chairlift_top(-1.92, -85.51);
 
 # BEGIN IMPORTED SKI HILL
 # Imported from the ski-hill area and density PNG masks. Regenerate with the import_ski_hill example.

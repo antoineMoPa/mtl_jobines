@@ -12,7 +12,7 @@ pub use signals::SignalBatch;
 mod tests;
 use super::{catalog, Controls, SpawnPoint, Vehicle, METERS_PER_UNIT};
 use crate::hermes::traffic_paths::{SpeedClass, TrafficPaths, Turn};
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 use opencity::runtime::City;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -20,6 +20,12 @@ pub(super) const CRUISER: &str = "vehicle-j06";
 pub(super) const TARGET: usize = 36;
 const SPAWN_RADIUS: f32 = 180.;
 const RETAIN_RADIUS: f32 = 240.;
+const SKI_AREA_RADIUS: f32 = 320.;
+const SKI_AREA_TARGET: usize = 3;
+
+fn in_ski_area(base: Option<Vec2>, point: Vec3) -> bool {
+    base.is_some_and(|base| base.distance_squared(point.truncate()) < SKI_AREA_RADIUS.powi(2))
+}
 fn snowplow(vehicle: &Vehicle) -> bool {
     vehicle
         .definition()
@@ -105,6 +111,7 @@ pub(super) struct Traffic {
     crossing: HashMap<usize, usize>,
     physics_lod: bool,
     interacted: HashMap<usize, lod::Protected>,
+    ski_base: Option<Vec2>,
 }
 impl Traffic {
     #[cfg(test)]
@@ -145,6 +152,7 @@ impl Traffic {
             crossing: HashMap::new(),
             physics_lod: true,
             interacted: HashMap::new(),
+            ski_base: None,
         }
     }
     pub(super) fn bicycle_red_light(&self, end: Vec3, heading: Vec3) -> bool {
@@ -212,6 +220,9 @@ impl Traffic {
     pub fn populate(&mut self, city: &City, vehicles: &mut Vec<Vehicle>, center: Vec3) {
         self.populate_limited(city, vehicles, center, usize::MAX);
     }
+    pub(super) fn set_ski_base(&mut self, base: Vec2) {
+        self.ski_base = Some(base);
+    }
     /// Place at most `limit` vehicles. Returns whether the limit stopped the pass early, so the
     /// caller can continue on a later frame instead of spawning the whole fleet in one.
     pub fn populate_limited(
@@ -222,20 +233,28 @@ impl Traffic {
         limit: usize,
     ) -> bool {
         let mut placed = 0;
+        let mut ski_count = 0;
+        let ski_base = self.ski_base;
         let vacant = &mut self.inactive;
         self.drivers.retain(|d| {
-            if self.chase.patrol(d.vehicle).is_none()
-                && vehicles[d.vehicle].position.distance(center) > RETAIN_RADIUS
+            let point = vehicles[d.vehicle].position;
+            let patrol = self.chase.patrol(d.vehicle).is_some();
+            let touched = self.interacted.contains_key(&d.vehicle);
+            let ordinary = !patrol && !touched;
+            let local = ordinary && in_ski_area(ski_base, point);
+            if (!patrol && point.distance(center) > RETAIN_RADIUS)
+                || (local && ski_count >= SKI_AREA_TARGET)
             {
                 // Player interaction leaves a persistent physical vehicle behind.
                 // Only ordinary traffic may be hidden and its slot recycled.
-                if !self.interacted.contains_key(&d.vehicle) {
+                if !touched {
                     vacant.push(d.vehicle);
                     vehicles[d.vehicle].velocity = Vec3::ZERO;
                     vehicles[d.vehicle].position.z = -1000.;
                 }
                 false
             } else {
+                ski_count += usize::from(local);
                 true
             }
         });
@@ -254,15 +273,18 @@ impl Traffic {
                 let steps = (p.length / 14.).ceil() as usize;
                 (0..steps).map(move |i| (id, (i as f32 + 0.5) * p.length / steps as f32))
             })
-            .filter(|&(id, distance)| {
+            .filter_map(|(id, distance)| {
                 let point = self.graph.paths[id].sample(distance).0;
                 let radius = point.truncate().distance(center.truncate());
-                (30. ..SPAWN_RADIUS).contains(&radius)
+                let local = in_ski_area(ski_base, point);
+                ((30. ..SPAWN_RADIUS).contains(&radius) && (ski_count < SKI_AREA_TARGET || !local))
+                    .then_some((id, distance, local))
             })
             .collect();
         if candidates.is_empty() {
             return false;
         }
+        let ski_area_only = candidates.iter().all(|&(_, _, local)| local);
         let models: Vec<_> = catalog::definitions()
             .iter()
             .enumerate()
@@ -285,7 +307,10 @@ impl Traffic {
             if placed >= limit {
                 return true;
             }
-            let (path, distance) = candidates[self.random(candidates.len())];
+            let (path, distance, local) = candidates[self.random(candidates.len())];
+            if local && ski_count >= SKI_AREA_TARGET {
+                continue;
+            }
             let (point, heading) = self.graph.paths[path].sample(distance);
             let plows = self
                 .drivers
@@ -377,6 +402,10 @@ impl Traffic {
             self.drivers
                 .push(Driver::new(index, path, distance, self.time));
             placed += 1;
+            ski_count += usize::from(local);
+            if ski_count >= SKI_AREA_TARGET && ski_area_only {
+                break;
+            }
         }
         false
     }

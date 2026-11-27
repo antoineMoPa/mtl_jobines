@@ -927,7 +927,20 @@ impl Props {
                             && item.center.truncate().distance(center.truncate()) <= VIEW
                         {
                             if let Some(position) = item.lamp {
-                                lights.push(super::LocalLight::streetlamp(position));
+                                lights.push(
+                                    if crate::hermes::ski_hill::is_floodlight(&item.mesh.mesh) {
+                                        super::LocalLight::ski_floodlight(
+                                            position,
+                                            item.mesh.transform.transform_vector3(Vec3::new(
+                                                0.70710677,
+                                                0.,
+                                                -0.70710677,
+                                            )),
+                                        )
+                                    } else {
+                                        super::LocalLight::streetlamp(position)
+                                    },
+                                );
                             }
                         }
                     }

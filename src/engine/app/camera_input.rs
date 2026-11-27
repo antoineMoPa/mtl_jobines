@@ -18,6 +18,24 @@ pub(super) fn chase_eye(
     world.camera_eye(hermes, player + Vec3::Z * 0.014, eye)
 }
 
+pub(super) fn listener_velocity(
+    previous: Option<Vec3>,
+    eye: Vec3,
+    elapsed: f32,
+    vehicle_velocity: Vec3,
+) -> Vec3 {
+    let Some(previous) = previous.filter(|_| elapsed > 0.0001) else {
+        return Vec3::ZERO;
+    };
+    let travel = eye - previous;
+    // Camera cuts can jump hundreds of metres. Use physical travel for that
+    // frame, with room for ordinary camera orbit and fast aircraft motion.
+    if travel.length_squared() > (8. + 180. * elapsed).powi(2) {
+        return vehicle_velocity;
+    }
+    (travel / elapsed).clamp_length_max(100.)
+}
+
 pub(super) struct OrbitDrag {
     origin: [f32; 2],
     travel: [f32; 2],
@@ -212,5 +230,28 @@ impl Game {
             }
         }
         self.cursor = Some(point);
+    }
+}
+
+#[cfg(test)]
+mod audio_tests {
+    use super::*;
+
+    #[test]
+    fn a_camera_cut_uses_physical_motion_for_doppler() {
+        let previous = Some(Vec3::ZERO);
+        let velocity = Vec3::Y * 20.;
+        assert_eq!(
+            listener_velocity(previous, Vec3::X * 1_000., 1. / 60., velocity),
+            velocity,
+        );
+        assert_eq!(
+            listener_velocity(previous, Vec3::X * 2., 0.05, velocity),
+            Vec3::X * 40.,
+        );
+        assert_eq!(
+            listener_velocity(None, Vec3::X * 1_000., 1. / 60., velocity),
+            Vec3::ZERO,
+        );
     }
 }
