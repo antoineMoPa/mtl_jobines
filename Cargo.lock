@@ -1981,6 +1981,7 @@ dependencies = [
 name = "mtl_jobines"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "bytemuck",
  "console_error_panic_hook",
  "earcutr",

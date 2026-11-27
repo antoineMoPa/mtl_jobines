@@ -47,6 +47,7 @@ data/pedestrian/player-winter.glb
 data/pedestrian/officer.glb
 data/pedestrian/player.glb
 assets/terrain/grass-mips.png
+assets/effects/backpropagation-64-layers.json
 assets/fonts/OFL.txt
 assets/jobines/worker-portrait-01.png
 assets/jobines/driver-portrait-01.png

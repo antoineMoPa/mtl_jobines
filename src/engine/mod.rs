@@ -39,6 +39,8 @@ mod map_ui;
 mod model_textures;
 mod muzzle;
 mod owe;
+#[cfg(not(target_arch = "wasm32"))]
+mod paired_capture;
 mod palette;
 mod pedestrian_scenery;
 mod prop_scenery;

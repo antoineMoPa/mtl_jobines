@@ -3,7 +3,7 @@
 use super::render::{GpuMesh, Renderer};
 use crate::hermes::Hermes;
 use opencity::runtime::Mesh;
-use std::ops::Range;
+use std::{ops::Range, sync::Arc};
 // Keep the existing 200 m radius-selection groups, then cull their 50 m
 // GPU batches independently. Splitting must not shorten detail draw distance.
 const TILE_SPAN: f32 = 2.;
@@ -24,7 +24,7 @@ struct Resident {
     detail_ready: bool,
 }
 pub struct Scenery {
-    source: Option<crate::hermes::scenery::Source>,
+    source: Option<Arc<crate::hermes::scenery::Source>>,
     resident: Vec<Resident>,
     saturated: Option<((i32, i32), u32)>,
     pub(super) grass: super::render::SupportCache,
@@ -255,7 +255,15 @@ impl Scenery {
     }
 
     pub fn streamed(renderer: &Renderer, hermes: &mut Hermes) -> Self {
-        let source = hermes.take_scenery_source();
+        let source = Arc::new(hermes.take_scenery_source());
+        Self::from_source(renderer, hermes, source)
+    }
+
+    pub(super) fn from_source(
+        renderer: &Renderer,
+        hermes: &Hermes,
+        source: Arc<crate::hermes::scenery::Source>,
+    ) -> Self {
         let empty = Mesh::default();
         let models = hermes
             .external_models
@@ -316,6 +324,7 @@ impl Scenery {
         center: [f32; 2],
         radius: f32,
         budget: &mut usize,
+        tile_limit: usize,
     ) {
         use crate::hermes::scenery::SPAN;
         let Some(source) = &self.source else {
@@ -367,7 +376,7 @@ impl Scenery {
         let mut used: usize = self.resident.iter().map(|t| t.bytes).sum();
         let mut built = 0;
         for key in keys {
-            if *budget == 0 || built == 2 {
+            if *budget == 0 || built == tile_limit {
                 break;
             }
             let include_details = distance(key) <= crate::performance::draw_radius(1.5);
@@ -493,7 +502,7 @@ impl Scenery {
         detail_radius: f32,
         budget: &mut usize,
     ) {
-        self.stream_tiles(renderer, center, world_radius, budget);
+        self.stream_tiles(renderer, center, world_radius, budget, 2);
         for (pending, batches, radius) in [
             (&mut self.pending_world, &mut self.world, world_radius),
             (&mut self.pending_details, &mut self.details, detail_radius),
@@ -527,6 +536,14 @@ impl Scenery {
             &mut crate::performance::scenery_upload_vertices(),
         );
         (self.visible_batches(center, radius, preview), &self.metro)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn preload_capture(&mut self, renderer: &Renderer, center: [f32; 2]) {
+        let aspect = renderer.config.width as f32 / renderer.scene_height() as f32;
+        let radius = world_radius(None, aspect, renderer.flight_visibility);
+        let mut budget = usize::MAX;
+        self.stream_tiles(renderer, center, radius, &mut budget, usize::MAX);
     }
 
     pub fn update_winter(

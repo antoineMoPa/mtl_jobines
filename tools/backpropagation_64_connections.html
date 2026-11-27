@@ -1,0 +1,2038 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GLSL backpropagation · 64 × 64 connections</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, sans-serif;
+      background: #101117;
+      color: #f0f1f7;
+      --surface: #181a23;
+      --line: #303342;
+      --muted: #a8adbf;
+      --accent: #c8ff83;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1100px; margin: auto; padding: clamp(20px, 5vw, 60px); }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -.055em; }
+    h2, p, figure, dl, dd { margin: 0; }
+    h2 { font-size: 1rem; }
+    header p { color: var(--muted); margin-top: 8px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; margin-top: 26px; align-items: start; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+    .row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .muted, figcaption { color: var(--muted); font-size: .875rem; }
+    .mono, output, dd, code { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    canvas, .swatch { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; }
+    canvas { height: auto; margin: 12px 0; image-rendering: pixelated; background: #101117; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    button { background: #252837; border: 1px solid var(--line); color: inherit; border-radius: 8px; padding: 9px 12px; font: inherit; font-size: .875rem; font-weight: 650; cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #19210f; }
+    button:hover:enabled { filter: brightness(1.15); }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    button:disabled { opacity: .5; cursor: default; }
+    .prediction-stack, aside { display: grid; gap: 16px; }
+    .loss-chart { aspect-ratio: 680 / 184; image-rendering: auto; margin-bottom: 0; }
+    .samples { display: grid; gap: 12px; }
+    figcaption { margin-bottom: 8px; }
+    .swatch { height: auto; margin: 0; }
+    .dataset { display: grid; gap: 12px; margin-bottom: 16px; }
+    .video-sources { margin-bottom: 16px; }
+    .video-sources .dataset { gap: 4px; }
+    select { background: #252837; color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: inherit; }
+    .scrubber { display: grid; gap: 4px; margin: 14px 0 4px; }
+    .scrubber[hidden] { display: none; }
+    input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+    dl { margin-top: 6px; }
+    dl .row { padding-top: 10px; margin-top: 7px; border-top: 1px solid var(--line); font-size: .875rem; }
+    dt { color: var(--muted); }
+    .note { margin-top: 12px; line-height: 1.5; }
+    #error { margin-top: 16px; color: #ffaba6; }
+
+    @media (max-width: 740px) {
+      .layout { grid-template-columns: 1fr; }
+      .samples { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    .preview-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .preview-controls select { font-size: .875rem; padding: 4px 6px; }
+    .preview-frame { position: relative; margin: 12px 0; overflow: hidden; border-radius: 8px; }
+    .preview-frame canvas { margin: 0; }
+    .split-marker { position: absolute; inset-block: 0; width: 1px; background: #f0f1f7; box-shadow: 0 0 2px #101117; pointer-events: none; }
+    .comparison-reference { display: flex; align-items: center; gap: 4px; }
+    .comparison-reference[hidden] { display: none; }
+    .comparison-legend { margin-bottom: 10px; }
+    .inspector summary { cursor: pointer; font-weight: 650; }
+    .activation-images { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+    .activation-images canvas { margin: 0; }
+    .weight-banks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 164px), 1fr)); gap: 12px; margin-top: 12px; }
+    .weight-bank { display: grid; gap: 8px; align-content: start; }
+    .weight-bank figcaption { margin-bottom: 4px; }
+    .weight-image { aspect-ratio: 4 / 1; border-radius: 4px; margin: 0; }
+    .architecture { margin-top: 16px; }
+    .architecture-link { display: inline-block; margin-top: 12px; color: var(--accent); }
+    .layer-flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0; margin: 16px 0 0; list-style: none; }
+    .layer-node { position: relative; display: flex; flex-direction: column; gap: 6px; margin-inline: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #101117; }
+    .layer-node.trainable { border-color: var(--accent); }
+    .layer-node strong { font-size: .9375rem; }
+    .layer-node .trainable-label { color: var(--accent); }
+    .layer-control { align-self: start; width: 100%; min-width: 0; margin-top: auto; padding: 4px 3px; font-size: .8125rem; }
+    .layer-toggle { position: absolute; z-index: 1; top: 5px; right: 5px; width: 22px; height: 22px; padding: 0; line-height: 1; }
+    .layer-node:has(.layer-toggle) strong { padding-right: 19px; }
+    .layer-node.is-bypassed { border-style: dashed; border-color: var(--line); }
+    .layer-node.is-bypassed .trainable-label { color: var(--muted); }
+    .tap-controls { display: grid; gap: 4px; margin-top: auto; }
+    .tap-distance { display: flex; align-items: center; gap: 5px; font-size: .8125rem; }
+    .tap-distance[hidden] { display: none; }
+    .tap-distance input { width: 48px; padding: 2px 3px; font: inherit; color: inherit; background: #252837; border: 1px solid var(--line); border-radius: 4px; }
+    .layer-control:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .layer-node:not(:last-child)::after { content: "→"; color: var(--muted); position: absolute; top: 50%; right: -21px; width: 20px; text-align: center; transform: translateY(-50%); }
+    .layer-skips { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-auto-rows: minmax(36px, auto); }
+    .layer-skip { position: relative; display: flex; align-items: end; justify-content: center; padding: 10px 4px 6px; text-align: center; border: 1px dashed var(--muted); border-top: 0; border-radius: 0 0 8px 8px; }
+    .layer-skip[hidden] { display: none; }
+    .layer-skip::after { content: "▴"; position: absolute; top: -8px; right: -5px; line-height: 1; }
+    .hidden-skip { grid-column: 2 / 6; grid-row: 1; }
+    .luminance-output-skip { grid-column: 2 / 8; grid-row: 1 / 3; }
+    .output-skip { grid-column: 2 / 8; grid-row: 1 / 4; }
+    .architecture figcaption { margin-top: 14px; margin-bottom: 0; }
+    @media (max-width: 840px) {
+      .layer-flow { grid-template-columns: 1fr; gap: 20px; }
+      .layer-node { margin-inline: 0; }
+      .layer-node:not(:last-child)::after { content: "↓"; right: auto; left: 14px; top: auto; bottom: -21px; transform: none; }
+      .layer-skips { display: grid; grid-template-columns: 1fr; grid-auto-rows: auto; gap: 8px; margin-top: 12px; }
+      .layer-skip { grid-column: 1; grid-row: auto; display: block; min-height: 0; border-top: 1px dashed var(--muted); border-radius: 8px; text-align: left; padding: 8px 12px; }
+      .layer-skip::after { content: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>GLSL backpropagation · 64 × 64 connections</h1>
+      <p>Compare hidden-layer taps with the same overlapping 64 × 64 blocks.</p>
+    </header>
+
+    <div class="layout">
+      <div class="prediction-stack">
+        <section class="card" aria-labelledby="prediction-title">
+          <div class="row">
+            <h2 id="prediction-title">Prediction</h2>
+            <div class="preview-controls">
+              <span id="size" class="muted mono"></span>
+              <select id="preview-mode" aria-label="Preview comparison" disabled>
+                <option value="prediction">Prediction</option>
+                <option value="split">Split screen</option>
+                <option value="difference">Difference</option>
+              </select>
+              <label class="comparison-reference muted" id="comparison-reference-control" hidden>
+                Reference
+                <select id="comparison-reference" disabled>
+                  <option value="input">Input</option>
+                  <option value="target">Target</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="preview-frame">
+            <canvas id="prediction" width="512" height="288" aria-label="Evaluated RGB prediction">Evaluated RGB prediction</canvas>
+            <span class="split-marker" id="split-marker" aria-hidden="true" hidden></span>
+          </div>
+          <label id="comparison-legend" class="scrubber muted comparison-legend" hidden>
+            <span class="row" aria-hidden="true"><span id="split-reference">Input</span><span>Prediction</span></span>
+            <input id="split-position" type="range" min="0" max="100" value="50" aria-label="Split position" disabled>
+          </label>
+          <div class="row muted" aria-live="polite">
+            <span>Showing step <output id="shown">—</output></span>
+            <span>Center pixel <output id="pixel">—</output></span>
+          </div>
+          <label id="scrubber" class="scrubber muted" for="frame" hidden>
+            <span class="row"><span>Frame pair</span><output id="frame-label">—</output></span>
+            <input id="frame" type="range" min="1" max="1" value="1" disabled>
+          </label>
+          <div class="actions">
+            <button id="train" class="primary" disabled>Train step</button>
+            <button id="play" disabled>Play training</button>
+            <button id="evaluate" disabled>Eval step</button>
+            <button id="play-video" disabled>Play video</button>
+            <button id="reset" disabled>Reset weights</button>
+          </div>
+          <label class="scrubber muted" for="learning-rate">
+            <span class="row"><span>Learning rate</span><output id="rate" for="learning-rate">0.006</output></span>
+            <input id="learning-rate" type="range" min="-6" max="-1" step="any" aria-valuetext="0.006" disabled>
+          </label>
+          <div class="actions">
+            <button id="calibrate-grid" disabled>Calibrate grid</button>
+            <label class="muted"><input id="grid-correction" type="checkbox" disabled> Grid correction</label>
+          </div>
+          <p id="help" class="muted note">Loading the video pair…</p>
+          <p id="error" role="alert" hidden></p>
+        </section>
+
+        <details class="card inspector" id="layer-images">
+          <summary>Layer images</summary>
+          <p class="muted note">One overlap phase. Mid-gray represents zero in the signed RGB readout.</p>
+          <div class="activation-images">
+            <figure>
+              <figcaption>Hidden 1</figcaption>
+              <canvas class="swatch activation-image" width="128" height="72" role="img" aria-label="Hidden 1 activations"></canvas>
+            </figure>
+            <figure>
+              <figcaption>Hidden 2</figcaption>
+              <canvas class="swatch activation-image" width="128" height="72" role="img" aria-label="Hidden 2 activations"></canvas>
+            </figure>
+            <figure>
+              <figcaption>Linear RGB</figcaption>
+              <canvas class="swatch activation-image" width="128" height="72" role="img" aria-label="Linear RGB readout before the fixed skips"></canvas>
+            </figure>
+          </div>
+        </details>
+
+        <details class="card inspector" id="weight-images">
+          <summary>Layer weights</summary>
+          <p class="muted note">Each square is a 64×64 weight tile. From left to right, the squares show taps 1–4 in connection order. Dark is negative, mid-gray is zero, and light is positive.</p>
+          <div class="weight-banks">
+            <section class="weight-bank" aria-labelledby="hidden-1-weights">
+              <h2 id="hidden-1-weights">Hidden 1</h2>
+              <figure><figcaption>Red input</figcaption><canvas class="weight-image" role="img" aria-label="Hidden 1 red input weights, taps 1 through 4"></canvas></figure>
+              <figure><figcaption>Green input</figcaption><canvas class="weight-image" role="img" aria-label="Hidden 1 green input weights, taps 1 through 4"></canvas></figure>
+              <figure><figcaption>Blue input</figcaption><canvas class="weight-image" role="img" aria-label="Hidden 1 blue input weights, taps 1 through 4"></canvas></figure>
+            </section>
+            <section class="weight-bank" aria-labelledby="hidden-2-weights">
+              <h2 id="hidden-2-weights">Hidden 2</h2>
+              <figure><figcaption>From Hidden 1</figcaption><canvas class="weight-image" role="img" aria-label="Hidden 2 weights from Hidden 1, taps 1 through 4"></canvas></figure>
+            </section>
+            <section class="weight-bank" aria-labelledby="readout-weights">
+              <h2 id="readout-weights">Linear RGB</h2>
+              <figure><figcaption>Red output</figcaption><canvas class="weight-image" role="img" aria-label="Red readout weights, taps 1 through 4"></canvas></figure>
+              <figure><figcaption>Green output</figcaption><canvas class="weight-image" role="img" aria-label="Green readout weights, taps 1 through 4"></canvas></figure>
+              <figure><figcaption>Blue output</figcaption><canvas class="weight-image" role="img" aria-label="Blue readout weights, taps 1 through 4"></canvas></figure>
+            </section>
+          </div>
+        </details>
+
+        <section class="card" aria-labelledby="loss-title">
+          <div class="row">
+            <h2 id="loss-title">Training loss</h2>
+            <span class="muted">5-step mean <output id="latest-loss">—</output></span>
+          </div>
+          <p class="muted note">Rolling mean of the last five RGB loss samples, weighted by the block’s edge falloff.</p>
+          <canvas id="loss-chart" class="loss-chart" width="680" height="184" role="img"
+            aria-label="Five-step rolling mean squared error by training step">Training loss by step</canvas>
+        </section>
+      </div>
+
+      <aside aria-label="Training data and model">
+        <section class="card" aria-label="Training data">
+          <label class="dataset" for="dataset">
+            <span class="muted">Training data</span>
+            <select id="dataset" disabled>
+              <option value="video">Gameplay video pairs</option>
+              <option value="solid">Blue-to-red demo</option>
+            </select>
+          </label>
+          <div class="video-sources" id="video-sources" hidden>
+            <label class="dataset muted" for="video-source">
+              Preview clip
+              <select id="video-source" disabled>
+                <option value="original">Original footage</option>
+                <option value="winter-city-driving">Winter city driving</option>
+                <option value="summer-biking">Summer biking</option>
+                <option value="summer-beach-walk">Summer beach walk</option>
+              </select>
+            </label>
+            <label class="scrubber muted" for="capture-share">
+              <span class="row"><span>New capture share</span><output id="capture-share-value">35%</output></span>
+              <input id="capture-share" type="range" min="0" max="100" value="35" aria-describedby="capture-share-help" disabled>
+            </label>
+            <p class="note muted" id="capture-share-help">Share of training batches drawn from the new low/high captures.</p>
+          </div>
+          <div class="samples">
+            <figure>
+              <figcaption>Input</figcaption>
+              <canvas id="input-frame" class="swatch" width="512" height="288" aria-label="Input frame"></canvas>
+            </figure>
+            <figure>
+              <figcaption>Target</figcaption>
+              <canvas id="target-frame" class="swatch" width="512" height="288" aria-label="Target frame"></canvas>
+            </figure>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="model-title">
+          <h2 id="model-title">Model</h2>
+          <dl>
+            <div class="row"><dt>Training steps</dt><dd><output id="steps" aria-live="polite">0</output></dd></div>
+            <div class="row"><dt>Hidden layers</dt><dd>2 × ReLU</dd></div>
+            <div class="row"><dt>Shared weight grid</dt><dd id="weight-size"></dd></div>
+            <div class="row"><dt>Last crop origin (x, y)</dt><dd id="crop-origin">—</dd></div>
+            <div class="row"><dt>Training dropout</dt><dd id="dropout-rate"></dd></div>
+            <div class="row"><dt>Update cap (RMS)</dt><dd id="update-cap"></dd></div>
+            <div class="row"><dt>Readout taps</dt><dd>↑ ← ↓ →</dd></div>
+          </dl>
+          <p class="muted note">Blocks overlap by 32 pixels in both directions. A raised-cosine window fades each prediction toward its edges.</p>
+          <a class="architecture-link muted" href="#layer-diagram">View layer diagram</a>
+        </section>
+      </aside>
+    </div>
+
+    <section class="card architecture" id="layer-diagram" aria-labelledby="architecture-title">
+      <div class="row">
+        <h2 id="architecture-title">Layer diagram</h2>
+        <button id="export-layers" disabled>Export layers</button>
+      </div>
+      <p class="muted note">One 64 × 64 grid of weights per layer, shared across the frame.</p>
+      <figure>
+        <ol class="layer-flow" aria-label="Forward pass">
+          <li class="layer-node">
+            <strong>RGB input</strong>
+            <span class="muted">3 channels per pixel</span>
+          </li>
+          <li class="layer-node trainable" id="hidden-1-node">
+            <strong>Hidden 1 · ReLU</strong>
+            <button class="layer-toggle" id="hidden-1-toggle" aria-label="Remove Hidden 1" title="Remove Hidden 1" disabled>×</button>
+            <span class="trainable-label muted" id="hidden-1-weight-count"></span>
+            <span class="muted">Fixed bias +0.10</span>
+            <div class="tap-controls">
+              <select class="layer-control" id="hidden-1-taps" aria-label="Hidden 1 connections" disabled></select>
+              <label class="tap-distance muted" id="hidden-1-distance-row">
+                <input id="hidden-1-distance" type="number" min="1" max="8" step="1" value="1" aria-label="Hidden 1 cardinal distance in pixels" disabled>
+                px
+              </label>
+            </div>
+          </li>
+          <li class="layer-node trainable" id="hidden-2-node">
+            <strong>Hidden 2 · ReLU + skip</strong>
+            <button class="layer-toggle" id="hidden-2-toggle" aria-label="Remove Hidden 2" title="Remove Hidden 2" disabled>×</button>
+            <span class="trainable-label muted" id="hidden-2-weight-count"></span>
+            <span class="muted">Fixed bias +0.02</span>
+            <div class="tap-controls">
+              <select class="layer-control" id="hidden-2-taps" aria-label="Hidden 2 connections" disabled></select>
+              <label class="tap-distance muted" id="hidden-2-distance-row">
+                <input id="hidden-2-distance" type="number" min="1" max="8" step="1" value="1" aria-label="Hidden 2 cardinal distance in pixels" disabled>
+                px
+              </label>
+            </div>
+          </li>
+          <li class="layer-node trainable">
+            <strong>RGB readout · Linear</strong>
+            <span class="trainable-label muted">Trainable · 12 weights</span>
+            <span class="muted">4 neighbors × 3 output channels</span>
+            <span class="muted" id="readout-description">Adds input luminance and input RGB to the readout</span>
+            <select class="layer-control" id="output-mode" aria-label="RGB readout output mode" disabled>
+              <option value="correction">RGB correction</option>
+              <option value="direct">Direct RGB output</option>
+            </select>
+          </li>
+        </ol>
+        <div class="layer-skips" aria-label="Fixed skip connections">
+          <p class="layer-skip hidden-skip muted" id="hidden-2-skip">Fixed skip · input luminance → Hidden 2</p>
+          <p class="layer-skip luminance-output-skip muted">Fixed skip · input luminance → each RGB channel</p>
+          <p class="layer-skip output-skip muted" id="output-skip">Fixed skip · input RGB → final output</p>
+        </div>
+        <figcaption>Weight counts are per grid position. Each RGBA texel holds up to four taps. The readout uses the four immediate cardinal neighbors. Changing taps reuses the current weights.</figcaption>
+      </figure>
+    </section>
+  </main>
+
+  <script src="../.moontasks/prototype-cbbc4d51-3132-47c5-812e-c532a678d455/training-clips.js"></script>
+  <script>
+    "use strict";
+
+    const canvas = document.querySelector("#prediction");
+    const train = document.querySelector("#train");
+    const evaluate = document.querySelector("#evaluate");
+    const reset = document.querySelector("#reset");
+    const play = document.querySelector("#play");
+    const playVideo = document.querySelector("#play-video");
+    const dataset = document.querySelector("#dataset");
+    const videoSources = document.querySelector("#video-sources");
+    const videoSource = document.querySelector("#video-source");
+    const captureShare = document.querySelector("#capture-share");
+    const captureShareValue = document.querySelector("#capture-share-value");
+    const outputMode = document.querySelector("#output-mode");
+    const calibrateButton = document.querySelector("#calibrate-grid");
+    const gridCorrection = document.querySelector("#grid-correction");
+    const previewMode = document.querySelector("#preview-mode");
+    const comparisonLegend = document.querySelector("#comparison-legend");
+    const comparisonReference = document.querySelector("#comparison-reference");
+    const comparisonReferenceControl = document.querySelector("#comparison-reference-control");
+    const splitReference = document.querySelector("#split-reference");
+    const splitPosition = document.querySelector("#split-position");
+    const splitMarker = document.querySelector("#split-marker");
+    const layerImages = document.querySelector("#layer-images");
+    const weightImages = document.querySelector("#weight-images");
+    const frameControl = document.querySelector("#frame");
+    const rateControl = document.querySelector("#learning-rate");
+    const rateLabel = document.querySelector("#rate");
+    const scrubber = document.querySelector("#scrubber");
+    const frameLabel = document.querySelector("#frame-label");
+    const help = document.querySelector("#help");
+    const error = document.querySelector("#error");
+    const samples = ["#input-frame", "#target-frame"].map(selector =>
+      document.querySelector(selector).getContext("2d")
+    );
+    const width = canvas.width;
+    const height = canvas.height;
+    const weightSize = 64;
+    // The optional footage stays in the local Moon task folder.
+    const originalClip = { id: "original", ...(typeof trainingClips === "object" ? trainingClips : {}) };
+    if (!originalClip.files) {
+      dataset.querySelector('option[value="video"]').disabled = true;
+      dataset.value = "solid";
+    }
+    const captureClips = ["winter-city-driving", "summer-biking", "summer-beach-walk"].map(id => ({
+      id, fps: 30, frameCount: 300, script: `../.moontasks/prototype-cbbc4d51-3132-47c5-812e-c532a678d455/video-pairs/${id}.js`
+    }));
+    const clipsById = new Map([originalClip, ...captureClips].map(clip => [clip.id, clip]));
+    const blockStride = weightSize / 2;
+    const calibrationLevels = 5;
+    const calibrationColumns = 8;
+    const calibrationProbes = calibrationLevels ** 3;
+    const overlapOffsets = [[0, 0], [blockStride, 0], [0, blockStride], [blockStride, blockStride]];
+    const cardinalOffsets = [[0, 1], [-1, 0], [0, -1], [1, 0]];
+    const inputLuma = [0.2126, 0.7152, 0.0722];
+    const hiddenBiases = [0.1, 0.02];
+    const connectionPatterns = {
+      cardinal: { label: "Cardinal", offsets: cardinalOffsets },
+      center: { label: "Center pixel", offsets: [[0, 0]] },
+      diagonals: { label: "Diagonals · 1 px", offsets: [[-1, 1], [-1, -1], [1, -1], [1, 1]] },
+      centerHorizontal: { label: "Center + left/right · 2 px", offsets: [[0, 0], [-2, 0], [2, 0]] }
+    };
+    const hiddenLayers = [1, 2].map(index => {
+      const find = part => document.querySelector(`#hidden-${index}-${part}`);
+      const taps = find("taps");
+      for (const [value, pattern] of Object.entries(connectionPatterns)) {
+        taps.add(new Option(pattern.label, value));
+      }
+      return {
+        index, taps, enabled: true, offsets: cardinalOffsets,
+        node: find("node"), toggle: find("toggle"), distance: find("distance"),
+        distanceRow: find("distance-row"), weightCount: find("weight-count")
+      };
+    });
+    const [hidden1, hidden2] = hiddenLayers;
+    const exportLayersButton = document.querySelector("#export-layers");
+    document.querySelector("#weight-size").textContent = `${weightSize} × ${weightSize}`;
+    document.querySelector("#size").textContent = `${width} × ${height} px`;
+    function readLearningRate() {
+      return Number((10 ** rateControl.valueAsNumber).toPrecision(3));
+    }
+
+    function showLearningRate() {
+      const rate = String(readLearningRate());
+      rateLabel.value = rate;
+      rateControl.setAttribute("aria-valuetext", rate);
+    }
+
+    const defaultLearningRate = 0.006;
+    const gradientRmsCap = 0.1;
+    const hiddenDropoutRate = 0.1;
+    document.querySelector("#dropout-rate").textContent = `${100 * hiddenDropoutRate}%`;
+    document.querySelector("#update-cap").textContent = `${gradientRmsCap} × LR`;
+    rateControl.valueAsNumber = Math.log10(defaultLearningRate);
+    showLearningRate();
+    rateControl.addEventListener("input", showLearningRate);
+
+    const shaderHeader = `#version 300 es
+      precision highp float;
+      precision highp int;
+      precision highp sampler2D;
+    `;
+
+    const vertexSource = `${shaderHeader}
+      void main() {
+        vec2 corner = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+        gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
+      }
+    `;
+
+    const neighborhood = `
+      // The RGBA channels index top, left, bottom, and right in that order.
+      const ivec2 offset[4] = ivec2[4](
+        ivec2(0, 1), ivec2(-1, 0), ivec2(0, -1), ivec2(1, 0)
+      );
+
+      bool inside(ivec2 pixel, ivec2 size) {
+        return all(greaterThanEqual(pixel, ivec2(0))) && all(lessThan(pixel, size));
+      }
+
+      vec4 neighbors(sampler2D image, ivec2 pixel, int channel) {
+        ivec2 size = textureSize(image, 0);
+        vec4 values = vec4(0.0);
+        for (int i = 0; i < 4; i++) {
+          ivec2 source = pixel + offset[i];
+          if (inside(source, size)) {
+            values[i] = texelFetch(image, source, 0)[channel];
+          }
+        }
+        return values;
+      }
+    `;
+
+    const selectableNeighbors = `
+      uniform ivec2 hiddenOffsets[4];
+      uniform int hiddenTapCount;
+
+      vec4 hiddenNeighbors(sampler2D image, ivec2 pixel, int channel) {
+        ivec2 size = textureSize(image, 0);
+        vec4 values = vec4(0.0);
+        for (int i = 0; i < hiddenTapCount; i++) {
+          ivec2 source = pixel + hiddenOffsets[i];
+          if (inside(source, size)) values[i] = texelFetch(image, source, 0)[channel];
+        }
+        return values;
+      }
+    `;
+
+    const sharedWeights = `
+      const ivec2 weightTileSize = ivec2(${weightSize});
+      uniform int tileBorder;
+      uniform ivec2 blockOffset;
+
+      ivec2 weightPixel(ivec2 pixel) {
+        return (pixel + weightTileSize - ivec2(tileBorder) + blockOffset) % weightTileSize;
+      }
+
+      ivec2 firstOccurrence(ivec2 weight) {
+        return (weight + weightTileSize + ivec2(tileBorder) - blockOffset) % weightTileSize;
+      }
+    `;
+
+    const halfWindow = Array.from({ length: blockStride }, (_, pixel) =>
+      (Math.sin((pixel + 0.5) * Math.PI / weightSize) ** 2).toPrecision(10)
+    );
+    const blockWindow = `
+      const ivec2 blockSize = ivec2(${weightSize});
+      const ivec2 halfBlock = ivec2(${blockStride});
+      const float windowSamples[${blockStride}] = float[${blockStride}](${halfWindow.join(", ")});
+
+      float axisWeight(int position) {
+        // Complementary samples make half-block shifts sum to one.
+        float weight = windowSamples[position % halfBlock.x];
+        return position < halfBlock.x ? weight : 1.0 - weight;
+      }
+
+      float blockWeight(ivec2 position) {
+        return axisWeight(position.x) * axisWeight(position.y);
+      }
+    `;
+
+    const weightOutputs = `
+      layout(location = 0) out vec4 nextRed;
+      layout(location = 1) out vec4 nextGreen;
+      layout(location = 2) out vec4 nextBlue;
+    `;
+
+    const hiddenWeights = `
+      uniform sampler2D hiddenRed;
+      uniform sampler2D hiddenGreen;
+      uniform sampler2D hiddenBlue;
+    `;
+
+    const readoutWeights = `
+      uniform sampler2D readoutRed;
+      uniform sampler2D readoutGreen;
+      uniform sampler2D readoutBlue;
+    `;
+
+    const weightUpdateTextures = `
+      uniform sampler2D previousRed;
+      uniform sampler2D previousGreen;
+      uniform sampler2D previousBlue;
+      uniform sampler2D proposedRed;
+      uniform sampler2D proposedGreen;
+      uniform sampler2D proposedBlue;
+      uniform int weightTextureCount;
+    `;
+
+    const luminance = `
+      float inputLuminance(vec3 rgb) {
+        return dot(rgb, vec3(${inputLuma.join(", ")}));
+      }
+    `;
+
+    const hash = `
+      uint hashUint(uint value) {
+        value ^= value >> 16u;
+        value *= 0x7feb352du;
+        value ^= value >> 15u;
+        value *= 0x846ca68bu;
+        value ^= value >> 16u;
+        return value;
+      }
+    `;
+
+    const hiddenDropout = `${hash}
+      uniform float keepProbability;
+      uniform uint dropoutSeed;
+
+      float dropoutScale(ivec2 pixel) {
+        if (keepProbability >= 1.0) return 1.0;
+        uint key = uint(pixel.x) + uint(pixel.y) * 65537u;
+        float sampleValue = float(hashUint(key ^ dropoutSeed) >> 8u) * (1.0 / 16777216.0);
+        return sampleValue < keepProbability ? 1.0 / keepProbability : 0.0;
+      }
+    `;
+
+    const overlapBlend = `${blockWindow}
+        uniform sampler2D prediction00;
+        uniform sampler2D prediction10;
+        uniform sampler2D prediction01;
+        uniform sampler2D prediction11;
+        vec3 blendAt(ivec2 pixel) {
+          // Half-block shifts of the window add to one along each axis.
+          return
+            blockWeight(pixel % blockSize) * texelFetch(prediction00, pixel, 0).rgb
+            + blockWeight((pixel + ivec2(halfBlock.x, 0)) % blockSize) * texelFetch(prediction10, pixel, 0).rgb
+            + blockWeight((pixel + ivec2(0, halfBlock.y)) % blockSize) * texelFetch(prediction01, pixel, 0).rgb
+            + blockWeight((pixel + halfBlock) % blockSize) * texelFetch(prediction11, pixel, 0).rgb;
+        }
+    `;
+
+    const fragments = {
+      initialize: `${weightOutputs}${hash}
+        uniform uint seed;
+        uniform float scale;
+        uniform float midpoint;
+
+        float randomWeight(uint value) {
+          return float(hashUint(value) >> 8u) * (1.0 / 8388608.0) - 1.0;
+        }
+
+        vec4 randomConnections(uint value) {
+          return vec4(
+            randomWeight(value), randomWeight(value + 1u),
+            randomWeight(value + 2u), randomWeight(value + 3u)
+          );
+        }
+
+        void main() {
+          uvec2 pixel = uvec2(gl_FragCoord.xy);
+          uint value = (pixel.x + pixel.y * 65537u) * 16u + seed;
+          nextRed = midpoint + scale * randomConnections(value);
+          nextGreen = midpoint + scale * randomConnections(value + 4u);
+          nextBlue = midpoint + scale * randomConnections(value + 8u);
+        }
+      `,
+
+      hidden: `${neighborhood}${selectableNeighbors}${sharedWeights}${hiddenWeights}${hiddenDropout}${luminance}
+        uniform sampler2D inputImage;
+        uniform bool layerEnabled;
+        out vec4 activation;
+
+        void main() {
+          ivec2 pixel = ivec2(gl_FragCoord.xy);
+          ivec2 weight = weightPixel(pixel);
+          if (!layerEnabled) {
+            activation = vec4(inputLuminance(texelFetch(inputImage, pixel, 0).rgb), 0.0, 0.0, 1.0);
+            return;
+          }
+          // Start from a positive bias so dark input can activate the ReLU.
+          float sum = ${hiddenBiases[0]}
+            + dot(texelFetch(hiddenRed, weight, 0), hiddenNeighbors(inputImage, pixel, 0))
+            + dot(texelFetch(hiddenGreen, weight, 0), hiddenNeighbors(inputImage, pixel, 1))
+            + dot(texelFetch(hiddenBlue, weight, 0), hiddenNeighbors(inputImage, pixel, 2));
+          float slope = sum > 0.0 ? dropoutScale(pixel) : 0.0;
+          // Reuse this exact dropout scale and ReLU derivative in backpropagation.
+          activation = vec4(max(sum, 0.0) * slope, slope, 0.0, 1.0);
+        }
+      `,
+
+      residual: `${neighborhood}${selectableNeighbors}${sharedWeights}${luminance}${hiddenDropout}
+        uniform sampler2D inputImage;
+        uniform sampler2D firstHiddenImage;
+        uniform sampler2D residualWeights;
+        uniform bool layerEnabled;
+        out vec4 activation;
+
+        void main() {
+          ivec2 pixel = ivec2(gl_FragCoord.xy);
+          ivec2 weight = weightPixel(pixel);
+          if (!layerEnabled) {
+            activation = vec4(texelFetch(firstHiddenImage, pixel, 0).r, 0.0, 0.0, 1.0);
+            return;
+          }
+          vec3 center = texelFetch(inputImage, pixel, 0).rgb;
+          float centerLuminance = inputLuminance(center);
+          vec4 weights = texelFetch(residualWeights, weight, 0);
+          float branch = max(${hiddenBiases[1]} + dot(weights, hiddenNeighbors(firstHiddenImage, pixel, 0)), 0.0);
+          float slope = branch > 0.0 ? dropoutScale(pixel) : 0.0;
+          activation = vec4(centerLuminance + branch * slope, slope, 0.0, 1.0);
+        }
+      `,
+
+      predict: `${neighborhood}${sharedWeights}${readoutWeights}${blockWindow}${luminance}
+        uniform sampler2D inputImage;
+        uniform sampler2D hiddenImage;
+        uniform sampler2D targetImage;
+        uniform bool addInputRgb;
+        layout(location = 0) out vec4 prediction;
+        layout(location = 1) out vec4 outputError;
+
+        void main() {
+          ivec2 pixel = ivec2(gl_FragCoord.xy);
+          ivec2 weight = weightPixel(pixel);
+          vec4 inputs = neighbors(hiddenImage, pixel, 0);
+          vec3 rgb = vec3(
+            dot(texelFetch(readoutRed, weight, 0), inputs),
+            dot(texelFetch(readoutGreen, weight, 0), inputs),
+            dot(texelFetch(readoutBlue, weight, 0), inputs)
+          );
+          vec3 inputRgb = texelFetch(inputImage, pixel, 0).rgb;
+          rgb += vec3(inputLuminance(inputRgb));
+          if (addInputRgb) rgb += inputRgb;
+          prediction = vec4(rgb, 1.0);
+          // Derivative of half the summed squared RGB error.
+          // A crop's border supplies context. Only its 64 × 64 core contributes loss.
+          ivec2 border = ivec2(tileBorder);
+          ivec2 corePixel = pixel - border;
+          bool inCore = inside(corePixel, textureSize(targetImage, 0) - 2 * border);
+          if (tileBorder > 0 && inCore) {
+            vec3 error = rgb - texelFetch(targetImage, pixel, 0).rgb;
+            float weight = blockWeight(corePixel);
+            outputError = vec4(weight * error, weight * dot(error, error));
+          } else {
+            outputError = vec4(0.0);
+          }
+        }
+      `,
+
+      residualGradient: `${neighborhood}${sharedWeights}${readoutWeights}
+        uniform sampler2D secondHiddenImage;
+        uniform sampler2D errorImage;
+        out vec4 gradients;
+
+        void main() {
+          ivec2 pixel = ivec2(gl_FragCoord.xy);
+          ivec2 size = textureSize(secondHiddenImage, 0);
+          float upstream = 0.0;
+          for (int i = 0; i < 4; i++) {
+            ivec2 destination = pixel - offset[i];
+            if (inside(destination, size)) {
+              ivec2 weight = weightPixel(destination);
+              vec3 weights = vec3(
+                texelFetch(readoutRed, weight, 0)[i],
+                texelFetch(readoutGreen, weight, 0)[i],
+                texelFetch(readoutBlue, weight, 0)[i]
+              );
+              upstream += dot(texelFetch(errorImage, destination, 0).rgb, weights);
+            }
+          }
+          float slope = texelFetch(secondHiddenImage, pixel, 0).g;
+          gradients = vec4(slope * upstream, upstream, 0.0, 0.0);
+        }
+      `,
+
+      firstGradient: `${neighborhood}${selectableNeighbors}${sharedWeights}
+        uniform sampler2D firstHiddenImage;
+        uniform sampler2D residualWeights;
+        uniform sampler2D residualGradients;
+        uniform bool secondLayerEnabled;
+        out vec4 gradients;
+
+        void main() {
+          ivec2 pixel = ivec2(gl_FragCoord.xy);
+          float slope = texelFetch(firstHiddenImage, pixel, 0).g;
+          if (!secondLayerEnabled) {
+            gradients = vec4(slope * texelFetch(residualGradients, pixel, 0).g, 0.0, 0.0, 0.0);
+            return;
+          }
+          ivec2 size = textureSize(firstHiddenImage, 0);
+          float upstream = 0.0;
+          for (int i = 0; i < hiddenTapCount; i++) {
+            ivec2 destination = pixel - hiddenOffsets[i];
+            if (inside(destination, size)) {
+              upstream += texelFetch(residualGradients, destination, 0).r
+                * texelFetch(residualWeights, weightPixel(destination), 0)[i];
+            }
+          }
+          gradients = vec4(slope * upstream, 0.0, 0.0, 0.0);
+        }
+      `,
+
+      updateReadout: `${neighborhood}${sharedWeights}${weightOutputs}${readoutWeights}
+        uniform sampler2D hiddenImage;
+        uniform sampler2D errorImage;
+        uniform float learningRate;
+
+        void main() {
+          ivec2 weight = ivec2(gl_FragCoord.xy);
+          ivec2 size = textureSize(hiddenImage, 0);
+          vec4 redGradient = vec4(0.0);
+          vec4 greenGradient = vec4(0.0);
+          vec4 blueGradient = vec4(0.0);
+          ivec2 origin = firstOccurrence(weight);
+          for (int y = origin.y; y < size.y; y += weightTileSize.y) {
+            for (int x = origin.x; x < size.x; x += weightTileSize.x) {
+              ivec2 pixel = ivec2(x, y);
+              vec3 error = texelFetch(errorImage, pixel, 0).rgb;
+              vec4 inputs = neighbors(hiddenImage, pixel, 0);
+              redGradient += error.r * inputs;
+              greenGradient += error.g * inputs;
+              blueGradient += error.b * inputs;
+            }
+          }
+          nextRed = texelFetch(readoutRed, weight, 0) - learningRate * redGradient;
+          nextGreen = texelFetch(readoutGreen, weight, 0) - learningRate * greenGradient;
+          nextBlue = texelFetch(readoutBlue, weight, 0) - learningRate * blueGradient;
+        }
+      `,
+
+      updateResidual: `${neighborhood}${selectableNeighbors}${sharedWeights}
+        uniform sampler2D firstHiddenImage;
+        uniform sampler2D residualWeights;
+        uniform sampler2D residualGradients;
+        uniform float learningRate;
+        out vec4 nextWeights;
+
+        void main() {
+          ivec2 weight = ivec2(gl_FragCoord.xy);
+          ivec2 size = textureSize(firstHiddenImage, 0);
+          vec4 gradient = vec4(0.0);
+          ivec2 origin = firstOccurrence(weight);
+          for (int y = origin.y; y < size.y; y += weightTileSize.y) {
+            for (int x = origin.x; x < size.x; x += weightTileSize.x) {
+              ivec2 pixel = ivec2(x, y);
+              float delta = texelFetch(residualGradients, pixel, 0).r;
+              gradient += delta * hiddenNeighbors(firstHiddenImage, pixel, 0);
+            }
+          }
+          nextWeights = texelFetch(residualWeights, weight, 0)
+            - learningRate * gradient;
+        }
+      `,
+
+      updateHidden: `${neighborhood}${selectableNeighbors}${sharedWeights}${weightOutputs}${hiddenWeights}
+        uniform sampler2D inputImage;
+        uniform sampler2D firstGradients;
+        uniform float learningRate;
+
+        void main() {
+          ivec2 weight = ivec2(gl_FragCoord.xy);
+          ivec2 size = textureSize(inputImage, 0);
+          vec4 redGradient = vec4(0.0);
+          vec4 greenGradient = vec4(0.0);
+          vec4 blueGradient = vec4(0.0);
+          ivec2 origin = firstOccurrence(weight);
+          for (int y = origin.y; y < size.y; y += weightTileSize.y) {
+            for (int x = origin.x; x < size.x; x += weightTileSize.x) {
+              ivec2 pixel = ivec2(x, y);
+              float delta = texelFetch(firstGradients, pixel, 0).r;
+              redGradient += delta * hiddenNeighbors(inputImage, pixel, 0);
+              greenGradient += delta * hiddenNeighbors(inputImage, pixel, 1);
+              blueGradient += delta * hiddenNeighbors(inputImage, pixel, 2);
+            }
+          }
+          nextRed = texelFetch(hiddenRed, weight, 0) - learningRate * redGradient;
+          nextGreen = texelFetch(hiddenGreen, weight, 0) - learningRate * greenGradient;
+          nextBlue = texelFetch(hiddenBlue, weight, 0) - learningRate * blueGradient;
+        }
+      `,
+
+      squaredUpdates: `${weightUpdateTextures}
+        out vec4 sums;
+
+        float squaredDelta(sampler2D previous, sampler2D proposed, ivec2 pixel) {
+          vec4 delta = texelFetch(proposed, pixel, 0) - texelFetch(previous, pixel, 0);
+          return dot(delta, delta);
+        }
+
+        void main() {
+          ivec2 pixel = ivec2(gl_FragCoord.xy);
+          float sum = squaredDelta(previousRed, proposedRed, pixel);
+          if (weightTextureCount == 3) {
+            sum += squaredDelta(previousGreen, proposedGreen, pixel)
+              + squaredDelta(previousBlue, proposedBlue, pixel);
+          }
+          sums = vec4(0.0, 0.0, 0.0, sum);
+        }
+      `,
+
+      limitUpdate: `${weightOutputs}${weightUpdateTextures}
+        uniform sampler2D updateSum;
+        uniform float maxUpdateRms;
+        uniform int activeTapCount;
+
+        vec4 blendUpdate(sampler2D previous, sampler2D proposed, ivec2 pixel, float scale) {
+          vec4 oldWeights = texelFetch(previous, pixel, 0);
+          if (scale == 0.0) return oldWeights;
+          vec4 newWeights = texelFetch(proposed, pixel, 0);
+          return oldWeights + scale * (newWeights - oldWeights);
+        }
+
+        void main() {
+          ivec2 pixel = ivec2(gl_FragCoord.xy);
+          ivec2 size = textureSize(previousRed, 0);
+          float weightCount = float(activeTapCount * size.x * size.y * weightTextureCount);
+          float rms = sqrt(texelFetch(updateSum, ivec2(0), 0).a / weightCount);
+          float scale = 0.0;
+          if (!isnan(rms) && !isinf(rms)) {
+            scale = rms > maxUpdateRms ? maxUpdateRms / rms : 1.0;
+          }
+          nextRed = blendUpdate(previousRed, proposedRed, pixel, scale);
+          if (weightTextureCount == 3) {
+            nextGreen = blendUpdate(previousGreen, proposedGreen, pixel, scale);
+            nextBlue = blendUpdate(previousBlue, proposedBlue, pixel, scale);
+          } else {
+            nextGreen = vec4(0.0);
+            nextBlue = vec4(0.0);
+          }
+        }
+      `,
+
+      sumAlpha: `
+        uniform sampler2D sourceImage;
+        out vec4 result;
+
+        void main() {
+          ivec2 origin = ivec2(gl_FragCoord.xy) * 4;
+          ivec2 size = textureSize(sourceImage, 0);
+          float sum = 0.0;
+          for (int y = 0; y < 4; y++) {
+            for (int x = 0; x < 4; x++) {
+              ivec2 pixel = origin + ivec2(x, y);
+              if (all(lessThan(pixel, size))) sum += texelFetch(sourceImage, pixel, 0).a;
+            }
+          }
+          result = vec4(0.0, 0.0, 0.0, sum);
+        }
+      `,
+
+      measureFlatField: `${overlapBlend}
+        out vec4 measurement;
+
+        void main() {
+          // One repeat period in the interior, away from the image boundary.
+          measurement = vec4(blendAt(ivec2(gl_FragCoord.xy) + halfBlock), 1.0);
+        }
+      `,
+
+      layerImages: `${luminance}
+        uniform sampler2D inputImage;
+        uniform sampler2D firstHiddenImage;
+        uniform sampler2D secondHiddenImage;
+        uniform sampler2D predictionImage;
+        uniform ivec2 thumbnailSize;
+        uniform bool addInputRgb;
+        out vec4 frame;
+
+        void main() {
+          ivec2 pixel = ivec2(gl_FragCoord.xy);
+          int panel = pixel.x / thumbnailSize.x;
+          ivec2 local = ivec2(pixel.x % thumbnailSize.x, pixel.y);
+          ivec2 source = (local * textureSize(inputImage, 0)) / thumbnailSize;
+          vec3 color;
+          if (panel == 2) {
+            vec3 inputRgb = texelFetch(inputImage, source, 0).rgb;
+            vec3 readout = texelFetch(predictionImage, source, 0).rgb - vec3(inputLuminance(inputRgb));
+            if (addInputRgb) readout -= inputRgb;
+            color = 0.5 + 0.5 * readout / (1.0 + abs(readout));
+          } else {
+            float activation = panel == 0 ? texelFetch(firstHiddenImage, source, 0).r
+              : texelFetch(secondHiddenImage, source, 0).r;
+            color = vec3(1.0 - exp(-max(activation, 0.0)));
+          }
+          frame = vec4(color, 1.0);
+        }
+      `,
+
+      weightImages: `${hiddenWeights}${readoutWeights}
+        uniform sampler2D residualWeights;
+        uniform int stripWidth;
+        out vec4 frame;
+
+        void main() {
+          ivec2 pixel = ivec2(gl_FragCoord.xy);
+          int plane = pixel.x / stripWidth;
+          int localX = pixel.x % stripWidth;
+          int tap = localX / ${weightSize + 1};
+          ivec2 texel = ivec2(localX % ${weightSize + 1}, pixel.y);
+          if (texel.x == ${weightSize}) {
+            frame = vec4(0.09, 0.10, 0.14, 1.0);
+            return;
+          }
+          vec4 taps;
+          switch (plane) {
+            case 0: taps = texelFetch(hiddenRed, texel, 0); break;
+            case 1: taps = texelFetch(hiddenGreen, texel, 0); break;
+            case 2: taps = texelFetch(hiddenBlue, texel, 0); break;
+            case 3: taps = texelFetch(residualWeights, texel, 0); break;
+            case 4: taps = texelFetch(readoutRed, texel, 0); break;
+            case 5: taps = texelFetch(readoutGreen, texel, 0); break;
+            default: taps = texelFetch(readoutBlue, texel, 0); break;
+          }
+          float weight = taps[tap];
+          float gray = 0.5 + 0.5 * weight / (0.05 + abs(weight));
+          frame = vec4(vec3(gray), 1.0);
+        }
+      `,
+
+      present: `${overlapBlend}
+        uniform sampler2D inputImage;
+        uniform sampler2D flatFieldBias;
+        uniform sampler2D referenceImage;
+        uniform bool correctGrid;
+        uniform int comparison;
+        uniform int splitColumn;
+        out vec4 frame;
+
+        vec3 biasAtProbe(ivec2 tile, ivec3 probe) {
+          int index = (probe.r * ${calibrationLevels} + probe.g) * ${calibrationLevels} + probe.b;
+          ivec2 origin = ivec2(index % ${calibrationColumns}, index / ${calibrationColumns}) * halfBlock;
+          return texelFetch(flatFieldBias, tile + origin, 0).rgb;
+        }
+
+        vec3 biasAtColor(ivec2 tile, vec3 rgb) {
+          vec3 cell = clamp(rgb, 0.0, 1.0) * float(${calibrationLevels - 1});
+          ivec3 low = ivec3(floor(cell));
+          ivec3 high = min(low + 1, ${calibrationLevels - 1});
+          vec3 f = fract(cell);
+          vec3 blue00 = mix(biasAtProbe(tile, low), biasAtProbe(tile, ivec3(low.rg, high.b)), f.b);
+          vec3 blue01 = mix(biasAtProbe(tile, ivec3(low.r, high.g, low.b)), biasAtProbe(tile, ivec3(low.r, high.gb)), f.b);
+          vec3 blue10 = mix(biasAtProbe(tile, ivec3(high.r, low.gb)), biasAtProbe(tile, ivec3(high.r, low.g, high.b)), f.b);
+          vec3 blue11 = mix(biasAtProbe(tile, ivec3(high.rg, low.b)), biasAtProbe(tile, high), f.b);
+          return mix(mix(blue00, blue01, f.g), mix(blue10, blue11, f.g), f.r);
+        }
+
+        void main() {
+          ivec2 pixel = ivec2(gl_FragCoord.xy);
+          vec3 rgb = blendAt(pixel);
+          if (correctGrid) rgb -= biasAtColor(pixel % halfBlock, texelFetch(inputImage, pixel, 0).rgb);
+          rgb = clamp(rgb, 0.0, 1.0);
+          if (comparison == 1 && pixel.x < splitColumn) rgb = texelFetch(referenceImage, pixel, 0).rgb;
+          if (comparison == 2) rgb = abs(rgb - texelFetch(referenceImage, pixel, 0).rgb);
+          frame = vec4(rgb, 1.0);
+        }
+      `
+    };
+
+    function start() {
+      const gl = canvas.getContext("webgl2", { alpha: false, antialias: false });
+      if (!gl || !gl.getExtension("EXT_color_buffer_float")) {
+        throw new Error("This prototype requires WebGL 2 with EXT_color_buffer_float.");
+      }
+
+      function compile(type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          throw new Error(gl.getShaderInfoLog(shader));
+        }
+        return shader;
+      }
+
+      const vertex = compile(gl.VERTEX_SHADER, vertexSource);
+      const programs = Object.fromEntries(Object.entries(fragments).map(([name, source]) => {
+        const shader = compile(gl.FRAGMENT_SHADER, shaderHeader + source);
+        const program = gl.createProgram();
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, shader);
+        gl.linkProgram(program);
+        gl.deleteShader(shader);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+          throw new Error(gl.getProgramInfoLog(program));
+        }
+        const locations = {};
+        for (let i = 0; i < gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS); i++) {
+          const { name } = gl.getActiveUniform(program, i);
+          locations[name] = gl.getUniformLocation(program, name);
+        }
+        return [name, { program, locations }];
+      }));
+      gl.deleteShader(vertex);
+
+      function framebuffer(formats, bufferWidth = width, bufferHeight = height) {
+        const buffer = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
+        const attachments = formats.map((_, index) => gl.COLOR_ATTACHMENT0 + index);
+        const textures = formats.map((format, index) => {
+          const texture = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texStorage2D(gl.TEXTURE_2D, 1, format, bufferWidth, bufferHeight);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+          gl.framebufferTexture2D(gl.FRAMEBUFFER, attachments[index], gl.TEXTURE_2D, texture, 0);
+          return texture;
+        });
+        gl.drawBuffers(attachments);
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+          throw new Error("Could not create a framebuffer.");
+        }
+        return { buffer, textures, width: bufferWidth, height: bufferHeight };
+      }
+
+      function draw(name, target, textures = {}, setUniforms = () => {}) {
+        const { program, locations } = programs[name];
+        gl.bindFramebuffer(gl.FRAMEBUFFER, target?.buffer ?? null);
+        gl.viewport(0, 0, target?.width ?? width, target?.height ?? height);
+        gl.useProgram(program);
+        Object.entries(textures).forEach(([uniform, texture], unit) => {
+          gl.activeTexture(gl.TEXTURE0 + unit);
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.uniform1i(locations[uniform], unit);
+        });
+        setUniforms(locations);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+
+      function frameBuffers(frameWidth, frameHeight, inputFormat = gl.RGBA8) {
+        return {
+          input: framebuffer([inputFormat], frameWidth, frameHeight),
+          target: framebuffer([gl.RGBA8], frameWidth, frameHeight),
+          firstHidden: framebuffer([gl.RGBA32F], frameWidth, frameHeight),
+          secondHidden: framebuffer([gl.RGBA32F], frameWidth, frameHeight),
+          prediction: framebuffer([gl.RGBA32F, gl.RGBA32F], frameWidth, frameHeight)
+        };
+      }
+      const fullFrame = frameBuffers(width, height);
+      const biasAtlas = framebuffer([gl.RGBA32F], blockStride * calibrationColumns,
+        blockStride * Math.ceil(calibrationProbes / calibrationColumns));
+      let biasReady = false;
+      const overlapPredictions = [fullFrame.prediction, ...[1, 2, 3].map(() => framebuffer([gl.RGBA32F]))];
+      let trainingBuffers;
+      const rgbFormats = Array(3).fill(gl.RGBA32F);
+      function weightBank() {
+        return {
+          hidden: framebuffer(rgbFormats, weightSize, weightSize),
+          residual: framebuffer([gl.RGBA32F], weightSize, weightSize),
+          readout: framebuffer(rgbFormats, weightSize, weightSize)
+        };
+      }
+
+      function reductionBuffers(bufferWidth, bufferHeight) {
+        const targets = [];
+        while (bufferWidth > 1 || bufferHeight > 1) {
+          bufferWidth = Math.ceil(bufferWidth / 4);
+          bufferHeight = Math.ceil(bufferHeight / 4);
+          targets.push(framebuffer([gl.RGBA32F], bufferWidth, bufferHeight));
+        }
+        return targets;
+      }
+
+      function getTrainingBuffers() {
+        const reach = layer => layer.enabled ? Math.max(...layer.offsets.flat().map(Math.abs)) : 0;
+        const border = 1 + reach(hidden1) + reach(hidden2);
+        if (trainingBuffers?.border === border) return trainingBuffers;
+        const extent = weightSize + 2 * border;
+        const frames = frameBuffers(extent, extent);
+        const residualGradients = framebuffer([gl.RGBA32F], extent, extent);
+        const firstGradients = framebuffer([gl.RGBA32F], extent, extent);
+        const loss = reductionBuffers(extent, extent);
+        if (trainingBuffers) {
+          const obsolete = [
+            ...Object.values(trainingBuffers.frames), trainingBuffers.residualGradients,
+            trainingBuffers.firstGradients, ...trainingBuffers.loss
+          ];
+          for (const target of obsolete) {
+            gl.deleteFramebuffer(target.buffer);
+            for (const texture of target.textures) gl.deleteTexture(texture);
+          }
+        }
+        trainingBuffers = { border, extent, frames, residualGradients, firstGradients, loss };
+        return trainingBuffers;
+      }
+      const updateSquares = framebuffer([gl.RGBA32F], weightSize, weightSize);
+      const updateBuffers = reductionBuffers(updateSquares.width, updateSquares.height);
+      const lossPixel = new Float32Array(4);
+      const lossHistory = [];
+      const recentLosses = [];
+      const lossWindow = 5;
+      let highestLoss = 0;
+      let layerAtlas;
+      let weightAtlas;
+      let previewPredictions;
+      const latestLoss = document.querySelector("#latest-loss");
+      const chart = document.querySelector("#loss-chart");
+      const plot = chart.getContext("2d");
+      const weights = weightBank();
+      const nextWeights = weightBank();
+      const proposedWeights = weightBank();
+      let steps = 0;
+      let frame = 0;
+      let activeClip = originalClip;
+      const originalFrames = [];
+      const captureFrames = [];
+      let trainingBatch = null;
+      const updatesPerFrame = 32;
+      const updatesPerSlice = 4;
+      const clipVideos = new Map();
+      let busy = false;
+      let playback = null;
+      let contextLost = false;
+
+      const stepsLabel = document.querySelector("#steps");
+      const cropLabel = document.querySelector("#crop-origin");
+      const cropRandom = new Uint32Array(3);
+      const shownLabel = document.querySelector("#shown");
+      const pixelLabel = document.querySelector("#pixel");
+      const centerPixel = new Uint8Array(4);
+      gl.disable(gl.DITHER);
+      gl.bindVertexArray(gl.createVertexArray());
+
+      function hiddenTextures() {
+        const [hiddenRed, hiddenGreen, hiddenBlue] = weights.hidden.textures;
+        return { hiddenRed, hiddenGreen, hiddenBlue };
+      }
+
+      function readoutTextures() {
+        const [readoutRed, readoutGreen, readoutBlue] = weights.readout.textures;
+        return { readoutRed, readoutGreen, readoutBlue };
+      }
+
+      function setHiddenTaps(locations, layer) {
+        gl.uniform1i(locations.hiddenTapCount, layer.offsets.length);
+        const packed = new Int32Array(8);
+        packed.set(layer.offsets.flat());
+        gl.uniform2iv(locations["hiddenOffsets[0]"], packed);
+      }
+
+      function showHiddenLayers() {
+        hiddenLayers.forEach(layer => {
+          const cardinal = layer.taps.value === "cardinal";
+          const distance = layer.distance.valueAsNumber;
+          const radius = Number.isFinite(distance)
+            ? Math.min(Number(layer.distance.max), Math.max(1, Math.round(distance))) : 1;
+          layer.distance.value = radius;
+          layer.distanceRow.hidden = !cardinal;
+          const pattern = connectionPatterns[layer.taps.value];
+          layer.offsets = cardinal ? cardinalOffsets.map(([x, y]) => [x * radius, y * radius]) : pattern.offsets;
+          layer.node.classList.toggle("is-bypassed", !layer.enabled);
+          const action = `${layer.enabled ? "Remove" : "Restore"} Hidden ${layer.index}`;
+          layer.toggle.textContent = layer.enabled ? "×" : "+";
+          layer.toggle.setAttribute("aria-label", action);
+          layer.toggle.title = action;
+          const activeWeights = layer.offsets.length * (layer.index === 1 ? 3 : 1);
+          layer.weightCount.textContent = layer.enabled ? `Trainable · ${activeWeights} weights` :
+            `Bypassed · ${layer.index === 1 ? "input luminance" : "identity"}`;
+        });
+        document.querySelector("#hidden-2-skip").hidden = !hidden2.enabled;
+      }
+
+      function forward({ input, target, firstHidden, secondHidden, prediction }, border = 0, offset = overlapOffsets[0], dropoutSeed = null) {
+        const inputImage = input.textures[0];
+        const setTile = locations => {
+          gl.uniform1i(locations.tileBorder, border);
+          gl.uniform2i(locations.blockOffset, ...offset);
+        };
+        const setDropout = (locations, salt) => {
+          gl.uniform1f(locations.keepProbability, dropoutSeed === null ? 1 : 1 - hiddenDropoutRate);
+          gl.uniform1ui(locations.dropoutSeed, dropoutSeed === null ? 0 : (dropoutSeed ^ salt) >>> 0);
+        };
+        draw("hidden", firstHidden, { inputImage, ...hiddenTextures() }, locations => {
+          setTile(locations);
+          setHiddenTaps(locations, hidden1);
+          gl.uniform1i(locations.layerEnabled, hidden1.enabled);
+          setDropout(locations, 0x9e3779b9);
+        });
+        draw("residual", secondHidden, {
+          inputImage, firstHiddenImage: firstHidden.textures[0], residualWeights: weights.residual.textures[0]
+        }, locations => {
+          setTile(locations);
+          setHiddenTaps(locations, hidden2);
+          gl.uniform1i(locations.layerEnabled, hidden2.enabled);
+          setDropout(locations, 0x85ebca6b);
+        });
+        draw("predict", prediction, {
+          inputImage, hiddenImage: secondHidden.textures[0],
+          targetImage: target.textures[0], ...readoutTextures()
+        }, locations => {
+          setTile(locations);
+          gl.uniform1i(locations.addInputRgb, outputMode.value === "correction");
+        });
+      }
+
+      function showOutputMode() {
+        const correction = outputMode.value === "correction";
+        document.querySelector("#output-skip").hidden = !correction;
+        document.querySelector("#readout-description").textContent = correction
+          ? "Adds input luminance and input RGB to the readout"
+          : "Adds input luminance to the readout";
+      }
+
+      function blendedInputs(frames, predictions) {
+        predictions.forEach((prediction, index) => {
+          forward({ ...frames, prediction }, 0, overlapOffsets[index]);
+        });
+        const [prediction00, prediction10, prediction01, prediction11] = predictions.map(target => target.textures[0]);
+        return { prediction00, prediction10, prediction01, prediction11 };
+      }
+
+      function invalidateGridBias() {
+        biasReady = false;
+        gridCorrection.checked = false;
+      }
+
+      async function calibrateGrid() {
+        const extent = 3 * blockStride;
+        const frames = frameBuffers(extent, extent, gl.RGBA32F);
+        const extras = [1, 2, 3].map(() => framebuffer([gl.RGBA32F], extent, extent));
+        const predictions = [frames.prediction, ...extras];
+        const sample = framebuffer([gl.RGBA32F], blockStride, blockStride);
+        const tilePixels = blockStride * blockStride;
+        const tile = new Float32Array(tilePixels * 4);
+        const bias = new Float32Array(biasAtlas.width * biasAtlas.height * 4);
+        calibrateButton.textContent = "Calibrating…";
+
+        try {
+          for (let probe = 0; probe < calibrationProbes; probe++) {
+            const rgb = [
+              Math.floor(probe / calibrationLevels ** 2),
+              Math.floor(probe / calibrationLevels) % calibrationLevels,
+              probe % calibrationLevels
+            ].map(component => component / (calibrationLevels - 1));
+            gl.bindFramebuffer(gl.FRAMEBUFFER, frames.input.buffer);
+            gl.clearBufferfv(gl.COLOR, 0, [...rgb, 1]);
+            draw("measureFlatField", sample, blendedInputs(frames, predictions));
+            gl.readPixels(0, 0, blockStride, blockStride, gl.RGBA, gl.FLOAT, tile);
+            for (let channel = 0; channel < 3; channel++) {
+              let sum = 0;
+              for (let i = channel; i < tile.length; i += 4) sum += tile[i];
+              const mean = sum / tilePixels;
+              if (!Number.isFinite(mean)) throw new Error("Cannot calibrate non-finite predictions.");
+              for (let i = channel; i < tile.length; i += 4) tile[i] -= mean;
+            }
+            const tileX = (probe % calibrationColumns) * blockStride;
+            const tileY = Math.floor(probe / calibrationColumns) * blockStride;
+            for (let row = 0; row < blockStride; row++) {
+              bias.set(tile.subarray(row * blockStride * 4, (row + 1) * blockStride * 4),
+                ((tileY + row) * biasAtlas.width + tileX) * 4);
+            }
+            if ((probe + 1) % 8 === 0) await new Promise(requestAnimationFrame);
+            if (contextLost) return;
+          }
+          gl.bindTexture(gl.TEXTURE_2D, biasAtlas.textures[0]);
+          gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, biasAtlas.width, biasAtlas.height, gl.RGBA, gl.FLOAT, bias);
+          biasReady = true;
+          gridCorrection.checked = true;
+        } finally {
+          calibrateButton.textContent = "Calibrate grid";
+          for (const target of [...Object.values(frames), ...extras, sample]) {
+            gl.deleteFramebuffer(target.buffer);
+            for (const texture of target.textures) gl.deleteTexture(texture);
+          }
+        }
+        evalStep();
+      }
+
+      function inspectorAtlas(canvases, width, height) {
+        const views = Array.from(canvases, canvas => {
+          canvas.width = width;
+          canvas.height = height;
+          return canvas.getContext("2d");
+        });
+        const target = framebuffer([gl.RGBA8], width * views.length, height);
+        const pixels = new Uint8Array(target.width * height * 4);
+        const images = views.map(view => view.createImageData(width, height));
+        return { views, target, pixels, images, width, height };
+      }
+
+      function readInspector({ views, target, pixels, images, width, height }) {
+        gl.readPixels(0, 0, target.width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        views.forEach((view, panel) => {
+          const image = images[panel];
+          for (let y = 0; y < height; y++) {
+            const start = ((height - 1 - y) * target.width + panel * width) * 4;
+            image.data.set(pixels.subarray(start, start + width * 4), y * width * 4);
+          }
+          view.putImageData(image, 0, 0);
+        });
+      }
+
+      function showLayerImages() {
+        if (!layerAtlas) {
+          const canvases = layerImages.querySelectorAll(".activation-image");
+          layerAtlas = inspectorAtlas(canvases, canvases[0].width, canvases[0].height);
+        }
+        const { target, width, height } = layerAtlas;
+        // The hidden textures hold the final overlap phase from blendedInputs.
+        draw("layerImages", target, {
+          inputImage: fullFrame.input.textures[0], firstHiddenImage: fullFrame.firstHidden.textures[0],
+          secondHiddenImage: fullFrame.secondHidden.textures[0], predictionImage: overlapPredictions.at(-1).textures[0]
+        }, locations => {
+          gl.uniform2i(locations.thumbnailSize, width, height);
+          gl.uniform1i(locations.addInputRgb, outputMode.value === "correction");
+        });
+        readInspector(layerAtlas);
+      }
+
+      function showWeightImages() {
+        if (!weightImages.open || contextLost) return;
+        if (!weightAtlas) {
+          const stripWidth = cardinalOffsets.length * (weightSize + 1) - 1;
+          weightAtlas = inspectorAtlas(weightImages.querySelectorAll(".weight-image"), stripWidth, weightSize);
+        }
+        draw("weightImages", weightAtlas.target, {
+          ...hiddenTextures(), residualWeights: weights.residual.textures[0], ...readoutTextures()
+        }, locations => {
+          gl.uniform1i(locations.stripWidth, weightAtlas.width);
+        });
+        readInspector(weightAtlas);
+      }
+
+      function evalStep() {
+        previewPredictions = blendedInputs(fullFrame, overlapPredictions);
+        if (layerImages.open) showLayerImages();
+        presentStep();
+        shownLabel.value = steps;
+      }
+
+      function presentStep() {
+        if (!previewPredictions || contextLost) return;
+        draw("present", null, {
+          ...previewPredictions, inputImage: fullFrame.input.textures[0],
+          referenceImage: fullFrame[comparisonReference.value].textures[0], flatFieldBias: biasAtlas.textures[0]
+        }, locations => {
+          gl.uniform1i(locations.correctGrid, biasReady && gridCorrection.checked);
+          gl.uniform1i(locations.comparison, previewMode.selectedIndex);
+          gl.uniform1i(locations.splitColumn, Math.round(width * Number(splitPosition.value) / 100));
+        });
+        gl.readPixels(width >> 1, height >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, centerPixel);
+        pixelLabel.value = Array.from(centerPixel.subarray(0, 3)).join(", ");
+      }
+
+      function sumAlpha(sourceImage, targets) {
+        for (const target of targets) {
+          draw("sumAlpha", target, { sourceImage });
+          sourceImage = target.textures[0];
+        }
+        return sourceImage;
+      }
+
+      function readLoss(errorImage, targets) {
+        sumAlpha(errorImage, targets);
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, lossPixel);
+        // The raised-cosine weights sum to half a block in each dimension.
+        return lossPixel[3] / (blockStride * blockStride * 3);
+      }
+
+      function copyCrop(source, destination, x, y, border) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, source.buffer);
+        gl.bindTexture(gl.TEXTURE_2D, destination.textures[0]);
+        // The displayed origin is measured from the top of the image.
+        gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0,
+          x - border, height - y - weightSize - border, destination.width, destination.height);
+      }
+
+      function limitLayerUpdate(previous, proposed, target, textureCount, activeTaps, maxUpdateRms) {
+        // The scalar residual layer owns only one weight texture. Bind it to
+        // the remaining sampler slots as well, but count its texels once.
+        const [previousRed, previousGreen = previousRed, previousBlue = previousRed] =
+          previous.textures.slice(0, textureCount);
+        const [proposedRed, proposedGreen = proposedRed, proposedBlue = proposedRed] =
+          proposed.textures.slice(0, textureCount);
+        const textures = { previousRed, previousGreen, previousBlue, proposedRed, proposedGreen, proposedBlue };
+        const setCount = locations => gl.uniform1i(locations.weightTextureCount, textureCount);
+
+        draw("squaredUpdates", updateSquares, textures, setCount);
+        const updateSum = sumAlpha(updateSquares.textures[0], updateBuffers);
+        draw("limitUpdate", target, { ...textures, updateSum }, locations => {
+          setCount(locations);
+          gl.uniform1i(locations.activeTapCount, activeTaps);
+          gl.uniform1f(locations.maxUpdateRms, maxUpdateRms);
+        });
+      }
+
+      function plotLoss() {
+        const left = 60;
+        const right = chart.width - 24;
+        const top = 14;
+        const bottom = chart.height - 29;
+        plot.clearRect(0, 0, chart.width, chart.height);
+        plot.font = "14px ui-monospace, monospace";
+        plot.fillStyle = "#a8adbf";
+
+        if (lossHistory.length === 0) {
+          latestLoss.value = "—";
+          plot.textAlign = "center";
+          plot.fillText("Train to start the plot", chart.width / 2, chart.height / 2);
+          return;
+        }
+
+        const latest = lossHistory[lossHistory.length - 1];
+        latestLoss.value = latest.toPrecision(4);
+        const peak = Math.max(0.001, highestLoss);
+        const increment = 10 ** Math.floor(Math.log10(peak)) / 2;
+        const ceiling = Math.ceil(peak / increment) * increment;
+
+        plot.strokeStyle = "#303342";
+        plot.lineWidth = 1;
+        plot.textAlign = "right";
+        for (let tick = 0; tick <= 4; tick++) {
+          const y = bottom - (bottom - top) * tick / 4;
+          plot.beginPath();
+          plot.moveTo(left, y);
+          plot.lineTo(right, y);
+          plot.stroke();
+          plot.fillText((ceiling * tick / 4).toPrecision(2), left - 8, y + 5);
+        }
+        plot.textAlign = "left";
+        plot.fillText("Step 1", left, chart.height - 9);
+        if (steps > 1) {
+          plot.textAlign = "right";
+          plot.fillText(`Step ${steps}`, right, chart.height - 9);
+        }
+
+        const xAt = index => left + index * (right - left) / Math.max(1, lossHistory.length - 1);
+        const yAt = loss => bottom - (bottom - top) * loss / ceiling;
+        plot.strokeStyle = "#c8ff83";
+        plot.lineWidth = 2;
+        plot.beginPath();
+        plot.moveTo(xAt(0), yAt(lossHistory[0]));
+        // Use the lowest and highest samples in each display bucket so a long
+        // run retains its spikes and dips without drawing every point.
+        const bucketSize = Math.max(1, Math.ceil(lossHistory.length / (right - left)));
+        for (let first = 0; first < lossHistory.length; first += bucketSize) {
+          let minimum = first;
+          let maximum = first;
+          const end = Math.min(first + bucketSize, lossHistory.length);
+          for (let index = first + 1; index < end; index++) {
+            if (lossHistory[index] < lossHistory[minimum]) minimum = index;
+            if (lossHistory[index] > lossHistory[maximum]) maximum = index;
+          }
+          for (const index of [Math.min(minimum, maximum), Math.max(minimum, maximum)]) {
+            plot.lineTo(xAt(index), yAt(lossHistory[index]));
+          }
+        }
+        plot.lineTo(xAt(lossHistory.length - 1), yAt(latest));
+        plot.stroke();
+        plot.fillStyle = "#c8ff83";
+        plot.beginPath();
+        plot.arc(xAt(lossHistory.length - 1), yAt(latest), 3, 0, 2 * Math.PI);
+        plot.fill();
+      }
+
+      function trainStep() {
+        const { border, extent, frames: trainingCrop, residualGradients, firstGradients, loss: lossTargets } = getTrainingBuffers();
+        crypto.getRandomValues(cropRandom);
+        const x = border + cropRandom[0] % (width - extent + 1);
+        const y = border + cropRandom[1] % (height - extent + 1);
+        const { input, target, firstHidden, secondHidden, prediction } = trainingCrop;
+        copyCrop(fullFrame.input, input, x, y, border);
+        copyCrop(fullFrame.target, target, x, y, border);
+        forward(trainingCrop, border, overlapOffsets[0], cropRandom[2]);
+        const errorImage = prediction.textures[1];
+        const loss = readLoss(errorImage, lossTargets);
+        if (!Number.isFinite(loss)) {
+          throw new Error("Training loss is not finite. Reset the weights to start again.");
+        }
+
+        const inputImage = input.textures[0];
+        const firstHiddenImage = firstHidden.textures[0];
+        const secondHiddenImage = secondHidden.textures[0];
+        const residualWeights = weights.residual.textures[0];
+        const learningRate = readLearningRate();
+        const setCropTile = locations => {
+          gl.uniform1i(locations.tileBorder, border);
+          gl.uniform2i(locations.blockOffset, 0, 0);
+        };
+        const setUpdateUniforms = locations => {
+          setCropTile(locations);
+          gl.uniform1f(locations.learningRate, learningRate);
+        };
+        const readout = readoutTextures();
+        const residualDerivatives = residualGradients.textures[0];
+        if (hidden1.enabled || hidden2.enabled) {
+          draw("residualGradient", residualGradients, {
+            secondHiddenImage, errorImage, ...readout
+          }, setCropTile);
+        }
+        // A bypass keeps its trained weights. Swap only the banks we update.
+        const maxUpdateRms = learningRate * gradientRmsCap;
+        const commitUpdate = (key, textureCount, tapCount) => {
+          limitLayerUpdate(weights[key], proposedWeights[key], nextWeights[key], textureCount, tapCount, maxUpdateRms);
+          [weights[key], nextWeights[key]] = [nextWeights[key], weights[key]];
+        };
+        if (hidden1.enabled) {
+          draw("firstGradient", firstGradients, {
+            firstHiddenImage, residualWeights, residualGradients: residualDerivatives
+          }, locations => {
+            setCropTile(locations);
+            setHiddenTaps(locations, hidden2);
+            gl.uniform1i(locations.secondLayerEnabled, hidden2.enabled);
+          });
+          draw("updateHidden", proposedWeights.hidden, {
+            inputImage, firstGradients: firstGradients.textures[0], ...hiddenTextures()
+          }, locations => {
+            setUpdateUniforms(locations);
+            setHiddenTaps(locations, hidden1);
+          });
+          commitUpdate("hidden", 3, hidden1.offsets.length);
+        }
+        if (hidden2.enabled) {
+          draw("updateResidual", proposedWeights.residual, {
+            firstHiddenImage, residualWeights, residualGradients: residualDerivatives
+          }, locations => {
+            setUpdateUniforms(locations);
+            setHiddenTaps(locations, hidden2);
+          });
+          commitUpdate("residual", 1, hidden2.offsets.length);
+        }
+        draw("updateReadout", proposedWeights.readout, {
+          hiddenImage: secondHiddenImage, errorImage, ...readout
+        }, setUpdateUniforms);
+        commitUpdate("readout", 3, cardinalOffsets.length);
+
+        if (biasReady) invalidateGridBias();
+        steps++;
+        recentLosses.push(loss);
+        if (recentLosses.length > lossWindow) recentLosses.shift();
+        const smoothedLoss = recentLosses.reduce((total, sample) => total + sample, 0) / recentLosses.length;
+        lossHistory.push(smoothedLoss);
+        highestLoss = Math.max(highestLoss, smoothedLoss);
+        return `${x}, ${y}`;
+      }
+
+      function showTrainingProgress(lastCrop) {
+        stepsLabel.value = steps;
+        cropLabel.textContent = lastCrop;
+        plotLoss();
+        showWeightImages();
+      }
+
+      function randomize() {
+        const seeds = crypto.getRandomValues(new Uint32Array(3));
+        function initialize(target, seed, midpoint, scale) {
+          draw("initialize", target, {}, locations => {
+            gl.uniform1ui(locations.seed, seed);
+            gl.uniform1f(locations.midpoint, midpoint);
+            gl.uniform1f(locations.scale, scale);
+          });
+        }
+        initialize(weights.hidden, seeds[0], 0.18, 0.12);
+        initialize(weights.readout, seeds[1], 0.0, 0.30);
+        initialize(weights.residual, seeds[2], 0.025, 0.02);
+        invalidateGridBias();
+        steps = 0;
+        originalFrames.length = 0;
+        captureFrames.length = 0;
+        trainingBatch = null;
+        stepsLabel.value = steps;
+        cropLabel.textContent = "—";
+        lossHistory.length = 0;
+        recentLosses.length = 0;
+        highestLoss = 0;
+        plotLoss();
+        showWeightImages();
+        evalStep();
+      }
+
+      function readWeightTextures(bank, channels) {
+        const priorFramebuffer = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
+        const values = new Float32Array(weightSize * weightSize * 4);
+        const bytes = new Uint8Array(values.byteLength);
+        const littleEndian = new DataView(bytes.buffer);
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, bank.buffer);
+        try {
+          return channels.map((channel, index) => {
+            gl.readBuffer(gl.COLOR_ATTACHMENT0 + index);
+            gl.readPixels(0, 0, weightSize, weightSize, gl.RGBA, gl.FLOAT, values);
+            values.forEach((value, i) => littleEndian.setFloat32(i * 4, value, true));
+            let binary = "";
+            for (let offset = 0; offset < bytes.length; offset += 8192) {
+              binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+            }
+            return { channel, data: btoa(binary) };
+          });
+        } finally {
+          gl.readBuffer(gl.COLOR_ATTACHMENT0);
+          gl.bindFramebuffer(gl.READ_FRAMEBUFFER, priorFramebuffer);
+        }
+      }
+
+      function exportLayers() {
+        const rgb = ["r", "g", "b"];
+        const model = {
+          format: "mtl-jobines-backpropagation",
+          version: 1,
+          trainingSteps: steps,
+          flatFieldCorrection: !biasReady || gridCorrection.checked,
+          canvas: { width, height },
+          tiling: {
+            size: [weightSize, weightSize],
+            stride: [blockStride, blockStride],
+            phaseOffsets: overlapOffsets,
+            window: "separable_half_sample_raised_cosine"
+          },
+          textureLayout: {
+            width: weightSize, height: weightSize, format: "rgba32f",
+            rowOrder: "bottom_to_top", tapOrder: "rgba",
+            offsetAxes: { x: "right", y: "up" },
+            encoding: "base64_f32_le", inactiveTaps: "ignored"
+          },
+          input: { range: [0, 1], encoding: "srgb_code_values", luminanceCoefficients: inputLuma },
+          boundary: "zero_outside_frame",
+          output: {
+            mode: outputMode.value,
+            addInputLuminance: true,
+            addInputRgb: outputMode.value === "correction",
+            clampAfterBlending: [0, 1]
+          },
+          layers: [
+            {
+              name: "hidden1", enabled: hidden1.enabled, bypass: "input_luminance",
+              activation: "relu", bias: hiddenBiases[0], offsets: hidden1.offsets,
+              weightChannels: "input_rgb",
+              weights: hidden1.enabled ? readWeightTextures(weights.hidden, rgb) : []
+            },
+            {
+              name: "hidden2", enabled: hidden2.enabled, bypass: "identity",
+              activation: "relu", bias: hiddenBiases[1], offsets: hidden2.offsets,
+              addInputLuminance: hidden2.enabled,
+              weights: hidden2.enabled ? readWeightTextures(weights.residual, ["scalar"]) : []
+            },
+            {
+              name: "readout", enabled: true, activation: "linear", bias: 0,
+              offsets: cardinalOffsets, weightChannels: "output_rgb",
+              weights: readWeightTextures(weights.readout, rgb)
+            }
+          ]
+        };
+        const file = new Blob([JSON.stringify(model, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(file);
+        const download = document.createElement("a");
+        download.href = url;
+        download.download = "backpropagation-64-layers.json";
+        download.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      function uploadFrames() {
+        previewPredictions = null;
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        [fullFrame.input, fullFrame.target].forEach(({ textures }, index) => {
+          gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+          gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, samples[index].canvas);
+        });
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      }
+
+      function loadClip({ name, base64 }) {
+        const video = document.createElement("video");
+        video.muted = true;
+        video.preload = "auto";
+        video.playsInline = true;
+        const data = Uint8Array.from(atob(base64), byte => byte.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([data], { type: "video/mp4" }));
+        return new Promise((resolve, reject) => {
+          video.addEventListener("loadeddata", () => resolve(video), { once: true });
+          video.addEventListener("error", () => {
+            URL.revokeObjectURL(url);
+            reject(new Error(`Could not decode ${name}.`));
+          }, { once: true });
+          video.src = url;
+        });
+      }
+
+      function loadClipFiles(clip) {
+        if (clip.files) return Promise.resolve(clip.files);
+        if (!clip.script) return Promise.reject(new Error("Could not load the original video pair."));
+        // Loading the pack as a script also works when the prototype is opened from disk.
+        return new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = clip.script;
+          const failed = () => reject(new Error(`Could not load the ${clip.id} video pair.`));
+          script.addEventListener("load", () => {
+            const files = script.clipFiles;
+            script.remove();
+            if (files?.length === 2) resolve(files);
+            else failed();
+          }, { once: true });
+          script.addEventListener("error", () => {
+            script.remove();
+            failed();
+          }, { once: true });
+          document.head.append(script);
+        });
+      }
+
+      function seek(video, time) {
+        if (video.currentTime === time && video.readyState >= video.HAVE_CURRENT_DATA) {
+          return Promise.resolve();
+        }
+        return new Promise((resolve, reject) => {
+          const listeners = new AbortController();
+          video.addEventListener("seeked", () => {
+            listeners.abort();
+            resolve();
+          }, { signal: listeners.signal });
+          video.addEventListener("error", () => {
+            listeners.abort();
+            reject(new Error("Could not seek to the selected video frame."));
+          }, { signal: listeners.signal });
+          video.currentTime = time;
+        });
+      }
+
+      function drawVideo(context, video) {
+        const scale = Math.max(width / video.videoWidth, height / video.videoHeight);
+        const sourceWidth = width / scale;
+        const sourceHeight = height / scale;
+        context.drawImage(video, (video.videoWidth - sourceWidth) / 2,
+          (video.videoHeight - sourceHeight) / 2, sourceWidth, sourceHeight, 0, 0, width, height);
+      }
+
+      async function selectFrame(clip, index) {
+        let videos = clipVideos.get(clip.id);
+        if (!videos) {
+          const files = await loadClipFiles(clip);
+          videos = await Promise.all(files.map(loadClip));
+          clipVideos.set(clip.id, videos);
+        }
+        // Seek into the center of the same display interval in both videos.
+        const time = (index + 0.5) / clip.fps;
+        await Promise.all(videos.map(video => seek(video, time)));
+        videos.forEach((video, index) => drawVideo(samples[index], video));
+        uploadFrames();
+        activeClip = clip;
+        frame = index;
+        videoSource.value = clip.id;
+        frameControl.max = clip.frameCount;
+        frameControl.value = frame + 1;
+        frameLabel.value = `${frame + 1} / ${clip.frameCount}`;
+      }
+
+      async function selectDataset() {
+        const videoMode = dataset.value === "video";
+        videoSources.hidden = !videoMode;
+        scrubber.hidden = !videoMode;
+        play.hidden = !videoMode;
+        playVideo.hidden = !videoMode;
+        if (videoMode) {
+          await selectFrame(originalClip, 0);
+          help.textContent = `Training uses ${updatesPerFrame} random crops per shuffled frame pair. Play video uses fixed weights.`;
+        } else {
+          ["#0000ff", "#ff0000"].forEach((color, index) => {
+            samples[index].fillStyle = color;
+            samples[index].fillRect(0, 0, width, height);
+          });
+          uploadFrames();
+          frame = 0;
+          help.textContent = "Train updates the weights once. Eval draws their current prediction.";
+        }
+        randomize();
+      }
+
+      function refillTrainingFrames(frames, clips) {
+        for (const clip of clips) {
+          for (let frame = 0; frame < clip.frameCount; frame++) frames.push({ clip, frame });
+        }
+        for (let index = frames.length - 1; index > 0; index--) {
+          const other = Math.floor(Math.random() * (index + 1));
+          [frames[index], frames[other]] = [frames[other], frames[index]];
+        }
+      }
+
+      async function trainAndShow(stepLimit, shouldContinue = () => true) {
+        if (dataset.value === "solid") {
+          showTrainingProgress(trainStep());
+          if (layerImages.open) evalStep();
+          return;
+        }
+
+        const share = Number(captureShare.value);
+        if (!trainingBatch || trainingBatch.share !== share) {
+          const useCaptures = Math.random() < share / 100;
+          const frames = useCaptures ? captureFrames : originalFrames;
+          if (frames.length === 0) refillTrainingFrames(frames, useCaptures ? captureClips : [originalClip]);
+          trainingBatch = { ...frames.pop(), remaining: updatesPerFrame, share };
+        }
+        const changedFrame = trainingBatch.clip !== activeClip || trainingBatch.frame !== frame;
+        if (changedFrame) await selectFrame(trainingBatch.clip, trainingBatch.frame);
+
+        let remaining = Math.min(stepLimit, trainingBatch.remaining);
+        let lastCrop;
+        try {
+          while (remaining > 0 && !contextLost && shouldContinue()) {
+            const slice = Math.min(remaining, updatesPerSlice);
+            for (let i = 0; i < slice; i++) {
+              lastCrop = trainStep();
+              trainingBatch.remaining--;
+              remaining--;
+            }
+            if (remaining > 0) {
+              showTrainingProgress(lastCrop);
+              await new Promise(requestAnimationFrame);
+            }
+          }
+        } finally {
+          if (trainingBatch.remaining === 0) trainingBatch = null;
+          if (!contextLost) {
+            if (lastCrop) showTrainingProgress(lastCrop);
+            if (changedFrame || lastCrop) evalStep();
+          }
+        }
+      }
+
+      function refreshControls() {
+        for (const button of [train, evaluate, reset, dataset, outputMode, frameControl, videoSource, exportLayersButton, calibrateButton]) {
+          button.disabled = busy || contextLost;
+        }
+        for (const layer of hiddenLayers) {
+          layer.toggle.disabled = busy || contextLost;
+          layer.taps.disabled = busy || contextLost || !layer.enabled;
+          layer.distance.disabled = layer.taps.disabled || layer.distanceRow.hidden;
+        }
+        previewMode.disabled = contextLost;
+        comparisonReference.disabled = contextLost;
+        splitPosition.disabled = contextLost;
+        captureShare.disabled = contextLost;
+        gridCorrection.disabled = busy || contextLost || !biasReady;
+        rateControl.disabled = contextLost;
+        play.disabled = contextLost || (busy && playback !== "training");
+        playVideo.disabled = contextLost || (busy && playback !== "evaluation");
+        play.textContent = playback === "training" ? "Pause training" : "Play training";
+        playVideo.textContent = playback === "evaluation" ? "Pause video" : "Play video";
+      }
+
+      async function run(action) {
+        if (busy || contextLost) return;
+        busy = true;
+        error.hidden = true;
+        refreshControls();
+        try {
+          await action();
+        } catch (problem) {
+          error.textContent = problem.message;
+          error.hidden = false;
+        } finally {
+          busy = false;
+          playback = null;
+          refreshControls();
+        }
+      }
+
+      showHiddenLayers();
+      const refreshModel = () => {
+        invalidateGridBias();
+        showHiddenLayers();
+        evalStep();
+      };
+      for (const layer of hiddenLayers) {
+        layer.toggle.addEventListener("click", () => run(() => {
+          layer.enabled = !layer.enabled;
+          refreshModel();
+        }));
+        layer.taps.addEventListener("change", () => run(refreshModel));
+        layer.distance.addEventListener("change", () => run(refreshModel));
+      }
+
+      showOutputMode();
+      outputMode.addEventListener("change", () => run(() => {
+        showOutputMode();
+        evalStep();
+      }));
+
+      train.addEventListener("click", () => run(() => trainAndShow(1)));
+      evaluate.addEventListener("click", () => run(evalStep));
+      reset.addEventListener("click", () => run(randomize));
+      exportLayersButton.addEventListener("click", () => run(exportLayers));
+      calibrateButton.addEventListener("click", () => run(calibrateGrid));
+      gridCorrection.addEventListener("change", () => run(evalStep));
+      function updateComparison() {
+        const split = previewMode.value === "split";
+        const percent = Number(splitPosition.value);
+        const reference = comparisonReference.selectedOptions[0].textContent;
+        comparisonLegend.hidden = !split;
+        comparisonReferenceControl.hidden = previewMode.value === "prediction";
+        splitReference.textContent = reference;
+        splitMarker.hidden = !split || percent === 0 || percent === 100;
+        splitMarker.style.left = `${percent}%`;
+        splitPosition.setAttribute("aria-valuetext", `${percent}% ${reference}, ${100 - percent}% prediction`);
+        canvas.setAttribute("aria-label", split ? `${reference} on left, prediction on right`
+          : previewMode.value === "difference" ? `RGB difference between ${reference} and prediction` : "Evaluated RGB prediction");
+        presentStep();
+      }
+      previewMode.addEventListener("change", updateComparison);
+      comparisonReference.addEventListener("change", updateComparison);
+      splitPosition.addEventListener("input", updateComparison);
+      layerImages.addEventListener("toggle", () => {
+        if (layerImages.open) run(evalStep);
+      });
+      weightImages.addEventListener("toggle", showWeightImages);
+      dataset.addEventListener("change", () => run(selectDataset));
+      captureShare.addEventListener("input", () => {
+        captureShareValue.value = `${captureShare.value}%`;
+      });
+      videoSource.addEventListener("change", () => run(async () => {
+        const clip = clipsById.get(videoSource.value);
+        try {
+          await selectFrame(clip, 0);
+          evalStep();
+        } finally {
+          videoSource.value = activeClip.id;
+        }
+      }));
+      frameControl.addEventListener("change", () => run(async () => {
+        await selectFrame(activeClip, Number(frameControl.value) - 1);
+        evalStep();
+      }));
+      function togglePlayback(mode) {
+        if (playback === mode) {
+          playback = null;
+          refreshControls();
+          return;
+        }
+        if (busy || contextLost) return;
+        playback = mode;
+        run(async () => {
+          while (playback === mode) {
+            const started = performance.now();
+            if (mode === "training") {
+              await trainAndShow(updatesPerFrame, () => playback === "training");
+            } else {
+              await selectFrame(activeClip, (frame + 1) % activeClip.frameCount);
+              if (contextLost) return;
+              evalStep();
+            }
+            // Yield for paint and pace evaluation to the clip's frame rate when decode allows.
+            await new Promise(requestAnimationFrame);
+            if (mode === "evaluation") {
+              const remaining = 1000 / activeClip.fps - (performance.now() - started);
+              if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
+            }
+          }
+        });
+      }
+
+      play.addEventListener("click", () => togglePlayback("training"));
+      playVideo.addEventListener("click", () => togglePlayback("evaluation"));
+      canvas.addEventListener("webglcontextlost", () => {
+        playback = null;
+        contextLost = true;
+        showError("The WebGL context was lost. Reload to reinitialize the weights.");
+        refreshControls();
+      });
+
+      run(async () => {
+        try {
+          await selectDataset();
+        } catch (problem) {
+          dataset.value = "solid";
+          await selectDataset();
+          throw problem;
+        }
+      });
+    }
+
+    function showError(message) {
+      for (const button of [train, evaluate, reset, play, playVideo, dataset, outputMode, frameControl, rateControl, exportLayersButton,
+        calibrateButton, gridCorrection, previewMode, comparisonReference, splitPosition, videoSource, captureShare,
+        ...hiddenLayers.flatMap(layer => [layer.toggle, layer.taps, layer.distance])]) button.disabled = true;
+      error.textContent = message;
+      error.hidden = false;
+    }
+
+    try {
+      start();
+    } catch (problem) {
+      showError(problem.message);
+    }
+  </script>
+</body>
+</html>

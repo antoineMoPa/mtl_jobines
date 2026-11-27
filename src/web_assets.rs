@@ -61,7 +61,14 @@ mod browser {
     pub fn owe_asset_paths() -> String {
         PATHS
             .lines()
-            .filter(|p| p.starts_with("opencity/") || *p == "assets/terrain/grass-mips.png")
+            .filter(|p| {
+                p.starts_with("opencity/")
+                    || matches!(
+                        *p,
+                        "assets/terrain/grass-mips.png"
+                            | "assets/effects/backpropagation-64-layers.json"
+                    )
+            })
             .collect::<Vec<_>>()
             .join("\n")
     }

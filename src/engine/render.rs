@@ -11,6 +11,7 @@ mod culling;
 mod projected_grass;
 pub(super) use projected_grass::SupportCache;
 mod impacts;
+mod layer_model;
 mod lod;
 mod mission_markers;
 mod player_shadow;
@@ -106,6 +107,7 @@ pub struct Renderer {
     pub(super) contact_debris: bool,
     contact_texture: super::contact_texture::ContactTexture,
     ssao: ssao::Ssao,
+    layer_model: Option<layer_model::LayerModel>,
     snowfall: Option<snowfall::Snowfall>,
     pub(super) mission_markers: mission_markers::MissionMarkers,
     pipeline: wgpu::RenderPipeline,
@@ -554,10 +556,15 @@ impl Renderer {
         } else {
             wgpu::Features::empty()
         };
+        let mut required_features = timestamp_features;
+        if adapter.get_info().backend == wgpu::Backend::Gl {
+            required_features |=
+                adapter.features() & wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
+        }
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("mtl_jobines"),
-                required_features: timestamp_features,
+                required_features,
                 required_limits: if adapter.get_info().backend == wgpu::Backend::Gl {
                     wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits())
                 } else {
@@ -761,6 +768,15 @@ impl Renderer {
             .then(|| snowfall::Snowfall::new(&device, format, &depth, &snow, samples));
         let mission_markers = mission_markers::MissionMarkers::new(&device, format, samples);
         let hud = Hud::new(&device, format);
+        let layer_model = surface.as_ref().and_then(|_| {
+            layer_model::LayerModel::bundled(
+                &adapter,
+                &device,
+                &queue,
+                format,
+                [config.width, config.height],
+            )
+        });
         #[cfg(not(target_arch = "wasm32"))]
         let gpu_profile = (profile && timestamp_features.contains(wgpu::Features::TIMESTAMP_QUERY))
             .then(|| GpuProfile::new(&device));
@@ -802,6 +818,7 @@ impl Renderer {
             contact_debris: true,
             contact_texture,
             ssao,
+            layer_model,
             snowfall,
             mission_markers,
             pipeline,
@@ -959,6 +976,9 @@ impl Renderer {
             samples,
         );
         self.ssao.resize(&self.device, width, height, &self.depth);
+        if let Some(model) = &mut self.layer_model {
+            model.resize(&self.device, [width, height]);
+        }
         if let Some(snowfall) = &mut self.snowfall {
             snowfall.resize(&self.device, &self.depth);
         }
@@ -1627,10 +1647,14 @@ impl Renderer {
                 lighting.daylight,
             );
         }
+        let composite_target = self
+            .layer_model
+            .as_ref()
+            .map_or(target, |model| &model.scene);
         self.ssao.draw(
             &self.queue,
             &mut encoder,
-            target,
+            composite_target,
             view,
             eye,
             self.config.width,
@@ -1654,6 +1678,15 @@ impl Renderer {
                 })
                 .or_else(|| gpu.map(|g| g.pass(Pass::Composite))),
         );
+        if let Some(model) = &self.layer_model {
+            let _span = mtl_world::telemetry::span("render.encode.layer_model");
+            model.draw(
+                &self.queue,
+                &mut encoder,
+                target,
+                [self.config.width, self.scene_height()],
+            );
+        }
         let hud_navigation = navigation.filter(|_| {
             !self.cinematic && (!super::app::mobile_enabled() || self.overlay == Overlay::Map)
         });

@@ -29,6 +29,7 @@ required-features = ["memory-profile"]
 memory-profile = ["mtl_world/memory-profile", "opencity/memory-profile"]
 
 [dependencies]
+base64 = "0.22"
 mtl_world = { path = "crates/mtl_world" }
 earcutr = "0.5"
 egui = "0.36"

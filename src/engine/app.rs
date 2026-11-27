@@ -2090,7 +2090,11 @@ pub(crate) fn run_with_client(rule: Option<crate::VehicleReturnFn>) -> Result<()
     if !args.iter().any(|arg| {
         matches!(
             arg.as_str(),
-            "--build-game-data" | "--replay-reports" | "--export-minimap" | "--smoke"
+            "--build-game-data"
+                | "--replay-reports"
+                | "--export-minimap"
+                | "--smoke"
+                | "--capture-pairs"
         )
     }) {
         return native_startup::run(
@@ -2129,6 +2133,21 @@ pub(crate) fn run_with_client(rule: Option<crate::VehicleReturnFn>) -> Result<()
             .and_then(|i| args.get(i + 1))
             .map(String::as_str);
         return super::report_replay::run(&mut hermes, &reports, &output, landmark);
+    }
+    if args.iter().any(|arg| arg == "--capture-pairs") {
+        let output = option("--capture-pairs").ok_or("--capture-pairs requires a new directory")?;
+        let seconds = args
+            .iter()
+            .position(|arg| arg == "--capture-seconds")
+            .map(|index| {
+                args.get(index + 1)
+                    .and_then(|value| value.parse::<u32>().ok())
+                    .filter(|seconds| (1..=60).contains(seconds))
+                    .ok_or("--capture-seconds requires a whole number from 1 to 60")
+            })
+            .transpose()?
+            .unwrap_or(10);
+        return super::paired_capture::run(&mut hermes, &output, seconds);
     }
     if let Some(path) = option("--export-minimap") {
         std::fs::write(&path, hermes.minimap_svg()).map_err(|e| e.to_string())?;
