@@ -500,6 +500,7 @@ impl Renderer {
         height: u32,
         montreal_actors: bool,
     ) -> Result<Self, String> {
+        // Start single-sampled. Only native builds allow changing this later.
         let samples = 1;
         let descriptor = match &window {
             Some(window) => {
@@ -862,12 +863,12 @@ impl Renderer {
             gpu_profile,
         })
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn antialiasing(&self) -> bool {
         self.samples > 1
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn set_antialiasing(&mut self, enabled: bool) {
-        // WebGL cannot sample multisampled depth textures. Keep its scene
-        // targets single-sampled even when the settings toggle requests MSAA.
         let samples = if enabled && self.device.limits().max_storage_buffers_per_shader_stage > 0 {
             4
         } else {
@@ -1947,6 +1948,7 @@ mod tests {
         }
     }
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn game_pipelines_create_with_tree_shadow_bindings_when_adapter_is_available() {
         let result = pollster::block_on(super::Renderer::new(None, 64, 64));
         match result {

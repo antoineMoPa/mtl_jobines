@@ -30,6 +30,7 @@ impl Palette {
         menu_selection: &mut MenuItem,
     ) -> Option<PaletteAction> {
         let ctx = ui.ctx().clone();
+        #[cfg(not(target_arch = "wasm32"))]
         if self.settings_open {
             let mut enabled = renderer.antialiasing();
             super::super::help::settings(&ctx, &mut self.settings_open, &mut enabled);

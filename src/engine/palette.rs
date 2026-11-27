@@ -334,6 +334,7 @@ pub struct Palette {
     modifiers: winit::keyboard::ModifiersState,
     sky_open: bool,
     sound_open: bool,
+    #[cfg(not(target_arch = "wasm32"))]
     pub(super) settings_open: bool,
     foot_motion: super::foot_motion::FootMotionPanel,
     job_feed_open: bool,
@@ -435,6 +436,7 @@ impl Palette {
             modifiers: Default::default(),
             sky_open: false,
             sound_open: false,
+            #[cfg(not(target_arch = "wasm32"))]
             settings_open: false,
             foot_motion: Default::default(),
             job_feed_open: false,
@@ -483,11 +485,11 @@ impl Palette {
             self.buildings = None;
             self.props = None;
             self.report_overlay = None;
+            self.settings_open = false;
         }
         self.menu.dismiss();
         self.sky_open = false;
         self.sound_open = false;
-        self.settings_open = false;
         self.job_feed_open = false;
         #[cfg(not(target_arch = "wasm32"))]
         self.bug_report.dismiss();
@@ -496,13 +498,9 @@ impl Palette {
         self.job_feed_open = true;
     }
     pub fn is_open(&self) -> bool {
-        let open = self.settings_open
-            || self.menu.is_open()
-            || self.sky_open
-            || self.sound_open
-            || self.job_feed_open;
+        let open = self.menu.is_open() || self.sky_open || self.sound_open || self.job_feed_open;
         #[cfg(not(target_arch = "wasm32"))]
-        let open = open || self.bug_report.is_open();
+        let open = open || self.settings_open || self.bug_report.is_open();
         #[cfg(not(target_arch = "wasm32"))]
         let open = open || self.expansion.as_ref().is_some_and(|d| d.picker.open);
         #[cfg(not(target_arch = "wasm32"))]

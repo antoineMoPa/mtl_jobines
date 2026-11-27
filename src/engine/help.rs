@@ -3,11 +3,14 @@ use super::hud::{MenuItem, Overlay};
 use crate::engine::tooltip::HoverHint;
 use egui::{Color32, RichText, Stroke};
 
+#[cfg(not(target_arch = "wasm32"))]
 mod settings;
+#[cfg(not(target_arch = "wasm32"))]
 pub(super) use settings::show as settings;
 
 const INK: Color32 = Color32::from_rgb(38, 62, 61);
 const GREEN: Color32 = Color32::from_rgb(49, 125, 109);
+#[cfg(not(target_arch = "wasm32"))]
 const MUTED: Color32 = Color32::from_rgb(101, 126, 121);
 const PAPER: Color32 = Color32::from_rgb(246, 249, 247);
 const FONT: &str = "money_bold";
@@ -236,6 +239,7 @@ pub(super) fn menu(
                         },
                     ),
                     (MenuItem::Map, "CARTE"),
+                    #[cfg(not(target_arch = "wasm32"))]
                     (MenuItem::Settings, "PARAMÈTRES"),
                     (MenuItem::Exit, "QUITTER"),
                 ] {

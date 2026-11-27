@@ -1402,6 +1402,7 @@ impl Game {
         match menu_clicked {
             Some(MenuItem::Resume) => self.start_playing(),
             Some(MenuItem::Map) => self.set_overlay(Overlay::Map),
+            #[cfg(not(target_arch = "wasm32"))]
             Some(MenuItem::Settings) => {
                 if let Some(palette) = &mut self.palette {
                     palette.settings_open = true;
@@ -1883,6 +1884,7 @@ impl ApplicationHandler<GameEvent> for Game {
                         }
                         match self.menu_key(key, event.state, event.repeat) {
                             Some(MenuItem::Map) => self.set_overlay(Overlay::Map),
+                            #[cfg(not(target_arch = "wasm32"))]
                             Some(MenuItem::Settings) => {
                                 if let Some(palette) = &mut self.palette {
                                     palette.settings_open = true;

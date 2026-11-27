@@ -173,6 +173,7 @@ impl Sky {
             cache: None,
         })
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn set_samples(&mut self, device: &wgpu::Device, samples: u32) {
         self.samples = samples;
         for (module, pipeline) in &mut self.backgrounds {

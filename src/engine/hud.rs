@@ -25,6 +25,7 @@ pub enum MenuItem {
     #[default]
     Resume,
     Map,
+    #[cfg(not(target_arch = "wasm32"))]
     Settings,
     Exit,
 }
@@ -33,14 +34,22 @@ impl MenuItem {
         match self {
             Self::Resume => Self::Exit,
             Self::Map => Self::Resume,
+            #[cfg(target_arch = "wasm32")]
+            Self::Exit => Self::Map,
+            #[cfg(not(target_arch = "wasm32"))]
             Self::Exit => Self::Settings,
+            #[cfg(not(target_arch = "wasm32"))]
             Self::Settings => Self::Map,
         }
     }
     pub fn other(self) -> Self {
         match self {
             Self::Resume => Self::Map,
+            #[cfg(target_arch = "wasm32")]
+            Self::Map => Self::Exit,
+            #[cfg(not(target_arch = "wasm32"))]
             Self::Map => Self::Settings,
+            #[cfg(not(target_arch = "wasm32"))]
             Self::Settings => Self::Exit,
             Self::Exit => Self::Resume,
         }
@@ -605,6 +614,7 @@ impl Hud {
                 match menu_selection {
                     MenuItem::Resume => 0.,
                     MenuItem::Map => 1.,
+                    #[cfg(not(target_arch = "wasm32"))]
                     MenuItem::Settings => 2.,
                     MenuItem::Exit => 3.,
                 },
