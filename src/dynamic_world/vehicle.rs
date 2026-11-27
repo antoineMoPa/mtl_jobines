@@ -28,7 +28,8 @@ const SERVICE_BRAKE_GRIP_SCALE: f32 = 1.8;
 const FORWARD_MOTOR_ACCELERATION: f32 = 10.;
 const FORWARD_MOTOR_CUTOFF: f32 = 72.;
 const AIR_DRAG: f32 = 0.0012;
-const BUILDING_REBOUND: f32 = 0.30;
+const WALL_RESTITUTION: f32 = 0.05;
+const MAX_WALL_REBOUND_SPEED: f32 = 1.;
 // Rectangle inertia divided by mass, for the 4.2 x 1.8 metre chassis.
 const CHASSIS_YAW_INERTIA: f32 = (4.2 * 4.2 + 1.8 * 1.8) / 12.;
 // All tire impulses are divided by chassis mass; inertia uses the same units.
@@ -680,22 +681,17 @@ impl Vehicle {
                 self.sound_impact(-contact_speed, crate::audio::Material::Hard, false);
                 if inward_speed < 0. {
                     let incoming = self.velocity.truncate();
-                    // Preserve the reflected ray's angle, while losing only
-                    // energy associated with the normal impact. Grazing scrapes
-                    // retain almost all speed; head-on hits retain 30%.
-                    let normal_energy_fraction = (inward_speed * inward_speed
-                        / incoming.length_squared().max(f32::MIN_POSITIVE))
-                    .clamp(0., 1.);
-                    let retention = (1.
-                        - (1. - BUILDING_REBOUND * BUILDING_REBOUND) * normal_energy_fraction)
-                        .sqrt();
-                    let outgoing = (incoming - 2. * inward_speed * normal) * retention;
+                    // Dampen motion into the wall while allowing the vehicle
+                    // to slide along the surface.
+                    let rebound_speed =
+                        (-inward_speed * WALL_RESTITUTION).min(MAX_WALL_REBOUND_SPEED);
+                    let normal_impulse = normal * (rebound_speed - inward_speed);
+                    let outgoing = incoming + normal_impulse;
                     self.velocity.x = outgoing.x;
                     self.velocity.y = outgoing.y;
                     // The nose/tail contact's normal impulse supplies yaw torque.
                     // Symmetric head-on hits have no lever across the normal;
                     // reverse impacts automatically use the rear contact arm.
-                    let normal_impulse = normal * (-(1. + retention) * inward_speed);
                     let lost_energy =
                         (incoming.length_squared() - outgoing.length_squared()).max(0.);
                     let budget = self.angular_momentum.dot(self.angular_velocity()) + lost_energy;

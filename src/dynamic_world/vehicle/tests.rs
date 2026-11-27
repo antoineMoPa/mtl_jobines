@@ -60,7 +60,13 @@ fn road_barriers_stop_fast_cars_but_leave_underpasses_clear() {
             car.move_with_building_contacts(&city, 0.2);
             assert!(car.collisions > 0);
             assert!(car.position.y.abs() < edge);
-            assert!(car.velocity.y * sign < 0.);
+            // The broadside hit can transfer some yaw back to translation as
+            // the opposite corner contacts the barrier during the sweep.
+            assert!(
+                (-3. ..0.).contains(&(car.velocity.y * sign)),
+                "barrier rebound at height={height}, sign={sign}: {:?}",
+                car.velocity
+            );
         }
         if height > 0. {
             let mut car = Vehicle::spawn(&city);
@@ -893,9 +899,8 @@ fn collision_normal_follows_rotated_facade_in_either_polygon_winding() {
         vehicle.velocity = incoming.extend(0.);
         vehicle.move_with_building_contacts(&city, 0.1);
         assert_eq!(vehicle.collisions, 1);
-        let retention = ((30_f32.powi(2) * BUILDING_REBOUND.powi(2) + 25.) / 925.).sqrt();
-        assert!((vehicle.velocity.truncate().dot(forward) + 30. * retention).abs() < 0.02);
-        assert!((vehicle.velocity.truncate().dot(left) - 5. * retention).abs() < 0.02);
+        assert!((vehicle.velocity.truncate().dot(forward) + 1.).abs() < 0.02);
+        assert!((vehicle.velocity.truncate().dot(left) - 5.).abs() < 0.02);
         assert!(vehicle.yaw > initial_yaw);
         let chassis_forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
         assert!(vehicle.building_contact(&city, chassis_forward).is_none());
@@ -903,7 +908,7 @@ fn collision_normal_follows_rotated_facade_in_either_polygon_winding() {
 }
 
 #[test]
-fn building_impact_rebounds_without_adding_energy_or_stopping_slide() {
+fn building_impact_absorbs_inward_speed_and_keeps_the_slide() {
     let city = building_map();
     let mut vehicle = Vehicle::spawn(&city);
     vehicle.yaw = 0.;
@@ -914,17 +919,8 @@ fn building_impact_rebounds_without_adding_energy_or_stopping_slide() {
     let initial_z = vehicle.position.z;
     vehicle.move_with_building_contacts(&city, 0.1);
     assert_eq!(vehicle.collisions, 1);
-    let retention = ((30_f32.powi(2) * BUILDING_REBOUND.powi(2) + 25.) / 925.).sqrt();
-    assert!((vehicle.velocity.x + 30. * retention).abs() < 0.001);
-    assert!((vehicle.velocity.y - 5. * retention).abs() < 0.001);
-    assert!(
-        (vehicle.velocity.truncate().length_squared()
-            - (30_f32.powi(2) * BUILDING_REBOUND.powi(2) + 25.))
-            .abs()
-            < 0.001
-    );
-    // Incoming and reflected rays make equal angles with the wall normal.
-    assert!((vehicle.velocity.y / -vehicle.velocity.x - 5. / 30.).abs() < 1e-5);
+    assert!((vehicle.velocity.x + 1.).abs() < 0.001);
+    assert!((vehicle.velocity.y - 5.).abs() < 0.001);
     assert!(vehicle.velocity.length_squared() < initial_energy);
     assert!(vehicle.position.x < -2242.12);
     assert!((vehicle.position.z - initial_z - 0.05).abs() < 0.001);
@@ -971,8 +967,8 @@ fn fast_vehicle_cannot_tunnel_through_building() {
     vehicle.move_with_building_contacts(&city, 0.2);
     assert_eq!(vehicle.collisions, 1);
     assert!(vehicle.position.x < -2242.12);
-    assert!((vehicle.velocity.x + 200. * BUILDING_REBOUND).abs() < 0.001);
-    assert!(vehicle.velocity.length() <= 200.);
+    assert!((vehicle.velocity.x + 1.).abs() < 0.001);
+    assert!(vehicle.velocity.length() <= 1.);
 }
 
 #[test]
@@ -996,8 +992,8 @@ fn oblique_impacts_turn_chassis_smoothly_in_forward_and_reverse() {
             let initial_energy = vehicle.velocity.length_squared();
             vehicle.move_with_building_contacts(&city, 0.1);
             assert_eq!(vehicle.collisions, 1);
-            assert!(vehicle.velocity.x < 0.);
-            assert!((vehicle.velocity.y / -vehicle.velocity.x - angle.tan()).abs() < 0.001);
+            assert!((-1.001..0.).contains(&vehicle.velocity.x));
+            assert!((vehicle.velocity.y - angle.sin() * 30.).abs() < 0.001);
             let yaw_delta = vehicle.yaw - initial_yaw;
             if angle == 0. {
                 assert!(yaw_delta.abs() < 1e-5);
@@ -1047,14 +1043,10 @@ fn grazing_impacts_reseparate_rotating_body_without_energy_gain() {
                 vehicle.move_with_building_contacts(&city, 1. / 120.);
                 if frame == 0 {
                     assert!(vehicle.velocity.x < 0.);
-                    assert!(vehicle.velocity.y.abs() > initial_tangent_speed * 0.99);
-                    let expected_energy = initial_planar_energy
-                        * (angle.sin().powi(2) + BUILDING_REBOUND.powi(2) * angle.cos().powi(2));
                     assert!(
-                        (vehicle.velocity.truncate().length_squared() - expected_energy).abs()
-                            < initial_planar_energy * 0.0001 + 0.00001
+                        (vehicle.velocity.x + (0.05 * angle.cos() * speed).min(1.)).abs() < 0.001
                     );
-                    assert!((vehicle.velocity.y / -vehicle.velocity.x - angle.tan()).abs() < 0.01);
+                    assert!((vehicle.velocity.y.abs() - initial_tangent_speed).abs() < 0.001);
                 }
                 let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
                 assert!(vehicle.building_contact(&city, forward).is_none());
@@ -1069,8 +1061,8 @@ fn grazing_impacts_reseparate_rotating_body_without_energy_gain() {
 }
 
 #[test]
-fn tire_recovery_after_oblique_rebound_keeps_vehicle_clear_of_wall() {
-    // Leave room for the rebound to recover on tires, away from an open road edge.
+fn tires_damp_spin_after_an_oblique_wall_slide_without_penetration() {
+    // Leave room for the slide to settle on tires, away from an open road edge.
     let city = City::from_program(
         &opencity::parse(
             "road street: carlane carlane carlane carlane carlane; end street(-25,3,-20,3); \
@@ -1089,24 +1081,23 @@ fn tire_recovery_after_oblique_rebound_keeps_vehicle_clear_of_wall() {
             vehicle.velocity = Vec3::new(angle.cos() * 20., angle.sin() * 20., 0.);
             vehicle.step(&city, Controls::default(), 0.1);
             assert_eq!(vehicle.collisions, 1);
-            assert!(vehicle.velocity.x < 0.);
-            let rebound_x = vehicle.position.x;
-            let rebound_energy = vehicle.velocity.truncate().length_squared()
-                + CHASSIS_YAW_INERTIA * vehicle.angular_velocity().z.powi(2);
+            assert!((-1.001..0.).contains(&vehicle.velocity.x));
+            let impact_y = vehicle.position.y;
+            let impact_spin = vehicle.angular_velocity().z.abs();
+            let impact_energy = vehicle.velocity.truncate().length_squared()
+                + CHASSIS_YAW_INERTIA * impact_spin.powi(2);
             for _ in 0..240 {
                 vehicle.step(&city, Controls::default(), 1. / 120.);
-                assert!(vehicle.velocity.x <= 0.);
                 assert!(vehicle.position.is_finite() && vehicle.velocity.is_finite());
                 let forward = Vec2::new(vehicle.yaw.cos(), vehicle.yaw.sin());
                 assert!(vehicle.building_contact(&city, forward).is_none());
                 let energy = vehicle.velocity.truncate().length_squared()
                     + CHASSIS_YAW_INERTIA * vehicle.angular_velocity().z.powi(2);
-                assert!(energy <= rebound_energy + 0.001);
+                assert!(energy <= impact_energy + 0.001);
             }
-            assert!(vehicle.position.x < rebound_x - 2.);
-            assert_eq!(vehicle.collisions, 1);
+            assert!((vehicle.position.y - impact_y) * angle.signum() > 0.5);
             assert!(
-                vehicle.angular_velocity().z.abs() < 0.1_f32.to_radians(),
+                vehicle.angular_velocity().z.abs() < impact_spin * 0.1,
                 "spin {:?} after impact, reverse={reverse}, angle={angle}, position={:?}, \
                  pitch={}, roll={}, grounded={}",
                 vehicle.angular_velocity(),
