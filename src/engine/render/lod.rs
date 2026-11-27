@@ -148,6 +148,10 @@ impl GpuMesh {
         });
         self.geometry(choice)
     }
+    pub(super) fn player_shadow_draw(&self) -> Option<(Draw<'_>, u32)> {
+        let index = self.instances.as_ref()?.player_shadow?;
+        Some((self.geometry(Choice::Full), index as u32))
+    }
     pub(super) fn instance_draws<'a>(
         &'a self,
         frustum: &'a Frustum,
@@ -156,9 +160,16 @@ impl GpuMesh {
         shadow: bool,
     ) -> impl Iterator<Item = (Draw<'a>, Range<u32>)> + 'a {
         let instances = self.instances.as_ref().expect("instanced draw");
+        let player = if shadow {
+            instances.player_shadow
+        } else {
+            None
+        };
+        let visible =
+            move |index| Some(index) != player && frustum.intersects(instances.bounds[index]);
         let mut index = 0;
         std::iter::from_fn(move || {
-            while index < instances.bounds.len() && !frustum.intersects(instances.bounds[index]) {
+            while index < instances.bounds.len() && !visible(index) {
                 index += 1;
             }
             if index == instances.bounds.len() {
@@ -175,7 +186,7 @@ impl GpuMesh {
             );
             index += 1;
             while index < instances.bounds.len()
-                && frustum.intersects(instances.bounds[index])
+                && visible(index)
                 && self.choice(
                     view,
                     instances.bounds[index],
@@ -244,6 +255,11 @@ impl Renderer {
                             stats.camera_vertex_buffers += u64::from(buffer) * copies;
                         }
                     }
+                }
+                if let Some((draw, _)) = mesh.player_shadow_draw() {
+                    stats.shadow_draws += 1;
+                    stats.shadow_vertices += u64::from(draw.paint);
+                    stats.shadow_vertex_buffers += u64::from(draw.paint);
                 }
             } else {
                 if camera.includes(mesh.bounds) {

@@ -13,7 +13,9 @@ pub(super) use projected_grass::SupportCache;
 mod impacts;
 mod lod;
 mod mission_markers;
+mod player_shadow;
 pub(super) use impacts::ImpactVertex;
+pub(super) use player_shadow::world_shader;
 mod snowfall;
 mod ssao;
 mod wheel_snow;
@@ -40,6 +42,8 @@ struct Camera {
     sun_color: [f32; 4],
     star_params: [f32; 4],
     star_color: [f32; 4],
+    player_light_view_projection: [[f32; 4]; 4],
+    shadow_atlas: [f32; 4],
 }
 pub struct GpuMesh {
     buffer: wgpu::Buffer,
@@ -67,6 +71,7 @@ struct Instances {
     bounds: Vec<Bounds>,
     scales: Vec<f32>,
     force_full: Vec<bool>,
+    player_shadow: Option<usize>,
 }
 #[derive(Debug)]
 #[cfg(not(target_arch = "wasm32"))]
@@ -126,6 +131,9 @@ pub struct Renderer {
     color: Option<wgpu::TextureView>,
     samples: u32,
     shadow: wgpu::TextureView,
+    world_shadow_resolution: u32,
+    player_shadow_uniform: wgpu::Buffer,
+    player_shadow_group: wgpu::BindGroup,
     pub adapter_name: String,
     hud: Hud,
     pub overlay: Overlay,
@@ -667,12 +675,26 @@ impl Renderer {
             layout: &camera_layout,
             entries: &camera_bindings,
         });
+        let player_shadow_uniform = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("player shadow camera"),
+            size: std::mem::size_of::<Camera>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        camera_bindings[0].resource = player_shadow_uniform.as_entire_binding();
+        let player_shadow_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("player shadow camera"),
+            layout: &camera_layout,
+            entries: &camera_bindings,
+        });
         let sky = Sky::new(&device, &queue, &camera_layout, format, samples);
+        let world_shadow_resolution = SHADOW_RESOLUTION
+            .min(device.limits().max_texture_dimension_2d - player_shadow::RESOLUTION);
         let shadow = depth(
             &device,
-            SHADOW_RESOLUTION,
-            SHADOW_RESOLUTION,
-            "sun shadow",
+            world_shadow_resolution + player_shadow::RESOLUTION,
+            world_shadow_resolution,
+            "sun shadow atlas",
             1,
         );
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -802,6 +824,9 @@ impl Renderer {
             color,
             samples,
             shadow,
+            world_shadow_resolution,
+            player_shadow_uniform,
+            player_shadow_group,
             adapter_name,
             hud,
             cinematic: false,
@@ -1020,6 +1045,7 @@ impl Renderer {
             bounds: Vec::new(),
             scales: Vec::new(),
             force_full: Vec::new(),
+            player_shadow: None,
         });
         mesh
     }
@@ -1046,7 +1072,16 @@ impl Renderer {
         mesh
     }
     pub fn update_instances(&self, mesh: &mut GpuMesh, transforms: &[[[f32; 4]; 4]]) {
+        self.update_actor_instances(mesh, transforms, None);
+    }
+    pub(super) fn update_actor_instances(
+        &self,
+        mesh: &mut GpuMesh,
+        transforms: &[[[f32; 4]; 4]],
+        player_shadow: Option<usize>,
+    ) {
         let instances = mesh.instances.as_mut().expect("instanced geometry");
+        instances.player_shadow = player_shadow;
         let buffer = &mut instances.buffer;
         let bytes = bytemuck::cast_slice(transforms);
         if bytes.len() as u64 > buffer.size() {
@@ -1268,6 +1303,7 @@ impl Renderer {
         let lighting = Lighting::with_settings(time, self.daylight, self.sky_settings);
         let sun = lighting.sun;
         let (view, light) = self.view_matrices(eye, look, sun);
+        let player_light = player_shadow::projection(meshes, sun);
         let camera_frustum =
             Frustum::from_matrix(view).with_underground_exits(&self.underground_exits);
         let shadow_frustum =
@@ -1303,9 +1339,27 @@ impl Renderer {
                 self.sky_settings.star_color[2],
                 lighting.star_visibility,
             ],
+            player_light_view_projection: player_light.unwrap_or(Mat4::ZERO).to_cols_array_2d(),
+            shadow_atlas: [
+                self.world_shadow_resolution as f32,
+                player_shadow::RESOLUTION as f32,
+                1. / (self.world_shadow_resolution + player_shadow::RESOLUTION) as f32,
+                1. / self.world_shadow_resolution as f32,
+            ],
         };
         self.queue
             .write_buffer(&self.uniform, 0, bytemuck::bytes_of(&data));
+        if let Some(player_light) = player_light {
+            let player_camera = Camera {
+                light_view_projection: player_light.to_cols_array_2d(),
+                ..data
+            };
+            self.queue.write_buffer(
+                &self.player_shadow_uniform,
+                0,
+                bytemuck::bytes_of(&player_camera),
+            );
+        }
         self.mission_markers.set_view(&self.queue, view);
         self.local_lights.upload(
             &self.queue,
@@ -1350,6 +1404,9 @@ impl Renderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            let resolution = self.world_shadow_resolution;
+            pass.set_viewport(0., 0., resolution as f32, resolution as f32, 0., 1.);
+            pass.set_scissor_rect(0, 0, resolution, resolution);
             pass.set_pipeline(&self.opaque_shadow_pipeline);
             pass.set_bind_group(0, &self.camera_group, &[]);
             pass.set_bind_group(3, &self.commerce.group, &[]);
@@ -1399,6 +1456,9 @@ impl Renderer {
                         draw.draw(&mut pass, 0..draw.paint, range);
                     }
                 }
+            }
+            if player_light.is_some() {
+                self.draw_player_shadows(&mut pass, meshes);
             }
         }
         {

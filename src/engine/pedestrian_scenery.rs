@@ -193,6 +193,7 @@ impl Resources {
 struct Model {
     mesh: GpuMesh,
     transforms: Vec<[[f32; 4]; 4]>,
+    player_shadow: Option<usize>,
 }
 pub(super) struct PedestrianScenery {
     models: Vec<Model>,
@@ -207,6 +208,7 @@ impl PedestrianScenery {
                 .map(|d| Model {
                     mesh: renderer.upload_skinned(&d.vertices, &d.skin),
                     transforms: Vec::new(),
+                    player_shadow: None,
                 })
                 .collect(),
             poses: Vec::with_capacity(POSE_CAPACITY),
@@ -237,15 +239,17 @@ impl PedestrianScenery {
         self.poses.clear();
         for model in &mut self.models {
             model.transforms.clear();
+            model.player_shadow = None;
         }
+        let player_model = pedestrian_catalog::player_model(world.season());
         for (index, actor) in world.pedestrian_instances().enumerate() {
+            // The world actor list reserves the seasonal player model for the avatar.
+            let player = actor.model == player_model;
             let staged = stage
                 .as_ref()
                 .filter(|_| index == 0 && !world.is_driving())
                 .and_then(|s| s.player());
-            let transform = if world.is_driving()
-                && actor.model == pedestrian_catalog::player_model(world.season())
-            {
+            let transform = if world.is_driving() && player {
                 player_delta * actor.transform
             } else if let (Some(s), Some(c)) = (stage, staged) {
                 s.anchor.render_delta(c.offset, c.yaw) * actor.transform
@@ -262,7 +266,11 @@ impl PedestrianScenery {
             };
             columns[2][3] = self.poses.len() as f32;
             columns[3][3] = actor.opacity;
-            self.models[actor.model].transforms.push(columns);
+            let model = &mut self.models[actor.model];
+            if player {
+                model.player_shadow = Some(model.transforms.len());
+            }
+            model.transforms.push(columns);
             let world_pose = if stage.is_some() && index < self.frozen_poses.len() {
                 self.frozen_poses[index]
             } else {
@@ -299,7 +307,11 @@ impl PedestrianScenery {
             .pedestrians
             .upload_poses(&renderer.queue, &self.poses);
         for model in &mut self.models {
-            renderer.update_instances(&mut model.mesh, &model.transforms);
+            renderer.update_actor_instances(
+                &mut model.mesh,
+                &model.transforms,
+                model.player_shadow,
+            );
         }
     }
     pub fn visible(&self) -> impl Iterator<Item = &GpuMesh> {

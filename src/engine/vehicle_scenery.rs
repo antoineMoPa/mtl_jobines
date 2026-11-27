@@ -8,6 +8,7 @@ mod tests;
 struct Part {
     mesh: GpuMesh,
     transforms: Vec<[[f32; 4]; 4]>,
+    player_shadow: Option<usize>,
 }
 pub(super) struct VehicleScenery {
     models: Vec<Vec<Part>>,
@@ -35,6 +36,7 @@ impl VehicleScenery {
                 .map(|(vertices, shadow)| Part {
                     mesh: renderer.upload_vehicle_lod(vertices, shadow),
                     transforms: Vec::new(),
+                    player_shadow: None,
                 })
                 .collect();
         }
@@ -81,6 +83,7 @@ impl VehicleScenery {
         renderer.local_lights.wakes.set(world.water_wakes());
         for part in self.models.iter_mut().flatten() {
             part.transforms.clear();
+            part.player_shadow = None;
         }
         let mut hulls = [crate::dynamic_world::Waterline::default(); 8];
         let mut hull_slots = hulls.iter_mut();
@@ -128,6 +131,9 @@ impl VehicleScenery {
                     0.
                 };
                 columns[2][3] = ((dents << 2) | u32::from(paint)) as f32;
+                if player && world.is_driving() {
+                    part.player_shadow = Some(part.transforms.len());
+                }
                 part.transforms.push(columns);
             }
         }
@@ -147,7 +153,7 @@ impl VehicleScenery {
         }
         renderer.local_lights.hulls.set(hulls);
         for part in self.models.iter_mut().flatten() {
-            renderer.update_instances(&mut part.mesh, &part.transforms);
+            renderer.update_actor_instances(&mut part.mesh, &part.transforms, part.player_shadow);
         }
     }
     pub fn visible(&self) -> impl Iterator<Item = &GpuMesh> {

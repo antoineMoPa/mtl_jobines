@@ -36,7 +36,7 @@ fn native_bicycle_default_vehicle_and_transparent_spokes() {
             let mut mesh = renderer.upload_instanced(&vertices);
             let mut instance = transform.to_cols_array_2d();
             instance[1][3] = 1.;
-            renderer.update_instances(&mut mesh, &[instance]);
+            renderer.update_actor_instances(&mut mesh, &[instance], Some(0));
             mesh
         })
         .collect();

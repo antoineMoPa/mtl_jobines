@@ -32,7 +32,7 @@ fn decode(bytes: &[u8]) -> (Vec<u8>, u32, u32) {
 pub(super) fn shader() -> String {
     format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
-        opencity::runtime::GAME_SHADER,
+        super::render::world_shader(),
         concat!(include_str!("snow_cache.wgsl"), include_str!("snow.wgsl")),
         include_str!("water.wgsl"),
         include_str!("shore.wgsl"),
